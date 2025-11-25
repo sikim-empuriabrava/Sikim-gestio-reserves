@@ -12,6 +12,7 @@ const config: Config = {
         background: "#0f172a",
         surface: "#111827",
         primary: {
+
           500: "#7c3aed",
           600: "#6d28d9",
           700: "#5b21b6",
@@ -19,7 +20,7 @@ const config: Config = {
         accent: "#22d3ee",
       },
       fontFamily: {
-        sans: ["Inter", "ui-sans-serif", "system-ui", "-apple-system", "BlinkMacSystemFont", "Segoe UI", "Roboto", "Helvetica Neue", "Arial", "sans-serif"],
+
       },
     },
   },
