@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { ReservasDiaDatePicker } from '@/components/ReservasDiaDatePicker';
 import { createSupabaseServerClient } from '@/lib/supabaseClient';
 
 const DATE_REGEX = /^\d{4}-\d{2}-\d{2}$/;
@@ -81,10 +82,29 @@ export default async function ReservasDiaPage({ searchParams }: ReservasDiaPageP
   if (error) {
     console.error('[Supabase error]', error);
     return (
-      <div className="p-6 space-y-4">
-        <div>
-          <h1 className="text-2xl font-semibold">Reservas por día (BD)</h1>
-          <p className="text-slate-400 text-sm">{formatDateToDisplay(selectedDate)}</p>
+      <div className="p-6 space-y-6">
+        <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+          <div>
+            <h1 className="text-2xl font-semibold">Reservas por día</h1>
+            <p className="text-slate-400 text-sm">{formatDateToDisplay(selectedDate)}</p>
+          </div>
+          <div className="flex flex-wrap items-center gap-4">
+            <ReservasDiaDatePicker selectedDate={selectedDate} />
+            <div className="flex gap-2">
+              <Link
+                href={`/reservas-dia?date=${prevDate}`}
+                className="rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-sm font-medium text-slate-100 hover:bg-slate-700"
+              >
+                Día anterior
+              </Link>
+              <Link
+                href={`/reservas-dia?date=${nextDate}`}
+                className="rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-sm font-medium text-slate-100 hover:bg-slate-700"
+              >
+                Día siguiente
+              </Link>
+            </div>
+          </div>
         </div>
         <div className="rounded-xl border border-red-900/60 bg-red-950/70 p-4 text-sm text-red-100">
           <p className="font-semibold">No se pudo cargar la información de Supabase.</p>
@@ -96,24 +116,27 @@ export default async function ReservasDiaPage({ searchParams }: ReservasDiaPageP
 
   return (
     <div className="p-6 space-y-6">
-      <div className="flex flex-wrap items-center justify-between gap-4">
+      <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
         <div>
-          <h1 className="text-2xl font-semibold">Reservas por día (BD)</h1>
+          <h1 className="text-2xl font-semibold">Reservas por día</h1>
           <p className="text-slate-400 text-sm">{formatDateToDisplay(selectedDate)}</p>
         </div>
-        <div className="flex items-center gap-2">
-          <Link
-            href={`/reservas-dia?date=${prevDate}`}
-            className="rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-sm font-medium text-slate-100 hover:bg-slate-700"
-          >
-            Día anterior
-          </Link>
-          <Link
-            href={`/reservas-dia?date=${nextDate}`}
-            className="rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-sm font-medium text-slate-100 hover:bg-slate-700"
-          >
-            Día siguiente
-          </Link>
+        <div className="flex flex-wrap items-center gap-4">
+          <ReservasDiaDatePicker selectedDate={selectedDate} />
+          <div className="flex gap-2">
+            <Link
+              href={`/reservas-dia?date=${prevDate}`}
+              className="rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-sm font-medium text-slate-100 hover:bg-slate-700"
+            >
+              Día anterior
+            </Link>
+            <Link
+              href={`/reservas-dia?date=${nextDate}`}
+              className="rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-sm font-medium text-slate-100 hover:bg-slate-700"
+            >
+              Día siguiente
+            </Link>
+          </div>
         </div>
       </div>
 
