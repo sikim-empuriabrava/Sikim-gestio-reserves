@@ -5,8 +5,7 @@ import { usePathname } from 'next/navigation';
 
 const links = [
   { href: '/', label: 'Dashboard' },
-  { href: '/reservas', label: 'Reservas' },
-  { href: '/reservas-dia', label: 'Reservas (BD)' },
+  { href: '/reservas-dia', label: 'Reservas' },
   { href: '/reservas/nueva', label: 'Nueva reserva' },
   { href: '/configuracion', label: 'Configuración' },
 ];
