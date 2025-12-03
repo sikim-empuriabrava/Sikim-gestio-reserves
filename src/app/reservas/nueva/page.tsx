@@ -120,7 +120,6 @@ export default function NuevaReservaPage() {
       entry_time: entryTime,
       adults: numeroPersonas,
       children: 0,
-      total_pax: numeroPersonas,
       has_private_dining_room: false,
       has_private_party: false,
       second_course_type: null,
