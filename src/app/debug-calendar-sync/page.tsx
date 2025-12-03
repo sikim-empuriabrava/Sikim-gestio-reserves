@@ -1,4 +1,5 @@
 import { createSupabaseServerClient } from '@/lib/supabaseClient';
+import { SyncNowButton } from './SyncNowButton';
 
 type CalendarSyncRow = {
   group_event_id: string;
@@ -58,6 +59,7 @@ export default async function DebugCalendarSyncPage() {
                 <th className="px-3 py-2 text-left">Acción</th>
                 <th className="px-3 py-2 text-left">¿Sync?</th>
                 <th className="px-3 py-2 text-left">Group ID</th>
+                <th className="px-3 py-2 text-left">Sync ahora</th>
               </tr>
             </thead>
             <tbody>
@@ -87,6 +89,9 @@ export default async function DebugCalendarSyncPage() {
                   </td>
                   <td className="px-3 py-1 text-xs text-slate-500">
                     {row.group_event_id}
+                  </td>
+                  <td className="px-3 py-1">
+                    <SyncNowButton groupEventId={row.group_event_id} />
                   </td>
                 </tr>
               ))}
