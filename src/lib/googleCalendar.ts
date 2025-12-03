@@ -6,8 +6,9 @@ function getJwtClient() {
   const clientEmail = process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL;
   const privateKey = process.env.GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY?.replace(/\\n/g, '\n');
   const calendarId = process.env.GOOGLE_CALENDAR_ID;
+  const impersonatedUser = process.env.GOOGLE_CALENDAR_IMPERSONATED_USER;
 
-  if (!clientEmail || !privateKey || !calendarId) {
+  if (!clientEmail || !privateKey || !calendarId || !impersonatedUser) {
     throw new Error('Missing Google Calendar environment variables');
   }
 
@@ -15,6 +16,7 @@ function getJwtClient() {
     email: clientEmail,
     key: privateKey,
     scopes: ['https://www.googleapis.com/auth/calendar'],
+    subject: impersonatedUser,
   });
 
   return jwtClient;
