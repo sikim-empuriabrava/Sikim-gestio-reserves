@@ -1,9 +1,15 @@
 'use client';
 
-import { FormEvent, useMemo, useState } from 'react';
+import { FormEvent, useEffect, useMemo, useState } from 'react';
 import { sampleMenus } from '@/data/sampleMenus';
 import { EleccionSegundoPlato, Turno } from '@/types/reservation';
+import { supabaseClient } from '@/lib/supabaseClient';
 import { CheckIcon, ChevronDownIcon } from '@heroicons/react/24/outline';
+
+type RoomOption = {
+  id: string;
+  name: string;
+};
 
 export default function NuevaReservaPage() {
   const [fecha, setFecha] = useState(() => new Date().toISOString().slice(0, 16));
@@ -18,6 +24,13 @@ export default function NuevaReservaPage() {
   const [notasCocina, setNotasCocina] = useState('');
   const [mesa, setMesa] = useState('');
   const [segundosSeleccionados, setSegundosSeleccionados] = useState<EleccionSegundoPlato[]>([]);
+  const [rooms, setRooms] = useState<RoomOption[]>([]);
+  const [roomId, setRoomId] = useState<string>('');
+  const [isLoadingRooms, setIsLoadingRooms] = useState(false);
+  const [loadRoomsError, setLoadRoomsError] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
+  const [submitSuccess, setSubmitSuccess] = useState<string | null>(null);
 
   const menuSeleccionado = useMemo(() => sampleMenus.find((m) => m.id === menuId), [menuId]);
 
@@ -31,24 +44,134 @@ export default function NuevaReservaPage() {
     });
   };
 
-  const handleSubmit = (event: FormEvent) => {
-    event.preventDefault();
-    const payload = {
-      fecha,
-      turno,
-      nombreCliente,
-      telefono,
-      email,
-      numeroPersonas,
-      menuId,
-      segundosSeleccionados,
-      intolerancias,
-      notasSala,
-      notasCocina,
-      mesa,
+  useEffect(() => {
+    const loadRooms = async () => {
+      setIsLoadingRooms(true);
+      setLoadRoomsError(null);
+      const { data, error } = await supabaseClient
+        .from('rooms')
+        .select('id, name')
+        .eq('is_active', true)
+        .order('sort_order', { ascending: true });
+
+      if (error) {
+        console.error('[Nueva reserva] Error cargando rooms', error);
+        setLoadRoomsError('No se han podido cargar las salas.');
+      } else {
+        const options = (data ?? []).map((r) => ({ id: r.id, name: r.name }));
+        setRooms(options);
+        if (options.length > 0) {
+          setRoomId((prev) => prev || options[0].id);
+        }
+      }
+
+      setIsLoadingRooms(false);
     };
-    console.table(payload);
-    alert('Reserva guardada localmente. ¡Listo para conectar a la base de datos!');
+
+    loadRooms();
+  }, []);
+
+  const handleSubmit = async (event: FormEvent) => {
+    event.preventDefault();
+    setSubmitError(null);
+    setSubmitSuccess(null);
+    setIsSubmitting(true);
+
+    if (!roomId) {
+      setSubmitError('Selecciona una sala para continuar.');
+      setIsSubmitting(false);
+      return;
+    }
+
+    const [datePart, timePart] = fecha.split('T');
+    const eventDate = datePart;
+    const entryTime = timePart ? `${timePart}:00` : null;
+
+    const selectedMenu = sampleMenus.find((m) => m.id === menuId);
+    let menuText: string | null = null;
+
+    if (selectedMenu) {
+      const segundosTexto = segundosSeleccionados
+        .filter((s) => s.cantidad > 0)
+        .map((s) => `- ${s.nombre}: ${s.cantidad}`)
+        .join('\n');
+
+      menuText = [
+        `Menú: ${selectedMenu.nombre}`,
+        segundosTexto ? 'Segundos:' : null,
+        segundosTexto || null,
+      ]
+        .filter(Boolean)
+        .join('\n');
+    }
+
+    const setupNotesLines = [
+      mesa ? `Mesa / zona: ${mesa}` : null,
+      notasSala ? `Notas sala: ${notasSala}` : null,
+    ].filter(Boolean);
+
+    const setupNotes = setupNotesLines.length > 0 ? setupNotesLines.join('\n') : null;
+
+    const extras = notasCocina ? `Notas cocina: ${notasCocina}` : null;
+
+    const groupEventInsert = {
+      name: nombreCliente || 'Grupo sin nombre',
+      event_date: eventDate,
+      entry_time: entryTime,
+      adults: numeroPersonas,
+      children: 0,
+      has_private_dining_room: false,
+      has_private_party: false,
+      second_course_type: null,
+      menu_text: menuText,
+      allergens_and_diets: intolerancias || null,
+      extras,
+      setup_notes: setupNotes,
+      deposit_amount: null,
+      deposit_status: null,
+      invoice_data: null,
+      status: 'confirmed' as const,
+    };
+
+    const { data: groupEventData, error: groupEventError } = await supabaseClient
+      .from('group_events')
+      .insert(groupEventInsert)
+      .select('id')
+      .single();
+
+    if (groupEventError || !groupEventData) {
+      console.error('[Nueva reserva] Error creando group_event', groupEventError);
+      setSubmitError('No se ha podido crear la reserva. Inténtalo de nuevo.');
+      setIsSubmitting(false);
+      return;
+    }
+
+    const groupEventId = groupEventData.id;
+
+    const allocationInsert = {
+      group_event_id: groupEventId,
+      room_id: roomId,
+      adults: numeroPersonas,
+      children: 0,
+      override_capacity: false,
+      notes: mesa || null,
+    };
+
+    const { error: allocationError } = await supabaseClient
+      .from('group_room_allocations')
+      .insert(allocationInsert);
+
+    if (allocationError) {
+      console.error('[Nueva reserva] Error creando group_room_allocation', allocationError);
+      setSubmitError(
+        'La reserva se ha creado, pero no se ha podido asignar a una sala. Revisa la configuración.',
+      );
+      setIsSubmitting(false);
+      return;
+    }
+
+    setSubmitSuccess('Reserva creada correctamente.');
+    setIsSubmitting(false);
   };
 
   return (
@@ -97,6 +220,26 @@ export default function NuevaReservaPage() {
                 onChange={(e) => setNumeroPersonas(parseInt(e.target.value) || 1)}
                 className="input"
               />
+            </label>
+            <label className="space-y-2">
+              <span className="label">Sala</span>
+              <div className="relative">
+                <select
+                  value={roomId}
+                  onChange={(e) => setRoomId(e.target.value)}
+                  className="input appearance-none pr-10"
+                  disabled={isLoadingRooms || rooms.length === 0}
+                  required
+                >
+                  {rooms.map((room) => (
+                    <option key={room.id} value={room.id}>
+                      {room.name}
+                    </option>
+                  ))}
+                </select>
+                <ChevronDownIcon className="pointer-events-none absolute right-3 top-3.5 h-5 w-5 text-slate-500" />
+              </div>
+              {loadRoomsError && <p className="text-xs text-red-400">{loadRoomsError}</p>}
             </label>
             <label className="space-y-2">
               <span className="label">Mesa / zona</span>
@@ -184,8 +327,11 @@ export default function NuevaReservaPage() {
                 </p>
               </div>
 
-              <button type="submit" className="button-primary w-full justify-center">
-                Guardar reserva
+              {submitError && <p className="text-sm text-red-400">{submitError}</p>}
+              {submitSuccess && <p className="text-sm text-green-400">{submitSuccess}</p>}
+
+              <button type="submit" className="button-primary w-full justify-center" disabled={isSubmitting}>
+                {isSubmitting ? 'Guardando...' : 'Guardar reserva'}
               </button>
             </div>
           )}
