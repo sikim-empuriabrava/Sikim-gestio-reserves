@@ -62,6 +62,13 @@ export default function NuevaReservaPage() {
 
   const menuSeleccionado = useMemo(() => sampleMenus.find((m) => m.id === menuId), [menuId]);
 
+  const updateEntrecotPoint = (key: keyof EntrecotPoints, value: number) => {
+    setEntrecotPoints((prev) => ({
+      ...prev,
+      [key]: Math.max(0, value),
+    }));
+  };
+
   const handleSegundoChange = (segundoId: string, nombre: string, cantidad: number) => {
     setSegundosSeleccionados((prev) => {
       const existing = prev.find((s) => s.segundoId === segundoId);
@@ -448,32 +455,82 @@ export default function NuevaReservaPage() {
                       </div>
 
                       {segundo.id === 'entrecot' && (
-                        <div className="grid gap-2 sm:grid-cols-2 md:grid-cols-3">
-                          {[
-                            { key: 'muyPoco', label: 'Muy poco hecho' },
-                            { key: 'poco', label: 'Poco hecho' },
-                            { key: 'alPunto', label: 'Al punto' },
-                            { key: 'hecho', label: 'Hecho' },
-                            { key: 'muyHecho', label: 'Muy hecho' },
-                          ].map((punto) => (
-                            <label key={punto.key} className="space-y-1 text-xs text-slate-200">
-                              <span className="block text-[11px] uppercase tracking-wide text-slate-400">
-                                {punto.label}
-                              </span>
-                              <input
-                                type="number"
-                                min={0}
-                                className="input w-full"
-                                value={entrecotPoints[punto.key as keyof EntrecotPoints]}
-                                onChange={(e) =>
-                                  setEntrecotPoints((prev) => ({
-                                    ...prev,
-                                    [punto.key]: parseInt(e.target.value) || 0,
-                                  }))
-                                }
-                              />
-                            </label>
-                          ))}
+                        <div className="space-y-3 rounded-lg border border-slate-800 bg-slate-900/40 p-3">
+                          <div className="flex items-center justify-between gap-3 text-xs uppercase tracking-wide text-slate-400">
+                            <span>Puntos de cocción (asigna personas)</span>
+                            <span>
+                              {`Entrecots: ${segundosSeleccionados.find((s) => s.segundoId === 'entrecot')?.cantidad ?? 0} · Puntos: ${
+                                entrecotPoints.muyPoco +
+                                entrecotPoints.poco +
+                                entrecotPoints.alPunto +
+                                entrecotPoints.hecho +
+                                entrecotPoints.muyHecho
+                              }`}
+                            </span>
+                          </div>
+
+                          {(
+                            [
+                              { key: 'muyPoco', label: 'Muy poco hecho' },
+                              { key: 'poco', label: 'Poco hecho' },
+                              { key: 'alPunto', label: 'Al punto' },
+                              { key: 'hecho', label: 'Hecho' },
+                              { key: 'muyHecho', label: 'Muy hecho' },
+                            ] as { key: keyof EntrecotPoints; label: string }[]
+                          ).map((punto) => {
+                            const currentValue = entrecotPoints[punto.key];
+                            const maxEntrecotPeople = Math.max(
+                              segundosSeleccionados.find((s) => s.segundoId === 'entrecot')?.cantidad ?? 0,
+                              numeroPersonas,
+                              currentValue,
+                              10,
+                            );
+                            const options = Array.from({ length: maxEntrecotPeople + 1 }, (_, i) => i);
+
+                            return (
+                              <div
+                                key={punto.key}
+                                className="flex flex-col gap-1 rounded-md border border-slate-800/60 bg-slate-950/40 px-3 py-2 md:flex-row md:items-center md:justify-between"
+                              >
+                                <div>
+                                  <p className="text-sm font-semibold text-white">{punto.label}</p>
+                                  <p className="text-xs text-slate-400">Personas en este punto</p>
+                                </div>
+
+                                <div className="flex items-center gap-2">
+                                  <button
+                                    type="button"
+                                    className="rounded-md border border-slate-700 px-2 py-1 text-sm text-slate-200 hover:bg-slate-800"
+                                    onClick={() => updateEntrecotPoint(punto.key, currentValue - 1)}
+                                    aria-label={`Restar ${punto.label}`}
+                                  >
+                                    -
+                                  </button>
+
+                                  <select
+                                    className="input w-28 appearance-none pr-8 text-sm"
+                                    value={currentValue}
+                                    onChange={(e) => updateEntrecotPoint(punto.key, parseInt(e.target.value) || 0)}
+                                  >
+                                    {options.map((option) => (
+                                      <option key={option} value={option}>
+                                        {option} persona{option === 1 ? '' : 's'}
+                                      </option>
+                                    ))}
+                                  </select>
+
+                                  <button
+                                    type="button"
+                                    className="rounded-md border border-slate-700 px-2 py-1 text-sm text-slate-200 hover:bg-slate-800"
+                                    onClick={() => updateEntrecotPoint(punto.key, Math.min(currentValue + 1, maxEntrecotPeople))}
+                                    aria-label={`Sumar ${punto.label}`}
+                                  >
+                                    +
+                                  </button>
+                                </div>
+                              </div>
+                            );
+                          })}
                         </div>
                       )}
                     </div>
