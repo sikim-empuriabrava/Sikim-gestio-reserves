@@ -153,7 +153,6 @@ export default function NuevaReservaPage() {
       room_id: roomId,
       adults: numeroPersonas,
       children: 0,
-      total_pax: numeroPersonas,
       override_capacity: false,
       notes: mesa || null,
     };
