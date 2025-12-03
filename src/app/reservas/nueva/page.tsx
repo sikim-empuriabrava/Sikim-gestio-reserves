@@ -1,6 +1,6 @@
 'use client';
 
-import { FormEvent, useEffect, useMemo, useState } from 'react';
+import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
 import { sampleMenus } from '@/data/sampleMenus';
 import { EleccionSegundoPlato, Turno } from '@/types/reservation';
 import { supabaseClient } from '@/lib/supabaseClient';
@@ -109,7 +109,7 @@ export default function NuevaReservaPage() {
     ]);
   };
 
-  const validateMenus = () => {
+  const validateMenus = useCallback(() => {
     const totalSegundosBase = segundosSeleccionados.reduce((sum, s) => sum + s.cantidad, 0);
     const totalCustom = customSeconds.reduce((sum, s) => sum + s.cantidad, 0);
     const totalMenusAsignados = totalSegundosBase + totalCustom;
@@ -141,7 +141,7 @@ export default function NuevaReservaPage() {
     }
 
     return totalMenusAsignados === numeroPersonas && (totalEntrecot === 0 || totalPuntosEntrecot === totalEntrecot);
-  };
+  }, [customSeconds, entrecotPoints, numeroPersonas, segundosSeleccionados]);
 
   useEffect(() => {
     const loadRooms = async () => {
@@ -172,7 +172,7 @@ export default function NuevaReservaPage() {
 
   useEffect(() => {
     validateMenus();
-  }, [numeroPersonas, segundosSeleccionados, customSeconds, entrecotPoints]);
+  }, [validateMenus]);
 
   const handleSubmit = async (event: FormEvent) => {
     event.preventDefault();
@@ -204,17 +204,6 @@ export default function NuevaReservaPage() {
         return;
       }
     }
-
-    const totalSegundosBase = segundosSeleccionados.reduce((sum, s) => sum + s.cantidad, 0);
-    const totalCustom = customSeconds.reduce((sum, s) => sum + s.cantidad, 0);
-    const totalMenusAsignados = totalSegundosBase + totalCustom;
-
-    const totalPuntosEntrecot =
-      entrecotPoints.crudo +
-      entrecotPoints.poco +
-      entrecotPoints.alPunto +
-      entrecotPoints.hecho +
-      entrecotPoints.muyHecho;
 
     const entrecotSeleccionado = segundosSeleccionados.find((s) => s.segundoId === 'entrecot');
     const totalEntrecot = entrecotSeleccionado?.cantidad ?? 0;
