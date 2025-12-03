@@ -6,6 +6,24 @@ import { EleccionSegundoPlato, Turno } from '@/types/reservation';
 import { supabaseClient } from '@/lib/supabaseClient';
 import { CheckIcon, ChevronDownIcon } from '@heroicons/react/24/outline';
 
+type EntrecotPoints = {
+  muyPoco: number;
+  poco: number;
+  alPunto: number;
+  hecho: number;
+  muyHecho: number;
+};
+
+type CustomSecondType = 'especial' | 'infantil';
+
+type CustomSecond = {
+  id: string;
+  tipo: CustomSecondType;
+  nombre: string;
+  cantidad: number;
+  notas: string;
+};
+
 type RoomOption = {
   id: string;
   name: string;
@@ -24,6 +42,16 @@ export default function NuevaReservaPage() {
   const [notasCocina, setNotasCocina] = useState('');
   const [mesa, setMesa] = useState('');
   const [segundosSeleccionados, setSegundosSeleccionados] = useState<EleccionSegundoPlato[]>([]);
+  const [entrecotPoints, setEntrecotPoints] = useState<EntrecotPoints>({
+    muyPoco: 0,
+    poco: 0,
+    alPunto: 0,
+    hecho: 0,
+    muyHecho: 0,
+  });
+  const [customSeconds, setCustomSeconds] = useState<CustomSecond[]>([]);
+  const [warningMenus, setWarningMenus] = useState<string | null>(null);
+  const [warningEntrecot, setWarningEntrecot] = useState<string | null>(null);
   const [rooms, setRooms] = useState<RoomOption[]>([]);
   const [roomId, setRoomId] = useState<string>('');
   const [isLoadingRooms, setIsLoadingRooms] = useState(false);
@@ -42,6 +70,32 @@ export default function NuevaReservaPage() {
       }
       return [...prev, { segundoId, nombre, cantidad }];
     });
+  };
+
+  const handleAddCustomMenu = () => {
+    setCustomSeconds((prev) => [
+      ...prev,
+      {
+        id: crypto.randomUUID(),
+        tipo: 'especial',
+        nombre: '',
+        cantidad: 1,
+        notas: '',
+      },
+    ]);
+  };
+
+  const handleAddInfantilMenu = () => {
+    setCustomSeconds((prev) => [
+      ...prev,
+      {
+        id: crypto.randomUUID(),
+        tipo: 'infantil',
+        nombre: 'Menú infantil',
+        cantidad: 1,
+        notas: '',
+      },
+    ]);
   };
 
   useEffect(() => {
@@ -88,21 +142,101 @@ export default function NuevaReservaPage() {
     const entryTime = timePart ? `${timePart}:00` : null;
 
     const selectedMenu = sampleMenus.find((m) => m.id === menuId);
+    const totalSegundosBase = segundosSeleccionados.reduce((sum, s) => sum + s.cantidad, 0);
+    const totalCustom = customSeconds.reduce((sum, s) => sum + s.cantidad, 0);
+    const totalMenusAsignados = totalSegundosBase + totalCustom;
+
+    const totalPuntosEntrecot =
+      entrecotPoints.muyPoco +
+      entrecotPoints.poco +
+      entrecotPoints.alPunto +
+      entrecotPoints.hecho +
+      entrecotPoints.muyHecho;
+
+    const entrecotSeleccionado = segundosSeleccionados.find((s) => s.segundoId === 'entrecot');
+    const totalEntrecot = entrecotSeleccionado?.cantidad ?? 0;
+
+    if (totalMenusAsignados !== numeroPersonas) {
+      setWarningMenus(
+        `Hay ${numeroPersonas} personas pero has asignado ${totalMenusAsignados} menús. Revisa si falta alguien o si sobra algún menú.`,
+      );
+    } else {
+      setWarningMenus(null);
+    }
+
+    if (totalEntrecot > 0 && totalPuntosEntrecot !== totalEntrecot) {
+      setWarningEntrecot(
+        `Has pedido ${totalEntrecot} entrecots pero la suma de puntos de cocción es ${totalPuntosEntrecot}.`,
+      );
+    } else {
+      setWarningEntrecot(null);
+    }
+
     let menuText: string | null = null;
 
     if (selectedMenu) {
-      const segundosTexto = segundosSeleccionados
+      const segundosBaseTexto = segundosSeleccionados
         .filter((s) => s.cantidad > 0)
         .map((s) => `- ${s.nombre}: ${s.cantidad}`)
         .join('\n');
 
-      menuText = [
-        `Menú: ${selectedMenu.nombre}`,
-        segundosTexto ? 'Segundos:' : null,
-        segundosTexto || null,
-      ]
-        .filter(Boolean)
-        .join('\n');
+      let detalleEntrecot: string | null = null;
+
+      if (totalEntrecot > 0) {
+        const partes: string[] = [];
+
+        if (entrecotPoints.muyPoco > 0) partes.push(`Muy poco hecho: ${entrecotPoints.muyPoco}`);
+        if (entrecotPoints.poco > 0) partes.push(`Poco hecho: ${entrecotPoints.poco}`);
+        if (entrecotPoints.alPunto > 0) partes.push(`Al punto: ${entrecotPoints.alPunto}`);
+        if (entrecotPoints.hecho > 0) partes.push(`Hecho: ${entrecotPoints.hecho}`);
+        if (entrecotPoints.muyHecho > 0) partes.push(`Muy hecho: ${entrecotPoints.muyHecho}`);
+
+        if (partes.length > 0) {
+          detalleEntrecot = `Entrecot a la brasa (puntos):\n${partes.map((p) => `  · ${p}`).join('\n')}`;
+        }
+      }
+
+      const especiales = customSeconds.filter((s) => s.tipo === 'especial');
+      const infantiles = customSeconds.filter((s) => s.tipo === 'infantil');
+
+      const especialesTexto =
+        especiales.length > 0
+          ? [
+              'Segundos personalizados / menús especiales:',
+              ...especiales.map(
+                (s) =>
+                  `- ${s.nombre || 'Menú especial'}: ${s.cantidad} pax${
+                    s.notas ? ` (Notas: ${s.notas})` : ''
+                  }`,
+              ),
+            ].join('\n')
+          : null;
+
+      const infantilesTexto =
+        infantiles.length > 0
+          ? [
+              'Menús infantiles:',
+              ...infantiles.map(
+                (s) =>
+                  `- ${s.nombre || 'Menú infantil'}: ${s.cantidad} pax${
+                    s.notas ? ` (Notas: ${s.notas})` : ''
+                  }`,
+              ),
+            ].join('\n')
+          : null;
+
+      const partesMenuText = [
+        selectedMenu ? `Menú asignado: ${selectedMenu.nombre}` : null,
+        segundosBaseTexto ? 'Segundos estándar:' : null,
+        segundosBaseTexto || null,
+        detalleEntrecot,
+        especialesTexto,
+        infantilesTexto,
+      ];
+
+      menuText = partesMenuText
+        .filter((p) => p && p.toString().trim().length > 0)
+        .join('\n\n') || null;
     }
 
     const setupNotesLines = [
@@ -295,18 +429,135 @@ export default function NuevaReservaPage() {
                 <p className="text-xs text-slate-400">Indica cantidades para cocina.</p>
                 <div className="mt-3 space-y-2">
                   {menuSeleccionado.segundos.map((segundo) => (
-                    <div key={segundo.id} className="flex items-center justify-between rounded-lg border border-slate-800 bg-slate-900/50 p-3">
-                      <div>
-                        <p className="font-semibold text-white">{segundo.nombre}</p>
-                        <p className="text-xs text-slate-400">{segundo.descripcion}</p>
+                    <div
+                      key={segundo.id}
+                      className="space-y-3 rounded-lg border border-slate-800 bg-slate-900/50 p-3"
+                    >
+                      <div className="flex items-center justify-between gap-3">
+                        <div>
+                          <p className="font-semibold text-white">{segundo.nombre}</p>
+                          <p className="text-xs text-slate-400">{segundo.descripcion}</p>
+                        </div>
+                        <input
+                          type="number"
+                          min={0}
+                          className="input w-24"
+                          value={segundosSeleccionados.find((s) => s.segundoId === segundo.id)?.cantidad ?? 0}
+                          onChange={(e) => handleSegundoChange(segundo.id, segundo.nombre, parseInt(e.target.value) || 0)}
+                        />
                       </div>
-                      <input
-                        type="number"
-                        min={0}
-                        className="input w-24"
-                        value={segundosSeleccionados.find((s) => s.segundoId === segundo.id)?.cantidad ?? 0}
-                        onChange={(e) => handleSegundoChange(segundo.id, segundo.nombre, parseInt(e.target.value) || 0)}
-                      />
+
+                      {segundo.id === 'entrecot' && (
+                        <div className="grid gap-2 sm:grid-cols-2 md:grid-cols-3">
+                          {[
+                            { key: 'muyPoco', label: 'Muy poco hecho' },
+                            { key: 'poco', label: 'Poco hecho' },
+                            { key: 'alPunto', label: 'Al punto' },
+                            { key: 'hecho', label: 'Hecho' },
+                            { key: 'muyHecho', label: 'Muy hecho' },
+                          ].map((punto) => (
+                            <label key={punto.key} className="space-y-1 text-xs text-slate-200">
+                              <span className="block text-[11px] uppercase tracking-wide text-slate-400">
+                                {punto.label}
+                              </span>
+                              <input
+                                type="number"
+                                min={0}
+                                className="input w-full"
+                                value={entrecotPoints[punto.key as keyof EntrecotPoints]}
+                                onChange={(e) =>
+                                  setEntrecotPoints((prev) => ({
+                                    ...prev,
+                                    [punto.key]: parseInt(e.target.value) || 0,
+                                  }))
+                                }
+                              />
+                            </label>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <p className="text-sm font-semibold text-white">Menús personalizados e infantiles</p>
+                <div className="flex gap-2">
+                  <button type="button" className="button-secondary" onClick={handleAddCustomMenu}>
+                    + Crear menú personalizado
+                  </button>
+                  <button type="button" className="button-secondary" onClick={handleAddInfantilMenu}>
+                    + Menú infantil
+                  </button>
+                </div>
+
+                <div className="space-y-3">
+                  {customSeconds.map((custom) => (
+                    <div
+                      key={custom.id}
+                      className="space-y-3 rounded-lg border border-slate-800 bg-slate-900/60 p-3"
+                    >
+                      <div className="flex items-center justify-between text-xs uppercase tracking-wide text-slate-400">
+                        <span>
+                          {custom.tipo === 'especial' ? 'Menú especial' : 'Menú infantil'}
+                        </span>
+                        <button
+                          type="button"
+                          className="text-xs text-red-300 hover:text-red-200"
+                          onClick={() => setCustomSeconds((prev) => prev.filter((c) => c.id !== custom.id))}
+                        >
+                          Eliminar
+                        </button>
+                      </div>
+
+                      <div className="grid gap-3 sm:grid-cols-2">
+                        <label className="space-y-1 text-sm text-slate-200">
+                          <span className="label text-xs">Nombre</span>
+                          <input
+                            className="input"
+                            value={custom.nombre}
+                            onChange={(e) =>
+                              setCustomSeconds((prev) =>
+                                prev.map((c) =>
+                                  c.id === custom.id ? { ...c, nombre: e.target.value } : c,
+                                ),
+                              )
+                            }
+                            placeholder="Ej: Vegano sin soja"
+                          />
+                        </label>
+                        <label className="space-y-1 text-sm text-slate-200">
+                          <span className="label text-xs">Cantidad</span>
+                          <input
+                            type="number"
+                            min={0}
+                            className="input"
+                            value={custom.cantidad}
+                            onChange={(e) =>
+                              setCustomSeconds((prev) =>
+                                prev.map((c) =>
+                                  c.id === custom.id ? { ...c, cantidad: parseInt(e.target.value) || 0 } : c,
+                                ),
+                              )
+                            }
+                          />
+                        </label>
+                      </div>
+
+                      <label className="space-y-1 text-sm text-slate-200">
+                        <span className="label text-xs">Notas</span>
+                        <textarea
+                          className="input"
+                          value={custom.notas}
+                          onChange={(e) =>
+                            setCustomSeconds((prev) =>
+                              prev.map((c) => (c.id === custom.id ? { ...c, notas: e.target.value } : c)),
+                            )
+                          }
+                          placeholder="Indicaciones específicas"
+                        />
+                      </label>
                     </div>
                   ))}
                 </div>
@@ -329,6 +580,8 @@ export default function NuevaReservaPage() {
 
               {submitError && <p className="text-sm text-red-400">{submitError}</p>}
               {submitSuccess && <p className="text-sm text-green-400">{submitSuccess}</p>}
+              {warningMenus && <p className="text-sm text-amber-300">{warningMenus}</p>}
+              {warningEntrecot && <p className="text-sm text-amber-300">{warningEntrecot}</p>}
 
               <button type="submit" className="button-primary w-full justify-center" disabled={isSubmitting}>
                 {isSubmitting ? 'Guardando...' : 'Guardar reserva'}
