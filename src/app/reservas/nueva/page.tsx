@@ -7,7 +7,7 @@ import { supabaseClient } from '@/lib/supabaseClient';
 import { CheckIcon, ChevronDownIcon } from '@heroicons/react/24/outline';
 
 type EntrecotPoints = {
-  muyPoco: number;
+  crudo: number;
   poco: number;
   alPunto: number;
   hecho: number;
@@ -22,6 +22,8 @@ type CustomSecond = {
   nombre: string;
   cantidad: number;
   notas: string;
+  notasPrimeros?: string;
+  notasSegundos?: string;
 };
 
 type RoomOption = {
@@ -43,7 +45,7 @@ export default function NuevaReservaPage() {
   const [mesa, setMesa] = useState('');
   const [segundosSeleccionados, setSegundosSeleccionados] = useState<EleccionSegundoPlato[]>([]);
   const [entrecotPoints, setEntrecotPoints] = useState<EntrecotPoints>({
-    muyPoco: 0,
+    crudo: 0,
     poco: 0,
     alPunto: 0,
     hecho: 0,
@@ -101,8 +103,44 @@ export default function NuevaReservaPage() {
         nombre: 'Menú infantil',
         cantidad: 1,
         notas: '',
+        notasPrimeros: 'Fingers de pollo, croquetas de jamón con patatas',
+        notasSegundos: 'Macarrones o hamburguesa (o indicar segundo personalizado)',
       },
     ]);
+  };
+
+  const validateMenus = () => {
+    const totalSegundosBase = segundosSeleccionados.reduce((sum, s) => sum + s.cantidad, 0);
+    const totalCustom = customSeconds.reduce((sum, s) => sum + s.cantidad, 0);
+    const totalMenusAsignados = totalSegundosBase + totalCustom;
+
+    const totalPuntosEntrecot =
+      entrecotPoints.crudo +
+      entrecotPoints.poco +
+      entrecotPoints.alPunto +
+      entrecotPoints.hecho +
+      entrecotPoints.muyHecho;
+
+    const entrecotSeleccionado = segundosSeleccionados.find((s) => s.segundoId === 'entrecot');
+    const totalEntrecot = entrecotSeleccionado?.cantidad ?? 0;
+
+    if (totalMenusAsignados !== numeroPersonas) {
+      setWarningMenus(
+        `Hay ${numeroPersonas} personas pero has asignado ${totalMenusAsignados} menús. Revisa si falta alguien o si sobra algún menú.`,
+      );
+    } else {
+      setWarningMenus(null);
+    }
+
+    if (totalEntrecot > 0 && totalPuntosEntrecot !== totalEntrecot) {
+      setWarningEntrecot(
+        `Has pedido ${totalEntrecot} entrecots pero la suma de puntos de cocción es ${totalPuntosEntrecot}.`,
+      );
+    } else {
+      setWarningEntrecot(null);
+    }
+
+    return totalMenusAsignados === numeroPersonas && (totalEntrecot === 0 || totalPuntosEntrecot === totalEntrecot);
   };
 
   useEffect(() => {
@@ -132,6 +170,10 @@ export default function NuevaReservaPage() {
     loadRooms();
   }, []);
 
+  useEffect(() => {
+    validateMenus();
+  }, [numeroPersonas, segundosSeleccionados, customSeconds, entrecotPoints]);
+
   const handleSubmit = async (event: FormEvent) => {
     event.preventDefault();
     setSubmitError(null);
@@ -149,12 +191,26 @@ export default function NuevaReservaPage() {
     const entryTime = timePart ? `${timePart}:00` : null;
 
     const selectedMenu = sampleMenus.find((m) => m.id === menuId);
+
+    const isValid = validateMenus();
+
+    if (!isValid) {
+      const proceed = window.confirm(
+        'Hay descuadres entre número de personas, menús asignados o puntos de cocción del entrecot. ¿Quieres guardar la reserva igualmente?',
+      );
+
+      if (!proceed) {
+        setIsSubmitting(false);
+        return;
+      }
+    }
+
     const totalSegundosBase = segundosSeleccionados.reduce((sum, s) => sum + s.cantidad, 0);
     const totalCustom = customSeconds.reduce((sum, s) => sum + s.cantidad, 0);
     const totalMenusAsignados = totalSegundosBase + totalCustom;
 
     const totalPuntosEntrecot =
-      entrecotPoints.muyPoco +
+      entrecotPoints.crudo +
       entrecotPoints.poco +
       entrecotPoints.alPunto +
       entrecotPoints.hecho +
@@ -162,22 +218,6 @@ export default function NuevaReservaPage() {
 
     const entrecotSeleccionado = segundosSeleccionados.find((s) => s.segundoId === 'entrecot');
     const totalEntrecot = entrecotSeleccionado?.cantidad ?? 0;
-
-    if (totalMenusAsignados !== numeroPersonas) {
-      setWarningMenus(
-        `Hay ${numeroPersonas} personas pero has asignado ${totalMenusAsignados} menús. Revisa si falta alguien o si sobra algún menú.`,
-      );
-    } else {
-      setWarningMenus(null);
-    }
-
-    if (totalEntrecot > 0 && totalPuntosEntrecot !== totalEntrecot) {
-      setWarningEntrecot(
-        `Has pedido ${totalEntrecot} entrecots pero la suma de puntos de cocción es ${totalPuntosEntrecot}.`,
-      );
-    } else {
-      setWarningEntrecot(null);
-    }
 
     let menuText: string | null = null;
 
@@ -192,7 +232,7 @@ export default function NuevaReservaPage() {
       if (totalEntrecot > 0) {
         const partes: string[] = [];
 
-        if (entrecotPoints.muyPoco > 0) partes.push(`Muy poco hecho: ${entrecotPoints.muyPoco}`);
+        if (entrecotPoints.crudo > 0) partes.push(`Crudo: ${entrecotPoints.crudo}`);
         if (entrecotPoints.poco > 0) partes.push(`Poco hecho: ${entrecotPoints.poco}`);
         if (entrecotPoints.alPunto > 0) partes.push(`Al punto: ${entrecotPoints.alPunto}`);
         if (entrecotPoints.hecho > 0) partes.push(`Hecho: ${entrecotPoints.hecho}`);
@@ -225,9 +265,15 @@ export default function NuevaReservaPage() {
               'Menús infantiles:',
               ...infantiles.map(
                 (s) =>
-                  `- ${s.nombre || 'Menú infantil'}: ${s.cantidad} pax${
-                    s.notas ? ` (Notas: ${s.notas})` : ''
-                  }`,
+                  [
+                    `- ${s.nombre || 'Menú infantil'}: ${s.cantidad} pax`,
+                    `  Primeros: ${
+                      s.notasPrimeros?.trim() || 'Fingers de pollo, croquetas de jamón con patatas'
+                    }`,
+                    `  Segundos: ${
+                      s.notasSegundos?.trim() || 'Macarrones o hamburguesa (o indicar segundo personalizado)'
+                    }`,
+                  ].join('\n'),
               ),
             ].join('\n')
           : null;
@@ -460,7 +506,7 @@ export default function NuevaReservaPage() {
                             <span>Puntos de cocción (asigna personas)</span>
                             <span>
                               {`Entrecots: ${segundosSeleccionados.find((s) => s.segundoId === 'entrecot')?.cantidad ?? 0} · Puntos: ${
-                                entrecotPoints.muyPoco +
+                                entrecotPoints.crudo +
                                 entrecotPoints.poco +
                                 entrecotPoints.alPunto +
                                 entrecotPoints.hecho +
@@ -471,7 +517,7 @@ export default function NuevaReservaPage() {
 
                           {(
                             [
-                              { key: 'muyPoco', label: 'Muy poco hecho' },
+                              { key: 'crudo', label: 'Crudo' },
                               { key: 'poco', label: 'Poco hecho' },
                               { key: 'alPunto', label: 'Al punto' },
                               { key: 'hecho', label: 'Hecho' },
@@ -602,19 +648,58 @@ export default function NuevaReservaPage() {
                         </label>
                       </div>
 
-                      <label className="space-y-1 text-sm text-slate-200">
-                        <span className="label text-xs">Notas</span>
-                        <textarea
-                          className="input"
-                          value={custom.notas}
-                          onChange={(e) =>
-                            setCustomSeconds((prev) =>
-                              prev.map((c) => (c.id === custom.id ? { ...c, notas: e.target.value } : c)),
-                            )
-                          }
-                          placeholder="Indicaciones específicas"
-                        />
-                      </label>
+                      {custom.tipo === 'especial' ? (
+                        <label className="space-y-1 text-sm text-slate-200">
+                          <span className="label text-xs">Notas</span>
+                          <textarea
+                            className="input"
+                            value={custom.notas}
+                            onChange={(e) =>
+                              setCustomSeconds((prev) =>
+                                prev.map((c) => (c.id === custom.id ? { ...c, notas: e.target.value } : c)),
+                              )
+                            }
+                            placeholder="Indicaciones específicas"
+                          />
+                        </label>
+                      ) : (
+                        <div className="space-y-3">
+                          <label className="space-y-1 text-sm text-slate-200">
+                            <span className="label text-xs">Primeros</span>
+                            <textarea
+                              className="input"
+                              value={custom.notasPrimeros ?? ''}
+                              onChange={(e) =>
+                                setCustomSeconds((prev) =>
+                                  prev.map((c) =>
+                                    c.id === custom.id
+                                      ? { ...c, notasPrimeros: e.target.value }
+                                      : c,
+                                  ),
+                                )
+                              }
+                              placeholder="Fingers de pollo, croquetas de jamón con patatas"
+                            />
+                          </label>
+                          <label className="space-y-1 text-sm text-slate-200">
+                            <span className="label text-xs">Segundos</span>
+                            <textarea
+                              className="input"
+                              value={custom.notasSegundos ?? ''}
+                              onChange={(e) =>
+                                setCustomSeconds((prev) =>
+                                  prev.map((c) =>
+                                    c.id === custom.id
+                                      ? { ...c, notasSegundos: e.target.value }
+                                      : c,
+                                  ),
+                                )
+                              }
+                              placeholder="Macarrones o hamburguesa (o indicar segundo personalizado)"
+                            />
+                          </label>
+                        </div>
+                      )}
                     </div>
                   ))}
                 </div>
