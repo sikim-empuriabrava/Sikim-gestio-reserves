@@ -1,5 +1,5 @@
 import { redirect } from 'next/navigation';
 
 export default function ReservasSemanaRedirectPage() {
-  redirect('/reservas-dia');
+  redirect('/reservas?view=week');
 }

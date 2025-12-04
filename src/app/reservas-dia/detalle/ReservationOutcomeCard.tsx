@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useState } from 'react';
 
 const statusStyles: Record<string, string> = {
@@ -19,6 +20,7 @@ type ReservationOutcomeCardProps = {
   hasPrivateParty?: boolean | null;
   serviceOutcome?: string | null;
   serviceOutcomeNotes?: string | null;
+  eventDate?: string;
 };
 
 export function ReservationOutcomeCard({
@@ -32,6 +34,7 @@ export function ReservationOutcomeCard({
   hasPrivateParty,
   serviceOutcome,
   serviceOutcomeNotes,
+  eventDate,
 }: ReservationOutcomeCardProps) {
   const [currentOutcome, setCurrentOutcome] = useState(serviceOutcome ?? 'normal');
   const [notes, setNotes] = useState(serviceOutcomeNotes ?? '');
@@ -81,9 +84,17 @@ export function ReservationOutcomeCard({
             {hasPrivateParty && <span className="rounded-full bg-slate-800 px-2 py-0.5">Fiesta privada</span>}
           </div>
         </div>
-        <span className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold ${statusClass}`}>
-          {status}
-        </span>
+        <div className="flex items-center gap-3">
+          <span className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold ${statusClass}`}>
+            {status}
+          </span>
+          <Link
+            href={eventDate ? `/reservas/grupo/${groupEventId}` : `/reservas/grupo/${groupEventId}`}
+            className="text-xs font-semibold text-emerald-300 hover:underline"
+          >
+            Ver detalle
+          </Link>
+        </div>
       </div>
 
       <div className="grid gap-3 md:grid-cols-[200px,1fr]">

@@ -1,160 +1,568 @@
-'use client';
-
-import { useMemo, useState } from 'react';
-import { CalendarDaysIcon, FunnelIcon, MagnifyingGlassIcon, PhoneIcon } from '@heroicons/react/24/outline';
 import Link from 'next/link';
-import { sampleReservations } from '@/data/sampleReservations';
-import { sampleMenus } from '@/data/sampleMenus';
-import { EstadoReserva } from '@/types/reservation';
+import { createSupabaseServerClient } from '@/lib/supabaseClient';
+import { DayNotesPanel } from '../reservas-dia/detalle/DayNotesPanel';
+import { ReservationOutcomeCard } from '../reservas-dia/detalle/ReservationOutcomeCard';
 
-const estados: EstadoReserva[] = ['pendiente', 'confirmada', 'cancelada'];
+const DATE_REGEX = /^\d{4}-\d{2}-\d{2}$/;
 
-function formatDate(fecha: string) {
-  return new Intl.DateTimeFormat('es-ES', {
-    day: '2-digit',
-    month: 'short',
-    hour: '2-digit',
-    minute: '2-digit',
-  }).format(new Date(fecha));
+type SearchParams = {
+  view?: string;
+  date?: string;
+};
+
+type DayStatusRow = {
+  event_date: string;
+  is_validated?: boolean | null;
+  validated?: boolean | null;
+  needs_revalidation?: boolean | null;
+  notes_general?: string | null;
+  notes_kitchen?: string | null;
+  notes_maintenance?: string | null;
+  last_validated_by?: string | null;
+  last_validated_at?: string | null;
+};
+
+type GroupEventDailyDetail = {
+  event_date: string;
+  entry_time: string | null;
+  group_event_id: string;
+  group_name: string;
+  status: string;
+  total_pax: number | null;
+  room_name?: string | null;
+  has_private_dining_room?: boolean | null;
+  has_private_party?: boolean | null;
+  service_outcome?: string | null;
+  service_outcome_notes?: string | null;
+};
+
+function toISODate(date: Date) {
+  return date.toISOString().slice(0, 10);
 }
 
-function statusBadgeClass(estado: EstadoReserva) {
-  switch (estado) {
-    case 'confirmada':
-      return 'bg-green-500/15 text-green-200';
-    case 'pendiente':
-      return 'bg-amber-500/15 text-amber-200';
+function parseDate(input?: string) {
+  if (input && DATE_REGEX.test(input)) {
+    return new Date(input);
+  }
+  return new Date();
+}
+
+function startOfWeek(date: Date) {
+  const day = date.getDay();
+  const diff = day === 0 ? -6 : 1 - day;
+  const monday = new Date(date);
+  monday.setDate(date.getDate() + diff);
+  return monday;
+}
+
+function addDays(dateString: string, days: number) {
+  const d = new Date(dateString);
+  d.setDate(d.getDate() + days);
+  return toISODate(d);
+}
+
+function startOfMonth(date: Date) {
+  const d = new Date(date);
+  d.setDate(1);
+  d.setHours(0, 0, 0, 0);
+  return d;
+}
+
+function endOfMonth(date: Date) {
+  const d = startOfMonth(date);
+  d.setMonth(d.getMonth() + 1);
+  d.setDate(0);
+  return d;
+}
+
+function formatWeekRange(startDate: string, endDate: string) {
+  const formatter = new Intl.DateTimeFormat('es-ES', { day: 'numeric', month: 'numeric', year: 'numeric' });
+  return `Semana del ${formatter.format(new Date(startDate))} al ${formatter.format(new Date(endDate))}`;
+}
+
+function formatDayLabel(dateString: string) {
+  const formatter = new Intl.DateTimeFormat('es-ES', {
+    weekday: 'short',
+    day: 'numeric',
+    month: 'short',
+  });
+  return formatter.format(new Date(dateString));
+}
+
+function formatLongDate(dateString: string) {
+  return new Intl.DateTimeFormat('es-ES', {
+    weekday: 'long',
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+  }).format(new Date(dateString));
+}
+
+function formatMonthLabel(date: Date) {
+  return new Intl.DateTimeFormat('es-ES', { month: 'long', year: 'numeric' }).format(date);
+}
+
+function statusClass(status: string) {
+  switch (status) {
+    case 'confirmed':
+      return 'bg-emerald-500/20 text-emerald-100 ring-1 ring-emerald-500/40';
+    case 'completed':
+      return 'bg-sky-500/20 text-sky-100 ring-1 ring-sky-500/40';
+    case 'cancelled':
+      return 'bg-slate-700/60 text-slate-200 ring-1 ring-slate-500/40';
     default:
-      return 'bg-rose-500/15 text-rose-200';
+      return 'bg-slate-800/80 text-slate-200 ring-1 ring-slate-700/60';
   }
 }
 
-export default function ReservasPage() {
-  const [selectedEstado, setSelectedEstado] = useState<EstadoReserva | 'todas'>('todas');
-  const [turno, setTurno] = useState<'todos' | 'comida' | 'cena'>('todos');
-  const [search, setSearch] = useState('');
+function validationBadge(statusRow?: DayStatusRow) {
+  const validated = statusRow?.validated ?? statusRow?.is_validated;
+  const needsRevalidation = statusRow?.needs_revalidation;
 
-  const filtered = useMemo(() => {
-    return sampleReservations.filter((reserva) => {
-      const estadoOK = selectedEstado === 'todas' || reserva.estado === selectedEstado;
-      const turnoOK = turno === 'todos' || reserva.turno === turno;
-      const textMatch = `${reserva.nombreCliente} ${reserva.intolerancias} ${reserva.mesa ?? ''}`
-        .toLowerCase()
-        .includes(search.toLowerCase());
-      return estadoOK && turnoOK && textMatch;
-    });
-  }, [selectedEstado, turno, search]);
+  if (validated && needsRevalidation) {
+    return { label: 'Cambios desde validación', className: 'bg-amber-500/20 text-amber-100 ring-1 ring-amber-500/40' };
+  }
+  if (validated) {
+    return { label: 'Validado', className: 'bg-emerald-500/20 text-emerald-100 ring-1 ring-emerald-500/40' };
+  }
+  return { label: 'No validado', className: 'bg-slate-700/60 text-slate-200 ring-1 ring-slate-500/40' };
+}
+
+function ViewSelector({
+  currentView,
+  dateParam,
+}: {
+  currentView: 'month' | 'week' | 'day';
+  dateParam: string;
+}) {
+  const views: { value: 'month' | 'week' | 'day'; label: string }[] = [
+    { value: 'month', label: 'Mes' },
+    { value: 'week', label: 'Semana' },
+    { value: 'day', label: 'Día' },
+  ];
 
   return (
+    <div className="inline-flex items-center rounded-lg border border-slate-800 bg-slate-900/70 p-1 text-sm">
+      {views.map((view) => {
+        const active = currentView === view.value;
+        return (
+          <Link
+            key={view.value}
+            href={`/reservas?view=${view.value}&date=${dateParam}`}
+            className={`rounded-md px-3 py-1 font-semibold transition ${
+              active ? 'bg-primary-600/80 text-white shadow shadow-primary-900/30' : 'text-slate-200 hover:bg-slate-800'
+            }`}
+          >
+            {view.label}
+          </Link>
+        );
+      })}
+    </div>
+  );
+}
+
+function DateNavigator({
+  view,
+  dateParam,
+}: {
+  view: 'month' | 'week' | 'day';
+  dateParam: string;
+}) {
+  const currentDate = new Date(dateParam);
+  const today = toISODate(new Date());
+
+  const getShiftedDate = (increment: number) => {
+    if (view === 'month') {
+      const d = startOfMonth(currentDate);
+      d.setMonth(d.getMonth() + increment);
+      return toISODate(d);
+    }
+    if (view === 'week') {
+      const d = startOfWeek(currentDate);
+      d.setDate(d.getDate() + increment * 7);
+      return toISODate(d);
+    }
+    const d = new Date(currentDate);
+    d.setDate(d.getDate() + increment);
+    return toISODate(d);
+  };
+
+  const prevDate = getShiftedDate(-1);
+  const nextDate = getShiftedDate(1);
+
+  return (
+    <div className="flex items-center gap-2 text-sm">
+      <Link
+        href={`/reservas?view=${view}&date=${prevDate}`}
+        className="rounded-lg border border-slate-800 bg-slate-900 px-3 py-2 font-medium text-slate-100 hover:bg-slate-800"
+      >
+        Anterior
+      </Link>
+      <Link
+        href={`/reservas?view=${view}&date=${today}`}
+        className="rounded-lg border border-slate-800 bg-slate-900 px-3 py-2 font-medium text-slate-100 hover:bg-slate-800"
+      >
+        Hoy
+      </Link>
+      <Link
+        href={`/reservas?view=${view}&date=${nextDate}`}
+        className="rounded-lg border border-slate-800 bg-slate-900 px-3 py-2 font-medium text-slate-100 hover:bg-slate-800"
+      >
+        Siguiente
+      </Link>
+    </div>
+  );
+}
+
+function HeaderBar({
+  view,
+  dateParam,
+  rangeLabel,
+}: {
+  view: 'month' | 'week' | 'day';
+  dateParam: string;
+  rangeLabel: string;
+}) {
+  return (
+    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+      <div>
+        <h1 className="text-2xl font-semibold">Reservas</h1>
+        <p className="text-sm text-slate-400">{rangeLabel}</p>
+      </div>
+      <div className="flex flex-wrap items-center gap-3">
+        <DateNavigator view={view} dateParam={dateParam} />
+        <ViewSelector currentView={view} dateParam={dateParam} />
+      </div>
+    </div>
+  );
+}
+
+async function getWeekData(weekStart: string) {
+  const weekEnd = addDays(weekStart, 6);
+  const supabase = createSupabaseServerClient();
+
+  const [{ data: statusesData }, { data: eventsData }] = await Promise.all([
+    supabase
+      .from('v_day_status')
+      .select('*')
+      .gte('event_date', weekStart)
+      .lte('event_date', weekEnd)
+      .order('event_date', { ascending: true }),
+    supabase
+      .from('v_group_events_daily_detail')
+      .select('*')
+      .gte('event_date', weekStart)
+      .lte('event_date', weekEnd)
+      .order('event_date', { ascending: true })
+      .order('entry_time', { ascending: true }),
+  ]);
+
+  const statusesMap = new Map<string, DayStatusRow>();
+  (statusesData ?? []).forEach((row) => {
+    statusesMap.set(row.event_date, row as DayStatusRow);
+  });
+
+  const eventsByDate = new Map<string, GroupEventDailyDetail[]>();
+  (eventsData ?? []).forEach((event) => {
+    const existing = eventsByDate.get(event.event_date) ?? [];
+    existing.push(event as GroupEventDailyDetail);
+    eventsByDate.set(event.event_date, existing);
+  });
+
+  return { weekEnd, statusesMap, eventsByDate };
+}
+
+async function getDayData(selectedDate: string) {
+  const supabase = createSupabaseServerClient();
+  const [{ data: dayStatusData }, { data: eventsData }] = await Promise.all([
+    supabase.from('v_day_status').select('*').eq('event_date', selectedDate).maybeSingle(),
+    supabase
+      .from('v_group_events_daily_detail')
+      .select('*')
+      .eq('event_date', selectedDate)
+      .order('entry_time', { ascending: true }),
+  ]);
+
+  const dayStatus: DayStatusRow =
+    dayStatusData ?? {
+      event_date: selectedDate,
+      validated: false,
+      is_validated: false,
+      needs_revalidation: false,
+      notes_general: '',
+      notes_kitchen: '',
+      notes_maintenance: '',
+    };
+
+  const reservations: GroupEventDailyDetail[] = eventsData ?? [];
+  return { dayStatus, reservations };
+}
+
+async function getMonthData(monthDate: Date) {
+  const monthStart = startOfMonth(monthDate);
+  const monthEnd = endOfMonth(monthDate);
+  const calendarStart = startOfWeek(monthStart);
+  const calendarEnd = startOfWeek(monthEnd);
+  calendarEnd.setDate(calendarEnd.getDate() + 6);
+
+  const start = toISODate(calendarStart);
+  const end = toISODate(calendarEnd);
+
+  const supabase = createSupabaseServerClient();
+  const { data } = await supabase
+    .from('v_group_events_daily_detail')
+    .select('*')
+    .gte('event_date', start)
+    .lte('event_date', end)
+    .order('event_date', { ascending: true })
+    .order('entry_time', { ascending: true });
+
+  const eventsByDate = new Map<string, GroupEventDailyDetail[]>();
+  (data ?? []).forEach((event) => {
+    const existing = eventsByDate.get(event.event_date) ?? [];
+    existing.push(event as GroupEventDailyDetail);
+    eventsByDate.set(event.event_date, existing);
+  });
+
+  return { calendarStart: start, calendarEnd: end, eventsByDate };
+}
+
+function WeekView({
+  weekStart,
+  statusesMap,
+  eventsByDate,
+}: {
+  weekStart: string;
+  statusesMap: Map<string, DayStatusRow>;
+  eventsByDate: Map<string, GroupEventDailyDetail[]>;
+}) {
+  const weekDays = Array.from({ length: 7 }).map((_, idx) => addDays(weekStart, idx));
+
+  return (
+    <div className="space-y-4">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7">
+        {weekDays.map((day) => {
+          const dayEvents = eventsByDate.get(day) ?? [];
+          const statusRow = statusesMap.get(day);
+          const badge = validationBadge(statusRow);
+
+          return (
+            <div key={day} className="flex h-full flex-col gap-3 rounded-xl border border-slate-800 bg-slate-900/60 p-4">
+              <div className="flex items-start justify-between gap-2">
+                <div>
+                  <p className="text-xs uppercase tracking-wide text-slate-400">{day}</p>
+                  <p className="text-lg font-semibold text-slate-100">{formatDayLabel(day)}</p>
+                </div>
+                <span className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold whitespace-nowrap ${badge.className}`}>
+                  {badge.label}
+                </span>
+              </div>
+
+              <div className="flex flex-col gap-2">
+                {dayEvents.length === 0 && <p className="text-sm text-slate-400">Sin reservas</p>}
+                {dayEvents.map((evt) => (
+                  <Link
+                    key={evt.group_event_id}
+                    href={`/reservas/grupo/${evt.group_event_id}`}
+                    className="group rounded-lg border border-slate-800 bg-slate-950/40 px-3 py-2 transition hover:border-slate-700 hover:bg-slate-900"
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <p className="text-sm font-semibold text-slate-100">
+                        {evt.entry_time ? `${evt.entry_time.slice(0, 5)}h` : '—'} – {evt.group_name}
+                      </p>
+                      <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${statusClass(evt.status)}`}>
+                        {evt.status}
+                      </span>
+                    </div>
+                    <p className="text-xs text-slate-300">{evt.total_pax ?? '—'} pax</p>
+                  </Link>
+                ))}
+              </div>
+
+              <Link
+                href={`/reservas?view=day&date=${day}`}
+                className="mt-auto inline-flex text-xs font-medium text-emerald-300 hover:underline"
+              >
+                Ver detalle del día
+              </Link>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function DayView({
+  selectedDate,
+  dayStatus,
+  reservations,
+}: {
+  selectedDate: string;
+  dayStatus: DayStatusRow;
+  reservations: GroupEventDailyDetail[];
+}) {
+  const badge = validationBadge(dayStatus);
+  return (
     <div className="space-y-6">
-      <div className="flex flex-col justify-between gap-4 md:flex-row md:items-center">
-        <div>
-          <p className="text-sm uppercase tracking-wide text-primary-200">Agenda</p>
-          <h1 className="section-title text-2xl">Reservas</h1>
-          <p className="text-sm text-slate-400">Filtra por estado, turno o busca por cliente.</p>
+      <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+        <div className="space-y-1">
+          <h2 className="text-2xl font-semibold">Detalle del día</h2>
+          <p className="text-slate-400">{formatLongDate(selectedDate)}</p>
+          <Link href={`/reservas?view=week&date=${selectedDate}`} className="text-sm font-medium text-emerald-300 hover:underline">
+            ← Volver a la vista semanal
+          </Link>
         </div>
-        <Link href="/reservas/nueva" className="button-primary">
-          Crear reserva
-          <CalendarDaysIcon className="h-5 w-5" />
-        </Link>
+        <span className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold whitespace-nowrap ${badge.className}`}>
+          {badge.label}
+        </span>
       </div>
 
-      <div className="card flex flex-wrap items-center gap-4 p-4 text-sm text-slate-300">
-        <div className="flex flex-wrap gap-2">
-          <button
-            type="button"
-            onClick={() => setSelectedEstado('todas')}
-            className={`badge ${selectedEstado === 'todas' ? 'bg-primary-600/50 text-white' : 'bg-slate-800 text-slate-200'}`}
-          >
-            Todas
-          </button>
-          {estados.map((estado) => (
-            <button
-              key={estado}
-              type="button"
-              onClick={() => setSelectedEstado(estado)}
-              className={`badge ${selectedEstado === estado ? statusBadgeClass(estado) : 'bg-slate-800 text-slate-200'}`}
-            >
-              {estado}
-            </button>
+      <DayNotesPanel
+        eventDate={selectedDate}
+        initialNotesGeneral={dayStatus.notes_general ?? ''}
+        initialNotesKitchen={dayStatus.notes_kitchen ?? ''}
+        initialNotesMaintenance={dayStatus.notes_maintenance ?? ''}
+        initialValidated={Boolean(dayStatus.validated ?? dayStatus.is_validated)}
+        initialNeedsRevalidation={Boolean(dayStatus.needs_revalidation)}
+        initialValidatedBy={dayStatus.last_validated_by}
+        initialValidatedAt={dayStatus.last_validated_at}
+      />
+
+      <section className="space-y-3">
+        <div className="flex items-center justify-between">
+          <h2 className="text-lg font-semibold text-slate-100">Reservas del día</h2>
+          <Link href={`/reservas?view=week&date=${selectedDate}`} className="text-xs font-medium text-emerald-300 hover:underline">
+            Ver semana
+          </Link>
+        </div>
+        {reservations.length === 0 ? (
+          <p className="rounded-lg border border-slate-800 bg-slate-900/60 p-4 text-sm text-slate-200">No hay grupos para esta fecha.</p>
+        ) : (
+          <div className="grid grid-cols-1 gap-4">
+            {reservations.map((reservation) => (
+              <ReservationOutcomeCard
+                key={reservation.group_event_id}
+                groupEventId={reservation.group_event_id}
+                groupName={reservation.group_name}
+                entryTime={reservation.entry_time}
+                totalPax={reservation.total_pax}
+                roomName={reservation.room_name ?? null}
+                status={reservation.status}
+                hasPrivateDiningRoom={reservation.has_private_dining_room}
+                hasPrivateParty={reservation.has_private_party}
+                serviceOutcome={reservation.service_outcome}
+                serviceOutcomeNotes={reservation.service_outcome_notes}
+                eventDate={reservation.event_date}
+              />
+            ))}
+          </div>
+        )}
+      </section>
+    </div>
+  );
+}
+
+function MonthView({
+  calendarStart,
+  calendarEnd,
+  eventsByDate,
+  referenceMonth,
+}: {
+  calendarStart: string;
+  calendarEnd: string;
+  eventsByDate: Map<string, GroupEventDailyDetail[]>;
+  referenceMonth: Date;
+}) {
+  const days: string[] = [];
+  const cursor = new Date(calendarStart);
+  const endDate = new Date(calendarEnd);
+  while (cursor <= endDate) {
+    days.push(toISODate(cursor));
+    cursor.setDate(cursor.getDate() + 1);
+  }
+
+  const refMonth = referenceMonth.getMonth();
+
+  return (
+    <div className="grid grid-cols-1 gap-3 lg:grid-cols-2 xl:grid-cols-3">
+      <div className="col-span-full rounded-xl border border-slate-800 bg-slate-900/60 p-4">
+        <div className="grid grid-cols-7 gap-2 text-center text-xs font-semibold uppercase tracking-wide text-slate-400">
+          {['L', 'M', 'X', 'J', 'V', 'S', 'D'].map((d) => (
+            <span key={d}>{d}</span>
           ))}
         </div>
-        <div className="flex items-center gap-2">
-          <FunnelIcon className="h-5 w-5 text-slate-500" />
-          <select
-            value={turno}
-            onChange={(e) => setTurno(e.target.value as typeof turno)}
-            className="input w-40"
-          >
-            <option value="todos">Todos los turnos</option>
-            <option value="comida">Comida</option>
-            <option value="cena">Cena</option>
-          </select>
-        </div>
-        <div className="flex items-center gap-2">
-          <MagnifyingGlassIcon className="h-5 w-5 text-slate-500" />
-          <input
-            type="search"
-            placeholder="Buscar por nombre, mesa o alergias"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="input w-72"
-          />
-        </div>
-      </div>
+        <div className="mt-3 grid grid-cols-7 gap-2">
+          {days.map((day) => {
+            const dateObj = new Date(day);
+            const isCurrentMonth = dateObj.getMonth() === refMonth;
+            const dayEvents = eventsByDate.get(day) ?? [];
+            const extraCount = dayEvents.length > 3 ? dayEvents.length - 3 : 0;
 
-      <div className="table-wrapper">
-        <table>
-          <thead>
-            <tr>
-              <th>Cliente</th>
-              <th>Fecha</th>
-              <th>Turno</th>
-              <th>Personas</th>
-              <th>Menú</th>
-              <th>Intolerancias</th>
-              <th>Estado</th>
-              <th>Contacto</th>
-            </tr>
-          </thead>
-          <tbody>
-            {filtered.map((reserva) => {
-              const menu = sampleMenus.find((m) => m.id === reserva.menuId);
-              return (
-                <tr key={reserva.id}>
-                  <td className="font-semibold text-white">{reserva.nombreCliente}</td>
-                  <td>{formatDate(reserva.fecha)}</td>
-                  <td className="capitalize">{reserva.turno}</td>
-                  <td className="text-center font-semibold text-slate-100">{reserva.numeroPersonas}</td>
-                  <td>{menu?.nombre ?? '—'}</td>
-                  <td className="max-w-xs truncate text-slate-400">{reserva.intolerancias}</td>
-                  <td>
-                    <span className={`badge ${statusBadgeClass(reserva.estado)}`}>{reserva.estado}</span>
-                  </td>
-                  <td>
-                    <div className="flex items-center gap-3 text-xs text-slate-300">
-                      {reserva.telefono && (
-                        <span className="inline-flex items-center gap-1">
-                          <PhoneIcon className="h-4 w-4" />
-                          {reserva.telefono}
-                        </span>
-                      )}
-                      {reserva.email && <span className="text-primary-200">{reserva.email}</span>}
-                    </div>
-                  </td>
-                </tr>
-              );
-            })}
-            {filtered.length === 0 && (
-              <tr>
-                <td colSpan={8} className="py-6 text-center text-slate-500">
-                  No hay reservas con este filtro.
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
+            return (
+              <Link
+                key={day}
+                href={`/reservas?view=day&date=${day}`}
+                className={`rounded-lg border px-2 py-2 text-left text-xs transition ${
+                  isCurrentMonth
+                    ? 'border-slate-800 bg-slate-950/60 hover:border-slate-700 hover:bg-slate-900'
+                    : 'border-slate-900 bg-slate-950/40 text-slate-500 hover:border-slate-800'
+                }`}
+              >
+                <div className="flex items-center justify-between text-[11px] font-semibold text-slate-200">
+                  <span>{dateObj.getDate()}</span>
+                  {dayEvents.length > 0 && <span className="rounded-full bg-primary-600/30 px-2 py-0.5 text-[10px] text-primary-50">{dayEvents.length}</span>}
+                </div>
+                <div className="mt-2 space-y-1 text-[11px] leading-tight text-slate-200">
+                  {dayEvents.slice(0, 3).map((evt) => (
+                    <p key={evt.group_event_id} className="truncate">
+                      {evt.group_name} ({evt.total_pax ?? '—'})
+                    </p>
+                  ))}
+                  {extraCount > 0 && <p className="text-primary-200">+{extraCount} más</p>}
+                </div>
+              </Link>
+            );
+          })}
+        </div>
       </div>
+    </div>
+  );
+}
+
+export default async function ReservasPage({ searchParams }: { searchParams?: SearchParams }) {
+  const viewParam = searchParams?.view;
+  const view: 'month' | 'week' | 'day' = viewParam === 'month' || viewParam === 'day' ? viewParam : 'week';
+  const baseDate = parseDate(searchParams?.date);
+  const dateParam = toISODate(baseDate);
+
+  if (view === 'week') {
+    const weekStart = toISODate(startOfWeek(baseDate));
+    const { weekEnd, statusesMap, eventsByDate } = await getWeekData(weekStart);
+    return (
+      <div className="p-6 space-y-6">
+        <HeaderBar view={view} dateParam={weekStart} rangeLabel={formatWeekRange(weekStart, weekEnd)} />
+        <WeekView weekStart={weekStart} statusesMap={statusesMap} eventsByDate={eventsByDate} />
+      </div>
+    );
+  }
+
+  if (view === 'day') {
+    const selectedDate = dateParam;
+    const { dayStatus, reservations } = await getDayData(selectedDate);
+    return (
+      <div className="p-6 space-y-6">
+        <HeaderBar view={view} dateParam={selectedDate} rangeLabel={formatLongDate(selectedDate)} />
+        <DayView selectedDate={selectedDate} dayStatus={dayStatus} reservations={reservations} />
+      </div>
+    );
+  }
+
+  const { calendarStart, calendarEnd, eventsByDate } = await getMonthData(baseDate);
+  return (
+    <div className="p-6 space-y-6">
+      <HeaderBar view={view} dateParam={dateParam} rangeLabel={formatMonthLabel(baseDate)} />
+      <MonthView calendarStart={calendarStart} calendarEnd={calendarEnd} eventsByDate={eventsByDate} referenceMonth={baseDate} />
     </div>
   );
 }
