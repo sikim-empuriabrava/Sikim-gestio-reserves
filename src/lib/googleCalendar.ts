@@ -1,4 +1,4 @@
-import { google } from 'googleapis';
+import { calendar_v3, google } from 'googleapis';
 
 const calendar = google.calendar('v3');
 
@@ -25,9 +25,14 @@ function getJwtClient() {
 export type CalendarEventPayload = {
   summary: string;
   description?: string | null;
-  startDateTime: string;
-  endDateTime: string;
-  timeZone: string;
+  allDay: boolean;
+  // Para eventos de todo el día
+  startDate?: string; // 'YYYY-MM-DD'
+  endDate?: string; // 'YYYY-MM-DD' (día siguiente, exclusivo)
+  // Para eventos con hora (por si en el futuro los usamos)
+  startDateTime?: string;
+  endDateTime?: string;
+  timeZone?: string;
 };
 
 export async function createCalendarEvent(
@@ -38,20 +43,33 @@ export async function createCalendarEvent(
 
   const calendarId = process.env.GOOGLE_CALENDAR_ID!;
 
+  const { allDay, startDate, endDate, startDateTime, endDateTime, timeZone } = payload;
+
+  let start: calendar_v3.Schema$EventDateTime;
+  let end: calendar_v3.Schema$EventDateTime;
+
+  if (allDay) {
+    if (!startDate || !endDate) {
+      throw new Error('Missing startDate/endDate for all-day event');
+    }
+    start = { date: startDate };
+    end = { date: endDate };
+  } else {
+    if (!startDateTime || !endDateTime || !timeZone) {
+      throw new Error('Missing dateTime/timeZone for timed event');
+    }
+    start = { dateTime: startDateTime, timeZone };
+    end = { dateTime: endDateTime, timeZone };
+  }
+
   const res = await calendar.events.insert({
     auth,
     calendarId,
     requestBody: {
       summary: payload.summary,
       description: payload.description ?? undefined,
-      start: {
-        dateTime: payload.startDateTime,
-        timeZone: payload.timeZone,
-      },
-      end: {
-        dateTime: payload.endDateTime,
-        timeZone: payload.timeZone,
-      },
+      start,
+      end,
     },
   });
 
@@ -71,6 +89,25 @@ export async function updateCalendarEvent(
 
   const calendarId = process.env.GOOGLE_CALENDAR_ID!;
 
+  const { allDay, startDate, endDate, startDateTime, endDateTime, timeZone } = payload;
+
+  let start: calendar_v3.Schema$EventDateTime;
+  let end: calendar_v3.Schema$EventDateTime;
+
+  if (allDay) {
+    if (!startDate || !endDate) {
+      throw new Error('Missing startDate/endDate for all-day event');
+    }
+    start = { date: startDate };
+    end = { date: endDate };
+  } else {
+    if (!startDateTime || !endDateTime || !timeZone) {
+      throw new Error('Missing dateTime/timeZone for timed event');
+    }
+    start = { dateTime: startDateTime, timeZone };
+    end = { dateTime: endDateTime, timeZone };
+  }
+
   await calendar.events.update({
     auth,
     calendarId,
@@ -78,14 +115,8 @@ export async function updateCalendarEvent(
     requestBody: {
       summary: payload.summary,
       description: payload.description ?? undefined,
-      start: {
-        dateTime: payload.startDateTime,
-        timeZone: payload.timeZone,
-      },
-      end: {
-        dateTime: payload.endDateTime,
-        timeZone: payload.timeZone,
-      },
+      start,
+      end,
     },
   });
 }

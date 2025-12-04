@@ -68,20 +68,27 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    const timeZone = 'Europe/Madrid';
+    const eventDate = row.event_date;
+
+    const startDateObj = new Date(`${eventDate}T00:00:00`);
+    startDateObj.setDate(startDateObj.getDate() + 1);
+    const nextDateIso = startDateObj.toISOString().slice(0, 10);
+
+    const startDate = eventDate;
+    const endDate = nextDateIso;
 
     const baseTime = row.entry_time ?? '20:00:00';
-    const startDateTime = `${row.event_date}T${baseTime}`;
+    const hhmm = baseTime.slice(0, 5);
 
-    const endDate = new Date(`${row.event_date}T${baseTime}`);
-    endDate.setHours(endDate.getHours() + 3);
-    const endDateTime = endDate.toISOString().slice(0, 19);
-
-    const summary = `${row.group_name} — ${row.total_pax ?? 0} pax — ${baseTime.slice(0, 5)}`;
+    const pax = row.total_pax ?? 0;
+    const summary = `${row.group_name} ${pax}px ${hhmm}`;
 
     const descriptionLines = [
+      `Reserva: ${row.group_name}`,
+      `Pax: ${pax}`,
+      `Hora: ${hhmm}`,
+      '',
       `Estado: ${row.status.toUpperCase()}`,
-      `Pax: ${row.total_pax ?? 0}`,
       `Group ID: ${row.group_event_id}`,
       '',
       'Este evento está sincronizado con Sikim Gestió Reserves.',
@@ -90,9 +97,9 @@ export async function POST(req: NextRequest) {
     const payload = {
       summary,
       description: descriptionLines.join('\n'),
-      startDateTime,
-      endDateTime,
-      timeZone,
+      allDay: true,
+      startDate,
+      endDate,
     };
 
     if (row.desired_calendar_action === 'create') {
