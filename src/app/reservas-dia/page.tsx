@@ -1,9 +1,42 @@
 import Link from 'next/link';
-import { ReservasDiaDatePicker } from '@/components/ReservasDiaDatePicker';
 import { createSupabaseServerClient } from '@/lib/supabaseClient';
-import { DayStatusPanel } from './DayStatusPanel';
 
 const DATE_REGEX = /^\d{4}-\d{2}-\d{2}$/;
+
+function getMonday(date: Date) {
+  const day = date.getDay();
+  const diff = day === 0 ? -6 : 1 - day;
+  const monday = new Date(date);
+  monday.setDate(date.getDate() + diff);
+  return monday;
+}
+
+function formatDayLabel(dateString: string) {
+  const formatter = new Intl.DateTimeFormat('es-ES', {
+    weekday: 'short',
+    day: 'numeric',
+    month: 'short',
+  });
+  return formatter.format(new Date(dateString));
+}
+
+function formatWeekRange(startDate: string, endDate: string) {
+  const formatter = new Intl.DateTimeFormat('es-ES', { day: 'numeric', month: 'numeric', year: 'numeric' });
+  return `${formatter.format(new Date(startDate))} al ${formatter.format(new Date(endDate))}`;
+}
+
+function addDays(dateString: string, days: number) {
+  const d = new Date(dateString);
+  d.setDate(d.getDate() + days);
+  return d.toISOString().slice(0, 10);
+}
+
+type DayStatusRow = {
+  event_date: string;
+  is_validated?: boolean | null;
+  validated?: boolean | null;
+  needs_revalidation?: boolean | null;
+};
 
 type GroupEventDailyDetail = {
   event_date: string;
@@ -12,200 +45,188 @@ type GroupEventDailyDetail = {
   group_name: string;
   status: string;
   total_pax: number | null;
-  has_private_dining_room: boolean | null;
-  has_private_party: boolean | null;
-  room_id: string | null;
-  room_name: string | null;
-  room_total_pax: number | null;
-  room_override_capacity: boolean | null;
-  recommended_waiters: number | null;
-  recommended_runners: number | null;
-  recommended_bartenders: number | null;
 };
 
-type ReservasDiaPageProps = {
-  searchParams?: { date?: string };
+type ReservasSemanaPageProps = {
+  searchParams?: { weekStart?: string };
 };
 
-function formatDateToDisplay(dateString: string) {
-  const formatter = new Intl.DateTimeFormat('es-ES', { dateStyle: 'full' });
-  return formatter.format(new Date(dateString));
-}
-
-function getAdjacentDates(selectedDate: string) {
-  const date = new Date(selectedDate);
-
-  const prev = new Date(date);
-  prev.setDate(date.getDate() - 1);
-
-  const next = new Date(date);
-  next.setDate(date.getDate() + 1);
-
-  const toString = (d: Date) => d.toISOString().slice(0, 10);
-
-  return {
-    prevDate: toString(prev),
-    nextDate: toString(next),
-  };
-}
-
-function BooleanPill({ value }: { value: boolean | null }) {
-  const isTrue = value === true;
-  const isFalse = value === false;
-
-  return (
-    <span
-      className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${
-        isTrue
-          ? 'bg-emerald-500/20 text-emerald-100 ring-1 ring-emerald-500/50'
-          : 'bg-slate-700/60 text-slate-200 ring-1 ring-slate-500/40'
-      }`}
-    >
-      {isTrue ? 'Sí' : isFalse ? 'No' : '—'}
-    </span>
-  );
-}
-
-export default async function ReservasDiaPage({ searchParams }: ReservasDiaPageProps) {
-  const today = new Date().toISOString().slice(0, 10);
-  const selectedDate =
-    searchParams?.date && DATE_REGEX.test(searchParams.date) ? searchParams.date : today;
-
-  const { prevDate, nextDate } = getAdjacentDates(selectedDate);
+export default async function ReservasDiaPage({ searchParams }: ReservasSemanaPageProps) {
+  const today = new Date();
+  const providedWeekStart = searchParams?.weekStart;
+  const baseDate = providedWeekStart && DATE_REGEX.test(providedWeekStart)
+    ? new Date(providedWeekStart)
+    : getMonday(today);
+  const weekStart = getMonday(baseDate).toISOString().slice(0, 10);
+  const weekEnd = addDays(weekStart, 6);
 
   const supabase = createSupabaseServerClient();
-  const { data, error } = await supabase
-    .from('v_group_events_daily_detail')
-    .select('*')
-    // Solo filtramos por la fecha seleccionada; sin restricciones adicionales
-    .eq('event_date', selectedDate)
-    .order('entry_time', { ascending: true });
 
-  if (error) {
-    console.error('[Supabase error]', error);
+  const [{ data: statusesData, error: statusesError }, { data: eventsData, error: eventsError }] =
+    await Promise.all([
+      supabase
+        .from('v_day_status')
+        .select('*')
+        .gte('event_date', weekStart)
+        .lte('event_date', weekEnd)
+        .order('event_date', { ascending: true }),
+      supabase
+        .from('v_group_events_daily_detail')
+        .select('*')
+        .gte('event_date', weekStart)
+        .lte('event_date', weekEnd)
+        .order('event_date', { ascending: true })
+        .order('entry_time', { ascending: true }),
+    ]);
+
+  if (statusesError || eventsError) {
     return (
-      <div className="p-6 space-y-6">
-        <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+      <div className="p-6 space-y-4">
+        <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
           <div>
-            <h1 className="text-2xl font-semibold">Reservas por día</h1>
-            <p className="text-slate-400 text-sm">{formatDateToDisplay(selectedDate)}</p>
+            <h1 className="text-2xl font-semibold">Reservas – vista semanal</h1>
+            <p className="text-slate-400 text-sm">Semana del {formatWeekRange(weekStart, weekEnd)}</p>
           </div>
-          <div className="flex flex-wrap items-center gap-4">
-            <ReservasDiaDatePicker selectedDate={selectedDate} />
-            <div className="flex gap-2">
-              <Link
-                href={`/reservas-dia?date=${prevDate}`}
-                className="rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-sm font-medium text-slate-100 hover:bg-slate-700"
-              >
-                Día anterior
-              </Link>
-              <Link
-                href={`/reservas-dia?date=${nextDate}`}
-                className="rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-sm font-medium text-slate-100 hover:bg-slate-700"
-              >
-                Día siguiente
-              </Link>
-            </div>
+          <div className="flex gap-2">
+            <Link
+              href={`/reservas-dia?weekStart=${addDays(weekStart, -7)}`}
+              className="rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-sm font-medium text-slate-100 hover:bg-slate-700"
+            >
+              Semana anterior
+            </Link>
+            <Link
+              href={`/reservas-dia?weekStart=${addDays(weekStart, 7)}`}
+              className="rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-sm font-medium text-slate-100 hover:bg-slate-700"
+            >
+              Semana siguiente
+            </Link>
           </div>
         </div>
         <div className="rounded-xl border border-red-900/60 bg-red-950/70 p-4 text-sm text-red-100">
           <p className="font-semibold">No se pudo cargar la información de Supabase.</p>
-          <p className="text-red-200">{error.message}</p>
+          <p className="text-red-200">{statusesError?.message || eventsError?.message}</p>
         </div>
       </div>
     );
   }
 
+  const statusesMap = new Map<string, DayStatusRow>();
+  (statusesData ?? []).forEach((row) => {
+    statusesMap.set(row.event_date, row as DayStatusRow);
+  });
+
+  const eventsByDate = new Map<string, GroupEventDailyDetail[]>();
+  (eventsData ?? []).forEach((event) => {
+    const existing = eventsByDate.get(event.event_date) ?? [];
+    existing.push(event as GroupEventDailyDetail);
+    eventsByDate.set(event.event_date, existing);
+  });
+
+  const weekDays = Array.from({ length: 7 }).map((_, idx) => addDays(weekStart, idx));
+
+  const badgeForDay = (statusRow?: DayStatusRow) => {
+    const validated = statusRow?.validated ?? statusRow?.is_validated;
+    const needsRevalidation = statusRow?.needs_revalidation;
+
+    if (validated && needsRevalidation) {
+      return { label: 'Cambios desde validación', className: 'bg-amber-500/20 text-amber-100 ring-1 ring-amber-500/40' };
+    }
+    if (validated) {
+      return { label: 'Validado', className: 'bg-emerald-500/20 text-emerald-100 ring-1 ring-emerald-500/40' };
+    }
+    return { label: 'No validado', className: 'bg-slate-700/60 text-slate-200 ring-1 ring-slate-500/40' };
+  };
+
+  const statusClass = (status: string) => {
+    switch (status) {
+      case 'confirmed':
+        return 'bg-emerald-500/20 text-emerald-100 ring-1 ring-emerald-500/40';
+      case 'completed':
+        return 'bg-sky-500/20 text-sky-100 ring-1 ring-sky-500/40';
+      case 'cancelled':
+        return 'bg-slate-700/60 text-slate-200 ring-1 ring-slate-500/40';
+      default:
+        return 'bg-slate-800/80 text-slate-200 ring-1 ring-slate-700/60';
+    }
+  };
+
   return (
     <div className="p-6 space-y-6">
-      <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+      <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
         <div>
-          <h1 className="text-2xl font-semibold">Reservas por día</h1>
-          <p className="text-slate-400 text-sm">{formatDateToDisplay(selectedDate)}</p>
+          <h1 className="text-2xl font-semibold">Reservas – vista semanal</h1>
+          <p className="text-slate-400 text-sm">Semana del {formatWeekRange(weekStart, weekEnd)}</p>
         </div>
-        <div className="flex flex-wrap items-center gap-4">
-          <ReservasDiaDatePicker selectedDate={selectedDate} />
-          <div className="flex gap-2">
-            <Link
-              href={`/reservas-dia?date=${prevDate}`}
-              className="rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-sm font-medium text-slate-100 hover:bg-slate-700"
-            >
-              Día anterior
-            </Link>
-            <Link
-              href={`/reservas-dia?date=${nextDate}`}
-              className="rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-sm font-medium text-slate-100 hover:bg-slate-700"
-            >
-              Día siguiente
-            </Link>
-          </div>
+        <div className="flex gap-2">
+          <Link
+            href={`/reservas-dia?weekStart=${addDays(weekStart, -7)}`}
+            className="rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-sm font-medium text-slate-100 hover:bg-slate-700"
+          >
+            Semana anterior
+          </Link>
+          <Link
+            href={`/reservas-dia?weekStart=${addDays(weekStart, 7)}`}
+            className="rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-sm font-medium text-slate-100 hover:bg-slate-700"
+          >
+            Semana siguiente
+          </Link>
         </div>
       </div>
 
-      <DayStatusPanel eventDate={selectedDate} />
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7">
+        {weekDays.map((day) => {
+          const dayEvents = eventsByDate.get(day) ?? [];
+          const statusRow = statusesMap.get(day);
+          const badge = badgeForDay(statusRow);
 
-      {(!data || data.length === 0) && (
-        <div className="rounded-xl border border-slate-800 bg-slate-900/60 p-4 text-sm text-slate-200">
-          No hay grupos para esta fecha.
-        </div>
-      )}
+          return (
+            <div
+              key={day}
+              className="flex h-full flex-col gap-3 rounded-xl border border-slate-800 bg-slate-900/60 p-4"
+            >
+              <div className="flex items-start justify-between gap-2">
+                <div>
+                  <p className="text-xs uppercase tracking-wide text-slate-400">{day}</p>
+                  <p className="text-lg font-semibold text-slate-100">{formatDayLabel(day)}</p>
+                </div>
+                <span className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold ${badge.className}`}>
+                  {badge.label}
+                </span>
+              </div>
 
-      {data && data.length > 0 && (
-        <div className="overflow-x-auto rounded-xl border border-slate-800 shadow-inner shadow-black/30">
-          <table className="min-w-full text-sm">
-            <thead className="bg-slate-900 text-slate-50">
-              <tr>
-                <th className="px-3 py-2 text-left">Hora</th>
-                <th className="px-3 py-2 text-left">Grupo</th>
-                <th className="px-3 py-2 text-left">Sala</th>
-                <th className="px-3 py-2 text-right">Pax sala</th>
-                <th className="px-3 py-2 text-right">Pax total</th>
-                <th className="px-3 py-2 text-left">Privado</th>
-                <th className="px-3 py-2 text-left">Fiesta privada</th>
-                <th className="px-3 py-2 text-right">Waiters</th>
-                <th className="px-3 py-2 text-right">Runners</th>
-                <th className="px-3 py-2 text-right">Bartenders</th>
-                <th className="px-3 py-2 text-left">Status</th>
-              </tr>
-            </thead>
-            <tbody>
-              {data.map((row: GroupEventDailyDetail) => (
-                <tr key={`${row.group_event_id}-${row.room_id ?? 'roomless'}`} className="border-t border-slate-800">
-                  <td className="px-3 py-2 align-middle font-mono text-xs text-slate-200">
-                    {row.entry_time ?? '—'}
-                  </td>
-                  <td className="px-3 py-2 align-middle font-semibold text-slate-100">{row.group_name}</td>
-                  <td className="px-3 py-2 align-middle text-slate-100">{row.room_name ?? '—'}</td>
-                  <td className="px-3 py-2 align-middle text-right text-slate-100">
-                    {row.room_total_pax ?? '—'}
-                  </td>
-                  <td className="px-3 py-2 align-middle text-right text-slate-100">{row.total_pax ?? '—'}</td>
-                  <td className="px-3 py-2 align-middle">
-                    <BooleanPill value={row.has_private_dining_room} />
-                  </td>
-                  <td className="px-3 py-2 align-middle">
-                    <BooleanPill value={row.has_private_party} />
-                  </td>
-                  <td className="px-3 py-2 align-middle text-right text-slate-100">
-                    {row.recommended_waiters ?? '—'}
-                  </td>
-                  <td className="px-3 py-2 align-middle text-right text-slate-100">
-                    {row.recommended_runners ?? '—'}
-                  </td>
-                  <td className="px-3 py-2 align-middle text-right text-slate-100">
-                    {row.recommended_bartenders ?? '—'}
-                  </td>
-                  <td className="px-3 py-2 align-middle">
-                    <span className="inline-flex items-center rounded-full border border-slate-700 bg-slate-800 px-2 py-0.5 text-xs font-medium text-slate-100">
-                      {row.status}
-                    </span>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
+              <div className="flex flex-col gap-2">
+                {dayEvents.length === 0 && (
+                  <p className="text-sm text-slate-400">Sin reservas</p>
+                )}
+                {dayEvents.map((evt) => (
+                  <Link
+                    key={evt.group_event_id}
+                    href={`/reservas-dia/detalle?date=${evt.event_date}`}
+                    className="group rounded-lg border border-slate-800 bg-slate-950/40 px-3 py-2 transition hover:border-slate-700 hover:bg-slate-900"
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <p className="text-sm font-semibold text-slate-100">
+                        {evt.entry_time ? `${evt.entry_time.slice(0, 5)}h` : '—'} – {evt.group_name}
+                      </p>
+                      <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${statusClass(evt.status)}`}>
+                        {evt.status}
+                      </span>
+                    </div>
+                    <p className="text-xs text-slate-300">{evt.total_pax ?? '—'} pax</p>
+                  </Link>
+                ))}
+              </div>
+
+              <Link
+                href={`/reservas-dia/detalle?date=${day}`}
+                className="mt-auto inline-flex text-xs font-medium text-emerald-300 hover:underline"
+              >
+                Ver detalle del día
+              </Link>
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 }
