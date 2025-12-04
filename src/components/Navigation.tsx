@@ -5,7 +5,7 @@ import { usePathname } from 'next/navigation';
 
 const links = [
   { href: '/', label: 'Dashboard' },
-  { href: '/reservas-dia', label: 'Reservas' },
+  { href: '/reservas', label: 'Reservas' },
   { href: '/reservas/nueva', label: 'Nueva reserva' },
   { href: '/configuracion', label: 'Configuración' },
 ];
@@ -16,7 +16,10 @@ export function Navigation() {
   return (
     <nav className="flex items-center gap-2 rounded-xl border border-slate-800 bg-surface/70 px-3 py-2 shadow-lg shadow-slate-900/40 backdrop-blur">
       {links.map((link) => {
-        const isActive = pathname === link.href || pathname.startsWith(`${link.href}/`);
+        const isActive =
+          pathname === link.href ||
+          pathname.startsWith(`${link.href}/`) ||
+          (link.href === '/reservas' && pathname.startsWith('/reservas-dia'));
         return (
           <Link
             key={link.href}
