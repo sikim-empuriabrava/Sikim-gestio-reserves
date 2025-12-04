@@ -29,11 +29,19 @@ type GroupEventDailyDetail = {
   group_name: string;
   status: string;
   total_pax: number | null;
+  adults?: number | null;
+  children?: number | null;
   room_name?: string | null;
   has_private_dining_room?: boolean | null;
   has_private_party?: boolean | null;
   service_outcome?: string | null;
   service_outcome_notes?: string | null;
+  second_course_type?: string | null;
+  menu_text?: string | null;
+  allergens_and_diets?: string | null;
+  extras?: string | null;
+  setup_notes?: string | null;
+  invoice_data?: string | null;
 };
 
 function toISODate(date: Date) {
@@ -106,8 +114,14 @@ function statusClass(status: string) {
   switch (status) {
     case 'confirmed':
       return 'bg-emerald-500/20 text-emerald-100 ring-1 ring-emerald-500/40';
+    case 'draft':
+      return 'bg-slate-700/60 text-slate-200 ring-1 ring-slate-600/60';
     case 'completed':
       return 'bg-sky-500/20 text-sky-100 ring-1 ring-sky-500/40';
+    case 'no_show':
+      return 'bg-amber-500/20 text-amber-100 ring-1 ring-amber-500/40';
+    case 'incident':
+      return 'bg-red-500/20 text-red-100 ring-1 ring-red-500/40';
     case 'cancelled':
       return 'bg-slate-700/60 text-slate-200 ring-1 ring-slate-500/40';
     default:
@@ -280,7 +294,8 @@ async function getDayData(selectedDate: string) {
       .from('v_group_events_daily_detail')
       .select('*')
       .eq('event_date', selectedDate)
-      .order('entry_time', { ascending: true }),
+      .order('entry_time', { ascending: true })
+      .order('group_name', { ascending: true }),
   ]);
 
   const dayStatus: DayStatusRow =
@@ -363,7 +378,7 @@ function WeekView({
                 {dayEvents.map((evt) => (
                   <Link
                     key={evt.group_event_id}
-                    href={`/reservas/grupo/${evt.group_event_id}`}
+                    href={`/reservas/grupo/${evt.group_event_id}?date=${evt.event_date}`}
                     className="group rounded-lg border border-slate-800 bg-slate-950/40 px-3 py-2 transition hover:border-slate-700 hover:bg-slate-900"
                   >
                     <div className="flex items-center justify-between gap-2">
@@ -447,6 +462,8 @@ function DayView({
                 groupName={reservation.group_name}
                 entryTime={reservation.entry_time}
                 totalPax={reservation.total_pax}
+                adults={reservation.adults}
+                childrenCount={reservation.children}
                 roomName={reservation.room_name ?? null}
                 status={reservation.status}
                 hasPrivateDiningRoom={reservation.has_private_dining_room}
@@ -454,6 +471,12 @@ function DayView({
                 serviceOutcome={reservation.service_outcome}
                 serviceOutcomeNotes={reservation.service_outcome_notes}
                 eventDate={reservation.event_date}
+                secondCourseType={reservation.second_course_type}
+                menuText={reservation.menu_text}
+                allergensAndDiets={reservation.allergens_and_diets}
+                extras={reservation.extras}
+                setupNotes={reservation.setup_notes}
+                invoiceData={reservation.invoice_data}
               />
             ))}
           </div>
