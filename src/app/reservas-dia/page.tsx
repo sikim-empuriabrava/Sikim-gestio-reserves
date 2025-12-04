@@ -76,6 +76,7 @@ export default async function ReservasDiaPage({ searchParams }: ReservasDiaPageP
   const { data, error } = await supabase
     .from('v_group_events_daily_detail')
     .select('*')
+    // Solo filtramos por la fecha seleccionada; sin restricciones adicionales
     .eq('event_date', selectedDate)
     .order('entry_time', { ascending: true });
 
