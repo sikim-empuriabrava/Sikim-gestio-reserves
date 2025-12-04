@@ -77,22 +77,72 @@ export async function POST(req: NextRequest) {
     const startDate = eventDate;
     const endDate = nextDateIso;
 
-    const baseTime = row.entry_time ?? '20:00:00';
+    const { data: groupEvent, error: groupEventError } = await supabase
+      .from('group_events')
+      .select(
+        'name, total_pax, event_date, entry_time, menu_text, allergens_and_diets, setup_notes, extras, status'
+      )
+      .eq('id', row.group_event_id)
+      .single();
+
+    if (groupEventError) {
+      console.error('[CalendarSync] Error fetching group event details', groupEventError);
+    }
+
+    const { data: roomAllocations, error: roomError } = await supabase
+      .from('group_room_allocations')
+      .select('room:rooms(name), notes')
+      .eq('group_event_id', row.group_event_id);
+
+    if (roomError) {
+      console.error('[CalendarSync] Error fetching room allocations', roomError);
+    }
+
+    const groupName = groupEvent?.name ?? row.group_name;
+    const pax = groupEvent?.total_pax ?? row.total_pax ?? 0;
+    const baseTime = groupEvent?.entry_time ?? row.entry_time ?? '20:00:00';
     const hhmm = baseTime.slice(0, 5);
 
-    const pax = row.total_pax ?? 0;
-    const summary = `${row.group_name} ${pax}px ${hhmm}`;
+    const typedAllocations = (roomAllocations ?? []) as {
+      room?: { name?: string };
+      notes?: string;
+    }[];
+
+    const salaZona = typedAllocations.length > 0
+      ? typedAllocations
+          .map((ra) => {
+            const roomName = ra.room?.name ?? '';
+            const notes = ra.notes ? ` (${ra.notes})` : '';
+            return `${roomName}${notes}`;
+          })
+          .join(', ')
+      : '—';
 
     const descriptionLines = [
-      `Reserva: ${row.group_name}`,
+      `Reserva: ${groupName}`,
       `Pax: ${pax}`,
       `Hora: ${hhmm}`,
+      `Sala / zona: ${salaZona}`,
       '',
-      `Estado: ${row.status.toUpperCase()}`,
+      'Menú:',
+      groupEvent?.menu_text ?? '—',
+      '',
+      'Intolerancias / alergias:',
+      groupEvent?.allergens_and_diets ?? '—',
+      '',
+      'Notas sala:',
+      groupEvent?.setup_notes ?? '—',
+      '',
+      'Notas cocina:',
+      groupEvent?.extras ?? '—',
+      '',
+      `Estado: ${(groupEvent?.status ?? row.status).toUpperCase()}`,
       `Group ID: ${row.group_event_id}`,
       '',
       'Este evento está sincronizado con Sikim Gestió Reserves.',
     ];
+
+    const summary = `${groupName} ${pax}px ${hhmm}`;
 
     const payload = {
       summary,
