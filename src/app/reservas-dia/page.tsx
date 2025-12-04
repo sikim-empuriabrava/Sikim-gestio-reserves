@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { ReservasDiaDatePicker } from '@/components/ReservasDiaDatePicker';
 import { createSupabaseServerClient } from '@/lib/supabaseClient';
+import { DayStatusPanel } from './DayStatusPanel';
 
 const DATE_REGEX = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -140,6 +141,8 @@ export default async function ReservasDiaPage({ searchParams }: ReservasDiaPageP
           </div>
         </div>
       </div>
+
+      <DayStatusPanel eventDate={selectedDate} />
 
       {(!data || data.length === 0) && (
         <div className="rounded-xl border border-slate-800 bg-slate-900/60 p-4 text-sm text-slate-200">
