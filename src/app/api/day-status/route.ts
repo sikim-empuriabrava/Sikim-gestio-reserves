@@ -78,6 +78,9 @@ export async function POST(req: NextRequest) {
     payload.last_validated_at = now;
     payload.last_validated_by = 'Carla';
     payload.events_last_reviewed_at = now;
+  } else {
+    payload.validated = false;
+    payload.is_validated = false;
   }
 
   const { data, error } = await supabase
