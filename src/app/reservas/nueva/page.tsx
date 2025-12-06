@@ -83,6 +83,7 @@ export default function NuevaReservaPage() {
   const [menus, setMenus] = useState<MenuWithSeconds[]>([]);
   const [menusLoading, setMenusLoading] = useState(true);
   const [menusError, setMenusError] = useState<string | null>(null);
+  const [donenessCollapsed, setDonenessCollapsed] = useState(true);
 
   const menuSeleccionado = useMemo(
     () => menus.find((m) => m.id === menuId) ?? null,
@@ -579,83 +580,98 @@ export default function NuevaReservaPage() {
 
                       {segundo.needsDonenessPoints && (
                         <div className="space-y-3 rounded-lg border border-slate-800 bg-slate-900/40 p-3">
-                          <div className="flex items-center justify-between gap-3 text-xs uppercase tracking-wide text-slate-400">
-                            <span>Puntos de cocción (asigna personas)</span>
-                            <span>
-                              {`${segundo.nombre}: ${
-                                segundosSeleccionados.find((s) => s.segundoId === segundo.id)?.cantidad ?? 0
-                              } · Puntos: ${
-                                entrecotPoints.crudo +
-                                entrecotPoints.poco +
-                                entrecotPoints.alPunto +
-                                entrecotPoints.hecho +
-                                entrecotPoints.muyHecho
-                              }`}
-                            </span>
-                          </div>
+                          <button
+                            type="button"
+                            onClick={() => setDonenessCollapsed((prev) => !prev)}
+                            className="flex w-full items-center justify-between text-left text-xs uppercase tracking-wide text-slate-400"
+                          >
+                            <span>Puntos de cocción (opcional)</span>
+                            <ChevronDownIcon
+                              className={`h-4 w-4 transition-transform ${donenessCollapsed ? '' : 'rotate-180'}`}
+                            />
+                          </button>
 
-                          {(
-                            [
-                              { key: 'crudo', label: 'Crudo' },
-                              { key: 'poco', label: 'Poco hecho' },
-                              { key: 'alPunto', label: 'Al punto' },
-                              { key: 'hecho', label: 'Hecho' },
-                              { key: 'muyHecho', label: 'Muy hecho' },
-                            ] as { key: keyof EntrecotPoints; label: string }[]
-                          ).map((punto) => {
-                            const currentValue = entrecotPoints[punto.key];
-                            const maxEntrecotPeople = Math.max(
-                              segundosSeleccionados.find((s) => s.segundoId === segundo.id)?.cantidad ?? 0,
-                              numeroPersonas,
-                              currentValue,
-                              10,
-                            );
-                            const options = Array.from({ length: maxEntrecotPeople + 1 }, (_, i) => i);
-
-                            return (
-                              <div
-                                key={punto.key}
-                                className="flex flex-col gap-1 rounded-md border border-slate-800/60 bg-slate-950/40 px-3 py-2 md:flex-row md:items-center md:justify-between"
-                              >
-                                <div>
-                                  <p className="text-sm font-semibold text-white">{punto.label}</p>
-                                  <p className="text-xs text-slate-400">Personas en este punto</p>
-                                </div>
-
-                                <div className="flex items-center gap-2">
-                                  <button
-                                    type="button"
-                                    className="rounded-md border border-slate-700 px-2 py-1 text-sm text-slate-200 hover:bg-slate-800"
-                                    onClick={() => updateEntrecotPoint(punto.key, currentValue - 1)}
-                                    aria-label={`Restar ${punto.label}`}
-                                  >
-                                    -
-                                  </button>
-
-                                  <select
-                                    className="input w-28 appearance-none pr-8 text-sm"
-                                    value={currentValue}
-                                    onChange={(e) => updateEntrecotPoint(punto.key, parseInt(e.target.value) || 0)}
-                                  >
-                                    {options.map((option) => (
-                                      <option key={option} value={option}>
-                                        {option} persona{option === 1 ? '' : 's'}
-                                      </option>
-                                    ))}
-                                  </select>
-
-                                  <button
-                                    type="button"
-                                    className="rounded-md border border-slate-700 px-2 py-1 text-sm text-slate-200 hover:bg-slate-800"
-                                    onClick={() => updateEntrecotPoint(punto.key, Math.min(currentValue + 1, maxEntrecotPeople))}
-                                    aria-label={`Sumar ${punto.label}`}
-                                  >
-                                    +
-                                  </button>
-                                </div>
+                          {!donenessCollapsed && (
+                            <div className="space-y-3">
+                              <div className="flex items-center justify-between gap-3 text-xs uppercase tracking-wide text-slate-400">
+                                <span>Puntos de cocción (asigna personas)</span>
+                                <span>
+                                  {`${segundo.nombre}: ${
+                                    segundosSeleccionados.find((s) => s.segundoId === segundo.id)?.cantidad ?? 0
+                                  } · Puntos: ${
+                                    entrecotPoints.crudo +
+                                    entrecotPoints.poco +
+                                    entrecotPoints.alPunto +
+                                    entrecotPoints.hecho +
+                                    entrecotPoints.muyHecho
+                                  }`}
+                                </span>
                               </div>
-                            );
-                          })}
+
+                              {(
+                                [
+                                  { key: 'crudo', label: 'Crudo' },
+                                  { key: 'poco', label: 'Poco hecho' },
+                                  { key: 'alPunto', label: 'Al punto' },
+                                  { key: 'hecho', label: 'Hecho' },
+                                  { key: 'muyHecho', label: 'Muy hecho' },
+                                ] as { key: keyof EntrecotPoints; label: string }[]
+                              ).map((punto) => {
+                                const currentValue = entrecotPoints[punto.key];
+                                const maxEntrecotPeople = Math.max(
+                                  segundosSeleccionados.find((s) => s.segundoId === segundo.id)?.cantidad ?? 0,
+                                  numeroPersonas,
+                                  currentValue,
+                                  10,
+                                );
+                                const options = Array.from({ length: maxEntrecotPeople + 1 }, (_, i) => i);
+
+                                return (
+                                  <div
+                                    key={punto.key}
+                                    className="flex flex-col gap-1 rounded-md border border-slate-800/60 bg-slate-950/40 px-3 py-2 md:flex-row md:items-center md:justify-between"
+                                  >
+                                    <div>
+                                      <p className="text-sm font-semibold text-white">{punto.label}</p>
+                                      <p className="text-xs text-slate-400">Personas en este punto</p>
+                                    </div>
+
+                                    <div className="flex items-center gap-2">
+                                      <button
+                                        type="button"
+                                        className="rounded-md border border-slate-700 px-2 py-1 text-sm text-slate-200 hover:bg-slate-800"
+                                        onClick={() => updateEntrecotPoint(punto.key, currentValue - 1)}
+                                        aria-label={`Restar ${punto.label}`}
+                                      >
+                                        -
+                                      </button>
+
+                                      <select
+                                        className="input w-28 appearance-none pr-8 text-sm"
+                                        value={currentValue}
+                                        onChange={(e) => updateEntrecotPoint(punto.key, parseInt(e.target.value) || 0)}
+                                      >
+                                        {options.map((option) => (
+                                          <option key={option} value={option}>
+                                            {option} persona{option === 1 ? '' : 's'}
+                                          </option>
+                                        ))}
+                                      </select>
+
+                                      <button
+                                        type="button"
+                                        className="rounded-md border border-slate-700 px-2 py-1 text-sm text-slate-200 hover:bg-slate-800"
+                                        onClick={() => updateEntrecotPoint(punto.key, Math.min(currentValue + 1, maxEntrecotPeople))}
+                                        aria-label={`Sumar ${punto.label}`}
+                                      >
+                                        +
+                                      </button>
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          )}
                         </div>
                       )}
                     </div>
