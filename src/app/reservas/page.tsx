@@ -113,19 +113,19 @@ function formatMonthLabel(date: Date) {
 function statusClass(status: string) {
   switch (status) {
     case 'confirmed':
-      return 'bg-emerald-500/20 text-emerald-100 ring-1 ring-emerald-500/40';
+      return 'bg-emerald-500/20 text-emerald-100 ring-1 ring-emerald-400/50';
     case 'draft':
-      return 'bg-slate-700/60 text-slate-200 ring-1 ring-slate-600/60';
+      return 'bg-amber-500/20 text-amber-100 ring-1 ring-amber-400/50';
     case 'completed':
-      return 'bg-sky-500/20 text-sky-100 ring-1 ring-sky-500/40';
+      return 'bg-sky-500/20 text-sky-100 ring-1 ring-sky-400/50';
     case 'no_show':
-      return 'bg-amber-500/20 text-amber-100 ring-1 ring-amber-500/40';
+      return 'bg-rose-500/20 text-rose-100 ring-1 ring-rose-400/50';
     case 'incident':
-      return 'bg-red-500/20 text-red-100 ring-1 ring-red-500/40';
+      return 'bg-red-500/25 text-red-100 ring-1 ring-red-400/50';
     case 'cancelled':
-      return 'bg-slate-700/60 text-slate-200 ring-1 ring-slate-500/40';
+      return 'bg-slate-800/70 text-slate-200 ring-1 ring-slate-600/50';
     default:
-      return 'bg-slate-800/80 text-slate-200 ring-1 ring-slate-700/60';
+      return 'bg-slate-800/80 text-slate-100 ring-1 ring-slate-700/70';
   }
 }
 
@@ -183,26 +183,30 @@ function DateNavigator({
   dateParam: string;
 }) {
   const currentDate = new Date(dateParam);
-  const today = toISODate(new Date());
+
+  const baseForView = (date: Date) => {
+    if (view === 'month') return startOfMonth(date);
+    if (view === 'week') return startOfWeek(date);
+    return date;
+  };
 
   const getShiftedDate = (increment: number) => {
+    const baseDate = baseForView(currentDate);
     if (view === 'month') {
-      const d = startOfMonth(currentDate);
-      d.setMonth(d.getMonth() + increment);
-      return toISODate(d);
+      baseDate.setMonth(baseDate.getMonth() + increment);
+      return toISODate(baseDate);
     }
     if (view === 'week') {
-      const d = startOfWeek(currentDate);
-      d.setDate(d.getDate() + increment * 7);
-      return toISODate(d);
+      baseDate.setDate(baseDate.getDate() + increment * 7);
+      return toISODate(baseDate);
     }
-    const d = new Date(currentDate);
-    d.setDate(d.getDate() + increment);
-    return toISODate(d);
+    baseDate.setDate(baseDate.getDate() + increment);
+    return toISODate(baseDate);
   };
 
   const prevDate = getShiftedDate(-1);
   const nextDate = getShiftedDate(1);
+  const todayForView = toISODate(baseForView(new Date()));
 
   return (
     <div className="flex items-center gap-2 text-sm">
@@ -213,7 +217,7 @@ function DateNavigator({
         Anterior
       </Link>
       <Link
-        href={`/reservas?view=${view}&date=${today}`}
+        href={`/reservas?view=${view}&date=${todayForView}`}
         className="rounded-lg border border-slate-800 bg-slate-900 px-3 py-2 font-medium text-slate-100 hover:bg-slate-800"
       >
         Hoy
@@ -370,7 +374,9 @@ function WeekView({
                   <p className="text-xs uppercase tracking-wide text-slate-400">{day}</p>
                   <p className="text-lg font-semibold text-slate-100">{formatDayLabel(day)}</p>
                 </div>
-                <span className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold whitespace-nowrap ${badge.className}`}>
+                <span
+                  className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold whitespace-nowrap text-center leading-tight ${badge.className}`}
+                >
                   {badge.label}
                 </span>
               </div>
@@ -384,7 +390,7 @@ function WeekView({
                     className="group rounded-lg border border-slate-800 bg-slate-950/40 px-3 py-2 transition hover:border-slate-700 hover:bg-slate-900"
                   >
                     <div className="flex items-center justify-between gap-2">
-                      <p className="text-sm font-semibold text-slate-100">
+                      <p className="text-sm font-semibold text-slate-100 truncate">
                         {evt.entry_time ? `${evt.entry_time.slice(0, 5)}h` : '—'} – {evt.group_name}
                       </p>
                       <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${statusClass(evt.status)}`}>
