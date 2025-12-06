@@ -292,7 +292,9 @@ async function getDayData(selectedDate: string) {
     supabase.from('v_day_status').select('*').eq('event_date', selectedDate).maybeSingle(),
     supabase
       .from('v_group_events_daily_detail')
-      .select('*')
+      .select(
+        'event_date, entry_time, group_event_id, group_name, status, total_pax, adults, children, room_name, has_private_dining_room, has_private_party, service_outcome, service_outcome_notes, second_course_type, menu_text, allergens_and_diets, extras, setup_notes, invoice_data'
+      )
       .eq('event_date', selectedDate)
       .order('entry_time', { ascending: true })
       .order('group_name', { ascending: true }),

@@ -96,6 +96,8 @@ export function ReservationOutcomeCard({
     return null;
   }, [adults, childrenCount, totalPax]);
 
+  const paxLabel = paxValue !== null ? `${paxValue} pax` : '— pax';
+
   const showServiceNotes = currentOutcome !== 'normal';
 
   return (
@@ -104,7 +106,7 @@ export function ReservationOutcomeCard({
         <div className="space-y-1">
           <p className="text-sm text-slate-400">{entryTime ? `${entryTime.slice(0, 5)}h` : '—'}</p>
           <h3 className="text-lg font-semibold text-slate-100">{groupName}</h3>
-          <p className="text-sm text-slate-300">{paxValue ?? '—'} pax · {roomName ?? '—'}</p>
+          <p className="text-sm text-slate-300">{paxLabel}{roomName ? ` · ${roomName}` : ''}</p>
           <div className="flex flex-wrap gap-2 text-xs text-slate-300">
             {hasPrivateDiningRoom && <span className="rounded-full bg-slate-800 px-2 py-0.5">Sala privada</span>}
             {hasPrivateParty && <span className="rounded-full bg-slate-800 px-2 py-0.5">Fiesta privada</span>}
