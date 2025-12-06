@@ -15,16 +15,6 @@ type DbMenu = {
   drinks_text: string | null;
 };
 
-type DbSecondCourse = {
-  id: string;
-  menu_id: string;
-  code: string;
-  name: string;
-  description_kitchen: string;
-  needs_doneness_points: boolean;
-  sort_order: number | null;
-};
-
 type MenuWithSeconds = DbMenu & {
   segundos: {
     id: string;
