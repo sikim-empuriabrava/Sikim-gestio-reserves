@@ -1,10 +1,39 @@
 'use client';
 
 import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
-import { sampleMenus } from '@/data/sampleMenus';
 import { EleccionSegundoPlato, Turno } from '@/types/reservation';
 import { supabaseClient } from '@/lib/supabaseClient';
 import { CheckIcon, ChevronDownIcon } from '@heroicons/react/24/outline';
+
+type DbMenu = {
+  id: string;
+  code: string;
+  display_name: string;
+  price_eur: number;
+  starters_text: string | null;
+  dessert_text: string | null;
+  drinks_text: string | null;
+};
+
+type DbSecondCourse = {
+  id: string;
+  menu_id: string;
+  code: string;
+  name: string;
+  description_kitchen: string;
+  needs_doneness_points: boolean;
+  sort_order: number | null;
+};
+
+type MenuWithSeconds = DbMenu & {
+  segundos: {
+    id: string;
+    code: string;
+    nombre: string;
+    descripcion: string;
+    needsDonenessPoints: boolean;
+  }[];
+};
 
 type EntrecotPoints = {
   crudo: number;
@@ -38,7 +67,7 @@ export default function NuevaReservaPage() {
   const [telefono, setTelefono] = useState('');
   const [email, setEmail] = useState('');
   const [numeroPersonas, setNumeroPersonas] = useState(2);
-  const [menuId, setMenuId] = useState(sampleMenus[0]?.id ?? '');
+  const [menuId, setMenuId] = useState('');
   const [intolerancias, setIntolerancias] = useState('');
   const [notasSala, setNotasSala] = useState('');
   const [notasCocina, setNotasCocina] = useState('');
@@ -61,8 +90,14 @@ export default function NuevaReservaPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [submitSuccess, setSubmitSuccess] = useState<string | null>(null);
+  const [menus, setMenus] = useState<MenuWithSeconds[]>([]);
+  const [menusLoading, setMenusLoading] = useState(true);
+  const [menusError, setMenusError] = useState<string | null>(null);
 
-  const menuSeleccionado = useMemo(() => sampleMenus.find((m) => m.id === menuId), [menuId]);
+  const menuSeleccionado = useMemo(
+    () => menus.find((m) => m.id === menuId) ?? null,
+    [menus, menuId],
+  );
 
   const updateEntrecotPoint = (key: keyof EntrecotPoints, value: number) => {
     setEntrecotPoints((prev) => ({
@@ -121,8 +156,11 @@ export default function NuevaReservaPage() {
       entrecotPoints.hecho +
       entrecotPoints.muyHecho;
 
-    const entrecotSeleccionado = segundosSeleccionados.find((s) => s.segundoId === 'entrecot');
-    const totalEntrecot = entrecotSeleccionado?.cantidad ?? 0;
+    const donenessSecondsIds = menuSeleccionado
+      ? menuSeleccionado.segundos.filter((s) => s.needsDonenessPoints).map((s) => s.id)
+      : [];
+    const donenessSelection = segundosSeleccionados.find((s) => donenessSecondsIds.includes(s.segundoId));
+    const totalDonenessPeople = donenessSelection?.cantidad ?? 0;
 
     if (totalMenusAsignados !== numeroPersonas) {
       setWarningMenus(
@@ -132,16 +170,65 @@ export default function NuevaReservaPage() {
       setWarningMenus(null);
     }
 
-    if (totalEntrecot > 0 && totalPuntosEntrecot !== totalEntrecot) {
+    if (totalDonenessPeople > 0 && totalPuntosEntrecot !== totalDonenessPeople) {
       setWarningEntrecot(
-        `Has pedido ${totalEntrecot} entrecots pero la suma de puntos de cocción es ${totalPuntosEntrecot}.`,
+        `Has pedido ${totalDonenessPeople} platos con puntos de cocción pero la suma de puntos es ${totalPuntosEntrecot}.`,
       );
     } else {
       setWarningEntrecot(null);
     }
 
-    return totalMenusAsignados === numeroPersonas && (totalEntrecot === 0 || totalPuntosEntrecot === totalEntrecot);
-  }, [customSeconds, entrecotPoints, numeroPersonas, segundosSeleccionados]);
+    return (
+      totalMenusAsignados === numeroPersonas &&
+      (totalDonenessPeople === 0 || totalPuntosEntrecot === totalDonenessPeople)
+    );
+  }, [customSeconds, entrecotPoints, menuSeleccionado, numeroPersonas, segundosSeleccionados]);
+
+  useEffect(() => {
+    const loadMenus = async () => {
+      setMenusLoading(true);
+      setMenusError(null);
+
+      const [{ data: menusData, error: menusLoadError }, { data: secondsData, error: secondsLoadError }] = await Promise.all([
+        supabaseClient
+          .from('menus')
+          .select('id, code, display_name, price_eur, starters_text, dessert_text, drinks_text'),
+        supabaseClient
+          .from('menu_second_courses')
+          .select('id, menu_id, code, name, description_kitchen, needs_doneness_points, sort_order'),
+      ]);
+
+      if (menusLoadError || secondsLoadError) {
+        console.error('[Nueva reserva] Error cargando menús', menusLoadError || secondsLoadError);
+        setMenusError('No se han podido cargar los menús.');
+        setMenusLoading(false);
+        return;
+      }
+
+      const menusWithSeconds: MenuWithSeconds[] = (menusData ?? []).map((menu) => {
+        const segundos = (secondsData ?? [])
+          .filter((s) => s.menu_id === menu.id)
+          .sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0));
+
+        return {
+          ...menu,
+          segundos: segundos.map((s) => ({
+            id: s.code,
+            code: s.code,
+            nombre: s.name,
+            descripcion: s.description_kitchen,
+            needsDonenessPoints: s.needs_doneness_points,
+          })),
+        };
+      });
+
+      setMenus(menusWithSeconds);
+      setMenusLoading(false);
+      setMenuId((prev) => prev || menusWithSeconds[0]?.id || '');
+    };
+
+    loadMenus();
+  }, []);
 
   useEffect(() => {
     const loadRooms = async () => {
@@ -190,13 +277,13 @@ export default function NuevaReservaPage() {
     const eventDate = datePart;
     const entryTime = timePart ? `${timePart}:00` : null;
 
-    const selectedMenu = sampleMenus.find((m) => m.id === menuId);
+    const selectedMenu = menuSeleccionado;
 
     const isValid = validateMenus();
 
     if (!isValid) {
       const proceed = window.confirm(
-        'Hay descuadres entre número de personas, menús asignados o puntos de cocción del entrecot. ¿Quieres guardar la reserva igualmente?',
+        'Hay descuadres entre número de personas, menús asignados o puntos de cocción. ¿Quieres guardar la reserva igualmente?',
       );
 
       if (!proceed) {
@@ -205,8 +292,11 @@ export default function NuevaReservaPage() {
       }
     }
 
-    const entrecotSeleccionado = segundosSeleccionados.find((s) => s.segundoId === 'entrecot');
-    const totalEntrecot = entrecotSeleccionado?.cantidad ?? 0;
+    const donenessSecondsIds = selectedMenu
+      ? selectedMenu.segundos.filter((s) => s.needsDonenessPoints).map((s) => s.id)
+      : [];
+    const donenessSelection = segundosSeleccionados.find((s) => donenessSecondsIds.includes(s.segundoId));
+    const totalDonenessPeople = donenessSelection?.cantidad ?? 0;
 
     let menuText: string | null = null;
 
@@ -218,7 +308,7 @@ export default function NuevaReservaPage() {
 
       let detalleEntrecot: string | null = null;
 
-      if (totalEntrecot > 0) {
+      if (totalDonenessPeople > 0) {
         const partes: string[] = [];
 
         if (entrecotPoints.crudo > 0) partes.push(`Crudo: ${entrecotPoints.crudo}`);
@@ -228,7 +318,7 @@ export default function NuevaReservaPage() {
         if (entrecotPoints.muyHecho > 0) partes.push(`Muy hecho: ${entrecotPoints.muyHecho}`);
 
         if (partes.length > 0) {
-          detalleEntrecot = `Entrecot a la brasa (puntos):\n${partes.map((p) => `  · ${p}`).join('\n')}`;
+          detalleEntrecot = `Puntos de cocción:\n${partes.map((p) => `  · ${p}`).join('\n')}`;
         }
       }
 
@@ -268,7 +358,7 @@ export default function NuevaReservaPage() {
           : null;
 
       const partesMenuText = [
-        selectedMenu ? `Menú asignado: ${selectedMenu.nombre}` : null,
+        selectedMenu ? `Menú asignado: ${selectedMenu.display_name}` : null,
         segundosBaseTexto ? 'Segundos estándar:' : null,
         segundosBaseTexto || null,
         detalleEntrecot,
@@ -453,18 +543,26 @@ export default function NuevaReservaPage() {
           <div className="space-y-2">
             <p className="label">Menú asignado</p>
             <div className="relative">
-              <select value={menuId} onChange={(e) => setMenuId(e.target.value)} className="input appearance-none pr-10">
-                {sampleMenus.map((menu) => (
+              <select
+                value={menuId}
+                onChange={(e) => setMenuId(e.target.value)}
+                className="input appearance-none pr-10"
+                disabled={menusLoading || !!menusError || menus.length === 0}
+              >
+                {menus.map((menu) => (
                   <option key={menu.id} value={menu.id}>
-                    {menu.nombre}
+                    {menu.display_name}
                   </option>
                 ))}
               </select>
               <ChevronDownIcon className="pointer-events-none absolute right-3 top-3.5 h-5 w-5 text-slate-500" />
             </div>
+            {menusError && <p className="text-xs text-red-400">{menusError}</p>}
           </div>
 
-          {menuSeleccionado && (
+          {menusLoading && <p className="text-sm text-slate-300">Cargando menús...</p>}
+
+          {menuSeleccionado && !menusLoading && !menusError && (
             <div className="space-y-4">
               <div>
                 <p className="text-sm font-semibold text-white">Segundos disponibles</p>
@@ -489,12 +587,14 @@ export default function NuevaReservaPage() {
                         />
                       </div>
 
-                      {segundo.id === 'entrecot' && (
+                      {segundo.needsDonenessPoints && (
                         <div className="space-y-3 rounded-lg border border-slate-800 bg-slate-900/40 p-3">
                           <div className="flex items-center justify-between gap-3 text-xs uppercase tracking-wide text-slate-400">
                             <span>Puntos de cocción (asigna personas)</span>
                             <span>
-                              {`Entrecots: ${segundosSeleccionados.find((s) => s.segundoId === 'entrecot')?.cantidad ?? 0} · Puntos: ${
+                              {`${segundo.nombre}: ${
+                                segundosSeleccionados.find((s) => s.segundoId === segundo.id)?.cantidad ?? 0
+                              } · Puntos: ${
                                 entrecotPoints.crudo +
                                 entrecotPoints.poco +
                                 entrecotPoints.alPunto +
@@ -515,7 +615,7 @@ export default function NuevaReservaPage() {
                           ).map((punto) => {
                             const currentValue = entrecotPoints[punto.key];
                             const maxEntrecotPeople = Math.max(
-                              segundosSeleccionados.find((s) => s.segundoId === 'entrecot')?.cantidad ?? 0,
+                              segundosSeleccionados.find((s) => s.segundoId === segundo.id)?.cantidad ?? 0,
                               numeroPersonas,
                               currentValue,
                               10,
