@@ -31,9 +31,15 @@ type GroupEventDailyDetail = {
   total_pax: number | null;
   adults?: number | null;
   children?: number | null;
-  room_name?: string | null;
   has_private_dining_room?: boolean | null;
   has_private_party?: boolean | null;
+  room_id?: string | null;
+  room_name?: string | null;
+  room_total_pax?: number | null;
+  room_override_capacity?: number | null;
+  recommended_waiters?: number | null;
+  recommended_runners?: number | null;
+  recommended_bartenders?: number | null;
   service_outcome?: string | null;
   service_outcome_notes?: string | null;
   second_course_type?: string | null;
@@ -255,6 +261,7 @@ function HeaderBar({
   );
 }
 
+// FIX: unify day/week/month data source using v_group_events_daily_detail
 async function getWeekData(weekStart: string) {
   const weekEnd = addDays(weekStart, 6);
   const supabase = createSupabaseServerClient();
@@ -281,11 +288,13 @@ async function getWeekData(weekStart: string) {
   });
 
   const eventsByDate = new Map<string, GroupEventDailyDetail[]>();
-  (eventsData ?? []).forEach((event) => {
-    const existing = eventsByDate.get(event.event_date) ?? [];
-    existing.push(event as GroupEventDailyDetail);
-    eventsByDate.set(event.event_date, existing);
-  });
+  for (const event of eventsData ?? []) {
+    const key = event.event_date;
+    if (!key) continue;
+    const list = eventsByDate.get(key) ?? [];
+    list.push(event as GroupEventDailyDetail);
+    eventsByDate.set(key, list);
+  }
 
   return { weekEnd, statusesMap, eventsByDate };
 }
@@ -296,9 +305,7 @@ async function getDayData(selectedDate: string) {
     supabase.from('v_day_status').select('*').eq('event_date', selectedDate).maybeSingle(),
     supabase
       .from('v_group_events_daily_detail')
-      .select(
-        'event_date, entry_time, group_event_id, group_name, status, total_pax, adults, children, room_name, has_private_dining_room, has_private_party, service_outcome, service_outcome_notes, second_course_type, menu_text, allergens_and_diets, extras, setup_notes, invoice_data'
-      )
+      .select('*')
       .eq('event_date', selectedDate)
       .order('entry_time', { ascending: true })
       .order('group_name', { ascending: true }),
@@ -339,11 +346,13 @@ async function getMonthData(monthDate: Date) {
     .order('entry_time', { ascending: true });
 
   const eventsByDate = new Map<string, GroupEventDailyDetail[]>();
-  (data ?? []).forEach((event) => {
-    const existing = eventsByDate.get(event.event_date) ?? [];
-    existing.push(event as GroupEventDailyDetail);
-    eventsByDate.set(event.event_date, existing);
-  });
+  for (const event of data ?? []) {
+    const key = event.event_date;
+    if (!key) continue;
+    const list = eventsByDate.get(key) ?? [];
+    list.push(event as GroupEventDailyDetail);
+    eventsByDate.set(key, list);
+  }
 
   return { calendarStart: start, calendarEnd: end, eventsByDate };
 }
