@@ -427,6 +427,18 @@ export default function NuevaReservaPage() {
       return;
     }
 
+    try {
+      await fetch('/api/calendar-sync', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ groupEventId }),
+      });
+    } catch (e) {
+      console.error('[Nueva reserva] Error sincronizando con Google Calendar', e);
+    }
+
     setSubmitSuccess('Reserva creada correctamente.');
     setIsSubmitting(false);
   };
