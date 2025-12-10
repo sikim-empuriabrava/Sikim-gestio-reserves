@@ -60,6 +60,7 @@ export function ReservationOutcomeCard({
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [expanded, setExpanded] = useState(false);
 
   const handleSave = async () => {
     setSaving(true);
@@ -105,7 +106,7 @@ export function ReservationOutcomeCard({
 
   return (
     <div className="rounded-xl border border-slate-800 bg-slate-900/60 p-4 space-y-4">
-      <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div className="space-y-1">
           <p className="text-sm text-slate-400">{entryTime ? `${entryTime.slice(0, 5)}h` : '—'}</p>
           <h3 className="text-lg font-semibold text-slate-100">{groupName}</h3>
@@ -115,77 +116,121 @@ export function ReservationOutcomeCard({
             {hasPrivateParty && <span className="rounded-full bg-slate-800 px-2 py-0.5">Fiesta privada</span>}
           </div>
         </div>
-        <div className="flex items-center gap-3">
-          <span className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold whitespace-nowrap ${statusClass}`}>
-            {status}
-          </span>
-          <Link
-            href={`/reservas/grupo/${groupEventId}${eventDate ? `?date=${eventDate}` : ''}`}
-            className="text-xs font-semibold text-emerald-300 hover:underline"
-          >
-            Ver reserva
-          </Link>
-        </div>
-      </div>
-
-      <div className="grid gap-3 text-sm text-slate-200 md:grid-cols-2">
-        <div className="space-y-1">
-          <p className="text-xs uppercase tracking-wide text-slate-400">Notas de servicio</p>
-          {secondCourseType && <p className="rounded-lg bg-slate-950/50 px-3 py-2">Segundo plato: {secondCourseType}</p>}
-          {menuText && <p className="rounded-lg bg-slate-950/50 px-3 py-2">Menú: {menuText}</p>}
-          {allergensAndDiets && <p className="rounded-lg bg-slate-950/50 px-3 py-2">Alergias y dietas: {allergensAndDiets}</p>}
-        </div>
-        <div className="space-y-1">
-          {extras && <p className="rounded-lg bg-slate-950/50 px-3 py-2">Extras: {extras}</p>}
-          {setupNotes && <p className="rounded-lg bg-slate-950/50 px-3 py-2">Montaje: {setupNotes}</p>}
-          {invoiceData && <p className="rounded-lg bg-slate-950/50 px-3 py-2">Datos factura: {invoiceData}</p>}
-        </div>
-      </div>
-
-      <div className="space-y-2 rounded-lg border border-slate-800 bg-slate-950/60 p-3 text-xs text-slate-200">
-        <div className="flex flex-col gap-2 md:flex-row md:items-center md:gap-3">
-          <label className="font-semibold" htmlFor={`${groupEventId}-outcome`}>
-            Resultado del servicio
-          </label>
-          <select
-            id={`${groupEventId}-outcome`}
-            value={currentOutcome}
-            onChange={(e) => setCurrentOutcome(e.target.value)}
-            className="w-full max-w-xs rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-100 focus:outline-none focus:ring-2 focus:ring-emerald-500/60"
-          >
-            <option value="normal">Normal</option>
-            <option value="note">Anotación</option>
-            <option value="incident">Incidente</option>
-            <option value="no_show">No show</option>
-          </select>
-        </div>
-        {showServiceNotes && (
-          <div className="space-y-1">
-            <label className="font-semibold" htmlFor={`${groupEventId}-notes`}>
-              Notas de servicio
-            </label>
-            <textarea
-              id={`${groupEventId}-notes`}
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
-              className="h-20 w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-100 placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/60"
-              placeholder="Observaciones del servicio"
-            />
+        <div className="flex flex-col items-start gap-2 sm:items-end sm:text-right">
+          <div className="flex items-center gap-3">
+            <span className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold whitespace-nowrap ${statusClass}`}>
+              {status}
+            </span>
+            <Link
+              href={`/reservas/grupo/${groupEventId}${eventDate ? `?date=${eventDate}` : ''}`}
+              className="text-xs font-semibold text-emerald-300 hover:underline"
+            >
+              Ver reserva
+            </Link>
           </div>
-        )}
-        <div className="flex items-center gap-3 pt-1">
           <button
             type="button"
-            onClick={handleSave}
-            disabled={saving}
-            className="inline-flex items-center rounded-lg bg-emerald-600 px-4 py-2 text-xs font-semibold text-white hover:bg-emerald-500 disabled:opacity-60"
+            onClick={() => setExpanded((prev) => !prev)}
+            className="text-xs font-semibold text-emerald-200 hover:text-emerald-100"
           >
-            {saving ? 'Guardando…' : 'Guardar cambios'}
+            {expanded ? 'Ocultar detalles' : 'Ver detalles'}
           </button>
-          {message && <span className="text-emerald-300">{message}</span>}
-          {error && <span className="text-red-300">{error}</span>}
         </div>
       </div>
+
+      {expanded && (
+        <div className="mt-4 space-y-4">
+          <div className="grid gap-3 text-sm text-slate-200 md:grid-cols-2">
+            <div className="space-y-2">
+              {menuText && (
+                <div>
+                  <p className="text-xs uppercase tracking-wide text-slate-400">Notas de servicio</p>
+                  <div className="mt-1 rounded-lg bg-slate-950/50 px-3 py-2 text-sm whitespace-pre-line">{menuText}</div>
+                </div>
+              )}
+              {secondCourseType && (
+                <div>
+                  <p className="text-xs uppercase tracking-wide text-slate-400">Segundo plato</p>
+                  <div className="mt-1 rounded-lg bg-slate-950/50 px-3 py-2 text-sm whitespace-pre-line">{secondCourseType}</div>
+                </div>
+              )}
+              {allergensAndDiets && (
+                <div>
+                  <p className="text-xs uppercase tracking-wide text-slate-400">Alergias y dietas</p>
+                  <div className="mt-1 rounded-lg bg-slate-950/50 px-3 py-2 text-sm whitespace-pre-line">{allergensAndDiets}</div>
+                </div>
+              )}
+            </div>
+            <div className="space-y-2">
+              {extras && (
+                <div>
+                  <p className="text-xs uppercase tracking-wide text-slate-400">Extras (notas cocina)</p>
+                  <div className="mt-1 rounded-lg bg-slate-950/50 px-3 py-2 text-sm whitespace-pre-line">{extras}</div>
+                </div>
+              )}
+              {setupNotes && (
+                <div>
+                  <p className="text-xs uppercase tracking-wide text-slate-400">Montaje (notas sala)</p>
+                  <div className="mt-1 rounded-lg bg-slate-950/50 px-3 py-2 text-sm whitespace-pre-line">{setupNotes}</div>
+                </div>
+              )}
+              {invoiceData && (
+                <div>
+                  <p className="text-xs uppercase tracking-wide text-slate-400">Datos de factura</p>
+                  <div className="mt-1 rounded-lg bg-slate-950/50 px-3 py-2 text-sm whitespace-pre-line">{invoiceData}</div>
+                </div>
+              )}
+            </div>
+          </div>
+
+          <div className="mt-4 space-y-3 border-t border-slate-800 pt-4">
+            <div className="space-y-2 rounded-lg border border-slate-800 bg-slate-950/60 p-3 text-xs text-slate-200">
+              <div className="flex flex-col gap-2 md:flex-row md:items-center md:gap-3">
+                <label className="font-semibold" htmlFor={`${groupEventId}-outcome`}>
+                  Resultado del servicio
+                </label>
+                <select
+                  id={`${groupEventId}-outcome`}
+                  value={currentOutcome}
+                  onChange={(e) => setCurrentOutcome(e.target.value)}
+                  className="w-full max-w-xs rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-100 focus:outline-none focus:ring-2 focus:ring-emerald-500/60"
+                >
+                  <option value="normal">Normal</option>
+                  <option value="note">Anotación</option>
+                  <option value="incident">Incidente</option>
+                  <option value="no_show">No show</option>
+                </select>
+              </div>
+              {showServiceNotes && (
+                <div className="space-y-1">
+                  <label className="font-semibold" htmlFor={`${groupEventId}-notes`}>
+                    Notas de servicio
+                  </label>
+                  <textarea
+                    id={`${groupEventId}-notes`}
+                    value={notes}
+                    onChange={(e) => setNotes(e.target.value)}
+                    className="h-20 w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-100 placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/60"
+                    placeholder="Observaciones del servicio"
+                  />
+                </div>
+              )}
+              <div className="flex items-center gap-3 pt-1">
+                <button
+                  type="button"
+                  onClick={handleSave}
+                  disabled={saving}
+                  className="inline-flex items-center rounded-lg bg-emerald-600 px-4 py-2 text-xs font-semibold text-white hover:bg-emerald-500 disabled:opacity-60"
+                >
+                  {saving ? 'Guardando…' : 'Guardar cambios'}
+                </button>
+                {message && <span className="text-emerald-300">{message}</span>}
+                {error && <span className="text-red-300">{error}</span>}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
