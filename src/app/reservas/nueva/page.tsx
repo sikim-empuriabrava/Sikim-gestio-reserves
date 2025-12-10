@@ -80,6 +80,7 @@ export default function NuevaReservaPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [submitSuccess, setSubmitSuccess] = useState<string | null>(null);
+  const [calendarWarning, setCalendarWarning] = useState<string | null>(null);
   const [menus, setMenus] = useState<MenuWithSeconds[]>([]);
   const [menusLoading, setMenusLoading] = useState(true);
   const [menusError, setMenusError] = useState<string | null>(null);
@@ -256,6 +257,7 @@ export default function NuevaReservaPage() {
     event.preventDefault();
     setSubmitError(null);
     setSubmitSuccess(null);
+    setCalendarWarning(null);
     setIsSubmitting(true);
 
     if (!roomId) {
@@ -428,15 +430,25 @@ export default function NuevaReservaPage() {
     }
 
     try {
-      await fetch('/api/calendar-sync', {
+      const resCalendar = await fetch('/api/calendar-sync', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({ groupEventId }),
       });
+
+      if (!resCalendar.ok) {
+        console.error('[Nueva reserva] Error sincronizando con Google Calendar', resCalendar.statusText);
+        setCalendarWarning(
+          'La reserva se ha creado, pero ha habido un problema al sincronizar con Google Calendar. Revisa el calendario o inténtalo más tarde.',
+        );
+      }
     } catch (e) {
       console.error('[Nueva reserva] Error sincronizando con Google Calendar', e);
+      setCalendarWarning(
+        'La reserva se ha creado, pero ha habido un problema al sincronizar con Google Calendar. Revisa el calendario o inténtalo más tarde.',
+      );
     }
 
     setSubmitSuccess('Reserva creada correctamente.');
@@ -829,6 +841,7 @@ export default function NuevaReservaPage() {
 
               {submitError && <p className="text-sm text-red-400">{submitError}</p>}
               {submitSuccess && <p className="text-sm text-green-400">{submitSuccess}</p>}
+              {calendarWarning && <p className="text-sm text-amber-300">{calendarWarning}</p>}
               {warningMenus && <p className="text-sm text-amber-300">{warningMenus}</p>}
               {warningEntrecot && <p className="text-sm text-amber-300">{warningEntrecot}</p>}
 
