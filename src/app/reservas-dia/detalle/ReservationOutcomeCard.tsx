@@ -4,9 +4,12 @@ import Link from 'next/link';
 import { useMemo, useState } from 'react';
 
 const statusStyles: Record<string, string> = {
-  confirmed: 'bg-emerald-500/20 text-emerald-100 ring-1 ring-emerald-500/40',
-  completed: 'bg-sky-500/20 text-sky-100 ring-1 ring-sky-500/40',
-  cancelled: 'bg-slate-700/60 text-slate-200 ring-1 ring-slate-500/40',
+  confirmed: 'bg-emerald-500/20 text-emerald-100 ring-1 ring-emerald-400/50',
+  completed: 'bg-sky-500/20 text-sky-100 ring-1 ring-sky-400/50',
+  draft: 'bg-amber-500/20 text-amber-100 ring-1 ring-amber-400/50',
+  no_show: 'bg-rose-500/20 text-rose-100 ring-1 ring-rose-400/50',
+  incident: 'bg-red-500/25 text-red-100 ring-1 ring-red-400/50',
+  cancelled: 'bg-slate-800/70 text-slate-200 ring-1 ring-slate-600/50',
 };
 
 type ReservationOutcomeCardProps = {
@@ -86,7 +89,7 @@ export function ReservationOutcomeCard({
     }
   };
 
-  const statusClass = statusStyles[status] ?? 'bg-slate-700/60 text-slate-200 ring-1 ring-slate-500/40';
+  const statusClass = statusStyles[status] ?? 'bg-slate-800/80 text-slate-100 ring-1 ring-slate-700/70';
 
   const paxValue = useMemo(() => {
     if (typeof totalPax === 'number') return totalPax;
@@ -96,6 +99,8 @@ export function ReservationOutcomeCard({
     return null;
   }, [adults, childrenCount, totalPax]);
 
+  const paxLabel = paxValue !== null ? `${paxValue} pax` : '— pax';
+
   const showServiceNotes = currentOutcome !== 'normal';
 
   return (
@@ -104,7 +109,7 @@ export function ReservationOutcomeCard({
         <div className="space-y-1">
           <p className="text-sm text-slate-400">{entryTime ? `${entryTime.slice(0, 5)}h` : '—'}</p>
           <h3 className="text-lg font-semibold text-slate-100">{groupName}</h3>
-          <p className="text-sm text-slate-300">{paxValue ?? '—'} pax · {roomName ?? '—'}</p>
+          <p className="text-sm text-slate-300">{paxLabel}{roomName ? ` · ${roomName}` : ''}</p>
           <div className="flex flex-wrap gap-2 text-xs text-slate-300">
             {hasPrivateDiningRoom && <span className="rounded-full bg-slate-800 px-2 py-0.5">Sala privada</span>}
             {hasPrivateParty && <span className="rounded-full bg-slate-800 px-2 py-0.5">Fiesta privada</span>}

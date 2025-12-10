@@ -96,182 +96,199 @@ export function EditableReservationForm({ reservation, backDate }: Props) {
         </button>
       </div>
 
-      <div className="rounded-xl border border-slate-800 bg-slate-900/60 p-4 space-y-4">
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-          <div className="space-y-2">
-            <label className="text-sm font-medium text-slate-200">Nombre</label>
-            <input
-              type="text"
-              value={form.name}
-              onChange={(e) => handleChange('name', e.target.value)}
-              className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-100 focus:outline-none focus:ring-2 focus:ring-emerald-500/60"
-            />
+      <div className="space-y-4">
+        <section className="rounded-xl border border-slate-800 bg-slate-900/60 p-4 space-y-4">
+          <div className="flex items-center justify-between">
+            <h2 className="text-lg font-semibold text-slate-100">Datos generales</h2>
           </div>
-          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
             <div className="space-y-2">
-              <label className="text-sm font-medium text-slate-200">Fecha</label>
+              <label className="text-sm font-medium text-slate-200">Nombre</label>
               <input
-                type="date"
-                value={form.event_date}
-                onChange={(e) => handleChange('event_date', e.target.value)}
+                type="text"
+                value={form.name}
+                onChange={(e) => handleChange('name', e.target.value)}
+                className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-100 focus:outline-none focus:ring-2 focus:ring-emerald-500/60"
+              />
+            </div>
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-slate-200">Fecha</label>
+                <input
+                  type="date"
+                  value={form.event_date}
+                  onChange={(e) => handleChange('event_date', e.target.value)}
+                  className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-100 focus:outline-none focus:ring-2 focus:ring-emerald-500/60"
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-slate-200">Hora</label>
+                <input
+                  type="time"
+                  value={form.entry_time}
+                  onChange={(e) => handleChange('entry_time', e.target.value)}
+                  className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-100 focus:outline-none focus:ring-2 focus:ring-emerald-500/60"
+                />
+              </div>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-slate-200">Adultos</label>
+              <input
+                type="number"
+                value={form.adults ?? ''}
+                onChange={(e) => handleChange('adults', parseNumber(e.target.value))}
                 className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-100 focus:outline-none focus:ring-2 focus:ring-emerald-500/60"
               />
             </div>
             <div className="space-y-2">
-              <label className="text-sm font-medium text-slate-200">Hora</label>
+              <label className="text-sm font-medium text-slate-200">Niños</label>
               <input
-                type="time"
-                value={form.entry_time}
-                onChange={(e) => handleChange('entry_time', e.target.value)}
+                type="number"
+                value={form.children ?? ''}
+                onChange={(e) => handleChange('children', parseNumber(e.target.value))}
+                className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-100 focus:outline-none focus:ring-2 focus:ring-emerald-500/60"
+              />
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-slate-200">Total pax</label>
+              <input
+                type="number"
+                value={form.total_pax ?? ''}
+                onChange={(e) => handleChange('total_pax', parseNumber(e.target.value))}
                 className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-100 focus:outline-none focus:ring-2 focus:ring-emerald-500/60"
               />
             </div>
           </div>
-        </div>
 
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-          <div className="space-y-2">
-            <label className="text-sm font-medium text-slate-200">Adultos</label>
-            <input
-              type="number"
-              value={form.adults ?? ''}
-              onChange={(e) => handleChange('adults', parseNumber(e.target.value))}
-              className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-100 focus:outline-none focus:ring-2 focus:ring-emerald-500/60"
-            />
+          <div className="flex flex-wrap gap-4">
+            <label className="inline-flex items-center gap-2 text-sm text-slate-100">
+              <input
+                type="checkbox"
+                checked={form.has_private_dining_room}
+                onChange={(e) => handleChange('has_private_dining_room', e.target.checked)}
+                className="h-4 w-4 rounded border-slate-700 bg-slate-900 text-emerald-500"
+              />
+              Sala privada
+            </label>
+            <label className="inline-flex items-center gap-2 text-sm text-slate-100">
+              <input
+                type="checkbox"
+                checked={form.has_private_party}
+                onChange={(e) => handleChange('has_private_party', e.target.checked)}
+                className="h-4 w-4 rounded border-slate-700 bg-slate-900 text-emerald-500"
+              />
+              Fiesta privada
+            </label>
           </div>
-          <div className="space-y-2">
-            <label className="text-sm font-medium text-slate-200">Niños</label>
-            <input
-              type="number"
-              value={form.children ?? ''}
-              onChange={(e) => handleChange('children', parseNumber(e.target.value))}
-              className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-100 focus:outline-none focus:ring-2 focus:ring-emerald-500/60"
-            />
-          </div>
-          <div className="space-y-2">
-            <label className="text-sm font-medium text-slate-200">Total pax</label>
-            <input
-              type="number"
-              value={form.total_pax ?? ''}
-              onChange={(e) => handleChange('total_pax', parseNumber(e.target.value))}
-              className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-100 focus:outline-none focus:ring-2 focus:ring-emerald-500/60"
-            />
-          </div>
-        </div>
+        </section>
 
-        <div className="flex flex-wrap gap-4">
-          <label className="inline-flex items-center gap-2 text-sm text-slate-100">
-            <input
-              type="checkbox"
-              checked={form.has_private_dining_room}
-              onChange={(e) => handleChange('has_private_dining_room', e.target.checked)}
-              className="h-4 w-4 rounded border-slate-700 bg-slate-900 text-emerald-500"
-            />
-            Sala privada
-          </label>
-          <label className="inline-flex items-center gap-2 text-sm text-slate-100">
-            <input
-              type="checkbox"
-              checked={form.has_private_party}
-              onChange={(e) => handleChange('has_private_party', e.target.checked)}
-              className="h-4 w-4 rounded border-slate-700 bg-slate-900 text-emerald-500"
-            />
-            Fiesta privada
-          </label>
-        </div>
+        <section className="rounded-xl border border-slate-800 bg-slate-900/60 p-4 space-y-4">
+          <h2 className="text-lg font-semibold text-slate-100">Menú y cocina</h2>
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-slate-200">Menú</label>
+              <input
+                type="text"
+                value={form.menu_text ?? ''}
+                onChange={(e) => handleChange('menu_text', e.target.value)}
+                className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-100 focus:outline-none focus:ring-2 focus:ring-emerald-500/60"
+              />
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-slate-200">Segundo plato</label>
+              <input
+                type="text"
+                value={form.second_course_type ?? ''}
+                onChange={(e) => handleChange('second_course_type', e.target.value)}
+                className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-100 focus:outline-none focus:ring-2 focus:ring-emerald-500/60"
+              />
+            </div>
+          </div>
 
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-          <div className="space-y-2">
-            <label className="text-sm font-medium text-slate-200">Segundo plato</label>
-            <input
-              type="text"
-              value={form.second_course_type ?? ''}
-              onChange={(e) => handleChange('second_course_type', e.target.value)}
-              className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-100 focus:outline-none focus:ring-2 focus:ring-emerald-500/60"
-            />
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-slate-200">Alergias y dietas</label>
+              <textarea
+                value={form.allergens_and_diets ?? ''}
+                onChange={(e) => handleChange('allergens_and_diets', e.target.value)}
+                className="h-24 w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-100 placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/60"
+              />
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-slate-200">Extras (cocina)</label>
+              <textarea
+                value={form.extras ?? ''}
+                onChange={(e) => handleChange('extras', e.target.value)}
+                className="h-24 w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-100 placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/60"
+              />
+            </div>
           </div>
-          <div className="space-y-2">
-            <label className="text-sm font-medium text-slate-200">Menú</label>
-            <input
-              type="text"
-              value={form.menu_text ?? ''}
-              onChange={(e) => handleChange('menu_text', e.target.value)}
-              className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-100 focus:outline-none focus:ring-2 focus:ring-emerald-500/60"
-            />
-          </div>
-        </div>
+        </section>
 
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+        <section className="rounded-xl border border-slate-800 bg-slate-900/60 p-4 space-y-4">
+          <h2 className="text-lg font-semibold text-slate-100">Montaje y sala</h2>
           <div className="space-y-2">
-            <label className="text-sm font-medium text-slate-200">Alergias y dietas</label>
-            <textarea
-              value={form.allergens_and_diets ?? ''}
-              onChange={(e) => handleChange('allergens_and_diets', e.target.value)}
-              className="h-24 w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-100 placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/60"
-            />
-          </div>
-          <div className="space-y-2">
-            <label className="text-sm font-medium text-slate-200">Extras</label>
-            <textarea
-              value={form.extras ?? ''}
-              onChange={(e) => handleChange('extras', e.target.value)}
-              className="h-24 w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-100 placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/60"
-            />
-          </div>
-        </div>
-
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-          <div className="space-y-2">
-            <label className="text-sm font-medium text-slate-200">Notas de montaje</label>
+            <label className="text-sm font-medium text-slate-200">Montaje / sala</label>
             <textarea
               value={form.setup_notes ?? ''}
               onChange={(e) => handleChange('setup_notes', e.target.value)}
               className="h-24 w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-100 placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/60"
             />
           </div>
-          <div className="space-y-2">
-            <label className="text-sm font-medium text-slate-200">Datos de factura</label>
-            <textarea
-              value={form.invoice_data ?? ''}
-              onChange={(e) => handleChange('invoice_data', e.target.value)}
-              className="h-24 w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-100 placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/60"
-            />
-          </div>
-        </div>
+        </section>
 
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-          <div className="space-y-2">
-            <label className="text-sm font-medium text-slate-200">Depósito (€)</label>
-            <input
-              type="number"
-              value={form.deposit_amount ?? ''}
-              onChange={(e) => handleChange('deposit_amount', parseNumber(e.target.value))}
-              className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-100 focus:outline-none focus:ring-2 focus:ring-emerald-500/60"
-            />
+        <section className="rounded-xl border border-slate-800 bg-slate-900/60 p-4 space-y-4">
+          <h2 className="text-lg font-semibold text-slate-100">Facturación y depósito</h2>
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-slate-200">Datos de factura</label>
+              <textarea
+                value={form.invoice_data ?? ''}
+                onChange={(e) => handleChange('invoice_data', e.target.value)}
+                className="h-24 w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-100 placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/60"
+              />
+            </div>
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-slate-200">Depósito (€)</label>
+                <input
+                  type="number"
+                  value={form.deposit_amount ?? ''}
+                  onChange={(e) => handleChange('deposit_amount', parseNumber(e.target.value))}
+                  className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-100 focus:outline-none focus:ring-2 focus:ring-emerald-500/60"
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-slate-200">Estado depósito</label>
+                <input
+                  type="text"
+                  value={form.deposit_status ?? ''}
+                  onChange={(e) => handleChange('deposit_status', e.target.value)}
+                  className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-100 focus:outline-none focus:ring-2 focus:ring-emerald-500/60"
+                />
+              </div>
+            </div>
           </div>
-          <div className="space-y-2">
-            <label className="text-sm font-medium text-slate-200">Estado depósito</label>
-            <input
-              type="text"
-              value={form.deposit_status ?? ''}
-              onChange={(e) => handleChange('deposit_status', e.target.value)}
-              className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-100 focus:outline-none focus:ring-2 focus:ring-emerald-500/60"
-            />
+
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-slate-200">Estado</label>
+              <select
+                value={form.status}
+                onChange={(e) => handleChange('status', e.target.value)}
+                className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-100 focus:outline-none focus:ring-2 focus:ring-emerald-500/60"
+              >
+                <option value="draft">Borrador</option>
+                <option value="confirmed">Confirmado</option>
+                <option value="completed">Completado</option>
+                <option value="cancelled">Cancelado</option>
+              </select>
+            </div>
           </div>
-          <div className="space-y-2">
-            <label className="text-sm font-medium text-slate-200">Estado</label>
-            <select
-              value={form.status}
-              onChange={(e) => handleChange('status', e.target.value)}
-              className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-100 focus:outline-none focus:ring-2 focus:ring-emerald-500/60"
-            >
-              <option value="draft">Borrador</option>
-              <option value="confirmed">Confirmado</option>
-              <option value="completed">Completado</option>
-              <option value="cancelled">Cancelado</option>
-            </select>
-          </div>
-        </div>
+        </section>
 
         <div className="flex flex-wrap items-center gap-3">
           <button
