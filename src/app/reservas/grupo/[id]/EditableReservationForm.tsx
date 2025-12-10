@@ -34,6 +34,7 @@ export function EditableReservationForm({ reservation, backDate }: Props) {
   const [form, setForm] = useState<EditableReservation>(reservation);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [calendarWarning, setCalendarWarning] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
   const handleChange = (key: keyof EditableReservation, value: unknown) => {
@@ -43,6 +44,7 @@ export function EditableReservationForm({ reservation, backDate }: Props) {
   const handleSubmit = async () => {
     setMessage(null);
     setError(null);
+    setCalendarWarning(null);
     startTransition(async () => {
       try {
         const res = await fetch('/api/group-events/update', {
@@ -54,6 +56,28 @@ export function EditableReservationForm({ reservation, backDate }: Props) {
         if (!res.ok) {
           const payload = await res.json().catch(() => ({}));
           throw new Error(payload.error || 'No se pudo guardar la reserva');
+        }
+
+        try {
+          const resCalendar = await fetch('/api/calendar-sync', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ groupEventId: form.id }),
+          });
+
+          if (!resCalendar.ok) {
+            console.error('[Editar reserva] Error sincronizando con Google Calendar', resCalendar.statusText);
+            setCalendarWarning(
+              'La reserva se ha guardado, pero ha habido un problema al sincronizar con Google Calendar. Revisa el calendario o inténtalo más tarde.',
+            );
+          }
+        } catch (e) {
+          console.error('[Editar reserva] Error sincronizando con Google Calendar', e);
+          setCalendarWarning(
+            'La reserva se ha guardado, pero ha habido un problema al sincronizar con Google Calendar. Revisa el calendario o inténtalo más tarde.',
+          );
         }
 
         setMessage('Cambios guardados');
@@ -302,6 +326,7 @@ export function EditableReservationForm({ reservation, backDate }: Props) {
             {isPending ? 'Guardando…' : 'Guardar cambios'}
           </button>
           {message && <span className="text-sm text-emerald-300">{message}</span>}
+          {calendarWarning && <span className="text-sm text-amber-400">{calendarWarning}</span>}
           {error && <span className="text-sm text-red-300">{error}</span>}
         </div>
       </div>
