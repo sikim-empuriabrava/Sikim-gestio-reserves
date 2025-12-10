@@ -153,12 +153,14 @@ export function EditableReservationForm({ reservation, backDate }: Props) {
               />
             </div>
             <div className="space-y-2">
-              <label className="text-sm font-medium text-slate-200">Total pax</label>
+              <label className="text-sm font-medium text-slate-200">
+                Total pax (calculado)
+              </label>
               <input
                 type="number"
                 value={form.total_pax ?? ''}
-                onChange={(e) => handleChange('total_pax', parseNumber(e.target.value))}
-                className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-100 focus:outline-none focus:ring-2 focus:ring-emerald-500/60"
+                readOnly
+                className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-100 focus:outline-none focus:ring-2 focus:ring-emerald-500/60 cursor-not-allowed"
               />
             </div>
           </div>
