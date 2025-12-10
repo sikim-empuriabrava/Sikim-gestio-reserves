@@ -75,6 +75,10 @@ function addDays(dateString: string, days: number) {
   return toISODate(d);
 }
 
+function getWeekDates(weekStart: string) {
+  return Array.from({ length: 7 }, (_, idx) => addDays(weekStart, idx));
+}
+
 function startOfMonth(date: Date) {
   const d = new Date(date);
   d.setDate(1);
@@ -263,21 +267,20 @@ function HeaderBar({
 
 // FIX: unify day/week/month data source using v_group_events_daily_detail
 async function getWeekData(weekStart: string) {
-  const weekEnd = addDays(weekStart, 6);
+  const weekDates = getWeekDates(weekStart);
+  const weekEnd = weekDates[6];
   const supabase = createSupabaseServerClient();
 
   const [{ data: statusesData }, { data: eventsData }] = await Promise.all([
     supabase
       .from('v_day_status')
       .select('*')
-      .gte('event_date', weekStart)
-      .lte('event_date', weekEnd)
+      .in('event_date', weekDates)
       .order('event_date', { ascending: true }),
     supabase
       .from('v_group_events_daily_detail')
       .select('*')
-      .gte('event_date', weekStart)
-      .lte('event_date', weekEnd)
+      .in('event_date', weekDates)
       .order('event_date', { ascending: true })
       .order('entry_time', { ascending: true }),
   ]);
@@ -333,15 +336,18 @@ async function getMonthData(monthDate: Date) {
   const calendarEnd = startOfWeek(monthEnd);
   calendarEnd.setDate(calendarEnd.getDate() + 6);
 
-  const start = toISODate(calendarStart);
-  const end = toISODate(calendarEnd);
+  const days: string[] = [];
+  const cursor = new Date(calendarStart);
+  while (cursor <= calendarEnd) {
+    days.push(toISODate(cursor));
+    cursor.setDate(cursor.getDate() + 1);
+  }
 
   const supabase = createSupabaseServerClient();
   const { data } = await supabase
     .from('v_group_events_daily_detail')
     .select('*')
-    .gte('event_date', start)
-    .lte('event_date', end)
+    .in('event_date', days)
     .order('event_date', { ascending: true })
     .order('entry_time', { ascending: true });
 
@@ -354,7 +360,7 @@ async function getMonthData(monthDate: Date) {
     eventsByDate.set(key, list);
   }
 
-  return { calendarStart: start, calendarEnd: end, eventsByDate };
+  return { calendarStart: days[0], calendarEnd: days[days.length - 1], eventsByDate };
 }
 
 function WeekView({
