@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { createSupabaseServerClient } from '@/lib/supabaseClient';
+import { createSupabaseAdminClient } from '@/lib/supabaseAdmin';
 import { EditableReservationForm } from './EditableReservationForm';
 
 export default async function GroupReservationDetail({
@@ -9,16 +9,14 @@ export default async function GroupReservationDetail({
   params: { id: string };
   searchParams?: { date?: string };
 }) {
-  const supabase = createSupabaseServerClient();
+  const supabase = createSupabaseAdminClient();
   const dateParam = searchParams?.date;
 
   const { data: reservation, error } = await supabase
     .from('group_events')
-    .select(
-      'id, name, event_date, entry_time, adults, children, total_pax, has_private_dining_room, has_private_party, second_course_type, menu_text, allergens_and_diets, extras, setup_notes, invoice_data, deposit_amount, deposit_status, status'
-    )
+    .select('*')
     .eq('id', params.id)
-    .maybeSingle();
+    .single();
 
   if (!reservation || error) {
     return (
