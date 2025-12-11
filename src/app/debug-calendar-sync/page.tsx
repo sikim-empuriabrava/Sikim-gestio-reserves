@@ -1,4 +1,4 @@
-import { createSupabaseServerClient } from '@/lib/supabaseClient';
+import { createSupabaseAdminClient } from '@/lib/supabaseAdmin';
 import { SyncNowButton } from './SyncNowButton';
 
 type CalendarSyncRow = {
@@ -14,7 +14,7 @@ type CalendarSyncRow = {
 };
 
 export default async function DebugCalendarSyncPage() {
-  const supabase = createSupabaseServerClient();
+  const supabase = createSupabaseAdminClient();
 
   const { data, error } = await supabase
     .from('v_group_events_calendar_sync')

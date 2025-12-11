@@ -2,7 +2,7 @@
 
 import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
 import { EleccionSegundoPlato, Turno } from '@/types/reservation';
-import { supabaseClient } from '@/lib/supabaseClient';
+import { createSupabaseBrowserClient } from '@/lib/supabaseClient';
 import { CheckIcon, ChevronDownIcon } from '@heroicons/react/24/outline';
 
 type DbMenu = {
@@ -49,6 +49,8 @@ type RoomOption = {
   id: string;
   name: string;
 };
+
+const supabase = createSupabaseBrowserClient();
 
 export default function NuevaReservaPage() {
   const [fecha, setFecha] = useState(() => new Date().toISOString().slice(0, 16));
@@ -182,10 +184,10 @@ export default function NuevaReservaPage() {
       setMenusError(null);
 
       const [{ data: menusData, error: menusLoadError }, { data: secondsData, error: secondsLoadError }] = await Promise.all([
-        supabaseClient
+        supabase
           .from('menus')
           .select('id, code, display_name, price_eur, starters_text, dessert_text, drinks_text'),
-        supabaseClient
+        supabase
           .from('menu_second_courses')
           .select('id, menu_id, code, name, description_kitchen, needs_doneness_points, sort_order'),
       ]);
@@ -226,7 +228,7 @@ export default function NuevaReservaPage() {
     const loadRooms = async () => {
       setIsLoadingRooms(true);
       setLoadRoomsError(null);
-      const { data, error } = await supabaseClient
+      const { data, error } = await supabase
         .from('rooms')
         .select('id, name')
         .eq('is_active', true)
@@ -392,7 +394,7 @@ export default function NuevaReservaPage() {
       status: 'confirmed' as const,
     };
 
-    const { data: groupEventData, error: groupEventError } = await supabaseClient
+    const { data: groupEventData, error: groupEventError } = await supabase
       .from('group_events')
       .insert(groupEventInsert)
       .select('id')
@@ -416,7 +418,7 @@ export default function NuevaReservaPage() {
       notes: mesa || null,
     };
 
-    const { error: allocationError } = await supabaseClient
+    const { error: allocationError } = await supabase
       .from('group_room_allocations')
       .insert(allocationInsert);
 
