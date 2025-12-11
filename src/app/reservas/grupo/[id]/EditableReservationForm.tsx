@@ -37,6 +37,7 @@ export function EditableReservationForm({ reservation, backDate }: Props) {
   const [calendarWarning, setCalendarWarning] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
+  // Total pax calculado siempre desde adultos + niños (lo que ve el usuario)
   const computedTotalPax = (form.adults ?? 0) + (form.children ?? 0);
 
   const handleChange = (key: keyof EditableReservation, value: unknown) => {
@@ -47,8 +48,10 @@ export function EditableReservationForm({ reservation, backDate }: Props) {
     setMessage(null);
     setError(null);
     setCalendarWarning(null);
+
     startTransition(async () => {
       try {
+        // Enviamos el formulario tal cual; la API ya se encarga de ignorar total_pax, created_at, updated_at, etc.
         const res = await fetch('/api/group-events/update', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -60,6 +63,7 @@ export function EditableReservationForm({ reservation, backDate }: Props) {
           throw new Error(payload.error || 'No se pudo guardar la reserva');
         }
 
+        // Intentar sincronizar con Google Calendar, pero sin romper el guardado
         try {
           const resCalendar = await fetch('/api/calendar-sync', {
             method: 'POST',
@@ -70,7 +74,10 @@ export function EditableReservationForm({ reservation, backDate }: Props) {
           });
 
           if (!resCalendar.ok) {
-            console.error('[Editar reserva] Error sincronizando con Google Calendar', resCalendar.statusText);
+            console.error(
+              '[Editar reserva] Error sincronizando con Google Calendar',
+              resCalendar.statusText,
+            );
             setCalendarWarning(
               'La reserva se ha guardado, pero ha habido un problema al sincronizar con Google Calendar. Revisa el calendario o inténtalo más tarde.',
             );
@@ -328,7 +335,9 @@ export function EditableReservationForm({ reservation, backDate }: Props) {
             {isPending ? 'Guardando…' : 'Guardar cambios'}
           </button>
           {message && <span className="text-sm text-emerald-300">{message}</span>}
-          {calendarWarning && <span className="text-sm text-amber-400">{calendarWarning}</span>}
+          {calendarWarning && (
+            <span className="text-sm text-amber-400">{calendarWarning}</span>
+          )}
           {error && <span className="text-sm text-red-300">{error}</span>}
         </div>
       </div>
