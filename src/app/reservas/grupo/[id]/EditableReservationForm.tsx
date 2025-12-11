@@ -56,6 +56,18 @@ export function EditableReservationForm({ reservation, backDate }: Props) {
           throw new Error(payload.error || 'No se pudo guardar la reserva');
         }
 
+        try {
+          await fetch('/api/calendar-sync', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ groupEventId: form.id }),
+          });
+        } catch (e) {
+          console.error('[Editar reserva] Error sincronizando con Google Calendar', e);
+        }
+
         setMessage('Cambios guardados');
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Error inesperado');
