@@ -34,7 +34,11 @@ export function EditableReservationForm({ reservation, backDate }: Props) {
   const [form, setForm] = useState<EditableReservation>(reservation);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [calendarWarning, setCalendarWarning] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
+
+  // Total pax calculado siempre desde adultos + niños (lo que ve el usuario)
+  const computedTotalPax = (form.adults ?? 0) + (form.children ?? 0);
 
   const handleChange = (key: keyof EditableReservation, value: unknown) => {
     setForm((prev) => ({ ...prev, [key]: value } as EditableReservation));
@@ -43,8 +47,11 @@ export function EditableReservationForm({ reservation, backDate }: Props) {
   const handleSubmit = async () => {
     setMessage(null);
     setError(null);
+    setCalendarWarning(null);
+
     startTransition(async () => {
       try {
+        // Enviamos el formulario tal cual; la API ya se encarga de ignorar total_pax, created_at, updated_at, etc.
         const res = await fetch('/api/group-events/update', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -56,16 +63,30 @@ export function EditableReservationForm({ reservation, backDate }: Props) {
           throw new Error(payload.error || 'No se pudo guardar la reserva');
         }
 
+        // Intentar sincronizar con Google Calendar, pero sin romper el guardado
         try {
-          await fetch('/api/calendar-sync', {
+          const resCalendar = await fetch('/api/calendar-sync', {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
             },
             body: JSON.stringify({ groupEventId: form.id }),
           });
+
+          if (!resCalendar.ok) {
+            console.error(
+              '[Editar reserva] Error sincronizando con Google Calendar',
+              resCalendar.statusText,
+            );
+            setCalendarWarning(
+              'La reserva se ha guardado, pero ha habido un problema al sincronizar con Google Calendar. Revisa el calendario o inténtalo más tarde.',
+            );
+          }
         } catch (e) {
           console.error('[Editar reserva] Error sincronizando con Google Calendar', e);
+          setCalendarWarning(
+            'La reserva se ha guardado, pero ha habido un problema al sincronizar con Google Calendar. Revisa el calendario o inténtalo más tarde.',
+          );
         }
 
         setMessage('Cambios guardados');
@@ -170,7 +191,7 @@ export function EditableReservationForm({ reservation, backDate }: Props) {
               </label>
               <input
                 type="number"
-                value={form.total_pax ?? ''}
+                value={computedTotalPax}
                 readOnly
                 className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-100 focus:outline-none focus:ring-2 focus:ring-emerald-500/60 cursor-not-allowed"
               />
@@ -314,6 +335,9 @@ export function EditableReservationForm({ reservation, backDate }: Props) {
             {isPending ? 'Guardando…' : 'Guardar cambios'}
           </button>
           {message && <span className="text-sm text-emerald-300">{message}</span>}
+          {calendarWarning && (
+            <span className="text-sm text-amber-400">{calendarWarning}</span>
+          )}
           {error && <span className="text-sm text-red-300">{error}</span>}
         </div>
       </div>
