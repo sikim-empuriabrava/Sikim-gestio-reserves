@@ -45,7 +45,7 @@ export async function POST(req: NextRequest) {
       .maybeSingle();
 
     if (error) {
-      console.error('[CalendarSync] Error fetching sync row', error);
+      console.error('[CalendarSync] Error fetching sync row', { groupEventId, error });
       return NextResponse.json(
         { error: 'Error fetching calendar sync row' },
         { status: 500 }
@@ -86,7 +86,10 @@ export async function POST(req: NextRequest) {
       .single();
 
     if (groupEventError) {
-      console.error('[CalendarSync] Error fetching group event details', groupEventError);
+      console.error('[CalendarSync] Error fetching group event details', {
+        groupEventId,
+        error: groupEventError,
+      });
     }
 
     const { data: roomAllocations, error: roomError } = await supabase
@@ -95,7 +98,10 @@ export async function POST(req: NextRequest) {
       .eq('group_event_id', row.group_event_id);
 
     if (roomError) {
-      console.error('[CalendarSync] Error fetching room allocations', roomError);
+      console.error('[CalendarSync] Error fetching room allocations', {
+        groupEventId,
+        error: roomError,
+      });
     }
 
     const groupName = groupEvent?.name ?? row.group_name;
@@ -152,93 +158,100 @@ export async function POST(req: NextRequest) {
       endDate,
     };
 
-    if (row.desired_calendar_action === 'create') {
-      const eventId = await createCalendarEvent(payload);
+    switch (row.desired_calendar_action) {
+      case 'create': {
+        try {
+          const eventId = await createCalendarEvent(payload);
 
-      const { error: updateError } = await supabase
-        .from('group_events')
-        .update({
-          calendar_event_id: eventId,
-          calendar_deleted_externally: false,
-        })
-        .eq('id', row.group_event_id);
-
-      if (updateError) {
-        console.error('[CalendarSync] Error saving calendar_event_id', updateError);
-        return NextResponse.json(
-          { error: 'Event created in Calendar but failed to save calendar_event_id' },
-          { status: 500 }
-        );
-      }
-
-      return NextResponse.json({ status: 'created', calendar_event_id: eventId });
-    }
-
-    if (row.desired_calendar_action === 'update' && row.calendar_event_id) {
-      try {
-        await updateCalendarEvent(row.calendar_event_id, payload);
-
-        const { error: clearFlagError } = await supabase
-          .from('group_events')
-          .update({ calendar_deleted_externally: false })
-          .eq('id', row.group_event_id);
-
-        if (clearFlagError) {
-          console.error('[CalendarSync] Error clearing calendar_deleted_externally', clearFlagError);
-        }
-
-        return NextResponse.json({ status: 'updated' });
-      } catch (err: unknown) {
-        console.error('[CalendarSync] Error updating event', err);
-
-        if (isNotFoundError(err)) {
-          const { error: flagError } = await supabase
+          const { error: updateError } = await supabase
             .from('group_events')
-            .update({ calendar_deleted_externally: true })
+            .update({
+              calendar_event_id: eventId,
+              calendar_deleted_externally: false,
+            })
             .eq('id', row.group_event_id);
 
-          if (flagError) {
-            console.error('[CalendarSync] Error setting calendar_deleted_externally', flagError);
+          if (updateError) {
+            console.error('[CalendarSync] Error saving calendar_event_id', {
+              groupEventId,
+              error: updateError,
+            });
+            return NextResponse.json(
+              { error: 'Event created in Calendar but failed to save calendar_event_id' },
+              { status: 500 }
+            );
           }
 
+          return NextResponse.json({ status: 'created', calendar_event_id: eventId });
+        } catch (err: unknown) {
+          console.error('[CalendarSync] Error creating event', { groupEventId, error: err });
           return NextResponse.json(
-            {
-              status: 'calendar_event_missing',
-              message:
-                'El evento ya no existe en Google Calendar. Se ha marcado calendar_deleted_externally = true.',
-            },
+            { error: 'Error creating event in Calendar' },
+            { status: 500 }
+          );
+        }
+      }
+      case 'update': {
+        if (!row.calendar_event_id) {
+          console.error('[CalendarSync] Update requested without calendar_event_id', {
+            groupEventId,
+          });
+          return NextResponse.json(
+            { error: 'Missing calendar_event_id for update action' },
             { status: 409 }
           );
         }
 
-        return NextResponse.json(
-          { error: 'Error updating event in Calendar' },
-          { status: 500 }
-        );
-      }
-    }
+        try {
+          await updateCalendarEvent(row.calendar_event_id, payload);
 
-    if (row.desired_calendar_action === 'delete' && row.calendar_event_id) {
-      try {
-        await deleteCalendarEvent(row.calendar_event_id);
+          const { error: clearFlagError } = await supabase
+            .from('group_events')
+            .update({ calendar_deleted_externally: false })
+            .eq('id', row.group_event_id);
 
-        const { error: updateError } = await supabase
-          .from('group_events')
-          .update({
-            calendar_event_id: null,
-            calendar_deleted_externally: false,
-          })
-          .eq('id', row.group_event_id);
+          if (clearFlagError) {
+            console.error('[CalendarSync] Error clearing calendar_deleted_externally', {
+              groupEventId,
+              error: clearFlagError,
+            });
+          }
 
-        if (updateError) {
-          console.error('[CalendarSync] Error clearing calendar_event_id', updateError);
+          return NextResponse.json({ status: 'updated' });
+        } catch (err: unknown) {
+          console.error('[CalendarSync] Error updating event', { groupEventId, error: err });
+
+          if (isNotFoundError(err)) {
+            const { error: flagError } = await supabase
+              .from('group_events')
+              .update({ calendar_deleted_externally: true })
+              .eq('id', row.group_event_id);
+
+            if (flagError) {
+              console.error('[CalendarSync] Error setting calendar_deleted_externally', {
+                groupEventId,
+                error: flagError,
+              });
+            }
+
+            return NextResponse.json(
+              {
+                status: 'calendar_event_missing',
+                message:
+                  'El evento ya no existe en Google Calendar. Se ha marcado calendar_deleted_externally = true.',
+              },
+              { status: 409 }
+            );
+          }
+
+          return NextResponse.json(
+            { error: 'Error updating event in Calendar' },
+            { status: 500 }
+          );
         }
-
-        return NextResponse.json({ status: 'deleted' });
-      } catch (err: unknown) {
-        console.error('[CalendarSync] Error deleting event', err);
-
-        if (isNotFoundError(err)) {
+      }
+      case 'delete': {
+        if (!row.calendar_event_id) {
           const { error: clearError } = await supabase
             .from('group_events')
             .update({
@@ -248,30 +261,75 @@ export async function POST(req: NextRequest) {
             .eq('id', row.group_event_id);
 
           if (clearError) {
-            console.error('[CalendarSync] Error clearing calendar_event_id after 404', clearError);
+            console.error('[CalendarSync] Error clearing calendar_event_id without id', {
+              groupEventId,
+              error: clearError,
+            });
+          }
+
+          return NextResponse.json({ status: 'already_deleted' });
+        }
+
+        try {
+          await deleteCalendarEvent(row.calendar_event_id);
+
+          const { error: updateError } = await supabase
+            .from('group_events')
+            .update({
+              calendar_event_id: null,
+              calendar_deleted_externally: false,
+            })
+            .eq('id', row.group_event_id);
+
+          if (updateError) {
+            console.error('[CalendarSync] Error clearing calendar_event_id', {
+              groupEventId,
+              error: updateError,
+            });
+          }
+
+          return NextResponse.json({ status: 'deleted' });
+        } catch (err: unknown) {
+          console.error('[CalendarSync] Error deleting event', { groupEventId, error: err });
+
+          if (isNotFoundError(err)) {
+            const { error: clearError } = await supabase
+              .from('group_events')
+              .update({
+                calendar_event_id: null,
+                calendar_deleted_externally: false,
+              })
+              .eq('id', row.group_event_id);
+
+            if (clearError) {
+              console.error('[CalendarSync] Error clearing calendar_event_id after 404', {
+                groupEventId,
+                error: clearError,
+              });
+            }
+
+            return NextResponse.json(
+              {
+                status: 'already_deleted',
+                message:
+                  'El evento no existía en Google Calendar, se ha limpiado calendar_event_id igualmente.',
+              },
+              { status: 200 }
+            );
           }
 
           return NextResponse.json(
-            {
-              status: 'already_deleted',
-              message:
-                'El evento no existía en Google Calendar, se ha limpiado calendar_event_id igualmente.',
-            },
-            { status: 200 }
+            { error: 'Error deleting event in Calendar' },
+            { status: 500 }
           );
         }
-
-        return NextResponse.json(
-          { error: 'Error deleting event in Calendar' },
-          { status: 500 }
-        );
       }
+      default:
+        return NextResponse.json(
+          { status: 'unsupported_action', action: row.desired_calendar_action },
+          { status: 400 }
+        );
     }
-
-    return NextResponse.json(
-      { status: 'unsupported_action', action: row.desired_calendar_action },
-      { status: 400 }
-    );
   } catch (e: unknown) {
     console.error('[CalendarSync] Unhandled error', e);
     return NextResponse.json(
