@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { createSupabaseServerClient } from '@/lib/supabaseClient';
+import { createSupabaseAdminClient } from '@/lib/supabaseAdmin';
 import { DayNotesPanel } from '../reservas-dia/detalle/DayNotesPanel';
 import { ReservationOutcomeCard } from '../reservas-dia/detalle/ReservationOutcomeCard';
 
@@ -269,7 +269,7 @@ function HeaderBar({
 async function getWeekData(weekStart: string) {
   const weekDates = getWeekDates(weekStart);
   const weekEnd = weekDates[6];
-  const supabase = createSupabaseServerClient();
+  const supabase = createSupabaseAdminClient();
 
   const [{ data: statusesData }, { data: eventsData }] = await Promise.all([
     supabase
@@ -303,7 +303,7 @@ async function getWeekData(weekStart: string) {
 }
 
 async function getDayData(selectedDate: string) {
-  const supabase = createSupabaseServerClient();
+  const supabase = createSupabaseAdminClient();
   const [{ data: dayStatusData }, { data: eventsData }] = await Promise.all([
     supabase.from('v_day_status').select('*').eq('event_date', selectedDate).maybeSingle(),
     supabase
@@ -343,7 +343,7 @@ async function getMonthData(monthDate: Date) {
     cursor.setDate(cursor.getDate() + 1);
   }
 
-  const supabase = createSupabaseServerClient();
+  const supabase = createSupabaseAdminClient();
   const { data } = await supabase
     .from('v_group_events_daily_detail')
     .select('*')
