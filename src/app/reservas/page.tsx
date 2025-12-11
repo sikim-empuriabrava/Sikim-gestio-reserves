@@ -3,6 +3,8 @@ import { createSupabaseAdminClient } from '@/lib/supabaseAdmin';
 import { DayNotesPanel } from '../reservas-dia/detalle/DayNotesPanel';
 import { ReservationOutcomeCard } from '../reservas-dia/detalle/ReservationOutcomeCard';
 
+export const dynamic = 'force-dynamic';
+
 const DATE_REGEX = /^\d{4}-\d{2}-\d{2}$/;
 
 type SearchParams = {

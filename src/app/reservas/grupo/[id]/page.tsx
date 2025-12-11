@@ -2,6 +2,8 @@ import Link from 'next/link';
 import { createSupabaseAdminClient } from '@/lib/supabaseAdmin';
 import { EditableReservationForm } from './EditableReservationForm';
 
+export const dynamic = 'force-dynamic';
+
 export default async function GroupReservationDetail({
   params,
   searchParams,
