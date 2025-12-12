@@ -54,6 +54,7 @@ export function EditableReservationForm({ reservation, backDate }: Props) {
         // Enviamos el formulario tal cual; la API ya se encarga de ignorar total_pax, created_at, updated_at, etc.
         const res = await fetch('/api/group-events/update', {
           method: 'POST',
+          cache: 'no-store',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(form),
         });
@@ -67,6 +68,7 @@ export function EditableReservationForm({ reservation, backDate }: Props) {
         try {
           const resCalendar = await fetch('/api/calendar-sync', {
             method: 'POST',
+            cache: 'no-store',
             headers: {
               'Content-Type': 'application/json',
             },
@@ -90,6 +92,7 @@ export function EditableReservationForm({ reservation, backDate }: Props) {
         }
 
         setMessage('Cambios guardados');
+        router.refresh();
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Error inesperado');
       }

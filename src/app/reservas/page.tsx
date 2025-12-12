@@ -1,7 +1,12 @@
 import Link from 'next/link';
+import { unstable_noStore as noStore } from 'next/cache';
 import { createSupabaseAdminClient } from '@/lib/supabaseAdmin';
 import { DayNotesPanel } from '../reservas-dia/detalle/DayNotesPanel';
 import { ReservationOutcomeCard } from '../reservas-dia/detalle/ReservationOutcomeCard';
+
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+export const fetchCache = 'force-no-store';
 
 const DATE_REGEX = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -577,6 +582,7 @@ function MonthView({
 }
 
 export default async function ReservasPage({ searchParams }: { searchParams?: SearchParams }) {
+  noStore();
   const viewParam = searchParams?.view;
   const view: 'month' | 'week' | 'day' = viewParam === 'month' || viewParam === 'day' ? viewParam : 'week';
   const baseDate = parseDate(searchParams?.date);

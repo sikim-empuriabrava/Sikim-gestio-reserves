@@ -10,6 +10,7 @@ export function SyncNowButton({ groupEventId }: { groupEventId: string }) {
       setLoading(true);
       const res = await fetch('/api/calendar-sync', {
         method: 'POST',
+        cache: 'no-store',
         headers: {
           'Content-Type': 'application/json',
         },

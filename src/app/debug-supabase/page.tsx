@@ -1,7 +1,7 @@
-import { createSupabaseServerClient } from '@/lib/supabaseClient';
+import { createSupabaseAdminClient } from '@/lib/supabaseAdmin';
 
 export default async function DebugSupabasePage() {
-  const supabase = createSupabaseServerClient();
+  const supabase = createSupabaseAdminClient();
 
   const { data, error } = await supabase
     .from('group_events')
