@@ -57,6 +57,7 @@ export function DayNotesPanel({
     try {
       const res = await fetch('/api/day-status', {
         method: 'POST',
+        cache: 'no-store',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           eventDate,

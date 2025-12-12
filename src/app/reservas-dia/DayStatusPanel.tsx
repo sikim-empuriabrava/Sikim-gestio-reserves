@@ -17,6 +17,7 @@ export function DayStatusPanel({ eventDate }: { eventDate: string }) {
       try {
         const res = await fetch(`/api/day-status?date=${eventDate}`, {
           cache: 'no-store',
+          headers: { 'Content-Type': 'application/json' },
         });
         if (!res.ok) {
           throw new Error('No se pudo obtener el estado del día');
@@ -50,6 +51,7 @@ export function DayStatusPanel({ eventDate }: { eventDate: string }) {
     try {
       const res = await fetch('/api/day-status', {
         method: 'POST',
+        cache: 'no-store',
         headers: {
           'Content-Type': 'application/json',
         },

@@ -1,8 +1,11 @@
 import Link from 'next/link';
+import { unstable_noStore as noStore } from 'next/cache';
 import { createSupabaseAdminClient } from '@/lib/supabaseAdmin';
 import { EditableReservationForm } from './EditableReservationForm';
 
 export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+export const fetchCache = 'force-no-store';
 
 export default async function GroupReservationDetail({
   params,
@@ -11,6 +14,7 @@ export default async function GroupReservationDetail({
   params: { id: string };
   searchParams?: { date?: string };
 }) {
+  noStore();
   const supabase = createSupabaseAdminClient();
   const dateParam = searchParams?.date;
 

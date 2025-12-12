@@ -69,6 +69,7 @@ export function ReservationOutcomeCard({
     try {
       const res = await fetch('/api/group-events/service-outcome', {
         method: 'POST',
+        cache: 'no-store',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           groupEventId,

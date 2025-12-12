@@ -1,6 +1,7 @@
 'use client';
 
 import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { EleccionSegundoPlato, Turno } from '@/types/reservation';
 import { createSupabaseBrowserClient } from '@/lib/supabaseClient';
 import { CheckIcon, ChevronDownIcon } from '@heroicons/react/24/outline';
@@ -53,6 +54,7 @@ type RoomOption = {
 const supabase = createSupabaseBrowserClient();
 
 export default function NuevaReservaPage() {
+  const router = useRouter();
   const [fecha, setFecha] = useState(() => new Date().toISOString().slice(0, 16));
   const [turno, setTurno] = useState<Turno>('cena');
   const [nombreCliente, setNombreCliente] = useState('');
@@ -434,6 +436,7 @@ export default function NuevaReservaPage() {
     try {
       const resCalendar = await fetch('/api/calendar-sync', {
         method: 'POST',
+        cache: 'no-store',
         headers: {
           'Content-Type': 'application/json',
         },
@@ -454,6 +457,7 @@ export default function NuevaReservaPage() {
     }
 
     setSubmitSuccess('Reserva creada correctamente.');
+    router.refresh();
     setIsSubmitting(false);
   };
 
