@@ -1,3 +1,4 @@
+import { notFound } from 'next/navigation';
 import { createSupabaseAdminClient } from '@/lib/supabaseAdmin';
 import { SyncNowButton } from './SyncNowButton';
 
@@ -14,6 +15,10 @@ type CalendarSyncRow = {
 };
 
 export default async function DebugCalendarSyncPage() {
+  if (process.env.ENABLE_DEBUG_PAGES !== 'true') {
+    notFound();
+  }
+
   const supabase = createSupabaseAdminClient();
 
   const { data, error } = await supabase

@@ -3,7 +3,6 @@
 import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { EleccionSegundoPlato, Turno } from '@/types/reservation';
-import { createSupabaseBrowserClient } from '@/lib/supabaseClient';
 import { CheckIcon, ChevronDownIcon } from '@heroicons/react/24/outline';
 
 type DbMenu = {
@@ -50,8 +49,6 @@ type RoomOption = {
   id: string;
   name: string;
 };
-
-const supabase = createSupabaseBrowserClient();
 
 export default function NuevaReservaPage() {
   const router = useRouter();
@@ -184,43 +181,27 @@ export default function NuevaReservaPage() {
     const loadMenus = async () => {
       setMenusLoading(true);
       setMenusError(null);
+      try {
+        const response = await fetch('/api/menus', { cache: 'no-store' });
 
-      const [{ data: menusData, error: menusLoadError }, { data: secondsData, error: secondsLoadError }] = await Promise.all([
-        supabase
-          .from('menus')
-          .select('id, code, display_name, price_eur, starters_text, dessert_text, drinks_text'),
-        supabase
-          .from('menu_second_courses')
-          .select('id, menu_id, code, name, description_kitchen, needs_doneness_points, sort_order'),
-      ]);
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}`);
+        }
 
-      if (menusLoadError || secondsLoadError) {
-        console.error('[Nueva reserva] Error cargando menús', menusLoadError || secondsLoadError);
+        const data = (await response.json()) as { menus?: MenuWithSeconds[]; error?: string };
+
+        if (!data.menus) {
+          throw new Error(data.error ?? 'No se han podido cargar los menús.');
+        }
+
+        setMenus(data.menus);
+        setMenuId((prev) => prev || data.menus[0]?.id || '');
+      } catch (error) {
+        console.error('[Nueva reserva] Error cargando menús', error);
         setMenusError('No se han podido cargar los menús.');
+      } finally {
         setMenusLoading(false);
-        return;
       }
-
-      const menusWithSeconds: MenuWithSeconds[] = (menusData ?? []).map((menu) => {
-        const segundos = (secondsData ?? [])
-          .filter((s) => s.menu_id === menu.id)
-          .sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0));
-
-        return {
-          ...menu,
-          segundos: segundos.map((s) => ({
-            id: s.code,
-            code: s.code,
-            nombre: s.name,
-            descripcion: s.description_kitchen,
-            needsDonenessPoints: s.needs_doneness_points,
-          })),
-        };
-      });
-
-      setMenus(menusWithSeconds);
-      setMenusLoading(false);
-      setMenuId((prev) => prev || menusWithSeconds[0]?.id || '');
     };
 
     loadMenus();
@@ -230,24 +211,29 @@ export default function NuevaReservaPage() {
     const loadRooms = async () => {
       setIsLoadingRooms(true);
       setLoadRoomsError(null);
-      const { data, error } = await supabase
-        .from('rooms')
-        .select('id, name')
-        .eq('is_active', true)
-        .order('sort_order', { ascending: true });
+      try {
+        const response = await fetch('/api/rooms', { cache: 'no-store' });
 
-      if (error) {
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}`);
+        }
+
+        const data = (await response.json()) as { rooms?: RoomOption[]; error?: string };
+
+        if (!data.rooms) {
+          throw new Error(data.error ?? 'No se han podido cargar las salas.');
+        }
+
+        setRooms(data.rooms);
+        if (data.rooms.length > 0) {
+          setRoomId((prev) => prev || data.rooms[0].id);
+        }
+      } catch (error) {
         console.error('[Nueva reserva] Error cargando rooms', error);
         setLoadRoomsError('No se han podido cargar las salas.');
-      } else {
-        const options = (data ?? []).map((r) => ({ id: r.id, name: r.name }));
-        setRooms(options);
-        if (options.length > 0) {
-          setRoomId((prev) => prev || options[0].id);
-        }
+      } finally {
+        setIsLoadingRooms(false);
       }
-
-      setIsLoadingRooms(false);
     };
 
     loadRooms();
@@ -377,88 +363,74 @@ export default function NuevaReservaPage() {
 
     const extras = notasCocina ? `Notas cocina: ${notasCocina}` : null;
 
-    const groupEventInsert = {
-      name: nombreCliente || 'Grupo sin nombre',
-      event_date: eventDate,
-      entry_time: entryTime,
-      adults: numeroPersonas,
-      children: 0,
-      has_private_dining_room: false,
-      has_private_party: false,
-      second_course_type: null,
-      menu_text: menuText,
-      allergens_and_diets: intolerancias || null,
-      extras,
-      setup_notes: setupNotes,
-      deposit_amount: null,
-      deposit_status: null,
-      invoice_data: null,
-      status: 'confirmed' as const,
-    };
-
-    const { data: groupEventData, error: groupEventError } = await supabase
-      .from('group_events')
-      .insert(groupEventInsert)
-      .select('id')
-      .single();
-
-    if (groupEventError || !groupEventData) {
-      console.error('[Nueva reserva] Error creando group_event', groupEventError);
-      setSubmitError('No se ha podido crear la reserva. Inténtalo de nuevo.');
-      setIsSubmitting(false);
-      return;
-    }
-
-    const groupEventId = groupEventData.id;
-
-    const allocationInsert = {
-      group_event_id: groupEventId,
-      room_id: roomId,
-      adults: numeroPersonas,
-      children: 0,
-      override_capacity: false,
-      notes: mesa || null,
-    };
-
-    const { error: allocationError } = await supabase
-      .from('group_room_allocations')
-      .insert(allocationInsert);
-
-    if (allocationError) {
-      console.error('[Nueva reserva] Error creando group_room_allocation', allocationError);
-      setSubmitError(
-        'La reserva se ha creado, pero no se ha podido asignar a una sala. Revisa la configuración.',
-      );
-      setIsSubmitting(false);
-      return;
-    }
-
     try {
-      const resCalendar = await fetch('/api/calendar-sync', {
+      const resCreate = await fetch('/api/group-events/create', {
         method: 'POST',
         cache: 'no-store',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ groupEventId }),
+        body: JSON.stringify({
+          name: nombreCliente || 'Grupo sin nombre',
+          event_date: eventDate,
+          entry_time: entryTime,
+          adults: numeroPersonas,
+          children: 0,
+          menu_text: menuText,
+          allergens_and_diets: intolerancias || null,
+          extras,
+          setup_notes: setupNotes,
+          second_course_type: null,
+          room_id: roomId,
+          override_capacity: false,
+          notes: mesa || null,
+          status: 'confirmed',
+        }),
       });
 
-      if (!resCalendar.ok) {
-        console.error('[Nueva reserva] Error sincronizando con Google Calendar', resCalendar.statusText);
+      const createResult = (await resCreate.json()) as { groupEventId?: string; error?: string };
+
+      if (!resCreate.ok || !createResult.groupEventId) {
+        const message = createResult.error ?? 'No se ha podido crear la reserva. Inténtalo de nuevo.';
+        console.error('[Nueva reserva] Error creando reserva', message);
+        setSubmitError(message);
+        setIsSubmitting(false);
+        return;
+      }
+
+      const groupEventId = createResult.groupEventId;
+
+      try {
+        const resCalendar = await fetch('/api/calendar-sync', {
+          method: 'POST',
+          cache: 'no-store',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ groupEventId }),
+        });
+
+        if (!resCalendar.ok) {
+          console.error('[Nueva reserva] Error sincronizando con Google Calendar', resCalendar.statusText);
+          setCalendarWarning(
+            'La reserva se ha creado, pero ha habido un problema al sincronizar con Google Calendar. Revisa el calendario o inténtalo más tarde.',
+          );
+        }
+      } catch (e) {
+        console.error('[Nueva reserva] Error sincronizando con Google Calendar', e);
         setCalendarWarning(
           'La reserva se ha creado, pero ha habido un problema al sincronizar con Google Calendar. Revisa el calendario o inténtalo más tarde.',
         );
       }
-    } catch (e) {
-      console.error('[Nueva reserva] Error sincronizando con Google Calendar', e);
-      setCalendarWarning(
-        'La reserva se ha creado, pero ha habido un problema al sincronizar con Google Calendar. Revisa el calendario o inténtalo más tarde.',
-      );
-    }
 
-    setSubmitSuccess('Reserva creada correctamente.');
-    router.refresh();
-    setIsSubmitting(false);
+      setSubmitSuccess('Reserva creada correctamente.');
+      router.refresh();
+    } catch (error) {
+      console.error('[Nueva reserva] Error creando reserva', error);
+      setSubmitError('No se ha podido crear la reserva. Inténtalo de nuevo.');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (

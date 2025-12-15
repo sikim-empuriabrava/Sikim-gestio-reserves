@@ -1,6 +1,11 @@
+import { notFound } from 'next/navigation';
 import { createSupabaseAdminClient } from '@/lib/supabaseAdmin';
 
 export default async function DebugSupabasePage() {
+  if (process.env.ENABLE_DEBUG_PAGES !== 'true') {
+    notFound();
+  }
+
   const supabase = createSupabaseAdminClient();
 
   const { data, error } = await supabase
