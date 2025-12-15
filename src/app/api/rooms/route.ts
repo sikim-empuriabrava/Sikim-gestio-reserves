@@ -1,9 +1,25 @@
 import { NextResponse } from 'next/server';
 import { createSupabaseAdminClient } from '@/lib/supabaseAdmin';
+import { createSupabaseRouteHandlerClient, mergeResponseCookies } from '@/lib/supabase/route';
 
 export const dynamic = 'force-dynamic';
 
 export async function GET() {
+  const supabaseResponse = NextResponse.next();
+  const authClient = createSupabaseRouteHandlerClient(supabaseResponse);
+  const {
+    data: { session },
+  } = await authClient.auth.getSession();
+
+  if (!session) {
+    const unauthorized = NextResponse.json(
+      { error: 'Unauthorized' },
+      { status: 401, headers: { 'Cache-Control': 'no-store' } },
+    );
+    mergeResponseCookies(supabaseResponse, unauthorized);
+    return unauthorized;
+  }
+
   const supabase = createSupabaseAdminClient();
 
   const { data, error } = await supabase
@@ -21,5 +37,8 @@ export async function GET() {
     name: room.name,
   }));
 
-  return NextResponse.json({ rooms }, { headers: { 'Cache-Control': 'no-store' } });
+  const response = NextResponse.json({ rooms }, { headers: { 'Cache-Control': 'no-store' } });
+  mergeResponseCookies(supabaseResponse, response);
+
+  return response;
 }

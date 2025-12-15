@@ -1,11 +1,8 @@
 import type { Metadata } from 'next';
-import { Inter } from 'next/font/google';
 import './globals.css';
 import { Navigation } from '@/components/Navigation';
 import { UserMenu } from '@/components/UserMenu';
-import { createSupabaseServerClient } from '@/lib/supabaseServer';
-
-const inter = Inter({ subsets: ['latin'] });
+import { createSupabaseServerClient } from '@/lib/supabase/server';
 
 export const metadata: Metadata = {
   title: 'Gestor de Reservas | Sikim',
@@ -20,7 +17,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
 
   return (
     <html lang="es">
-      <body className={`${inter.className} bg-gradient-to-b from-slate-950 via-slate-900 to-slate-950`}>
+      <body className="bg-gradient-to-b from-slate-950 via-slate-900 to-slate-950 font-sans">
         <div className="absolute inset-0 -z-10 bg-[radial-gradient(circle_at_20%_20%,rgba(124,58,237,0.18),transparent_35%),radial-gradient(circle_at_80%_0%,rgba(34,211,238,0.15),transparent_30%)]" />
         <div className="mx-auto flex min-h-screen max-w-6xl flex-col gap-8 px-4 py-8 lg:px-0">
           <header className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">

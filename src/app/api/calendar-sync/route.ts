@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createSupabaseAdminClient } from '@/lib/supabaseAdmin';
+import { createSupabaseRouteHandlerClient, mergeResponseCookies } from '@/lib/supabase/route';
 import {
   createCalendarEvent,
   deleteCalendarEvent,
@@ -25,15 +26,31 @@ function isNotFoundError(error: unknown) {
 }
 
 export async function POST(req: NextRequest) {
+  const supabaseResponse = NextResponse.next();
+  const authClient = createSupabaseRouteHandlerClient(supabaseResponse);
+  const {
+    data: { session },
+  } = await authClient.auth.getSession();
+
+  const respond = (
+    body: Record<string, unknown>,
+    init?: Parameters<typeof NextResponse.json>[1],
+  ) => {
+    const response = NextResponse.json(body, init);
+    mergeResponseCookies(supabaseResponse, response);
+    return response;
+  };
+
+  if (!session) {
+    return respond({ error: 'Unauthorized' }, { status: 401, headers: { 'Cache-Control': 'no-store' } });
+  }
+
   try {
     const body = await req.json();
     const groupEventId: string | undefined = body.groupEventId;
 
     if (!groupEventId) {
-      return NextResponse.json(
-        { error: 'Missing groupEventId in body' },
-        { status: 400 }
-      );
+      return respond({ error: 'Missing groupEventId in body' }, { status: 400 });
     }
 
     const supabase = createSupabaseAdminClient();
@@ -46,14 +63,14 @@ export async function POST(req: NextRequest) {
 
     if (error) {
       console.error('[CalendarSync] Error fetching sync row', { groupEventId, error });
-      return NextResponse.json(
+      return respond(
         { error: 'Error fetching calendar sync row' },
         { status: 500 }
       );
     }
 
     if (!data) {
-      return NextResponse.json(
+      return respond(
         { error: 'Group event not found in calendar sync view' },
         { status: 404 }
       );
@@ -62,7 +79,7 @@ export async function POST(req: NextRequest) {
     const row = data as CalendarSyncRow;
 
     if (!row.needs_calendar_sync || row.desired_calendar_action === 'noop') {
-      return NextResponse.json({
+      return respond({
         status: 'noop',
         reason: 'No sync needed according to v_group_events_calendar_sync',
       });
@@ -176,16 +193,16 @@ export async function POST(req: NextRequest) {
               groupEventId,
               error: updateError,
             });
-            return NextResponse.json(
+            return respond(
               { error: 'Event created in Calendar but failed to save calendar_event_id' },
               { status: 500 }
             );
           }
 
-          return NextResponse.json({ status: 'created', calendar_event_id: eventId });
+          return respond({ status: 'created', calendar_event_id: eventId });
         } catch (err: unknown) {
           console.error('[CalendarSync] Error creating event', { groupEventId, error: err });
-          return NextResponse.json(
+          return respond(
             { error: 'Error creating event in Calendar' },
             { status: 500 }
           );
@@ -196,7 +213,7 @@ export async function POST(req: NextRequest) {
           console.error('[CalendarSync] Update requested without calendar_event_id', {
             groupEventId,
           });
-          return NextResponse.json(
+          return respond(
             { error: 'Missing calendar_event_id for update action' },
             { status: 409 }
           );
@@ -217,7 +234,7 @@ export async function POST(req: NextRequest) {
             });
           }
 
-          return NextResponse.json({ status: 'updated' });
+          return respond({ status: 'updated' });
         } catch (err: unknown) {
           console.error('[CalendarSync] Error updating event', { groupEventId, error: err });
 
@@ -234,7 +251,7 @@ export async function POST(req: NextRequest) {
               });
             }
 
-            return NextResponse.json(
+            return respond(
               {
                 status: 'calendar_event_missing',
                 message:
@@ -244,7 +261,7 @@ export async function POST(req: NextRequest) {
             );
           }
 
-          return NextResponse.json(
+          return respond(
             { error: 'Error updating event in Calendar' },
             { status: 500 }
           );
@@ -267,7 +284,7 @@ export async function POST(req: NextRequest) {
             });
           }
 
-          return NextResponse.json({ status: 'already_deleted' });
+          return respond({ status: 'already_deleted' });
         }
 
         try {
@@ -288,7 +305,7 @@ export async function POST(req: NextRequest) {
             });
           }
 
-          return NextResponse.json({ status: 'deleted' });
+          return respond({ status: 'deleted' });
         } catch (err: unknown) {
           console.error('[CalendarSync] Error deleting event', { groupEventId, error: err });
 
@@ -308,7 +325,7 @@ export async function POST(req: NextRequest) {
               });
             }
 
-            return NextResponse.json(
+            return respond(
               {
                 status: 'already_deleted',
                 message:
@@ -318,21 +335,21 @@ export async function POST(req: NextRequest) {
             );
           }
 
-          return NextResponse.json(
+          return respond(
             { error: 'Error deleting event in Calendar' },
             { status: 500 }
           );
         }
       }
       default:
-        return NextResponse.json(
+        return respond(
           { status: 'unsupported_action', action: row.desired_calendar_action },
           { status: 400 }
         );
     }
   } catch (e: unknown) {
     console.error('[CalendarSync] Unhandled error', e);
-    return NextResponse.json(
+    return respond(
       { error: 'Unhandled error in /api/calendar-sync' },
       { status: 500 }
     );

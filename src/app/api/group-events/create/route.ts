@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createSupabaseAdminClient } from '@/lib/supabaseAdmin';
+import { createSupabaseRouteHandlerClient, mergeResponseCookies } from '@/lib/supabase/route';
 
 export const dynamic = 'force-dynamic';
 
@@ -23,6 +24,22 @@ type CreateGroupEventPayload = {
 };
 
 export async function POST(req: NextRequest) {
+  const supabaseResponse = NextResponse.next();
+
+  const supabaseAuth = createSupabaseRouteHandlerClient(supabaseResponse);
+  const {
+    data: { session },
+  } = await supabaseAuth.auth.getSession();
+
+  if (!session) {
+    const unauthorized = NextResponse.json(
+      { error: 'Unauthorized' },
+      { status: 401, headers: noStoreHeaders },
+    );
+    mergeResponseCookies(supabaseResponse, unauthorized);
+    return unauthorized;
+  }
+
   try {
     const payload = (await req.json()) as CreateGroupEventPayload;
 
@@ -105,12 +122,18 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    return NextResponse.json({ groupEventId: groupEventData.id }, { headers: noStoreHeaders });
+    const response = NextResponse.json({ groupEventId: groupEventData.id }, { headers: noStoreHeaders });
+    mergeResponseCookies(supabaseResponse, response);
+
+    return response;
   } catch (error) {
     console.error('[API] group-events/create', error);
-    return NextResponse.json(
+    const response = NextResponse.json(
       { error: 'Unexpected error while creating the reservation' },
       { status: 500, headers: noStoreHeaders },
     );
+    mergeResponseCookies(supabaseResponse, response);
+
+    return response;
   }
 }

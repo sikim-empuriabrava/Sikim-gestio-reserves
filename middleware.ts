@@ -1,14 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createSupabaseMiddlewareClient } from './src/lib/supabaseMiddlewareClient';
+import { createSupabaseMiddlewareClient } from './src/lib/supabase/middleware';
 
 const PUBLIC_PATHS = [
   /^\/login$/,
   /^\/auth\/callback/,
   /^\/_next\//,
   /^\/favicon\.ico$/,
-  /^\/api\//, // APIs remain open because they rely on service role or own guards.
-  /^\/debug-supabase/,
-  /^\/debug-calendar-sync/,
 ];
 
 export async function middleware(req: NextRequest) {

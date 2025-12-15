@@ -189,13 +189,14 @@ export default function NuevaReservaPage() {
         }
 
         const data = (await response.json()) as { menus?: MenuWithSeconds[]; error?: string };
+        const menusResponse = data.menus ?? [];
 
-        if (!data.menus) {
+        if (menusResponse.length === 0) {
           throw new Error(data.error ?? 'No se han podido cargar los menús.');
         }
 
-        setMenus(data.menus);
-        setMenuId((prev) => prev || data.menus[0]?.id || '');
+        setMenus(menusResponse);
+        setMenuId((prev) => prev || menusResponse[0]?.id || '');
       } catch (error) {
         console.error('[Nueva reserva] Error cargando menús', error);
         setMenusError('No se han podido cargar los menús.');
@@ -219,14 +220,15 @@ export default function NuevaReservaPage() {
         }
 
         const data = (await response.json()) as { rooms?: RoomOption[]; error?: string };
+        const roomsResponse = data.rooms ?? [];
 
-        if (!data.rooms) {
+        if (roomsResponse.length === 0) {
           throw new Error(data.error ?? 'No se han podido cargar las salas.');
         }
 
-        setRooms(data.rooms);
-        if (data.rooms.length > 0) {
-          setRoomId((prev) => prev || data.rooms[0].id);
+        setRooms(roomsResponse);
+        if (roomsResponse.length > 0) {
+          setRoomId((prev) => prev || roomsResponse[0].id);
         }
       } catch (error) {
         console.error('[Nueva reserva] Error cargando rooms', error);
