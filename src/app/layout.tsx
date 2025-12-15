@@ -2,6 +2,8 @@ import type { Metadata } from 'next';
 import { Inter } from 'next/font/google';
 import './globals.css';
 import { Navigation } from '@/components/Navigation';
+import { UserMenu } from '@/components/UserMenu';
+import { createSupabaseServerClient } from '@/lib/supabaseServer';
 
 const inter = Inter({ subsets: ['latin'] });
 
@@ -10,7 +12,12 @@ export const metadata: Metadata = {
   description: 'Dashboard interno para gestionar reservas de restaurante y discoteca.',
 };
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default async function RootLayout({ children }: { children: React.ReactNode }) {
+  const supabase = createSupabaseServerClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
   return (
     <html lang="es">
       <body className={`${inter.className} bg-gradient-to-b from-slate-950 via-slate-900 to-slate-950`}>
@@ -26,7 +33,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                 <p className="text-sm text-slate-400">Visualiza, crea y sigue las reservas en tiempo real.</p>
               </div>
             </div>
-            <Navigation />
+            <div className="flex flex-col gap-3 md:items-end">
+              <Navigation />
+              <UserMenu email={user?.email} />
+            </div>
           </header>
           <main className="flex-1 pb-10">{children}</main>
           <footer className="border-t border-slate-800/80 pt-6 text-sm text-slate-500">Interfaz MVP – pendiente de integrar con base de datos.</footer>
