@@ -4,10 +4,8 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 
 const links = [
-  { href: '/', label: 'Dashboard' },
   { href: '/reservas', label: 'Reservas' },
   { href: '/reservas/nueva', label: 'Nueva reserva' },
-  { href: '/configuracion', label: 'Configuración' },
 ];
 
 export function Navigation() {

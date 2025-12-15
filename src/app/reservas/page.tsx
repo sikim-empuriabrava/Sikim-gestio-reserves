@@ -395,7 +395,7 @@ function WeekView({
                   <p className="text-lg font-semibold text-slate-100">{formatDayLabel(day)}</p>
                 </div>
                 <span
-                  className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold whitespace-nowrap text-center leading-tight ${badge.className}`}
+                  className={`inline-block max-w-[140px] rounded-full px-2.5 py-1 text-[11px] font-semibold leading-tight text-center break-words ${badge.className}`}
                 >
                   {badge.label}
                 </span>

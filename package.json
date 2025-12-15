@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "@heroicons/react": "2.1.5",
+    "@supabase/ssr": "file:supabase-ssr",
     "@supabase/supabase-js": "^2.45.4",
     "googleapis": "^130.0.0",
     "next": "14.2.14",
