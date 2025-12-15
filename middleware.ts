@@ -30,6 +30,40 @@ export async function middleware(req: NextRequest) {
     return NextResponse.redirect(redirectUrl);
   }
 
+  const email = session.user.email;
+  const redirectNotAllowed = () => {
+    const redirectUrl = new URL('/login', req.url);
+    redirectUrl.searchParams.set('error', 'not_allowed');
+    if (pathname !== '/') {
+      redirectUrl.searchParams.set('next', `${pathname}${search}`);
+    }
+
+    const response = NextResponse.redirect(redirectUrl);
+
+    req.cookies.getAll().forEach(({ name }) => {
+      if (name.startsWith('sb-')) {
+        response.cookies.set({ name, value: '', maxAge: 0, path: '/' });
+      }
+    });
+
+    return response;
+  };
+
+  if (!email) {
+    return redirectNotAllowed();
+  }
+
+  const { data: allowedUser, error } = await supabase
+    .from('app_allowed_users')
+    .select('id')
+    .eq('email', email)
+    .eq('is_active', true)
+    .maybeSingle();
+
+  if (error || !allowedUser) {
+    return redirectNotAllowed();
+  }
+
   return res;
 }
 

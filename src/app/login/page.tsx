@@ -8,6 +8,7 @@ export default function LoginPage() {
   const searchParams = useSearchParams();
   const [isLoading, setIsLoading] = useState(false);
   const supabase = useMemo(() => createSupabaseBrowserClient(), []);
+  const error = searchParams.get('error');
 
   const handleLogin = async () => {
     setIsLoading(true);
@@ -31,6 +32,11 @@ export default function LoginPage() {
         <p className="text-sm text-slate-400">
           Conéctate con tu cuenta de Google para gestionar las reservas.
         </p>
+        {error === 'not_allowed' ? (
+          <p className="rounded-lg bg-red-900/40 px-3 py-2 text-sm text-red-100">
+            No tienes acceso habilitado. Contacta con un administrador para darte permisos.
+          </p>
+        ) : null}
       </div>
 
       <button
