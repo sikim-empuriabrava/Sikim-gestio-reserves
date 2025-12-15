@@ -1,5 +1,7 @@
 import Link from 'next/link';
 import { unstable_noStore as noStore } from 'next/cache';
+import { redirect } from 'next/navigation';
+import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { createSupabaseAdminClient } from '@/lib/supabaseAdmin';
 import { EditableReservationForm } from './EditableReservationForm';
 
@@ -14,11 +16,21 @@ export default async function GroupReservationDetail({
   params: { id: string };
   searchParams?: { date?: string };
 }) {
+  const supabase = createSupabaseServerClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    const nextPath = `/reservas/grupo/${params.id}${searchParams?.date ? `?date=${searchParams.date}` : ''}`;
+    redirect(`/login?next=${encodeURIComponent(nextPath)}`);
+  }
+
   noStore();
-  const supabase = createSupabaseAdminClient();
+  const supabaseAdmin = createSupabaseAdminClient();
   const dateParam = searchParams?.date;
 
-  const { data: reservation, error } = await supabase
+  const { data: reservation, error } = await supabaseAdmin
     .from('group_events')
     .select('*')
     .eq('id', params.id)
