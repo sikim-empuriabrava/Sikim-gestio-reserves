@@ -8,7 +8,9 @@ export async function GET(req: NextRequest) {
     console.error('Error al cerrar sesión en el servidor', error);
   }
 
-  const response = NextResponse.redirect(new URL('/login', req.url));
+  const response = NextResponse.redirect(
+    new URL(`/login?next=${encodeURIComponent('/reservas?view=week')}`, req.url),
+  );
   response.cookies.set('sb-access-token', '', { path: '/', expires: new Date(0) });
   response.cookies.set('sb-refresh-token', '', { path: '/', expires: new Date(0) });
 

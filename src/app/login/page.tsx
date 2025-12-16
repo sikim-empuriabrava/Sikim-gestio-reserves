@@ -1,26 +1,52 @@
 'use client';
 
-import { useMemo, useState } from 'react';
-import { useSearchParams } from 'next/navigation';
+import { useEffect, useMemo, useState } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { createSupabaseBrowserClient } from '@/lib/supabase/browser';
 
+const DEFAULT_NEXT = '/reservas?view=week';
+
 export default function LoginPage() {
+  const router = useRouter();
   const searchParams = useSearchParams();
   const [isLoading, setIsLoading] = useState(false);
   const supabase = useMemo(() => createSupabaseBrowserClient(), []);
   const error = searchParams.get('error');
-  const nextPath = searchParams.get('next') ?? '/reservas?view=week';
+  const nextRaw = searchParams.get('next');
+  const nextPath = nextRaw ?? DEFAULT_NEXT;
+
+  useEffect(() => {
+    if (!nextRaw) {
+      router.replace(`/login?next=${encodeURIComponent(DEFAULT_NEXT)}`);
+    }
+  }, [nextRaw, router]);
 
   const handleLogin = async () => {
     setIsLoading(true);
-    const redirectTo = `${window.location.origin}/auth/callback?next=${encodeURIComponent(nextPath)}`;
+    try {
+      const redirectTo = new URL('/auth/callback', window.location.origin);
+      redirectTo.searchParams.set('next', nextPath);
 
-    await supabase.auth.signInWithOAuth({
-      provider: 'google',
-      options: {
-        redirectTo,
-      },
-    });
+      const { data, error: authError } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: {
+          redirectTo: redirectTo.toString(),
+        },
+        skipBrowserRedirect: true,
+      });
+
+      if (authError) throw authError;
+      if (data?.url) {
+        window.location.assign(data.url);
+      } else {
+        throw new Error('No OAuth redirect URL returned');
+      }
+    } catch (e) {
+      console.error(e);
+      alert('No se pudo iniciar sesión con Google');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
