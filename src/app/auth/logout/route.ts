@@ -13,7 +13,9 @@ export async function GET(req: NextRequest) {
     console.error('Error al cerrar sesión en el servidor', error);
   }
 
-  const response = NextResponse.redirect(new URL('/login', req.url));
+  const response = NextResponse.redirect(
+    new URL(`/login?next=${encodeURIComponent('/reservas?view=week')}`, req.url),
+  );
   mergeResponseCookies(supabaseResponse, response);
 
   return response;
