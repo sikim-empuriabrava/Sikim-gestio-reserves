@@ -52,15 +52,16 @@ export function UserMenu({ email: initialEmail }: Props) {
 
     setIsLoggingOut(true);
     try {
-      const { error } = await supabase.auth.signOut();
-      if (error) {
-        console.error('Error al cerrar sesión', error);
+      const response = await fetch('/auth/logout', { method: 'GET' });
+      if (!response.ok) {
+        console.error('Error al cerrar sesión');
+      } else {
+        setSessionEmail(null);
+        router.replace('/login');
+        router.refresh();
       }
     } finally {
-      setSessionEmail(null);
       setIsLoggingOut(false);
-      router.replace('/login');
-      router.refresh();
     }
   };
 
