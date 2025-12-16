@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createSupabaseMiddlewareClient } from './src/lib/supabase/middleware';
+import { getSupabaseUrl } from './src/lib/supabase/env';
 
 const PUBLIC_PATHS = [
   /^\/login$/,
@@ -10,47 +11,63 @@ const PUBLIC_PATHS = [
 
 export async function middleware(req: NextRequest) {
   const { pathname, search } = req.nextUrl;
+  const isApiRoute = pathname.startsWith('/api/');
 
   if (PUBLIC_PATHS.some((pattern) => pattern.test(pathname))) {
     return NextResponse.next();
   }
 
-  const res = NextResponse.next({ request: { headers: req.headers } });
-  const supabase = createSupabaseMiddlewareClient(req, res);
+  const supabaseResponse = NextResponse.next({ request: { headers: req.headers } });
+  const supabase = createSupabaseMiddlewareClient(req, supabaseResponse);
   const {
     data: { session },
   } = await supabase.auth.getSession();
 
-  if (!session) {
-    const redirectUrl = new URL('/login', req.url);
-    if (pathname !== '/') {
-      redirectUrl.searchParams.set('next', `${pathname}${search}`);
-    }
+  const supabaseUrl = getSupabaseUrl();
 
-    return NextResponse.redirect(redirectUrl);
+  const redirectUrl = new URL('/login', req.url);
+  if (!isApiRoute && pathname !== '/') {
+    redirectUrl.searchParams.set('next', `${pathname}${search}`);
   }
 
-  const email = session.user.email;
-  const redirectNotAllowed = () => {
-    const redirectUrl = new URL('/login', req.url);
-    redirectUrl.searchParams.set('error', 'not_allowed');
-    if (pathname !== '/') {
-      redirectUrl.searchParams.set('next', `${pathname}${search}`);
+  const handleUnauthorized = () => {
+    if (isApiRoute) {
+      const unauthorized = NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      mergeCookies(supabaseResponse, unauthorized);
+      return unauthorized;
     }
 
     const response = NextResponse.redirect(redirectUrl);
-
-    req.cookies.getAll().forEach(({ name }) => {
-      if (name.startsWith('sb-')) {
-        response.cookies.set({ name, value: '', maxAge: 0, path: '/' });
-      }
-    });
+    mergeCookies(supabaseResponse, response);
 
     return response;
   };
 
+  const handleNotAllowed = () => {
+    if (isApiRoute) {
+      const notAllowed = NextResponse.json({ error: 'Not allowed' }, { status: 403 });
+      mergeCookies(supabaseResponse, notAllowed);
+      clearAuthCookies(req, notAllowed, supabaseUrl);
+      return notAllowed;
+    }
+
+    const url = new URL(redirectUrl);
+    url.searchParams.set('error', 'not_allowed');
+    const response = NextResponse.redirect(url);
+    mergeCookies(supabaseResponse, response);
+    clearAuthCookies(req, response, supabaseUrl);
+
+    return response;
+  };
+
+  if (!session) {
+    return handleUnauthorized();
+  }
+
+  const email = session.user.email;
+
   if (!email) {
-    return redirectNotAllowed();
+    return handleNotAllowed();
   }
 
   const { data: allowedUser, error } = await supabase
@@ -61,12 +78,38 @@ export async function middleware(req: NextRequest) {
     .maybeSingle();
 
   if (error || !allowedUser) {
-    return redirectNotAllowed();
+    return handleNotAllowed();
   }
 
-  return res;
+  return supabaseResponse;
 }
 
 export const config = {
   matcher: ['/((?!_next/static|_next/image|favicon.ico).*)'],
 };
+
+function getAuthCookiePrefix(supabaseUrl: string) {
+  const url = new URL(supabaseUrl);
+  const projectRef = url.host.split('.')[0];
+  return `sb-${projectRef}-auth-token-`;
+}
+
+function clearAuthCookies(req: NextRequest, res: NextResponse, supabaseUrl: string) {
+  const prefix = getAuthCookiePrefix(supabaseUrl);
+  const cookiesToClear = [
+    ...req.cookies.getAll().map(({ name }) => name),
+    ...res.cookies.getAll().map(({ name }) => name),
+  ];
+
+  cookiesToClear.forEach((name) => {
+    if (name.startsWith(prefix)) {
+      res.cookies.set({ name, value: '', path: '/', expires: new Date(0) });
+    }
+  });
+}
+
+function mergeCookies(from: NextResponse, to: NextResponse) {
+  from.cookies.getAll().forEach((cookie) => {
+    to.cookies.set(cookie);
+  });
+}

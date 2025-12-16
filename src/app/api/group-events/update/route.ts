@@ -1,13 +1,28 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { createSupabaseRouteHandlerClient, mergeResponseCookies } from '@/lib/supabase/route';
 import { createSupabaseAdminClient } from '@/lib/supabaseAdmin';
 
 export async function POST(req: NextRequest) {
+  const supabaseResponse = NextResponse.next();
+  const authClient = createSupabaseRouteHandlerClient(supabaseResponse);
+  const {
+    data: { session },
+  } = await authClient.auth.getSession();
+
+  if (!session) {
+    const unauthorized = NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    mergeResponseCookies(supabaseResponse, unauthorized);
+    return unauthorized;
+  }
+
   try {
     const body = await req.json();
     const { id, ...payload } = body ?? {};
 
     if (!id) {
-      return NextResponse.json({ error: 'Missing id' }, { status: 400 });
+      const missingId = NextResponse.json({ error: 'Missing id' }, { status: 400 });
+      mergeResponseCookies(supabaseResponse, missingId);
+      return missingId;
     }
 
     const updateData: Record<string, unknown> = { ...payload };
@@ -29,15 +44,21 @@ export async function POST(req: NextRequest) {
       .eq('id', id);
 
     if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 });
+      const serverError = NextResponse.json({ error: error.message }, { status: 500 });
+      mergeResponseCookies(supabaseResponse, serverError);
+      return serverError;
     }
 
-    return NextResponse.json({ success: true });
+    const success = NextResponse.json({ success: true });
+    mergeResponseCookies(supabaseResponse, success);
+    return success;
   } catch (e) {
     console.error(e);
-    return NextResponse.json(
+    const unexpected = NextResponse.json(
       { error: 'Unexpected error while updating group event' },
       { status: 500 },
     );
+    mergeResponseCookies(supabaseResponse, unexpected);
+    return unexpected;
   }
 }
