@@ -261,7 +261,7 @@ function HeaderBar({
   return (
     <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
       <div>
-        <h1 className="text-2xl font-semibold">Reservas</h1>
+        <h1 className="text-2xl font-semibold">Calendario</h1>
         <p className="text-sm text-slate-400">{rangeLabel}</p>
       </div>
       <div className="flex flex-wrap items-center gap-3">
