@@ -1,11 +1,26 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { createSupabaseRouteHandlerClient, mergeResponseCookies } from '@/lib/supabase/route';
 import { createSupabaseAdminClient } from '@/lib/supabaseAdmin';
 
 export async function GET(req: NextRequest) {
+  const supabaseResponse = NextResponse.next();
+  const authClient = createSupabaseRouteHandlerClient(supabaseResponse);
+  const {
+    data: { session },
+  } = await authClient.auth.getSession();
+
+  if (!session) {
+    const unauthorized = NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    mergeResponseCookies(supabaseResponse, unauthorized);
+    return unauthorized;
+  }
+
   const date = req.nextUrl.searchParams.get('date');
 
   if (!date) {
-    return NextResponse.json({ error: 'Missing date param' }, { status: 400 });
+    const missingDate = NextResponse.json({ error: 'Missing date param' }, { status: 400 });
+    mergeResponseCookies(supabaseResponse, missingDate);
+    return missingDate;
   }
 
   const supabase = createSupabaseAdminClient();
@@ -18,11 +33,13 @@ export async function GET(req: NextRequest) {
     .maybeSingle();
 
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    const serverError = NextResponse.json({ error: error.message }, { status: 500 });
+    mergeResponseCookies(supabaseResponse, serverError);
+    return serverError;
   }
 
   if (!data) {
-    return NextResponse.json({
+    const fallback = NextResponse.json({
       event_date: date,
       validated: false,
       is_validated: false,
@@ -33,12 +50,28 @@ export async function GET(req: NextRequest) {
       cocina_notes: '',
       mantenimiento_notes: '',
     });
+    mergeResponseCookies(supabaseResponse, fallback);
+    return fallback;
   }
 
-  return NextResponse.json(data);
+  const response = NextResponse.json(data);
+  mergeResponseCookies(supabaseResponse, response);
+  return response;
 }
 
 export async function POST(req: NextRequest) {
+  const supabaseResponse = NextResponse.next();
+  const authClient = createSupabaseRouteHandlerClient(supabaseResponse);
+  const {
+    data: { session },
+  } = await authClient.auth.getSession();
+
+  if (!session) {
+    const unauthorized = NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    mergeResponseCookies(supabaseResponse, unauthorized);
+    return unauthorized;
+  }
+
   const body = await req.json();
   const {
     eventDate,
@@ -55,7 +88,9 @@ export async function POST(req: NextRequest) {
   } = body ?? {};
 
   if (!eventDate) {
-    return NextResponse.json({ error: 'Missing eventDate' }, { status: 400 });
+    const missingEventDate = NextResponse.json({ error: 'Missing eventDate' }, { status: 400 });
+    mergeResponseCookies(supabaseResponse, missingEventDate);
+    return missingEventDate;
   }
 
   const supabase = createSupabaseAdminClient();
@@ -90,8 +125,12 @@ export async function POST(req: NextRequest) {
     .maybeSingle();
 
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    const serverError = NextResponse.json({ error: error.message }, { status: 500 });
+    mergeResponseCookies(supabaseResponse, serverError);
+    return serverError;
   }
 
-  return NextResponse.json(data);
+  const response = NextResponse.json(data);
+  mergeResponseCookies(supabaseResponse, response);
+  return response;
 }
