@@ -19,10 +19,6 @@ export function UserMenu({ email: initialEmail }: Props) {
   const isLoginPage = pathname === '/login';
 
   useEffect(() => {
-    setSessionEmail(initialEmail ?? null);
-  }, [initialEmail]);
-
-  useEffect(() => {
     let isMounted = true;
 
     supabase.auth
@@ -55,18 +51,20 @@ export function UserMenu({ email: initialEmail }: Props) {
     if (isLoggingOut) return;
 
     setIsLoggingOut(true);
-    const { error } = await supabase.auth.signOut();
-    if (error) {
-      console.error('Error al cerrar sesión', error);
+    try {
+      const { error } = await supabase.auth.signOut();
+      if (error) {
+        console.error('Error al cerrar sesión', error);
+      }
+    } finally {
+      setSessionEmail(null);
       setIsLoggingOut(false);
-      return;
+      router.replace('/login');
+      router.refresh();
     }
-
-    setSessionEmail(null);
-    router.push('/login');
   };
 
-  if (!isAuthenticated && isLoginPage) {
+  if (isLoginPage) {
     return null;
   }
 
