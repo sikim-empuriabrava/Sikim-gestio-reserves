@@ -22,6 +22,32 @@ export default function LoginPage() {
     }
   }, [nextRaw, router]);
 
+  useEffect(() => {
+    if (error === 'not_allowed') return;
+
+    let cancelled = false;
+
+    const run = async () => {
+      const { data } = await supabase.auth.getSession();
+      if (!cancelled && data.session) {
+        window.location.assign(nextPath);
+      }
+    };
+
+    run();
+
+    const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (session) {
+        window.location.assign(nextPath);
+      }
+    });
+
+    return () => {
+      cancelled = true;
+      listener.subscription.unsubscribe();
+    };
+  }, [supabase, nextPath, error]);
+
   const handleLogin = async () => {
     if (isPreparing) return;
 
@@ -33,6 +59,27 @@ export default function LoginPage() {
         provider: 'google',
         options: {
           redirectTo,
+        },
+      });
+    } catch (error) {
+      console.error(error);
+      alert('No se pudo iniciar sesión con Google');
+      setIsLoading(false);
+    }
+  };
+
+  const handleLoginSelectAccount = async () => {
+    if (isPreparing) return;
+
+    setIsLoading(true);
+    const redirectTo = `${window.location.origin}/auth/callback?next=${encodeURIComponent(nextPath)}`;
+
+    try {
+      await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: {
+          redirectTo,
+          queryParams: { prompt: 'select_account' } as any,
         },
       });
     } catch (error) {
@@ -76,6 +123,15 @@ export default function LoginPage() {
           <path fill="#EB4335" d="M130.55 50.479c24.55 0 41.05 10.61 50.479 19.468l36.844-35.97C195.259 12.91 165.798 0 130.55 0 79.49 0 35.393 29.3 13.929 72.06l40.208 31.75c10.59-31.477 39.891-54.33 76.413-54.33" />
         </svg>
         {isPreparing ? 'Preparando…' : isLoading ? 'Redirigiendo…' : 'Continuar con Google'}
+      </button>
+
+      <button
+        type="button"
+        onClick={handleLoginSelectAccount}
+        disabled={isLoading || isPreparing}
+        className="inline-flex items-center gap-2 rounded-xl bg-slate-100 px-4 py-3 text-sm font-semibold text-slate-900 shadow-lg transition hover:bg-slate-200 disabled:cursor-not-allowed"
+      >
+        Elegir otra cuenta de Google
       </button>
 
       <p className="text-xs text-slate-500">Serás redirigido a Google para completar el inicio de sesión.</p>
