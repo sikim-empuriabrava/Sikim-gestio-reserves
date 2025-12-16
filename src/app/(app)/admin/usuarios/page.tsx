@@ -5,16 +5,16 @@ import { createSupabaseServerClient } from '@/lib/supabase/server';
 const cards = [
   {
     title: 'Usuarios y permisos',
-    description: 'Gestiona accesos por equipo, crea invitaciones y revisa actividad reciente de los usuarios.',
-    badge: 'Próximamente',
+    description: 'Gestiona quién puede acceder a cada módulo y controla niveles de permisos.',
+    badge: 'Admin',
   },
   {
-    title: 'Roles predefinidos',
-    description: 'Plantillas de permisos para sala, cocina, mantenimiento y administración.',
+    title: 'Controles de acceso',
+    description: 'Pronto podrás gestionar roles y permisos para cada área de la operación.',
   },
   {
-    title: 'Historial de acceso',
-    description: 'Registro de inicios de sesión y acciones clave para cumplir auditorías internas.',
+    title: 'Integraciones',
+    description: 'Conexión futura con proveedores, notificaciones y sistemas externos desde un único panel.',
   },
 ];
 
@@ -31,7 +31,7 @@ export default async function AdminUsuariosPage() {
   return (
     <ModulePlaceholder
       title="Usuarios y permisos"
-      subtitle="Configura accesos, revisa actividad y asigna responsabilidades sin salir del panel."
+      subtitle="Configura roles, permisos y acceso a cada módulo desde un único panel."
       cards={cards}
     />
   );
