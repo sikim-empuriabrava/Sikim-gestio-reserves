@@ -79,7 +79,7 @@ export default function LoginPage() {
         provider: 'google',
         options: {
           redirectTo,
-          queryParams: { prompt: 'select_account' } as any,
+          queryParams: { prompt: 'select_account' } satisfies Record<string, string>,
         },
       });
     } catch (error) {
