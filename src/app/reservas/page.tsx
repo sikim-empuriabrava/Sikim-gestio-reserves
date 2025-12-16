@@ -1,5 +1,7 @@
 import Link from 'next/link';
 import { unstable_noStore as noStore } from 'next/cache';
+import { redirect } from 'next/navigation';
+import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { createSupabaseAdminClient } from '@/lib/supabaseAdmin';
 import { DayNotesPanel } from '../reservas-dia/detalle/DayNotesPanel';
 import { ReservationOutcomeCard } from '../reservas-dia/detalle/ReservationOutcomeCard';
@@ -582,6 +584,15 @@ function MonthView({
 }
 
 export default async function ReservasPage({ searchParams }: { searchParams?: SearchParams }) {
+  const supabase = createSupabaseServerClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    redirect(`/login?next=${encodeURIComponent('/reservas?view=week')}`);
+  }
+
   noStore();
   const viewParam = searchParams?.view;
   const view: 'month' | 'week' | 'day' = viewParam === 'month' || viewParam === 'day' ? viewParam : 'week';
