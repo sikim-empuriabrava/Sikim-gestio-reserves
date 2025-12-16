@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createSupabaseMiddlewareClient } from './src/lib/supabase/middleware';
+import { createSupabaseAdminClient } from './src/lib/supabaseAdmin';
 import { getSupabaseUrl } from './src/lib/supabase/env';
 
 const PUBLIC_PATHS = [
@@ -70,7 +71,9 @@ export async function middleware(req: NextRequest) {
     return handleNotAllowed();
   }
 
-  const { data: allowedUser, error } = await supabase
+  const supabaseAdmin = createSupabaseAdminClient();
+
+  const { data: allowedUser, error } = await supabaseAdmin
     .from('app_allowed_users')
     .select('id')
     .eq('email', email)
