@@ -9,6 +9,8 @@ export const metadata: Metadata = {
   description: 'Dashboard interno para gestionar reservas de restaurante y discoteca.',
 };
 
+export const dynamic = 'force-dynamic';
+
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
   const supabase = createSupabaseServerClient();
   const {
