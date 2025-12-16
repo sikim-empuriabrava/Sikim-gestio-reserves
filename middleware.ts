@@ -21,8 +21,8 @@ export async function middleware(req: NextRequest) {
   const supabaseResponse = NextResponse.next({ request: { headers: req.headers } });
   const supabase = createSupabaseMiddlewareClient(req, supabaseResponse);
   const {
-    data: { session },
-  } = await supabase.auth.getSession();
+    data: { user },
+  } = await supabase.auth.getUser();
 
   const supabaseUrl = getSupabaseUrl();
 
@@ -61,11 +61,11 @@ export async function middleware(req: NextRequest) {
     return response;
   };
 
-  if (!session) {
+  if (!user) {
     return handleUnauthorized();
   }
 
-  const email = session.user.email;
+  const email = user.email;
 
   if (!email) {
     return handleNotAllowed();
