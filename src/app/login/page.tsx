@@ -28,12 +28,18 @@ export default function LoginPage() {
     setIsLoading(true);
     const redirectTo = `${window.location.origin}/auth/callback?next=${encodeURIComponent(nextPath)}`;
 
-    await supabase.auth.signInWithOAuth({
-      provider: 'google',
-      options: {
-        redirectTo,
-      },
-    });
+    try {
+      await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: {
+          redirectTo,
+        },
+      });
+    } catch (error) {
+      console.error(error);
+      alert('No se pudo iniciar sesión con Google');
+      setIsLoading(false);
+    }
   };
 
   return (
