@@ -9,17 +9,16 @@ export default function LoginPage() {
   const [isLoading, setIsLoading] = useState(false);
   const supabase = useMemo(() => createSupabaseBrowserClient(), []);
   const error = searchParams.get('error');
+  const nextPath = searchParams.get('next') ?? '/reservas?view=week';
 
   const handleLogin = async () => {
     setIsLoading(true);
-    const nextParam = searchParams.get('next') ?? '/reservas?view=week';
-    const callbackUrl = new URL('/auth/callback', window.location.origin);
-    callbackUrl.searchParams.set('next', nextParam);
+    const redirectTo = `${window.location.origin}/auth/callback?next=${encodeURIComponent(nextPath)}`;
 
     await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
-        redirectTo: callbackUrl.toString(),
+        redirectTo,
       },
     });
   };
