@@ -65,23 +65,17 @@ function isLinkActive(pathname: string, link: NavigationLink) {
 
 export function AppSidebar({ className }: { className?: string }) {
   const pathname = usePathname();
-  const [openGroups, setOpenGroups] = useState<Record<string, boolean>>(() =>
-    groups.reduce((acc, group) => {
-      acc[group.label] = group.links.some((link) => isLinkActive(pathname, link));
-      return acc;
-    }, {} as Record<string, boolean>),
-  );
+  const [openSection, setOpenSection] = useState<string | null>('reservas');
 
   useEffect(() => {
-    setOpenGroups((prev) => {
-      const next = { ...prev };
-      groups.forEach((group) => {
-        if (group.links.some((link) => isLinkActive(pathname, link))) {
-          next[group.label] = true;
-        }
+    const activeGroup = groups.find((group) => group.links.some((link) => isLinkActive(pathname, link)));
+
+    if (activeGroup) {
+      setOpenSection((prev) => {
+        const normalizedLabel = activeGroup.label.toLowerCase();
+        return prev === normalizedLabel ? prev : normalizedLabel;
       });
-      return next;
-    });
+    }
   }, [pathname]);
 
   return (
@@ -89,39 +83,50 @@ export function AppSidebar({ className }: { className?: string }) {
       {groups.map((group) => {
         const isGroupActive = group.links.some((link) => isLinkActive(pathname, link));
 
+        const normalizedLabel = group.label.toLowerCase();
+        const isOpen = openSection === normalizedLabel || (!openSection && isGroupActive);
+
         return (
-          <details
+          <div
             key={group.label}
             className="group overflow-hidden rounded-xl border border-slate-800 bg-slate-900/70 shadow-lg shadow-slate-950/30"
-            open={openGroups[group.label] ?? isGroupActive}
-            onToggle={(event) => {
-              setOpenGroups((prev) => ({ ...prev, [group.label]: event.currentTarget.open }));
-            }}
           >
-            <summary className="flex cursor-pointer items-center justify-between gap-2 bg-slate-900/80 px-4 py-3 text-sm font-semibold text-slate-100">
+            <button
+              type="button"
+              onClick={() =>
+                setOpenSection((prev) => (prev === normalizedLabel ? null : normalizedLabel))
+              }
+              className="flex w-full items-center justify-between gap-2 bg-slate-900/80 px-4 py-3 text-left text-sm font-semibold text-slate-100"
+            >
               <span>{group.label}</span>
-              <ChevronDownIcon className="h-4 w-4 text-slate-400 transition duration-200 group-open:rotate-180" />
-            </summary>
-            <div className="flex flex-col gap-1 p-2">
-              {group.links.map((link) => {
-                const active = isLinkActive(pathname, link);
-                return (
-                  <Link
-                    key={link.href}
-                    href={link.href}
-                    aria-current={active ? 'page' : undefined}
-                    className={`rounded-lg px-3 py-2 text-sm font-semibold transition ${
-                      active
-                        ? 'bg-primary-600/80 text-white shadow shadow-primary-900/40'
-                        : 'text-slate-200 hover:bg-slate-800 hover:text-white'
-                    }`}
-                  >
-                    {link.label}
-                  </Link>
-                );
-              })}
-            </div>
-          </details>
+              <ChevronDownIcon
+                className={`h-4 w-4 text-slate-400 transition duration-200 ${
+                  isOpen ? 'rotate-180' : ''
+                }`}
+              />
+            </button>
+            {isOpen ? (
+              <div className="flex flex-col gap-1 p-2">
+                {group.links.map((link) => {
+                  const active = isLinkActive(pathname, link);
+                  return (
+                    <Link
+                      key={link.href}
+                      href={link.href}
+                      aria-current={active ? 'page' : undefined}
+                      className={`rounded-lg px-3 py-2 text-sm font-semibold transition ${
+                        active
+                          ? 'bg-primary-600/80 text-white shadow shadow-primary-900/40'
+                          : 'text-slate-200 hover:bg-slate-800 hover:text-white'
+                      }`}
+                    >
+                      {link.label}
+                    </Link>
+                  );
+                })}
+              </div>
+            ) : null}
+          </div>
         );
       })}
     </nav>
