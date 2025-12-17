@@ -1,6 +1,9 @@
 import { ModuleSubnav } from '@/components/ModuleSubnav';
 
-const links = [{ label: 'Usuarios y permisos', href: '/admin/usuarios', basePath: '/admin/usuarios' }];
+const links = [
+  { label: 'Usuarios y permisos', href: '/admin/usuarios', basePath: '/admin/usuarios' },
+  { label: 'Notas del día', href: '/admin/notas-del-dia', basePath: '/admin/notas-del-dia' },
+];
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   return (

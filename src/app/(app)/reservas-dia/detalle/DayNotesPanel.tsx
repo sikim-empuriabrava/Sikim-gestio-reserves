@@ -60,10 +60,10 @@ export function DayNotesPanel({
         cache: 'no-store',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          eventDate,
-          notesGeneral,
-          notesKitchen,
-          notesMaintenance,
+          date: eventDate,
+          notes_general: notesGeneral,
+          notes_kitchen: notesKitchen,
+          notes_maintenance: notesMaintenance,
           action,
         }),
       });
@@ -74,9 +74,9 @@ export function DayNotesPanel({
       }
 
       const data = await res.json();
-      setValidated(Boolean(data.validated ?? data.is_validated));
-      setNeedsRevalidation(Boolean(data.needs_revalidation));
-      setValidatedInfo({ by: data.last_validated_by, at: data.last_validated_at });
+      setValidated(Boolean(data?.validated ?? data?.is_validated));
+      setNeedsRevalidation(Boolean(data?.needs_revalidation));
+      setValidatedInfo({ by: data?.last_validated_by, at: data?.last_validated_at });
       setMessage(action === 'validate' ? 'Día validado correctamente' : 'Notas guardadas');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Error inesperado');
