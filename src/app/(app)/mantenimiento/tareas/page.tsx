@@ -1,30 +1,22 @@
 import { redirect } from 'next/navigation';
-import { ModulePlaceholder } from '@/components/ModulePlaceholder';
+import { MaintenanceTasksBoard } from './MaintenanceTasksBoard';
+import { createSupabaseAdminClient } from '@/lib/supabaseAdmin';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 
-const cards = [
-  {
-    title: 'Tareas e incidencias',
-    description: 'Clasifica incidencias por prioridad, añade responsables y haz seguimiento de su resolución.',
-    badge: 'Work in progress',
-  },
-  {
-    title: 'Asignaciones',
-    description: 'Pronto podrás asignar tareas a miembros del equipo y notificar cambios de estado al instante.',
-  },
-  {
-    title: 'Adjuntos y fotos',
-    description: 'Espacio reservado para documentación de las incidencias con fotos y comentarios del personal.',
-  },
-];
-
-const quickNotes = {
-  items: [
-    'Registrar fuga de agua en lavabo de clientes - revisar juntas.',
-    'Actualizar checklist de incidencias críticas para el cierre.',
-    'Añadir repuesto de bombillas GU10 al pedido semanal.',
-  ],
+type Task = {
+  id: string;
+  area: string;
+  title: string;
+  description: string | null;
+  status: 'open' | 'in_progress' | 'done';
+  priority: 'low' | 'normal' | 'high';
+  due_date: string | null;
+  created_by_email?: string | null;
+  created_at?: string;
+  updated_at?: string;
 };
+
+export const dynamic = 'force-dynamic';
 
 export default async function MantenimientoTareasPage() {
   const supabase = createSupabaseServerClient();
@@ -36,12 +28,25 @@ export default async function MantenimientoTareasPage() {
     redirect(`/login?next=${encodeURIComponent('/mantenimiento/tareas')}`);
   }
 
+  const supabaseAdmin = createSupabaseAdminClient();
+  const { data } = await supabaseAdmin
+    .from('tasks')
+    .select('*')
+    .eq('area', 'maintenance')
+    .order('created_at', { ascending: false });
+
+  const tasks: Task[] = data ?? [];
+
   return (
-    <ModulePlaceholder
-      title="Tareas e incidencias"
-      subtitle="Organiza incidencias, tareas recurrentes y responsables para mantener el servicio en marcha."
-      cards={cards}
-      quickNotes={quickNotes}
-    />
+    <div className="space-y-6">
+      <div className="space-y-1">
+        <h1 className="text-2xl font-semibold">Tareas e incidencias</h1>
+        <p className="text-slate-400">
+          Organiza incidencias, tareas recurrentes y responsables para mantener el servicio en marcha.
+        </p>
+      </div>
+
+      <MaintenanceTasksBoard initialTasks={tasks} />
+    </div>
   );
 }
