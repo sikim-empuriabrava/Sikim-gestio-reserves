@@ -17,14 +17,13 @@ export function DayStatusPanel({ eventDate }: { eventDate: string }) {
       try {
         const res = await fetch(`/api/day-status?date=${eventDate}`, {
           cache: 'no-store',
-          headers: { 'Content-Type': 'application/json' },
         });
         if (!res.ok) {
           throw new Error('No se pudo obtener el estado del día');
         }
         const data = await res.json();
-        setIsValidated(Boolean(data.is_validated));
-        setDayNotes(data.day_notes ?? '');
+        setIsValidated(Boolean(data?.is_validated));
+        setDayNotes(data?.day_notes ?? '');
       } catch (err) {
         setErrorMessage(err instanceof Error ? err.message : 'Error inesperado');
       } finally {
@@ -56,7 +55,7 @@ export function DayStatusPanel({ eventDate }: { eventDate: string }) {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          eventDate,
+          date: eventDate,
           day_notes: dayNotes,
         }),
       });
@@ -66,8 +65,8 @@ export function DayStatusPanel({ eventDate }: { eventDate: string }) {
       }
 
       const data = await res.json();
-      setIsValidated(Boolean(data.is_validated));
-      setDayNotes(data.day_notes ?? '');
+      setIsValidated(Boolean(data?.is_validated));
+      setDayNotes(data?.day_notes ?? '');
       setSuccessMessage('Día validado correctamente');
     } catch (err) {
       setErrorMessage(err instanceof Error ? err.message : 'Error inesperado');

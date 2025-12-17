@@ -1,30 +1,22 @@
 import { redirect } from 'next/navigation';
-import { ModulePlaceholder } from '@/components/ModulePlaceholder';
+import { createSupabaseAdminClient } from '@/lib/supabaseAdmin';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 
-const cards = [
-  {
-    title: 'Dashboard operativo',
-    description: 'Resumen diario de incidencias, prioridades y validaciones pendientes para el equipo de mantenimiento.',
-    badge: 'En diseño',
-  },
-  {
-    title: 'Checklist de turnos',
-    description: 'Listados de apertura y cierre con responsables, tiempos estimados y seguimiento de cumplimiento.',
-  },
-  {
-    title: 'Histórico de tareas',
-    description: 'Pronto podrás revisar qué se resolvió cada día y cómo afectó al servicio o inventario.',
-  },
-];
+function toISODate(date: Date) {
+  return date.toISOString().slice(0, 10);
+}
 
-const quickNotes = {
-  items: [
-    'Pendiente confirmar repuestos de iluminación en terraza.',
-    'Registrar incidencias de la máquina de hielo antes del fin de semana.',
-    'Dejar anotada la limpieza profunda de almacén para el lunes.',
-  ],
-};
+function formatLongDate(value: string) {
+  const formatter = new Intl.DateTimeFormat('es-ES', {
+    weekday: 'long',
+    day: 'numeric',
+    month: 'long',
+  });
+
+  return formatter.format(new Date(value));
+}
+
+export const dynamic = 'force-dynamic';
 
 export default async function MantenimientoPage() {
   const supabase = createSupabaseServerClient();
@@ -36,12 +28,32 @@ export default async function MantenimientoPage() {
     redirect(`/login?next=${encodeURIComponent('/mantenimiento')}`);
   }
 
+  const supabaseAdmin = createSupabaseAdminClient();
+  const today = toISODate(new Date());
+  const { data } = await supabaseAdmin
+    .from('day_status')
+    .select('event_date, notes_maintenance, mantenimiento_notes, day_notes')
+    .eq('event_date', today)
+    .maybeSingle();
+
+  const notes = (data?.notes_maintenance ?? data?.mantenimiento_notes ?? data?.day_notes ?? '').trim();
+
   return (
-    <ModulePlaceholder
-      title="Mantenimiento"
-      subtitle="Control centralizado de incidencias, validaciones y rutinas de mantenimiento preventivo."
-      cards={cards}
-      quickNotes={quickNotes}
-    />
+    <div className="space-y-6">
+      <div>
+        <h1 className="text-2xl font-semibold">Mantenimiento</h1>
+        <p className="text-slate-400">Dashboard operativo</p>
+      </div>
+
+      <div className="rounded-xl border border-slate-800 bg-slate-900/60 p-4 space-y-2">
+        <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+          <h2 className="text-lg font-semibold text-slate-100">Notas de hoy (Mantenimiento)</h2>
+          <p className="text-sm text-slate-400">{formatLongDate(today)}</p>
+        </div>
+        <p className="whitespace-pre-wrap rounded-lg border border-slate-800 bg-slate-950/40 p-3 text-sm text-slate-100">
+          {notes || 'Sin notas para hoy.'}
+        </p>
+      </div>
+    </div>
   );
 }
