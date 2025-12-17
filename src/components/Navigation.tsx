@@ -57,6 +57,7 @@ const sections: NavigationSection[] = [
         basePath: '/cocina',
         includeChildren: false,
       },
+      { key: 'cocina-tareas', label: 'Tareas', href: '/cocina/tareas', basePath: '/cocina/tareas' },
       { key: 'cocina-notas', label: 'Notas cocina', href: '/cocina/notas', basePath: '/cocina/notas' },
       { key: 'cocina-stock', label: 'Stock / mise en place', href: '/cocina/stock', basePath: '/cocina/stock' },
     ],

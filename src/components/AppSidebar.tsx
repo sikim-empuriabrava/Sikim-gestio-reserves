@@ -47,6 +47,7 @@ const groups: NavigationGroup[] = [
     label: 'Cocina',
     links: [
       { label: 'Servicio de hoy', href: '/cocina', basePath: '/cocina' },
+      { label: 'Tareas', href: '/cocina/tareas', basePath: '/cocina/tareas' },
       { label: 'Notas cocina', href: '/cocina/notas', basePath: '/cocina/notas' },
       { label: 'Stock / mise en place', href: '/cocina/stock', basePath: '/cocina/stock' },
     ],
