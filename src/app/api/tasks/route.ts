@@ -19,6 +19,15 @@ function isValidArea(value: unknown): value is Area {
   return typeof value === 'string' && VALID_AREAS.includes(value as Area);
 }
 
+function isValidDate(value: unknown) {
+  if (typeof value !== 'string') return false;
+  const matchesFormat = /^\d{4}-\d{2}-\d{2}$/.test(value);
+  if (!matchesFormat) return false;
+
+  const parsed = new Date(value);
+  return !Number.isNaN(parsed.getTime());
+}
+
 function isValidStatus(value: unknown): value is Status {
   return typeof value === 'string' && VALID_STATUSES.includes(value as Status);
 }
@@ -64,8 +73,10 @@ export async function GET(req: NextRequest) {
 
   const area = req.nextUrl.searchParams.get('area');
   const status = req.nextUrl.searchParams.get('status');
+  const dueDateFrom = req.nextUrl.searchParams.get('due_date_from');
+  const dueDateTo = req.nextUrl.searchParams.get('due_date_to');
 
-  if (!isValidArea(area)) {
+  if (area && !isValidArea(area)) {
     const invalidArea = NextResponse.json({ error: 'Invalid area' }, { status: 400 });
     mergeResponseCookies(supabaseResponse, invalidArea);
     return invalidArea;
@@ -77,11 +88,29 @@ export async function GET(req: NextRequest) {
     return invalidStatus;
   }
 
+  if ((dueDateFrom && !isValidDate(dueDateFrom)) || (dueDateTo && !isValidDate(dueDateTo))) {
+    const invalidDates = NextResponse.json({ error: 'Invalid due date filter' }, { status: 400 });
+    mergeResponseCookies(supabaseResponse, invalidDates);
+    return invalidDates;
+  }
+
   const supabase = createSupabaseAdminClient();
-  let query = supabase.from('tasks').select('*').eq('area', area).order('created_at', { ascending: false });
+  let query = supabase.from('tasks').select('*').order('created_at', { ascending: false });
+
+  if (area) {
+    query = query.eq('area', area);
+  }
 
   if (status) {
     query = query.eq('status', status);
+  }
+
+  if (dueDateFrom) {
+    query = query.gte('due_date', dueDateFrom);
+  }
+
+  if (dueDateTo) {
+    query = query.lte('due_date', dueDateTo);
   }
 
   const { data, error } = await query;
@@ -92,7 +121,31 @@ export async function GET(req: NextRequest) {
     return serverError;
   }
 
-  const response = NextResponse.json(data ?? []);
+  const todayISO = new Date().toISOString().slice(0, 10);
+
+  const sorted = [...(data ?? [])].sort((a, b) => {
+    const aOverdue = Boolean(a.due_date && a.due_date < todayISO && a.status !== 'done');
+    const bOverdue = Boolean(b.due_date && b.due_date < todayISO && b.status !== 'done');
+
+    if (aOverdue !== bOverdue) {
+      return aOverdue ? -1 : 1;
+    }
+
+    if (a.due_date && b.due_date && a.due_date !== b.due_date) {
+      return a.due_date.localeCompare(b.due_date);
+    }
+
+    if (a.due_date && !b.due_date) return -1;
+    if (!a.due_date && b.due_date) return 1;
+
+    if (a.created_at && b.created_at && a.created_at !== b.created_at) {
+      return b.created_at.localeCompare(a.created_at);
+    }
+
+    return 0;
+  });
+
+  const response = NextResponse.json(sorted);
   mergeResponseCookies(supabaseResponse, response);
   return response;
 }
