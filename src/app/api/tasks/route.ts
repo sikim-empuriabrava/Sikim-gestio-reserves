@@ -9,6 +9,11 @@ const VALID_PRIORITIES = ['low', 'normal', 'high'] as const;
 type Area = (typeof VALID_AREAS)[number];
 type Status = (typeof VALID_STATUSES)[number];
 type Priority = (typeof VALID_PRIORITIES)[number];
+type TaskSource = {
+  type: string;
+  id: string;
+  event_date?: string;
+};
 
 function isValidArea(value: unknown): value is Area {
   return typeof value === 'string' && VALID_AREAS.includes(value as Area);
@@ -20,6 +25,28 @@ function isValidStatus(value: unknown): value is Status {
 
 function isValidPriority(value: unknown): value is Priority {
   return typeof value === 'string' && VALID_PRIORITIES.includes(value as Priority);
+}
+
+function isValidSource(value: unknown): value is TaskSource {
+  if (!value || typeof value !== 'object') return false;
+
+  const source = value as Record<string, unknown>;
+
+  return typeof source.type === 'string' && typeof source.id === 'string';
+}
+
+function formatDescription(description: unknown, source: TaskSource | null) {
+  const baseDescription =
+    typeof description === 'string' && description.trim().length > 0
+      ? description.trim()
+      : null;
+
+  if (!source) {
+    return baseDescription;
+  }
+
+  const sourceBlock = `Fuente: ${JSON.stringify(source)}`;
+  return baseDescription ? `${baseDescription}\n\n${sourceBlock}` : sourceBlock;
 }
 
 export async function GET(req: NextRequest) {
@@ -86,7 +113,8 @@ export async function POST(req: NextRequest) {
   const body = await req.json().catch(() => null);
   const area = body?.area;
   const title = body?.title;
-  const description = body?.description ?? null;
+  const source = (body?.source as TaskSource | undefined) ?? null;
+  const description = formatDescription(body?.description, source);
   const priority = body?.priority ?? 'normal';
   const dueDate = body?.due_date ?? body?.dueDate ?? null;
 
@@ -106,6 +134,12 @@ export async function POST(req: NextRequest) {
     const invalidPriority = NextResponse.json({ error: 'Invalid priority' }, { status: 400 });
     mergeResponseCookies(supabaseResponse, invalidPriority);
     return invalidPriority;
+  }
+
+  if (source && !isValidSource(source)) {
+    const invalidSource = NextResponse.json({ error: 'Invalid source' }, { status: 400 });
+    mergeResponseCookies(supabaseResponse, invalidSource);
+    return invalidSource;
   }
 
   const supabase = createSupabaseAdminClient();
