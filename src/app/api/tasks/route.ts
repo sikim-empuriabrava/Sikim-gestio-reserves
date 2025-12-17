@@ -117,6 +117,7 @@ export async function POST(req: NextRequest) {
   const description = formatDescription(body?.description, source);
   const priority = body?.priority ?? 'normal';
   const dueDate = body?.due_date ?? body?.dueDate ?? null;
+  const status = body?.status ?? 'open';
 
   if (!isValidArea(area)) {
     const invalidArea = NextResponse.json({ error: 'Invalid area' }, { status: 400 });
@@ -136,6 +137,12 @@ export async function POST(req: NextRequest) {
     return invalidPriority;
   }
 
+  if (!isValidStatus(status)) {
+    const invalidStatus = NextResponse.json({ error: 'Invalid status' }, { status: 400 });
+    mergeResponseCookies(supabaseResponse, invalidStatus);
+    return invalidStatus;
+  }
+
   if (source && !isValidSource(source)) {
     const invalidSource = NextResponse.json({ error: 'Invalid source' }, { status: 400 });
     mergeResponseCookies(supabaseResponse, invalidSource);
@@ -150,6 +157,7 @@ export async function POST(req: NextRequest) {
       title,
       description,
       priority,
+      status,
       due_date: dueDate,
       created_by_email: session.user.email,
     })

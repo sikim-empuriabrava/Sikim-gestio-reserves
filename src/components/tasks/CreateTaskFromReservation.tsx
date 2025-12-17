@@ -35,25 +35,64 @@ function formatTime(time: string | null) {
   return time.slice(0, 5);
 }
 
-function buildDefaultTitle(reservation: TodayGroupEvent) {
+function buildDefaultTitle(reservation: TodayGroupEvent, area: TaskArea) {
   const time = formatTime(reservation.entry_time);
-  return `${reservation.name} · ${time}`;
+  const areaLabel = area === 'kitchen' ? 'Cocina' : 'Mantenimiento';
+  return `[${areaLabel}] Reserva ${time} – ${reservation.name}`;
 }
 
 function buildDescription(reservation: TodayGroupEvent) {
-  const totalPax =
-    reservation.total_pax ?? (reservation.adults ?? 0) + (reservation.children ?? 0);
+  const totalPax = reservation.total_pax ?? (reservation.adults ?? 0) + (reservation.children ?? 0);
+  const hasPaxInfo =
+    reservation.total_pax !== null && reservation.total_pax !== undefined
+      ? true
+      : reservation.adults !== null || reservation.children !== null;
 
-  const parts = [
-    `Hora: ${formatTime(reservation.entry_time)}`,
-    `Nombre: ${reservation.name}`,
-    `Pax: ${totalPax} (adultos: ${reservation.adults ?? 0}, niños: ${reservation.children ?? 0})`,
-    `Alergias: ${reservation.allergens_and_diets?.trim() || 'Ninguna'}`,
-    `Extras: ${reservation.extras?.trim() || '—'}`,
-    `Menú: ${reservation.menu_text?.trim() || 'Sin menú definido'}`,
-  ];
+  const descriptionParts: string[] = [];
 
-  return parts.join('\n');
+  if (reservation.entry_time) {
+    descriptionParts.push(`Hora: ${formatTime(reservation.entry_time)}`);
+  }
+
+  if (reservation.name?.trim()) {
+    descriptionParts.push(`Nombre: ${reservation.name.trim()}`);
+  }
+
+  if (hasPaxInfo) {
+    descriptionParts.push(
+      `Pax: adultos ${reservation.adults ?? 0}, niños ${reservation.children ?? 0}, total ${totalPax}`
+    );
+  }
+
+  if (reservation.status?.trim()) {
+    descriptionParts.push(`Estado: ${reservation.status.trim()}`);
+  }
+
+  if (reservation.menu_text?.trim()) {
+    descriptionParts.push(`Menú: ${reservation.menu_text.trim()}`);
+  }
+
+  if (reservation.seconds_confirmed !== null && reservation.seconds_confirmed !== undefined) {
+    descriptionParts.push(`Segundos confirmados: ${reservation.seconds_confirmed ? 'Sí' : 'No'}`);
+  }
+
+  if (reservation.allergens_and_diets?.trim()) {
+    descriptionParts.push(`Alergias/dietas: ${reservation.allergens_and_diets.trim()}`);
+  }
+
+  if (reservation.extras?.trim()) {
+    descriptionParts.push(`Extras: ${reservation.extras.trim()}`);
+  }
+
+  if (reservation.has_private_dining_room) {
+    descriptionParts.push('Sala privada: Sí');
+  }
+
+  if (reservation.has_private_party) {
+    descriptionParts.push('Fiesta privada: Sí');
+  }
+
+  return descriptionParts.join('\n');
 }
 
 export function CreateTaskFromReservation({ reservation, onCreated }: Props) {
@@ -69,7 +108,7 @@ export function CreateTaskFromReservation({ reservation, onCreated }: Props) {
   useEffect(() => {
     if (!modal) return;
 
-    setTitle(buildDefaultTitle(reservation));
+    setTitle(buildDefaultTitle(reservation, modal.area));
     setDescription(buildDescription(reservation));
     setPriority('normal');
     setDueDate(reservation.event_date || toISODate(new Date()));
@@ -123,22 +162,22 @@ export function CreateTaskFromReservation({ reservation, onCreated }: Props) {
 
   return (
     <div className="space-y-2">
-      <div className="flex flex-wrap gap-2">
-        <button
-          type="button"
-          className="rounded-md border border-slate-800 bg-slate-900 px-3 py-2 text-sm font-semibold text-primary-100 shadow-sm hover:border-slate-700"
-          onClick={() => setModal({ area: 'kitchen' })}
-        >
-          Crear tarea (Cocina)
-        </button>
-        <button
-          type="button"
-          className="rounded-md border border-slate-800 bg-slate-900 px-3 py-2 text-sm font-semibold text-amber-100 shadow-sm hover:border-slate-700"
-          onClick={() => setModal({ area: 'maintenance' })}
-        >
-          Crear tarea (Mantenimiento)
-        </button>
-      </div>
+        <div className="flex flex-wrap gap-2">
+          <button
+            type="button"
+            className="rounded-md border border-slate-800 bg-slate-900 px-3 py-2 text-sm font-semibold text-primary-100 shadow-sm hover:border-slate-700"
+            onClick={() => setModal({ area: 'kitchen' })}
+          >
+            + Tarea Cocina
+          </button>
+          <button
+            type="button"
+            className="rounded-md border border-slate-800 bg-slate-900 px-3 py-2 text-sm font-semibold text-amber-100 shadow-sm hover:border-slate-700"
+            onClick={() => setModal({ area: 'maintenance' })}
+          >
+            + Tarea Mantenimiento
+          </button>
+        </div>
 
       {feedback && (
         <div className="flex flex-wrap items-center gap-3 rounded-lg border border-emerald-600/50 bg-emerald-900/20 px-3 py-2 text-sm text-emerald-100">
