@@ -14,7 +14,12 @@ function getServiceRoleKey() {
   const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
   if (!serviceRoleKey) {
-    throw new Error('Missing SUPABASE_SERVICE_ROLE_KEY for Supabase admin client');
+    console.error(
+      '[supabaseAdmin] Missing SUPABASE_SERVICE_ROLE_KEY. Configure the SUPABASE_SERVICE_ROLE_KEY env var in Vercel Project Settings (Production/Preview).',
+    );
+    throw new Error(
+      'SUPABASE_SERVICE_ROLE_KEY is required. Set the SUPABASE_SERVICE_ROLE_KEY env var in Vercel (Production/Preview).',
+    );
   }
 
   return serviceRoleKey;

@@ -71,17 +71,34 @@ export async function middleware(req: NextRequest) {
     return handleNotAllowed();
   }
 
-  const supabaseAdmin = createSupabaseAdminClient();
+  try {
+    const supabaseAdmin = createSupabaseAdminClient();
 
-  const { data: allowedUser, error } = await supabaseAdmin
-    .from('app_allowed_users')
-    .select('id')
-    .eq('email', email)
-    .eq('is_active', true)
-    .maybeSingle();
+    const { data: allowedUser, error } = await supabaseAdmin
+      .from('app_allowed_users')
+      .select('id')
+      .eq('email', email)
+      .eq('is_active', true)
+      .maybeSingle();
 
-  if (error || !allowedUser) {
-    return handleNotAllowed();
+    if (error || !allowedUser) {
+      return handleNotAllowed();
+    }
+  } catch (error) {
+    console.error('[middleware] allowlist check failed', error);
+
+    if (isApiRoute) {
+      const misconfigured = NextResponse.json({ error: 'Server misconfigured' }, { status: 500 });
+      mergeCookies(supabaseResponse, misconfigured);
+      return misconfigured;
+    }
+
+    const url = new URL(redirectUrl);
+    url.searchParams.set('error', 'config');
+    const response = NextResponse.redirect(url);
+    mergeCookies(supabaseResponse, response);
+
+    return response;
   }
 
   return supabaseResponse;
