@@ -13,7 +13,7 @@ create table if not exists public.routines (
 create index if not exists routines_active_day_idx on public.routines(is_active, day_of_week);
 create index if not exists routines_area_idx on public.routines(area);
 
-create or replace function public.set_updated_at()
+create or replace function public.set_updated_at_routines()
 returns trigger language plpgsql as $$
 begin
   new.updated_at = now();
@@ -23,4 +23,4 @@ end; $$;
 drop trigger if exists set_timestamp_routines on public.routines;
 create trigger set_timestamp_routines
 before update on public.routines
-for each row execute function public.set_updated_at();
+for each row execute function public.set_updated_at_routines();
