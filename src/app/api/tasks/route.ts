@@ -75,6 +75,7 @@ export async function GET(req: NextRequest) {
   const status = req.nextUrl.searchParams.get('status');
   const dueDateFrom = req.nextUrl.searchParams.get('due_date_from');
   const dueDateTo = req.nextUrl.searchParams.get('due_date_to');
+  const includeNoDueDate = req.nextUrl.searchParams.get('include_no_due_date') === 'true';
 
   if (area && !isValidArea(area)) {
     const invalidArea = NextResponse.json({ error: 'Invalid area' }, { status: 400 });
@@ -105,12 +106,35 @@ export async function GET(req: NextRequest) {
     query = query.eq('status', status);
   }
 
-  if (dueDateFrom) {
-    query = query.gte('due_date', dueDateFrom);
-  }
+  if (dueDateFrom || dueDateTo) {
+    const rangeConditions = [] as string[];
 
-  if (dueDateTo) {
-    query = query.lte('due_date', dueDateTo);
+    if (dueDateFrom) {
+      rangeConditions.push(`due_date.gte.${dueDateFrom}`);
+    }
+
+    if (dueDateTo) {
+      rangeConditions.push(`due_date.lte.${dueDateTo}`);
+    }
+
+    if (includeNoDueDate) {
+      const rangeCondition = rangeConditions.length ? `and(${rangeConditions.join(',')})` : '';
+      const orConditions = ['due_date.is.null'];
+
+      if (rangeCondition) {
+        orConditions.push(rangeCondition);
+      }
+
+      query = query.or(orConditions.join(','));
+    } else {
+      if (dueDateFrom) {
+        query = query.gte('due_date', dueDateFrom);
+      }
+
+      if (dueDateTo) {
+        query = query.lte('due_date', dueDateTo);
+      }
+    }
   }
 
   const { data, error } = await query;
