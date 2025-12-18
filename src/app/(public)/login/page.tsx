@@ -102,6 +102,11 @@ export default function LoginPage() {
             No tienes acceso habilitado. Contacta con un administrador para darte permisos.
           </p>
         ) : null}
+        {error === 'config' ? (
+          <p className="rounded-lg bg-red-900/40 px-3 py-2 text-sm text-red-100">
+            Configuración incompleta en servidor (SUPABASE_SERVICE_ROLE_KEY). Contacta con administración.
+          </p>
+        ) : null}
       </div>
 
       <button
