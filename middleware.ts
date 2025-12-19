@@ -61,6 +61,9 @@ export async function middleware(req: NextRequest) {
     return response;
   };
 
+  const handleConfigError = () =>
+    handleConfigErrorResponse(isApiRoute, supabaseResponse, redirectUrl, req, supabaseUrl);
+
   if (!user) {
     return handleUnauthorized();
   }
@@ -76,29 +79,22 @@ export async function middleware(req: NextRequest) {
 
     const { data: allowedUser, error } = await supabaseAdmin
       .from('app_allowed_users')
-      .select('id')
+      .select('email')
       .eq('email', email)
       .eq('is_active', true)
       .maybeSingle();
 
-    if (error || !allowedUser) {
+    if (error) {
+      console.error('[middleware] allowlist query error', error);
+      return handleConfigError();
+    }
+
+    if (!allowedUser) {
       return handleNotAllowed();
     }
   } catch (error) {
     console.error('[middleware] allowlist check failed', error);
-
-    if (isApiRoute) {
-      const misconfigured = NextResponse.json({ error: 'Server misconfigured' }, { status: 500 });
-      mergeCookies(supabaseResponse, misconfigured);
-      return misconfigured;
-    }
-
-    const url = new URL(redirectUrl);
-    url.searchParams.set('error', 'config');
-    const response = NextResponse.redirect(url);
-    mergeCookies(supabaseResponse, response);
-
-    return response;
+    return handleConfigError();
   }
 
   return supabaseResponse;
@@ -132,4 +128,27 @@ function mergeCookies(from: NextResponse, to: NextResponse) {
   from.cookies.getAll().forEach((cookie) => {
     to.cookies.set(cookie);
   });
+}
+
+function handleConfigErrorResponse(
+  isApiRoute: boolean,
+  supabaseResponse: NextResponse,
+  redirectUrl: URL,
+  req: NextRequest,
+  supabaseUrl: string,
+) {
+  if (isApiRoute) {
+    const misconfigured = NextResponse.json({ error: 'config' }, { status: 500 });
+    mergeCookies(supabaseResponse, misconfigured);
+    clearAuthCookies(req, misconfigured, supabaseUrl);
+    return misconfigured;
+  }
+
+  const url = new URL(redirectUrl);
+  url.searchParams.set('error', 'config');
+  const response = NextResponse.redirect(url);
+  mergeCookies(supabaseResponse, response);
+  clearAuthCookies(req, response, supabaseUrl);
+
+  return response;
 }
