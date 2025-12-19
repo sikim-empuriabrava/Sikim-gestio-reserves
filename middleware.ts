@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createSupabaseMiddlewareClient } from './src/lib/supabase/middleware';
 import { createSupabaseAdminClient } from './src/lib/supabaseAdmin';
+import { getSupabaseUrl } from './src/lib/supabase/env';
 
 const PUBLIC_PATHS = [
   /^\/login$/,
@@ -101,25 +102,45 @@ export const config = {
   matcher: ['/((?!_next/static|_next/image|favicon.ico).*)'],
 };
 
-function isSupabaseAuthCookie(name: string) {
-  return name.startsWith('sb-') && name.includes('-auth-token');
-}
-
 function clearAuthCookies(req: NextRequest, res: NextResponse) {
   try {
-    const cookiesToClear = [
-      ...req.cookies.getAll().map(({ name }) => name),
-      ...res.cookies.getAll().map(({ name }) => name),
-    ];
+    const authCookiePrefix = getAuthCookiePrefix();
+    const cookiesToClear = new Set(
+      [
+        ...req.cookies.getAll().map(({ name }) => name),
+        ...res.cookies.getAll().map(({ name }) => name),
+      ].filter(Boolean),
+    );
 
     cookiesToClear.forEach((name) => {
-      if (isSupabaseAuthCookie(name)) {
-        res.cookies.set({ name, value: '', path: '/', expires: new Date(0) });
+      if (isSupabaseAuthCookie(name, authCookiePrefix)) {
+        res.cookies.set({
+          name,
+          value: '',
+          path: '/',
+          expires: new Date(0),
+          sameSite: 'lax',
+          secure: process.env.NODE_ENV === 'production',
+        });
       }
     });
   } catch (error) {
     console.error('[middleware] clearAuthCookies failed', error);
   }
+}
+
+function getAuthCookiePrefix() {
+  try {
+    const projectRef = new URL(getSupabaseUrl()).host.split('.')[0];
+    return `sb-${projectRef}-auth-token`;
+  } catch (error) {
+    console.error('[middleware] getAuthCookiePrefix failed, falling back to sb-', error);
+    return 'sb-';
+  }
+}
+
+function isSupabaseAuthCookie(name: string, prefix: string) {
+  return name === prefix || name.startsWith(`${prefix}-`);
 }
 
 function mergeCookies(from: NextResponse, to: NextResponse) {
