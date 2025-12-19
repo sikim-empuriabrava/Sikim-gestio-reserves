@@ -104,43 +104,46 @@ export const config = {
 
 function clearAuthCookies(req: NextRequest, res: NextResponse) {
   try {
-    const authCookiePrefix = getAuthCookiePrefix();
-    const cookiesToClear = new Set(
-      [
-        ...req.cookies.getAll().map(({ name }) => name),
-        ...res.cookies.getAll().map(({ name }) => name),
-      ].filter(Boolean),
+    const storageKey = getAuthStorageKey();
+    const names = new Set(
+      [...req.cookies.getAll(), ...res.cookies.getAll()].map((cookie) => cookie.name).filter(Boolean),
     );
+    const storageKeyValid = storageKey && storageKey !== 'sb-';
 
-    cookiesToClear.forEach((name) => {
-      if (isSupabaseAuthCookie(name, authCookiePrefix)) {
-        res.cookies.set({
-          name,
-          value: '',
-          path: '/',
-          expires: new Date(0),
-          sameSite: 'lax',
-          secure: process.env.NODE_ENV === 'production',
-        });
+    const shouldClear = (name: string) => {
+      if (storageKeyValid) {
+        return name === storageKey || name.startsWith(`${storageKey}-`);
       }
+
+      return name.startsWith('sb-') && name.includes('-auth-token');
+    };
+
+    names.forEach((name) => {
+      if (!shouldClear(name)) return;
+
+      res.cookies.set({
+        name,
+        value: '',
+        path: '/',
+        expires: new Date(0),
+        maxAge: 0,
+        sameSite: 'lax',
+        secure: process.env.NODE_ENV === 'production',
+      });
     });
   } catch (error) {
     console.error('[middleware] clearAuthCookies failed', error);
   }
 }
 
-function getAuthCookiePrefix() {
+function getAuthStorageKey() {
   try {
     const projectRef = new URL(getSupabaseUrl()).host.split('.')[0];
     return `sb-${projectRef}-auth-token`;
   } catch (error) {
-    console.error('[middleware] getAuthCookiePrefix failed, falling back to sb-', error);
+    console.error('[middleware] getAuthStorageKey failed', error);
     return 'sb-';
   }
-}
-
-function isSupabaseAuthCookie(name: string, prefix: string) {
-  return name === prefix || name.startsWith(`${prefix}-`);
 }
 
 function mergeCookies(from: NextResponse, to: NextResponse) {
