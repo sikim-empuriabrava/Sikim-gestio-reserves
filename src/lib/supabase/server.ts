@@ -8,10 +8,17 @@ export function createSupabaseServerClient() {
   const supabaseKey = getSupabaseAnonKey();
 
   return createServerClient(supabaseUrl, supabaseKey, {
+    auth: {
+      autoRefreshToken: false,
+    },
     cookies: {
       getAll: () => cookieStore.getAll().map((cookie) => ({ name: cookie.name, value: cookie.value })),
       setCookie: (name, value, options) => {
-        cookieStore.set({ name, value, ...options });
+        try {
+          cookieStore.set({ name, value, ...options });
+        } catch (error) {
+          console.warn('[supabase][server] Failed to set cookie during render', error);
+        }
       },
     },
   });

@@ -133,7 +133,7 @@ function createServerLikeClient(supabaseUrl, supabaseKey, options = {}, cookieAd
   const storageKey = ensureStorageKey(options, supabaseUrl);
   const cookieAdapter = cookieAdapterFactory();
   const auth = {
-    autoRefreshToken: true,
+    autoRefreshToken: false,
     persistSession: true,
     detectSessionInUrl: false,
     storageKey,

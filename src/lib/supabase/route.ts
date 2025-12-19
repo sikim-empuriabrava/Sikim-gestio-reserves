@@ -9,6 +9,9 @@ export function createSupabaseRouteHandlerClient(response: NextResponse) {
   const supabaseKey = getSupabaseAnonKey();
 
   return createRouteHandlerClient(supabaseUrl, supabaseKey, {
+    auth: {
+      autoRefreshToken: false,
+    },
     cookies: {
       getAll: () => cookieStore.getAll().map((cookie) => ({ name: cookie.name, value: cookie.value })),
       setCookie: (name, value, options) => {
