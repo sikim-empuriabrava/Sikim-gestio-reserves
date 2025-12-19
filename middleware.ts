@@ -105,19 +105,31 @@ export const config = {
 function clearAuthCookies(req: NextRequest, res: NextResponse) {
   try {
     const storageKey = getAuthStorageKey();
-    const cookiesToClear = [...req.cookies.getAll(), ...res.cookies.getAll()];
+    const names = new Set(
+      [...req.cookies.getAll(), ...res.cookies.getAll()].map((cookie) => cookie.name).filter(Boolean),
+    );
+    const storageKeyValid = storageKey && storageKey !== 'sb-';
 
-    cookiesToClear.forEach(({ name }) => {
-      if (!name) return;
-
-      if (name === storageKey || name.startsWith(`${storageKey}-`)) {
-        res.cookies.set({
-          name,
-          value: '',
-          path: '/',
-          expires: new Date(0),
-        });
+    const shouldClear = (name: string) => {
+      if (storageKeyValid) {
+        return name === storageKey || name.startsWith(`${storageKey}-`);
       }
+
+      return name.startsWith('sb-') && name.includes('-auth-token');
+    };
+
+    names.forEach((name) => {
+      if (!shouldClear(name)) return;
+
+      res.cookies.set({
+        name,
+        value: '',
+        path: '/',
+        expires: new Date(0),
+        maxAge: 0,
+        sameSite: 'lax',
+        secure: process.env.NODE_ENV === 'production',
+      });
     });
   } catch (error) {
     console.error('[middleware] clearAuthCookies failed', error);

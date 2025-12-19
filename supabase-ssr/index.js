@@ -11,7 +11,11 @@ function getDefaultStorageKey(supabaseUrl) {
 function readChunks(prefix, getAll) {
   const all = getAll();
   const matches = all
-    .filter((cookie) => cookie?.name?.startsWith(prefix))
+    .filter((cookie) => {
+      if (!cookie?.name?.startsWith(prefix)) return false;
+      const suffix = cookie.name.slice(prefix.length);
+      return /^\d+$/.test(suffix);
+    })
     .map((cookie) => ({
       name: cookie.name,
       value: cookie.value ?? '',
@@ -135,14 +139,10 @@ function createServerLikeClient(supabaseUrl, supabaseKey, options = {}, cookieAd
   const auth = {
     storageKey,
     storage: createCookieStorage(storageKey, cookieAdapter),
-    persistSession: options.auth?.persistSession ?? true,
-    detectSessionInUrl: options.auth?.detectSessionInUrl ?? false,
-    autoRefreshToken: false,
     ...options.auth,
-    // Enforce server-side defaults to avoid background refresh loops
+    persistSession: true,
+    detectSessionInUrl: false,
     autoRefreshToken: false,
-    detectSessionInUrl: options.auth?.detectSessionInUrl ?? false,
-    persistSession: options.auth?.persistSession ?? true,
   };
 
   return createClient(supabaseUrl, supabaseKey, { ...options, auth });
