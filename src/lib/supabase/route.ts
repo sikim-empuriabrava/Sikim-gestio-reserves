@@ -11,6 +11,8 @@ export function createSupabaseRouteHandlerClient(response: NextResponse) {
   return createRouteHandlerClient(supabaseUrl, supabaseKey, {
     auth: {
       autoRefreshToken: false,
+      persistSession: true,
+      detectSessionInUrl: false,
     },
     cookies: {
       getAll: () => cookieStore.getAll().map((cookie) => ({ name: cookie.name, value: cookie.value })),

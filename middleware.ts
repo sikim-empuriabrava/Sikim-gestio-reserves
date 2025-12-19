@@ -104,23 +104,18 @@ export const config = {
 
 function clearAuthCookies(req: NextRequest, res: NextResponse) {
   try {
-    const authCookiePrefix = getAuthCookiePrefix();
-    const cookiesToClear = new Set(
-      [
-        ...req.cookies.getAll().map(({ name }) => name),
-        ...res.cookies.getAll().map(({ name }) => name),
-      ].filter(Boolean),
-    );
+    const storageKey = getAuthStorageKey();
+    const cookiesToClear = [...req.cookies.getAll(), ...res.cookies.getAll()];
 
-    cookiesToClear.forEach((name) => {
-      if (isSupabaseAuthCookie(name, authCookiePrefix)) {
+    cookiesToClear.forEach(({ name }) => {
+      if (!name) return;
+
+      if (name === storageKey || name.startsWith(`${storageKey}-`)) {
         res.cookies.set({
           name,
           value: '',
           path: '/',
           expires: new Date(0),
-          sameSite: 'lax',
-          secure: process.env.NODE_ENV === 'production',
         });
       }
     });
@@ -129,18 +124,14 @@ function clearAuthCookies(req: NextRequest, res: NextResponse) {
   }
 }
 
-function getAuthCookiePrefix() {
+function getAuthStorageKey() {
   try {
     const projectRef = new URL(getSupabaseUrl()).host.split('.')[0];
     return `sb-${projectRef}-auth-token`;
   } catch (error) {
-    console.error('[middleware] getAuthCookiePrefix failed, falling back to sb-', error);
+    console.error('[middleware] getAuthStorageKey failed', error);
     return 'sb-';
   }
-}
-
-function isSupabaseAuthCookie(name: string, prefix: string) {
-  return name === prefix || name.startsWith(`${prefix}-`);
 }
 
 function mergeCookies(from: NextResponse, to: NextResponse) {

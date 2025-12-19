@@ -9,6 +9,8 @@ export function createSupabaseMiddlewareClient(req: NextRequest, res: NextRespon
   return createMiddlewareClient(supabaseUrl, supabaseKey, {
     auth: {
       autoRefreshToken: false,
+      persistSession: true,
+      detectSessionInUrl: false,
     },
     cookies: {
       getAll: () => req.cookies.getAll().map((cookie) => ({ name: cookie.name, value: cookie.value })),

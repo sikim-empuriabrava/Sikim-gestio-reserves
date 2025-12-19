@@ -133,12 +133,16 @@ function createServerLikeClient(supabaseUrl, supabaseKey, options = {}, cookieAd
   const storageKey = ensureStorageKey(options, supabaseUrl);
   const cookieAdapter = cookieAdapterFactory();
   const auth = {
-    autoRefreshToken: false,
-    persistSession: true,
-    detectSessionInUrl: false,
     storageKey,
     storage: createCookieStorage(storageKey, cookieAdapter),
+    persistSession: options.auth?.persistSession ?? true,
+    detectSessionInUrl: options.auth?.detectSessionInUrl ?? false,
+    autoRefreshToken: false,
     ...options.auth,
+    // Enforce server-side defaults to avoid background refresh loops
+    autoRefreshToken: false,
+    detectSessionInUrl: options.auth?.detectSessionInUrl ?? false,
+    persistSession: options.auth?.persistSession ?? true,
   };
 
   return createClient(supabaseUrl, supabaseKey, { ...options, auth });
