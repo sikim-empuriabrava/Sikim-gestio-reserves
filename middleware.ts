@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createSupabaseMiddlewareClient } from './src/lib/supabase/middleware';
 import { createSupabaseAdminClient } from './src/lib/supabaseAdmin';
-import { getSupabaseUrl } from './src/lib/supabase/env';
 
 const PUBLIC_PATHS = [
   /^\/login$/,
@@ -23,8 +22,6 @@ export async function middleware(req: NextRequest) {
   const {
     data: { user },
   } = await supabase.auth.getUser();
-
-  const supabaseUrl = getSupabaseUrl();
 
   const redirectUrl = new URL('/login', req.url);
   if (!isApiRoute && pathname !== '/') {
@@ -48,7 +45,7 @@ export async function middleware(req: NextRequest) {
     if (isApiRoute) {
       const notAllowed = NextResponse.json({ error: 'Not allowed' }, { status: 403 });
       mergeCookies(supabaseResponse, notAllowed);
-      clearAuthCookies(req, notAllowed, supabaseUrl);
+      clearAuthCookies(req, notAllowed);
       return notAllowed;
     }
 
@@ -56,13 +53,13 @@ export async function middleware(req: NextRequest) {
     url.searchParams.set('error', 'not_allowed');
     const response = NextResponse.redirect(url);
     mergeCookies(supabaseResponse, response);
-    clearAuthCookies(req, response, supabaseUrl);
+    clearAuthCookies(req, response);
 
     return response;
   };
 
   const handleConfigError = () =>
-    handleConfigErrorResponse(isApiRoute, supabaseResponse, redirectUrl, req, supabaseUrl);
+    handleConfigErrorResponse(isApiRoute, supabaseResponse, redirectUrl, req);
 
   if (!user) {
     return handleUnauthorized();
@@ -104,24 +101,25 @@ export const config = {
   matcher: ['/((?!_next/static|_next/image|favicon.ico).*)'],
 };
 
-function getAuthCookiePrefix(supabaseUrl: string) {
-  const url = new URL(supabaseUrl);
-  const projectRef = url.host.split('.')[0];
-  return `sb-${projectRef}-auth-token-`;
+function isSupabaseAuthCookie(name: string) {
+  return name.startsWith('sb-') && name.includes('-auth-token');
 }
 
-function clearAuthCookies(req: NextRequest, res: NextResponse, supabaseUrl: string) {
-  const prefix = getAuthCookiePrefix(supabaseUrl);
-  const cookiesToClear = [
-    ...req.cookies.getAll().map(({ name }) => name),
-    ...res.cookies.getAll().map(({ name }) => name),
-  ];
+function clearAuthCookies(req: NextRequest, res: NextResponse) {
+  try {
+    const cookiesToClear = [
+      ...req.cookies.getAll().map(({ name }) => name),
+      ...res.cookies.getAll().map(({ name }) => name),
+    ];
 
-  cookiesToClear.forEach((name) => {
-    if (name.startsWith(prefix)) {
-      res.cookies.set({ name, value: '', path: '/', expires: new Date(0) });
-    }
-  });
+    cookiesToClear.forEach((name) => {
+      if (isSupabaseAuthCookie(name)) {
+        res.cookies.set({ name, value: '', path: '/', expires: new Date(0) });
+      }
+    });
+  } catch (error) {
+    console.error('[middleware] clearAuthCookies failed', error);
+  }
 }
 
 function mergeCookies(from: NextResponse, to: NextResponse) {
@@ -135,12 +133,11 @@ function handleConfigErrorResponse(
   supabaseResponse: NextResponse,
   redirectUrl: URL,
   req: NextRequest,
-  supabaseUrl: string,
 ) {
   if (isApiRoute) {
     const misconfigured = NextResponse.json({ error: 'config' }, { status: 500 });
     mergeCookies(supabaseResponse, misconfigured);
-    clearAuthCookies(req, misconfigured, supabaseUrl);
+    clearAuthCookies(req, misconfigured);
     return misconfigured;
   }
 
@@ -148,7 +145,7 @@ function handleConfigErrorResponse(
   url.searchParams.set('error', 'config');
   const response = NextResponse.redirect(url);
   mergeCookies(supabaseResponse, response);
-  clearAuthCookies(req, response, supabaseUrl);
+  clearAuthCookies(req, response);
 
   return response;
 }
