@@ -1,0 +1,2 @@
+-- Supabase schema snapshot
+-- Run `SUPABASE_DB_URL=... bash scripts/db_snapshot.sh` to refresh this file.
