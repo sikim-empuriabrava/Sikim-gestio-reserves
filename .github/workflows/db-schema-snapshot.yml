@@ -43,7 +43,20 @@ jobs:
           SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
         run: bash scripts/db_snapshot.sh
 
+      - name: Check for changes
+        id: check_changes
+        run: |
+          git status --porcelain
+          if git diff --quiet; then
+            echo "No changes"
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "Changes detected"
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Create Pull Request
+        if: ${{ steps.check_changes.outputs.changed == 'true' }}
         uses: peter-evans/create-pull-request@v6
         with:
           commit-message: "chore: update db schema snapshot"
