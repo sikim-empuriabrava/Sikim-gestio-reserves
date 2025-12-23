@@ -75,15 +75,18 @@ export async function middleware(req: NextRequest) {
   try {
     const supabaseAdmin = createSupabaseAdminClient();
 
-    const { data: allowedUser, error } = await supabaseAdmin
+    const {
+      data: allowedUser,
+      error: allowlistError,
+    } = await supabaseAdmin
       .from('app_allowed_users')
       .select('email')
       .eq('email', email)
       .eq('is_active', true)
       .maybeSingle();
 
-    if (error) {
-      console.error('[middleware] allowlist query error', error);
+    if (allowlistError) {
+      console.error('[middleware] allowlist query error', allowlistError);
       return handleConfigError();
     }
 
