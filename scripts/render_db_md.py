@@ -1,0 +1,142 @@
+#!/usr/bin/env python3
+import json
+import sys
+from pathlib import Path
+
+
+def render_tables(tables):
+    lines = ["## Tablas"]
+    if not tables:
+        lines.append("No hay tablas en el esquema público.")
+        return lines
+
+    for table in sorted(tables, key=lambda t: t.get("name", "")):
+        lines.append(f"### {table['name']}")
+        rls_status = "habilitado" if table.get("rls_enabled") else "deshabilitado"
+        lines.append(f"RLS: {rls_status}")
+        lines.append("")
+        columns = table.get("columns") or []
+        if columns:
+            lines.append("| Columna | Tipo | Nullable | Default |")
+            lines.append("| --- | --- | --- | --- |")
+            for col in columns:
+                nullable = "Sí" if col.get("nullable") else "No"
+                default = col.get("default")
+                default_str = f"`{default}`" if default is not None else ""
+                lines.append(
+                    f"| `{col.get('name')}` | `{col.get('type')}` | {nullable} | {default_str} |"
+                )
+        else:
+            lines.append("(Sin columnas)")
+        lines.append("")
+    return lines
+
+
+def render_enums(enums):
+    lines = ["## ENUMs"]
+    if not enums:
+        lines.append("No hay tipos ENUM definidos en el esquema público.")
+        return lines
+
+    for enum in sorted(enums, key=lambda e: e.get("name", "")):
+        values = enum.get("values") or []
+        values_str = ", ".join(f"`{v}`" for v in values)
+        lines.append(f"- `{enum.get('name')}`: {values_str}")
+    return lines
+
+
+def render_policies(policies):
+    lines = ["## RLS & Policies"]
+    if not policies:
+        lines.append("No hay políticas definidas en el esquema público.")
+        return lines
+
+    lines.append("| Tabla | Política | Comando | Roles | USING | WITH CHECK |")
+    lines.append("| --- | --- | --- | --- | --- | --- |")
+    for pol in sorted(policies, key=lambda p: (p.get("table", ""), p.get("name", ""))):
+        roles = pol.get("roles")
+        roles_str = ", ".join(roles) if isinstance(roles, list) else (roles or "")
+        lines.append(
+            "| `{table}` | `{name}` | {cmd} | {roles} | `{qual}` | `{with_check}` |".format(
+                table=pol.get("table"),
+                name=pol.get("name"),
+                cmd=pol.get("cmd"),
+                roles=roles_str,
+                qual=pol.get("qual") or "",
+                with_check=pol.get("with_check") or "",
+            )
+        )
+    return lines
+
+
+def render_triggers(triggers):
+    lines = ["## Triggers"]
+    if not triggers:
+        lines.append("No hay triggers definidos en el esquema público.")
+        return lines
+
+    lines.append("| Tabla | Trigger | Timing | Eventos |")
+    lines.append("| --- | --- | --- | --- |")
+    for trg in sorted(triggers, key=lambda t: (t.get("table", ""), t.get("name", ""))):
+        events = trg.get("events") or []
+        events_str = ", ".join(events)
+        lines.append(
+            f"| `{trg.get('table')}` | `{trg.get('name')}` | {trg.get('timing')} | {events_str} |"
+        )
+    return lines
+
+
+def render_functions(functions):
+    lines = ["## Functions"]
+    if not functions:
+        lines.append("No hay funciones definidas en el esquema público.")
+        return lines
+
+    lines.append("| Función | Args | Devuelve |")
+    lines.append("| --- | --- | --- |")
+    for fn in sorted(functions, key=lambda f: f.get("name", "")):
+        lines.append(
+            f"| `{fn.get('name')}` | `{fn.get('args')}` | `{fn.get('returns')}` |"
+        )
+    return lines
+
+
+def render_how_to():
+    return [
+        "## Cómo actualizar",
+        "- Local/Codex: `SUPABASE_DB_URL=... bash scripts/db_snapshot.sh`",
+        "- GitHub Actions: workflow `db-schema-snapshot` (workflow_dispatch)",
+    ]
+
+
+def main():
+    if len(sys.argv) != 3:
+        print("Uso: render_db_md.py <input_json> <output_md>")
+        sys.exit(1)
+
+    input_path = Path(sys.argv[1])
+    output_path = Path(sys.argv[2])
+
+    with input_path.open() as f:
+        data = json.load(f)
+
+    lines = ["# Database schema snapshot", "", f"Generado: {data.get('generated_at', '')}", ""]
+    lines.extend(render_tables(data.get("tables") or []))
+    lines.append("")
+    lines.extend(render_enums(data.get("enums") or []))
+    lines.append("")
+    lines.extend(render_policies(data.get("policies") or []))
+    lines.append("")
+    lines.extend(render_triggers(data.get("triggers") or []))
+    lines.append("")
+    lines.extend(render_functions(data.get("functions") or []))
+    lines.append("")
+    lines.extend(render_how_to())
+    lines.append("")
+
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    output_path.write_text("\n".join(lines))
+
+
+if __name__ == "__main__":
+    main()
