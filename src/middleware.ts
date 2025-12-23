@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createSupabaseMiddlewareClient } from './src/lib/supabase/middleware';
-import { createSupabaseAdminClient } from './src/lib/supabaseAdmin';
-import { getSupabaseUrl } from './src/lib/supabase/env';
+import { createSupabaseMiddlewareClient } from './lib/supabase/middleware';
+import { createSupabaseAdminClient } from './lib/supabaseAdmin';
+import { getSupabaseUrl } from './lib/supabase/env';
 
 const PUBLIC_PATHS = [
   /^\/login$/,
@@ -15,10 +15,10 @@ export async function middleware(req: NextRequest) {
   const isApiRoute = pathname.startsWith('/api/');
 
   if (PUBLIC_PATHS.some((pattern) => pattern.test(pathname))) {
-    return NextResponse.next();
+    return setDebugHeader(NextResponse.next());
   }
 
-  const supabaseResponse = NextResponse.next({ request: { headers: req.headers } });
+  const supabaseResponse = setDebugHeader(NextResponse.next({ request: { headers: req.headers } }));
   const supabase = createSupabaseMiddlewareClient(req, supabaseResponse);
   const {
     data: { user },
@@ -33,13 +33,13 @@ export async function middleware(req: NextRequest) {
     if (isApiRoute) {
       const unauthorized = NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
       mergeCookies(supabaseResponse, unauthorized);
-      return unauthorized;
+      return setDebugHeader(unauthorized);
     }
 
     const response = NextResponse.redirect(redirectUrl);
     mergeCookies(supabaseResponse, response);
 
-    return response;
+    return setDebugHeader(response);
   };
 
   const handleNotAllowed = () => {
@@ -47,7 +47,7 @@ export async function middleware(req: NextRequest) {
       const notAllowed = NextResponse.json({ error: 'Not allowed' }, { status: 403 });
       mergeCookies(supabaseResponse, notAllowed);
       clearAuthCookies(req, notAllowed);
-      return notAllowed;
+      return setDebugHeader(notAllowed);
     }
 
     const url = new URL(redirectUrl);
@@ -56,7 +56,7 @@ export async function middleware(req: NextRequest) {
     mergeCookies(supabaseResponse, response);
     clearAuthCookies(req, response);
 
-    return response;
+    return setDebugHeader(response);
   };
 
   const handleConfigError = () =>
@@ -155,6 +155,11 @@ function mergeCookies(from: NextResponse, to: NextResponse) {
   });
 }
 
+function setDebugHeader(response: NextResponse) {
+  response.headers.set('x-sikim-mw', '1');
+  return response;
+}
+
 function handleConfigErrorResponse(
   isApiRoute: boolean,
   supabaseResponse: NextResponse,
@@ -165,7 +170,7 @@ function handleConfigErrorResponse(
     const misconfigured = NextResponse.json({ error: 'config' }, { status: 500 });
     mergeCookies(supabaseResponse, misconfigured);
     clearAuthCookies(req, misconfigured);
-    return misconfigured;
+    return setDebugHeader(misconfigured);
   }
 
   const url = new URL(redirectUrl);
@@ -174,5 +179,5 @@ function handleConfigErrorResponse(
   mergeCookies(supabaseResponse, response);
   clearAuthCookies(req, response);
 
-  return response;
+  return setDebugHeader(response);
 }
