@@ -18,11 +18,25 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y wget ca-certificates lsb-release gnupg
-          echo "deb http://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" | sudo tee /etc/apt/sources.list.d/pgdg.list
           wget -qO- https://www.postgresql.org/media/keys/ACCC4CF8.asc | sudo gpg --dearmor -o /usr/share/keyrings/postgresql.gpg
           echo "deb [signed-by=/usr/share/keyrings/postgresql.gpg] http://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" | sudo tee /etc/apt/sources.list.d/pgdg.list
           sudo apt-get update
           sudo apt-get install -y postgresql-client-17 python3
+
+      - name: Show default PostgreSQL client binaries
+        run: |
+          which pg_dump
+          pg_dump --version
+          which psql
+          psql --version
+
+      - name: Ensure PostgreSQL 17 tools first in PATH
+        run: echo "/usr/lib/postgresql/17/bin" >> $GITHUB_PATH
+
+      - name: Show PostgreSQL client binaries after PATH update
+        run: |
+          which pg_dump
+          pg_dump --version
 
       - name: Generate snapshot
         env:
