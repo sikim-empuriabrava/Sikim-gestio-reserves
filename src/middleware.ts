@@ -7,6 +7,7 @@ const PUBLIC_PATHS = [
   /^\/login$/,
   /^\/auth\/callback/,
   /^\/_next\//,
+  /^\/api\/version$/,
   /^\/favicon\.ico$/,
 ];
 
