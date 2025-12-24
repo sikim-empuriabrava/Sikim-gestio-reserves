@@ -15,18 +15,6 @@ function isMonday(dateString: string) {
   return date.getUTCDay() === 1;
 }
 
-function addDaysUTC(dateString: string, days: number) {
-  const date = new Date(`${dateString}T00:00:00Z`);
-  date.setUTCDate(date.getUTCDate() + days);
-  return date.toISOString().slice(0, 10);
-}
-
-function buildDescriptionWithTags(description: string | null, routineId: string, weekStart: string) {
-  const tags = [`#routine:${routineId}`, `#week:${weekStart}`];
-  const base = description?.trim();
-  return base && base.length > 0 ? `${base}\n\n${tags.join('\n')}` : tags.join('\n');
-}
-
 export async function POST(req: NextRequest) {
   const supabaseResponse = NextResponse.next();
   const authClient = createSupabaseRouteHandlerClient(supabaseResponse);
@@ -57,12 +45,10 @@ export async function POST(req: NextRequest) {
 
   const supabase = createSupabaseAdminClient();
 
-  const { data: routines, error } = await supabase
-    .from('routines')
-    .select('*')
-    .eq('is_active', true)
-    .order('day_of_week', { ascending: true })
-    .order('title', { ascending: true });
+  const { data, error } = await supabase.rpc('generate_weekly_tasks', {
+    p_week_start: weekStart,
+    p_created_by_email: session.user.email,
+  });
 
   if (error) {
     const serverError = NextResponse.json({ error: error.message }, { status: 500 });
@@ -70,57 +56,9 @@ export async function POST(req: NextRequest) {
     return serverError;
   }
 
-  let created = 0;
-  let skipped = 0;
-
-  for (const routine of routines ?? []) {
-    const tagRoutine = `#routine:${routine.id}`;
-    const tagWeek = `#week:${weekStart}`;
-
-    const { data: existing, error: existingError } = await supabase
-      .from('tasks')
-      .select('id')
-      .eq('area', routine.area)
-      .ilike('description', `%${tagRoutine}%`)
-      .ilike('description', `%${tagWeek}%`)
-      .limit(1);
-
-    if (existingError) {
-      const serverError = NextResponse.json({ error: existingError.message }, { status: 500 });
-      mergeResponseCookies(supabaseResponse, serverError);
-      return serverError;
-    }
-
-    if (existing && existing.length > 0) {
-      skipped += 1;
-      continue;
-    }
-
-    const startDay = routine.start_day_of_week ?? routine.end_day_of_week ?? routine.day_of_week ?? 1;
-    const endDay = routine.end_day_of_week ?? routine.day_of_week ?? startDay;
-    const windowStartDate = addDaysUTC(weekStart, (startDay ?? 1) - 1);
-    const dueDate = addDaysUTC(weekStart, (endDay ?? 1) - 1);
-    const description = buildDescriptionWithTags(routine.description, routine.id, weekStart);
-
-    const { error: insertError } = await supabase.from('tasks').insert({
-      area: routine.area,
-      title: routine.title,
-      description,
-      priority: routine.priority,
-      status: 'open',
-      window_start_date: windowStartDate,
-      due_date: dueDate,
-      created_by_email: session.user.email,
-    });
-
-    if (insertError) {
-      const serverError = NextResponse.json({ error: insertError.message }, { status: 500 });
-      mergeResponseCookies(supabaseResponse, serverError);
-      return serverError;
-    }
-
-    created += 1;
-  }
+  const rpcResult = Array.isArray(data) ? data?.[0] : data;
+  const created = Number(rpcResult?.created ?? 0);
+  const skipped = Number(rpcResult?.skipped ?? 0);
 
   const response = NextResponse.json({ created, skipped });
   mergeResponseCookies(supabaseResponse, response);
