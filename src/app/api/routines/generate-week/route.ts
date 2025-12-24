@@ -57,8 +57,8 @@ export async function POST(req: NextRequest) {
   }
 
   const rpcResult = Array.isArray(data) ? data?.[0] : data;
-  const created = rpcResult?.created ?? 0;
-  const skipped = rpcResult?.skipped ?? 0;
+  const created = Number(rpcResult?.created ?? 0);
+  const skipped = Number(rpcResult?.skipped ?? 0);
 
   const response = NextResponse.json({ created, skipped });
   mergeResponseCookies(supabaseResponse, response);
