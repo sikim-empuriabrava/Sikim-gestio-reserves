@@ -11,6 +11,8 @@ type Routine = {
   title: string;
   description: string | null;
   day_of_week: number;
+  start_day_of_week?: number | null;
+  end_day_of_week?: number | null;
   priority: RoutinePriority;
   is_active: boolean;
 };
@@ -26,7 +28,8 @@ type FormState = {
   area: RoutineArea;
   title: string;
   description: string;
-  day_of_week: number;
+  start_day_of_week: number;
+  end_day_of_week: number;
   priority: RoutinePriority;
   is_active: boolean;
 };
@@ -83,10 +86,19 @@ function buildDefaultForm(): FormState {
     area: 'maintenance',
     title: '',
     description: '',
-    day_of_week: 1,
+    start_day_of_week: 1,
+    end_day_of_week: 1,
     priority: 'normal',
     is_active: true,
   };
+}
+
+function getRoutineStartDay(routine: Routine) {
+  return routine.start_day_of_week ?? routine.end_day_of_week ?? routine.day_of_week;
+}
+
+function getRoutineEndDay(routine: Routine) {
+  return routine.end_day_of_week ?? routine.day_of_week ?? getRoutineStartDay(routine);
 }
 
 export function WeeklyRoutinesManager() {
@@ -158,7 +170,8 @@ export function WeeklyRoutinesManager() {
       area: routine.area,
       title: routine.title,
       description: routine.description ?? '',
-      day_of_week: routine.day_of_week,
+      start_day_of_week: getRoutineStartDay(routine),
+      end_day_of_week: getRoutineEndDay(routine),
       priority: routine.priority,
       is_active: routine.is_active,
     });
@@ -176,6 +189,11 @@ export function WeeklyRoutinesManager() {
     event.preventDefault();
     if (!modalMode) return;
 
+    if (formState.start_day_of_week > formState.end_day_of_week) {
+      setActionError('El día de inicio no puede ser mayor que el día de fin');
+      return;
+    }
+
     setIsSubmitting(true);
     setActionError(null);
 
@@ -183,7 +201,9 @@ export function WeeklyRoutinesManager() {
       const payload = {
         title: formState.title.trim(),
         description: formState.description.trim() || null,
-        day_of_week: formState.day_of_week,
+        start_day_of_week: formState.start_day_of_week,
+        end_day_of_week: formState.end_day_of_week,
+        day_of_week: formState.end_day_of_week,
         priority: formState.priority,
         is_active: formState.is_active,
       } as Record<string, string | number | boolean | null>;
@@ -350,7 +370,7 @@ export function WeeklyRoutinesManager() {
               <table className="min-w-full divide-y divide-slate-800 text-sm">
                 <thead>
                   <tr className="text-left text-xs uppercase tracking-wide text-slate-400">
-                    <th className="px-3 py-2">Día</th>
+                    <th className="px-3 py-2">Ventana</th>
                     <th className="px-3 py-2">Área</th>
                     <th className="px-3 py-2">Título</th>
                     <th className="px-3 py-2">Prioridad</th>
@@ -359,13 +379,21 @@ export function WeeklyRoutinesManager() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-800">
-                  {filteredRoutines.map((routine) => (
-                    <tr key={routine.id} className="text-slate-100">
-                      <td className="px-3 py-3 align-top">
-                        <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-slate-800 text-sm font-semibold text-white">
-                          {getDayLabel(routine.day_of_week)}
-                        </div>
-                      </td>
+                  {filteredRoutines.map((routine) => {
+                    const startDay = getRoutineStartDay(routine);
+                    const endDay = getRoutineEndDay(routine);
+                    const windowLabel =
+                      startDay === endDay
+                        ? getDayLabel(endDay)
+                        : `${getDayLabel(startDay)} → ${getDayLabel(endDay)}`;
+
+                    return (
+                      <tr key={routine.id} className="text-slate-100">
+                        <td className="px-3 py-3 align-top">
+                          <div className="inline-flex items-center gap-2 rounded-lg bg-slate-800 px-3 py-1 text-sm font-semibold text-white">
+                            Ventana: {windowLabel}
+                          </div>
+                        </td>
                       <td className="px-3 py-3 align-top text-xs">
                         <span className="rounded-full bg-slate-800 px-2 py-1 font-semibold text-slate-200">
                           {areaLabels[routine.area]}
@@ -405,8 +433,9 @@ export function WeeklyRoutinesManager() {
                           Editar
                         </button>
                       </td>
-                    </tr>
-                  ))}
+                        </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
@@ -506,11 +535,28 @@ export function WeeklyRoutinesManager() {
                 </label>
 
                 <label className="space-y-2 text-sm text-slate-200">
-                  <span className="block font-semibold">Día de la semana</span>
+                  <span className="block font-semibold">Empieza (día de la semana)</span>
                   <select
-                    value={formState.day_of_week}
+                    value={formState.start_day_of_week}
                     onChange={(event) =>
-                      setFormState((prev) => ({ ...prev, day_of_week: Number(event.target.value) }))
+                      setFormState((prev) => ({ ...prev, start_day_of_week: Number(event.target.value) }))
+                    }
+                    className="w-full rounded-lg border border-slate-800 bg-slate-900 px-3 py-2 text-sm text-white focus:border-slate-600 focus:outline-none"
+                  >
+                    {dayOptions.map((option) => (
+                      <option key={option.value} value={option.value}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+
+                <label className="space-y-2 text-sm text-slate-200">
+                  <span className="block font-semibold">Debe estar hecha antes de (día de la semana)</span>
+                  <select
+                    value={formState.end_day_of_week}
+                    onChange={(event) =>
+                      setFormState((prev) => ({ ...prev, end_day_of_week: Number(event.target.value) }))
                     }
                     className="w-full rounded-lg border border-slate-800 bg-slate-900 px-3 py-2 text-sm text-white focus:border-slate-600 focus:outline-none"
                   >

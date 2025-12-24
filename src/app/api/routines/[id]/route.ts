@@ -38,6 +38,25 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     return unauthorized;
   }
 
+  const supabase = createSupabaseAdminClient();
+  const { data: currentRoutine, error: fetchError } = await supabase
+    .from('routines')
+    .select('*')
+    .eq('id', params.id)
+    .maybeSingle();
+
+  if (fetchError) {
+    const serverError = NextResponse.json({ error: fetchError.message }, { status: 500 });
+    mergeResponseCookies(supabaseResponse, serverError);
+    return serverError;
+  }
+
+  if (!currentRoutine) {
+    const notFound = NextResponse.json({ error: 'Routine not found' }, { status: 404 });
+    mergeResponseCookies(supabaseResponse, notFound);
+    return notFound;
+  }
+
   const body = await req.json().catch(() => null);
 
   const updates: Record<string, string | number | boolean | null> = {};
@@ -56,14 +75,55 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     updates.description = normalizeDescription(body.description);
   }
 
-  if (body && Object.prototype.hasOwnProperty.call(body, 'day_of_week')) {
-    const dayOfWeek = Number(body.day_of_week);
-    if (!isValidDayOfWeek(dayOfWeek)) {
-      const invalidDay = NextResponse.json({ error: 'Invalid day_of_week' }, { status: 400 });
-      mergeResponseCookies(supabaseResponse, invalidDay);
-      return invalidDay;
+  const hasStartDay = body && Object.prototype.hasOwnProperty.call(body, 'start_day_of_week');
+  const hasEndDay =
+    (body && Object.prototype.hasOwnProperty.call(body, 'end_day_of_week')) ||
+    (body && Object.prototype.hasOwnProperty.call(body, 'day_of_week'));
+
+  const providedStart = hasStartDay ? Number(body.start_day_of_week) : undefined;
+  const providedEnd = hasEndDay
+    ? Number(body.end_day_of_week ?? body.day_of_week)
+    : undefined;
+
+  const nextStartDay =
+    providedStart ??
+    currentRoutine.start_day_of_week ??
+    currentRoutine.end_day_of_week ??
+    currentRoutine.day_of_week;
+  const nextEndDay =
+    providedEnd ?? currentRoutine.end_day_of_week ?? currentRoutine.day_of_week ?? nextStartDay;
+
+  if (hasStartDay && !isValidDayOfWeek(nextStartDay)) {
+    const invalidStartDay = NextResponse.json({ error: 'Invalid start_day_of_week' }, { status: 400 });
+    mergeResponseCookies(supabaseResponse, invalidStartDay);
+    return invalidStartDay;
+  }
+
+  if (hasEndDay && !isValidDayOfWeek(nextEndDay)) {
+    const invalidEndDay = NextResponse.json({ error: 'Invalid end_day_of_week' }, { status: 400 });
+    mergeResponseCookies(supabaseResponse, invalidEndDay);
+    return invalidEndDay;
+  }
+
+  if (hasStartDay || hasEndDay) {
+    if (!isValidDayOfWeek(nextStartDay) || !isValidDayOfWeek(nextEndDay) || nextStartDay > nextEndDay) {
+      const invalidWindow = NextResponse.json(
+        { error: 'start_day_of_week cannot be greater than end_day_of_week' },
+        { status: 400 }
+      );
+      mergeResponseCookies(supabaseResponse, invalidWindow);
+      return invalidWindow;
     }
-    updates.day_of_week = dayOfWeek;
+
+    if (hasStartDay) {
+      updates.start_day_of_week = nextStartDay;
+    }
+
+    if (hasEndDay) {
+      updates.end_day_of_week = nextEndDay;
+    }
+
+    updates.day_of_week = nextEndDay;
   }
 
   if (body && Object.prototype.hasOwnProperty.call(body, 'priority')) {
@@ -90,7 +150,6 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     return missing;
   }
 
-  const supabase = createSupabaseAdminClient();
   const { data, error } = await supabase
     .from('routines')
     .update(updates)

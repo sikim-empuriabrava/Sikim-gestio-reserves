@@ -13,7 +13,8 @@ type Task = {
   description: string | null;
   status: TaskStatus;
   priority: TaskPriority;
-  due_date: string | null;
+  window_start_date?: string | null;
+  due_date?: string | null;
   created_at: string;
   updated_at: string;
   created_by_email?: string | null;
@@ -74,10 +75,21 @@ function getWeekEndISO() {
   return weekEnd.toISOString().slice(0, 10);
 }
 
-function formatDate(value: string | null) {
+function formatDate(value: string | null | undefined) {
   if (!value) return '—';
   try {
     return new Intl.DateTimeFormat('es-ES', { dateStyle: 'medium' }).format(new Date(value));
+  } catch {
+    return value;
+  }
+}
+
+function formatShortDay(value: string | null | undefined) {
+  if (!value) return null;
+  try {
+    return new Intl.DateTimeFormat('es-ES', { weekday: 'short' })
+      .format(new Date(`${value}T00:00:00`))
+      .replace('.', '');
   } catch {
     return value;
   }
@@ -318,7 +330,7 @@ export function TaskControlCenter() {
                   <th className="px-3 py-2">Área</th>
                   <th className="px-3 py-2">Estado</th>
                   <th className="px-3 py-2">Prioridad</th>
-                  <th className="px-3 py-2">Vence</th>
+                  <th className="px-3 py-2">Ventana</th>
                   <th className="px-3 py-2">Creada</th>
                   <th className="px-3 py-2">Acciones</th>
                 </tr>
@@ -349,7 +361,13 @@ export function TaskControlCenter() {
                     </td>
                     <td className="px-3 py-3 align-top text-slate-200">
                       <div className="space-y-1 text-xs">
-                        <p>{formatDate(task.due_date)}</p>
+                        {task.window_start_date && task.due_date ? (
+                          <p>
+                            Ventana: {formatShortDay(task.window_start_date)} → {formatShortDay(task.due_date)}
+                          </p>
+                        ) : (
+                          <p>Límite: {formatDate(task.due_date ?? null)}</p>
+                        )}
                         {task.due_date && task.due_date < getTodayISO() && task.status !== 'done' && (
                           <span className="text-amber-200">Vencida</span>
                         )}

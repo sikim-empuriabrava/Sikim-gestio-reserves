@@ -13,7 +13,8 @@ type Task = {
   description: string | null;
   status: TaskStatus;
   priority: TaskPriority;
-  due_date: string | null;
+  window_start_date?: string | null;
+  due_date?: string | null;
 };
 
 type DayColumn = {

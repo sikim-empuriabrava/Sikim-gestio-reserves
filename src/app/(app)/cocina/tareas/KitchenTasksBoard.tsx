@@ -12,7 +12,8 @@ type Task = {
   description: string | null;
   status: TaskStatus;
   priority: TaskPriority;
-  due_date: string | null;
+  window_start_date?: string | null;
+  due_date?: string | null;
   created_by_email?: string | null;
   created_at?: string;
   updated_at?: string;
@@ -41,6 +42,17 @@ const priorityStyles: Record<TaskPriority, string> = {
   normal: 'bg-slate-800/60 text-slate-200 border-slate-700',
   high: 'bg-amber-900/40 text-amber-200 border-amber-700/80',
 };
+
+function formatShortDay(value: string | null | undefined) {
+  if (!value) return null;
+  try {
+    return new Intl.DateTimeFormat('es-ES', { weekday: 'short' })
+      .format(new Date(`${value}T00:00:00`))
+      .replace('.', '');
+  } catch {
+    return value;
+  }
+}
 
 type Props = {
   initialTasks: Task[];
@@ -264,6 +276,8 @@ export function KitchenTasksBoard({ initialTasks }: Props) {
 
         {filteredTasks.map((task) => {
           const nextStatus = statusCycle[task.status];
+          const windowStartLabel = formatShortDay(task.window_start_date);
+          const windowEndLabel = formatShortDay(task.due_date ?? null);
           return (
             <div key={task.id} className="rounded-xl border border-slate-800 bg-slate-900/70 p-4">
               <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
@@ -278,7 +292,15 @@ export function KitchenTasksBoard({ initialTasks }: Props) {
                     >
                       Prioridad: {priorityLabels[task.priority]}
                     </span>
-                    {task.due_date && <span className="rounded-full bg-slate-800 px-2 py-1">Vence: {task.due_date}</span>}
+                    {windowStartLabel && task.due_date ? (
+                      <span className="rounded-full bg-slate-800 px-2 py-1">
+                        Ventana: {windowStartLabel} → {windowEndLabel ?? task.due_date}
+                      </span>
+                    ) : (
+                      task.due_date && (
+                        <span className="rounded-full bg-slate-800 px-2 py-1">Límite: {task.due_date}</span>
+                      )
+                    )}
                   </div>
                 </div>
 

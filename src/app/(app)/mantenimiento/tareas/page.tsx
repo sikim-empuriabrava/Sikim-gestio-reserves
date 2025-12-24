@@ -10,7 +10,8 @@ type Task = {
   description: string | null;
   status: 'open' | 'in_progress' | 'done';
   priority: 'low' | 'normal' | 'high';
-  due_date: string | null;
+  window_start_date?: string | null;
+  due_date?: string | null;
   created_by_email?: string | null;
   created_at?: string;
   updated_at?: string;
