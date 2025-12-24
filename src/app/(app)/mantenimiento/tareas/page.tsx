@@ -45,6 +45,9 @@ export default async function MantenimientoTareasPage() {
         <p className="text-slate-400">
           Organiza incidencias, tareas recurrentes y responsables para mantener el servicio en marcha.
         </p>
+        <p className="text-sm text-slate-300">
+          Esta pantalla incluye incidencias y tareas manuales. Las rutinas semanales se ejecutan en Plan semanal.
+        </p>
       </div>
 
       <MaintenanceTasksBoard initialTasks={tasks} />

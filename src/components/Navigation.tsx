@@ -43,7 +43,7 @@ const sections: NavigationSection[] = [
         includeChildren: false,
       },
       { key: 'mantenimiento-tareas', label: 'Tareas / Incidencias', href: '/mantenimiento/tareas', basePath: '/mantenimiento/tareas' },
-      { key: 'mantenimiento-rutinas', label: 'Rutinas semanales', href: '/mantenimiento/rutinas', basePath: '/mantenimiento/rutinas' },
+      { key: 'mantenimiento-rutinas', label: 'Plan semanal', href: '/mantenimiento/rutinas', basePath: '/mantenimiento/rutinas' },
       { key: 'mantenimiento-stock', label: 'Stock / reposición', href: '/mantenimiento/stock', basePath: '/mantenimiento/stock' },
     ],
   },

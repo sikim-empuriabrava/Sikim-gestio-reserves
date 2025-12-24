@@ -39,7 +39,7 @@ const groups: NavigationGroup[] = [
     links: [
       { label: 'Dashboard', href: '/mantenimiento', basePath: '/mantenimiento' },
       { label: 'Tareas / Incidencias', href: '/mantenimiento/tareas', basePath: '/mantenimiento/tareas' },
-      { label: 'Rutinas semanales', href: '/mantenimiento/rutinas', basePath: '/mantenimiento/rutinas' },
+      { label: 'Plan semanal', href: '/mantenimiento/rutinas', basePath: '/mantenimiento/rutinas' },
       { label: 'Stock / reposición', href: '/mantenimiento/stock', basePath: '/mantenimiento/stock' },
     ],
   },

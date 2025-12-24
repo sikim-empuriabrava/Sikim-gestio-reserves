@@ -4,7 +4,7 @@ const links = [
   { label: 'Dashboard', href: '/mantenimiento', basePath: '/mantenimiento' },
   { label: 'Tareas / Incidencias', href: '/mantenimiento/tareas', basePath: '/mantenimiento/tareas' },
   { label: 'Calendario', href: '/mantenimiento/calendario', basePath: '/mantenimiento/calendario' },
-  { label: 'Rutinas semanales', href: '/mantenimiento/rutinas', basePath: '/mantenimiento/rutinas' },
+  { label: 'Plan semanal', href: '/mantenimiento/rutinas', basePath: '/mantenimiento/rutinas' },
   { label: 'Stock / reposición', href: '/mantenimiento/stock', basePath: '/mantenimiento/stock' },
 ];
 
