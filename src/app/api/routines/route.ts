@@ -109,6 +109,9 @@ export async function POST(req: NextRequest) {
   const area = body?.area;
   const title = normalizeTitle(body?.title);
   const description = normalizeDescription(body?.description);
+  const startDayOfWeek = body?.start_day_of_week !== undefined ? Number(body.start_day_of_week) : undefined;
+  const endDayOfWeek =
+    body?.end_day_of_week !== undefined ? Number(body.end_day_of_week) : Number(body?.day_of_week);
   const dayOfWeek = Number(body?.day_of_week);
   const priority = (body?.priority as Priority | undefined) ?? 'normal';
   const isActive = typeof body?.is_active === 'boolean' ? body.is_active : true;
@@ -125,10 +128,28 @@ export async function POST(req: NextRequest) {
     return invalidTitle;
   }
 
-  if (!isValidDayOfWeek(dayOfWeek)) {
-    const invalidDay = NextResponse.json({ error: 'Invalid day_of_week' }, { status: 400 });
+  const finalEndDay = endDayOfWeek ?? dayOfWeek ?? startDayOfWeek;
+  const finalStartDay = startDayOfWeek ?? dayOfWeek ?? finalEndDay;
+
+  if (!isValidDayOfWeek(finalStartDay)) {
+    const invalidStartDay = NextResponse.json({ error: 'Invalid start_day_of_week' }, { status: 400 });
+    mergeResponseCookies(supabaseResponse, invalidStartDay);
+    return invalidStartDay;
+  }
+
+  if (!isValidDayOfWeek(finalEndDay)) {
+    const invalidDay = NextResponse.json({ error: 'Invalid end_day_of_week' }, { status: 400 });
     mergeResponseCookies(supabaseResponse, invalidDay);
     return invalidDay;
+  }
+
+  if (finalStartDay > finalEndDay) {
+    const invalidWindow = NextResponse.json(
+      { error: 'start_day_of_week cannot be greater than end_day_of_week' },
+      { status: 400 }
+    );
+    mergeResponseCookies(supabaseResponse, invalidWindow);
+    return invalidWindow;
   }
 
   if (!isValidPriority(priority)) {
@@ -144,7 +165,9 @@ export async function POST(req: NextRequest) {
       area,
       title,
       description,
-      day_of_week: dayOfWeek,
+      start_day_of_week: finalStartDay,
+      end_day_of_week: finalEndDay,
+      day_of_week: finalEndDay,
       priority,
       is_active: isActive,
     })

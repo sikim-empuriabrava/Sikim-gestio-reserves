@@ -96,7 +96,10 @@ export async function POST(req: NextRequest) {
       continue;
     }
 
-    const dueDate = addDaysUTC(weekStart, (routine.day_of_week ?? 1) - 1);
+    const startDay = routine.start_day_of_week ?? routine.end_day_of_week ?? routine.day_of_week ?? 1;
+    const endDay = routine.end_day_of_week ?? routine.day_of_week ?? startDay;
+    const windowStartDate = addDaysUTC(weekStart, (startDay ?? 1) - 1);
+    const dueDate = addDaysUTC(weekStart, (endDay ?? 1) - 1);
     const description = buildDescriptionWithTags(routine.description, routine.id, weekStart);
 
     const { error: insertError } = await supabase.from('tasks').insert({
@@ -105,6 +108,7 @@ export async function POST(req: NextRequest) {
       description,
       priority: routine.priority,
       status: 'open',
+      window_start_date: windowStartDate,
       due_date: dueDate,
       created_by_email: session.user.email,
     });
