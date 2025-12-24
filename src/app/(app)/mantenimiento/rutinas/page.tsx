@@ -1,32 +1,40 @@
 import { redirect } from 'next/navigation';
-import { ModulePlaceholder } from '@/components/ModulePlaceholder';
+import { MaintenanceRoutineWeekBoard, type RoutineTask } from './MaintenanceRoutineWeekBoard';
+import { createSupabaseAdminClient } from '@/lib/supabaseAdmin';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 
-const cards = [
-  {
-    title: 'Rutinas semanales',
-    description: 'Define tareas preventivas por día y franja horaria para evitar incidencias durante el servicio.',
-  },
-  {
-    title: 'Turnos y responsables',
-    description: 'Planea qué equipo asume cada rutina y registra verificaciones rápidas desde el móvil.',
-  },
-  {
-    title: 'Checklist recurrentes',
-    description: 'Plantillas reutilizables para limpieza, revisiones eléctricas y chequeos de seguridad.',
-    badge: 'Plantillas',
-  },
-];
-
-const quickNotes = {
-  items: [
-    'Incluir revisión de extintores y salidas de emergencia cada miércoles.',
-    'Recordar limpieza de filtros de campana los jueves por la mañana.',
-    'Planificar engrase de bisagras y cerraduras cada dos semanas.',
-  ],
+type PageSearchParams = {
+  week_start?: string;
 };
 
-export default async function MantenimientoRutinasPage() {
+export const dynamic = 'force-dynamic';
+
+function toUtcMonday(value: Date) {
+  const day = value.getUTCDay();
+  const diff = (day + 6) % 7;
+  const monday = new Date(Date.UTC(value.getUTCFullYear(), value.getUTCMonth(), value.getUTCDate()));
+  monday.setUTCDate(monday.getUTCDate() - diff);
+  return monday;
+}
+
+function formatDateOnly(value: Date) {
+  return value.toISOString().slice(0, 10);
+}
+
+function resolveWeekStart(searchParams: PageSearchParams) {
+  if (searchParams.week_start) {
+    const parsed = new Date(`${searchParams.week_start}T00:00:00Z`);
+    if (!Number.isNaN(parsed.getTime())) {
+      return formatDateOnly(toUtcMonday(parsed));
+    }
+  }
+
+  return formatDateOnly(toUtcMonday(new Date()));
+}
+
+export default async function MantenimientoRutinasPage({ searchParams }: { searchParams: PageSearchParams }) {
+  const weekStart = resolveWeekStart(searchParams);
+
   const supabase = createSupabaseServerClient();
   const {
     data: { user },
@@ -36,12 +44,28 @@ export default async function MantenimientoRutinasPage() {
     redirect(`/login?next=${encodeURIComponent('/mantenimiento/rutinas')}`);
   }
 
+  const supabaseAdmin = createSupabaseAdminClient();
+  const { data } = await supabaseAdmin
+    .from('tasks')
+    .select('*')
+    .eq('area', 'maintenance')
+    .not('routine_id', 'is', null)
+    .eq('routine_week_start', weekStart)
+    .order('due_date', { ascending: true })
+    .order('priority', { ascending: false });
+
+  const tasks: RoutineTask[] = data ?? [];
+
   return (
-    <ModulePlaceholder
-      title="Rutinas semanales"
-      subtitle="Planifica las tareas preventivas para que cada turno llegue con todo el material listo."
-      cards={cards}
-      quickNotes={quickNotes}
-    />
+    <div className="space-y-6">
+      <div className="space-y-1">
+        <h1 className="text-2xl font-semibold">Plan semanal</h1>
+        <p className="text-slate-400">
+          Genera las tareas de mantenimiento a partir de las rutinas y haz seguimiento diario por ventana.
+        </p>
+      </div>
+
+      <MaintenanceRoutineWeekBoard initialTasks={tasks} weekStart={weekStart} />
+    </div>
   );
 }
