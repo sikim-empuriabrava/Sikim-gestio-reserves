@@ -5,6 +5,15 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 type RoutineArea = 'kitchen' | 'maintenance';
 type RoutinePriority = 'low' | 'normal' | 'high';
 
+type RoutinePack = {
+  id: string;
+  name: string;
+  description: string | null;
+  enabled: boolean;
+  auto_generate: boolean;
+  area: RoutineArea | null;
+};
+
 type Routine = {
   id: string;
   area: RoutineArea;
@@ -15,6 +24,7 @@ type Routine = {
   end_day_of_week?: number | null;
   priority: RoutinePriority;
   is_active: boolean;
+  routine_pack_id: string | null;
 };
 
 type Filters = {
@@ -23,6 +33,7 @@ type Filters = {
 };
 
 type ModalMode = 'create' | 'edit';
+type PackModalMode = 'create' | 'edit';
 
 type FormState = {
   area: RoutineArea;
@@ -32,6 +43,14 @@ type FormState = {
   end_day_of_week: number;
   priority: RoutinePriority;
   is_active: boolean;
+};
+
+type PackFormState = {
+  name: string;
+  description: string;
+  enabled: boolean;
+  auto_generate: boolean;
+  area: RoutineArea | '';
 };
 
 type GenerationResult = {
@@ -81,15 +100,25 @@ function getDayLabel(value: number) {
   return match.label.slice(0, 3);
 }
 
-function buildDefaultForm(): FormState {
+function buildDefaultForm(area: RoutineArea = 'maintenance'): FormState {
   return {
-    area: 'maintenance',
+    area,
     title: '',
     description: '',
     start_day_of_week: 1,
     end_day_of_week: 1,
     priority: 'normal',
     is_active: true,
+  };
+}
+
+function buildDefaultPackForm(): PackFormState {
+  return {
+    name: '',
+    description: '',
+    enabled: true,
+    auto_generate: false,
+    area: '',
   };
 }
 
@@ -102,6 +131,17 @@ function getRoutineEndDay(routine: Routine) {
 }
 
 export function WeeklyRoutinesManager() {
+  const [routinePacks, setRoutinePacks] = useState<RoutinePack[]>([]);
+  const [selectedPackId, setSelectedPackId] = useState<string | null>(null);
+  const [packsLoading, setPacksLoading] = useState(true);
+  const [packsError, setPacksError] = useState<string | null>(null);
+  const [packActionError, setPackActionError] = useState<string | null>(null);
+  const [packModalMode, setPackModalMode] = useState<PackModalMode | null>(null);
+  const [editingPack, setEditingPack] = useState<RoutinePack | null>(null);
+  const [packFormState, setPackFormState] = useState<PackFormState>(buildDefaultPackForm());
+  const [packSubmitting, setPackSubmitting] = useState(false);
+  const [packUpdatingId, setPackUpdatingId] = useState<string | null>(null);
+
   const [routines, setRoutines] = useState<Routine[]>([]);
   const [filters, setFilters] = useState<Filters>({ area: 'all', status: 'active' });
   const [isLoading, setIsLoading] = useState(true);
@@ -118,30 +158,67 @@ export function WeeklyRoutinesManager() {
   const [generationResult, setGenerationResult] = useState<GenerationResult | null>(null);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
 
-  const loadRoutines = useCallback(async () => {
-    setIsLoading(true);
-    setError(null);
-    setActionError(null);
+  const selectedPack = useMemo(
+    () => routinePacks.find((pack) => pack.id === selectedPackId) ?? null,
+    [routinePacks, selectedPackId]
+  );
+
+  const loadRoutinePacks = useCallback(async () => {
+    setPacksLoading(true);
+    setPacksError(null);
+    setPackActionError(null);
     try {
-      const response = await fetch('/api/routines', { cache: 'no-store' });
+      const response = await fetch('/api/routine-packs', { cache: 'no-store' });
       const payload = await response.json().catch(() => []);
 
       if (!response.ok) {
-        throw new Error(payload?.error || 'No se pudieron cargar las rutinas');
+        throw new Error(payload?.error || 'No se pudieron cargar los packs');
       }
 
-      setRoutines(payload ?? []);
-      setLastUpdated(new Date());
+      setRoutinePacks(payload ?? []);
+
+      if (selectedPackId && !(payload ?? []).some((pack: RoutinePack) => pack.id === selectedPackId)) {
+        setSelectedPackId(null);
+      }
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Error al cargar las rutinas');
+      setPacksError(err instanceof Error ? err.message : 'Error al cargar los packs');
     } finally {
-      setIsLoading(false);
+      setPacksLoading(false);
     }
-  }, []);
+  }, [selectedPackId]);
+
+  const loadRoutines = useCallback(
+    async (packId: string | null = selectedPackId) => {
+      setIsLoading(true);
+      setError(null);
+      setActionError(null);
+      try {
+        const query = packId === undefined ? '' : `?pack_id=${packId ?? 'null'}`;
+        const response = await fetch(`/api/routines${query}`, { cache: 'no-store' });
+        const payload = await response.json().catch(() => []);
+
+        if (!response.ok) {
+          throw new Error(payload?.error || 'No se pudieron cargar las rutinas');
+        }
+
+        setRoutines(payload ?? []);
+        setLastUpdated(new Date());
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Error al cargar las rutinas');
+      } finally {
+        setIsLoading(false);
+      }
+    },
+    [selectedPackId]
+  );
 
   useEffect(() => {
-    loadRoutines();
-  }, [loadRoutines]);
+    loadRoutinePacks();
+  }, [loadRoutinePacks]);
+
+  useEffect(() => {
+    loadRoutines(selectedPackId);
+  }, [loadRoutines, selectedPackId]);
 
   const filteredRoutines = useMemo(() => {
     return routines.filter((routine) => {
@@ -159,7 +236,7 @@ export function WeeklyRoutinesManager() {
 
   const openCreateModal = () => {
     setEditingRoutine(null);
-    setFormState(buildDefaultForm());
+    setFormState(buildDefaultForm(selectedPack?.area ?? 'maintenance'));
     setModalMode('create');
     setActionError(null);
   };
@@ -182,7 +259,33 @@ export function WeeklyRoutinesManager() {
   const closeModal = () => {
     setModalMode(null);
     setEditingRoutine(null);
-    setFormState(buildDefaultForm());
+    setFormState(buildDefaultForm(selectedPack?.area ?? 'maintenance'));
+  };
+
+  const openCreatePackModal = () => {
+    setEditingPack(null);
+    setPackFormState(buildDefaultPackForm());
+    setPackModalMode('create');
+    setPackActionError(null);
+  };
+
+  const openEditPackModal = (pack: RoutinePack) => {
+    setEditingPack(pack);
+    setPackFormState({
+      name: pack.name,
+      description: pack.description ?? '',
+      enabled: pack.enabled,
+      auto_generate: pack.auto_generate,
+      area: pack.area ?? '',
+    });
+    setPackModalMode('edit');
+    setPackActionError(null);
+  };
+
+  const closePackModal = () => {
+    setEditingPack(null);
+    setPackModalMode(null);
+    setPackFormState(buildDefaultPackForm());
   };
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
@@ -213,6 +316,7 @@ export function WeeklyRoutinesManager() {
 
       if (modalMode === 'create') {
         payload.area = formState.area;
+        payload.routine_pack_id = selectedPackId;
       }
 
       if (modalMode === 'edit') {
@@ -237,7 +341,7 @@ export function WeeklyRoutinesManager() {
         throw new Error(body?.error || 'No se pudo guardar la rutina');
       }
 
-      await loadRoutines();
+      await loadRoutines(selectedPackId);
       closeModal();
     } catch (err) {
       setActionError(err instanceof Error ? err.message : 'No se pudo guardar la rutina');
@@ -296,202 +400,443 @@ export function WeeklyRoutinesManager() {
     }
   };
 
+  const handleTogglePack = async (pack: RoutinePack, field: 'enabled' | 'auto_generate') => {
+    setPackUpdatingId(pack.id);
+    setPackActionError(null);
+    try {
+      const response = await fetch(`/api/routine-packs/${pack.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ [field]: !pack[field] }),
+      });
+
+      const payload = await response.json().catch(() => ({}));
+
+      if (!response.ok) {
+        throw new Error(payload?.error || 'No se pudo actualizar el pack');
+      }
+
+      setRoutinePacks((prev) => prev.map((item) => (item.id === pack.id ? { ...item, ...payload } : item)));
+    } catch (err) {
+      setPackActionError(err instanceof Error ? err.message : 'No se pudo actualizar el pack');
+    } finally {
+      setPackUpdatingId(null);
+    }
+  };
+
+  const handlePackSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!packModalMode) return;
+
+    if (!packFormState.name.trim()) {
+      setPackActionError('El nombre es obligatorio');
+      return;
+    }
+
+    setPackSubmitting(true);
+    setPackActionError(null);
+
+    try {
+      const payload = {
+        name: packFormState.name.trim(),
+        description: packFormState.description.trim() || null,
+        enabled: packFormState.enabled,
+        auto_generate: packFormState.auto_generate,
+        area: packFormState.area || null,
+      };
+
+      let url = '/api/routine-packs';
+      let method: 'POST' | 'PATCH' = 'POST';
+
+      if (packModalMode === 'edit') {
+        if (!editingPack) {
+          setPackSubmitting(false);
+          setPackActionError('No se encontró el pack a editar');
+          return;
+        }
+        url = `/api/routine-packs/${editingPack.id}`;
+        method = 'PATCH';
+      }
+
+      const response = await fetch(url, {
+        method,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+
+      const body = await response.json().catch(() => ({}));
+
+      if (!response.ok) {
+        throw new Error(body?.error || 'No se pudo guardar el pack');
+      }
+
+      await loadRoutinePacks();
+
+      if (method === 'POST' && body?.id) {
+        setSelectedPackId(body.id as string);
+      }
+
+      closePackModal();
+    } catch (err) {
+      setPackActionError(err instanceof Error ? err.message : 'No se pudo guardar el pack');
+    } finally {
+      setPackSubmitting(false);
+    }
+  };
+
   return (
     <div className="space-y-4">
-      <div className="grid gap-4 lg:grid-cols-[2fr,1fr]">
+      <div className="grid gap-4 lg:grid-cols-[320px,1fr]">
         <div className="space-y-4 rounded-xl border border-slate-800 bg-slate-900/70 p-4">
-          <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+          <div className="flex items-start justify-between gap-3">
             <div className="space-y-1">
-              <p className="text-lg font-semibold text-white">Listado de rutinas</p>
+              <p className="text-lg font-semibold text-white">Packs de rutinas</p>
               <p className="text-sm text-slate-400">
-                Filtra por área y estado, edita o desactiva rutinas sin perder el orden semanal.
+                Agrupa plantillas por pack y decide si se generan automáticamente cada semana.
               </p>
             </div>
             <button
               type="button"
-              onClick={openCreateModal}
-              className="self-start rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-emerald-500"
+              onClick={openCreatePackModal}
+              className="rounded-lg bg-emerald-600 px-3 py-2 text-xs font-semibold text-white shadow-sm hover:bg-emerald-500"
             >
-              + Nueva rutina
+              + Nuevo pack
             </button>
           </div>
 
-          <div className="flex flex-wrap gap-2 text-sm text-slate-200">
-            <label className="flex items-center gap-2">
-              <span className="text-xs uppercase tracking-wide text-slate-400">Área</span>
-              <select
-                value={filters.area}
-                onChange={(event) => setFilters((prev) => ({ ...prev, area: event.target.value as Filters['area'] }))}
-                className="rounded-lg border border-slate-700 bg-slate-950/60 px-3 py-1.5"
-              >
-                <option value="all">Todas</option>
-                <option value="kitchen">Cocina</option>
-                <option value="maintenance">Mantenimiento</option>
-              </select>
-            </label>
+          {packsLoading && <p className="text-sm text-slate-400">Cargando packs…</p>}
+          {packsError && <p className="text-sm text-amber-200">{packsError}</p>}
+          {packActionError && <p className="text-sm text-amber-200">{packActionError}</p>}
 
-            <label className="flex items-center gap-2">
-              <span className="text-xs uppercase tracking-wide text-slate-400">Estado</span>
-              <select
-                value={filters.status}
-                onChange={(event) => setFilters((prev) => ({ ...prev, status: event.target.value as Filters['status'] }))}
-                className="rounded-lg border border-slate-700 bg-slate-950/60 px-3 py-1.5"
-              >
-                <option value="active">Activas</option>
-                <option value="inactive">Inactivas</option>
-                <option value="all">Todas</option>
-              </select>
-            </label>
-
+          <div className="space-y-2">
             <button
               type="button"
-              onClick={() => {
-                setFilters({ area: 'all', status: 'active' });
-                loadRoutines();
-              }}
-              className="rounded-lg border border-slate-700 bg-slate-950/60 px-3 py-1.5 font-semibold hover:border-slate-500"
+              onClick={() => setSelectedPackId(null)}
+              className={`w-full rounded-lg border px-3 py-3 text-left transition ${
+                selectedPackId === null
+                  ? 'border-emerald-500 bg-slate-800/70 text-white'
+                  : 'border-slate-800 bg-slate-950/60 text-slate-200 hover:border-slate-700'
+              }`}
             >
-              Reset filtros
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="font-semibold">Sin pack</p>
+                  <p className="text-xs text-slate-400">Rutinas sueltas sin pack asignado.</p>
+                </div>
+                <span className="rounded-full bg-slate-800 px-2 py-1 text-xs font-semibold text-slate-200">
+                  Libre
+                </span>
+              </div>
             </button>
-          </div>
 
-          {isLoading && <p className="text-sm text-slate-400">Cargando rutinas…</p>}
-          {error && <p className="text-sm text-amber-200">{error}</p>}
-          {actionError && <p className="text-sm text-amber-200">{actionError}</p>}
+            {!packsLoading && routinePacks.length === 0 && (
+              <div className="rounded-lg border border-dashed border-slate-800 bg-slate-950/50 p-4 text-sm text-slate-300">
+                Todavía no hay packs creados. Pulsa &quot;Nuevo pack&quot; para empezar.
+              </div>
+            )}
 
-          {!isLoading && filteredRoutines.length === 0 && (
-            <div className="rounded-lg border border-dashed border-slate-800 bg-slate-950/50 p-6 text-sm text-slate-300">
-              No hay rutinas que coincidan con los filtros seleccionados.
-            </div>
-          )}
-
-          {!isLoading && filteredRoutines.length > 0 && (
-            <div className="overflow-x-auto">
-              <table className="min-w-full divide-y divide-slate-800 text-sm">
-                <thead>
-                  <tr className="text-left text-xs uppercase tracking-wide text-slate-400">
-                    <th className="px-3 py-2">Ventana</th>
-                    <th className="px-3 py-2">Área</th>
-                    <th className="px-3 py-2">Título</th>
-                    <th className="px-3 py-2">Prioridad</th>
-                    <th className="px-3 py-2">Activa</th>
-                    <th className="px-3 py-2">Acciones</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-800">
-                  {filteredRoutines.map((routine) => {
-                    const startDay = getRoutineStartDay(routine);
-                    const endDay = getRoutineEndDay(routine);
-                    const windowLabel =
-                      startDay === endDay
-                        ? getDayLabel(endDay)
-                        : `${getDayLabel(startDay)} → ${getDayLabel(endDay)}`;
-
-                    return (
-                      <tr key={routine.id} className="text-slate-100">
-                        <td className="px-3 py-3 align-top">
-                          <div className="inline-flex items-center gap-2 rounded-lg bg-slate-800 px-3 py-1 text-sm font-semibold text-white">
-                            Ventana: {windowLabel}
-                          </div>
-                        </td>
-                      <td className="px-3 py-3 align-top text-xs">
-                        <span className="rounded-full bg-slate-800 px-2 py-1 font-semibold text-slate-200">
-                          {areaLabels[routine.area]}
+            {routinePacks.map((pack) => {
+              const isSelected = pack.id === selectedPackId;
+              return (
+                <div
+                  key={pack.id}
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => setSelectedPackId(pack.id)}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter' || event.key === ' ') {
+                      setSelectedPackId(pack.id);
+                    }
+                  }}
+                  className={`rounded-lg border px-3 py-3 text-left transition focus:outline-none focus:ring-2 focus:ring-emerald-500 ${
+                    isSelected
+                      ? 'border-emerald-500 bg-slate-800/70 text-white'
+                      : 'border-slate-800 bg-slate-950/60 text-slate-200 hover:border-slate-700'
+                  }`}
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="space-y-1">
+                      <p className="font-semibold">{pack.name}</p>
+                      {pack.description && <p className="text-xs text-slate-400">{pack.description}</p>}
+                      <div className="flex flex-wrap gap-2 text-[11px] text-slate-300">
+                        <span className="rounded-full bg-slate-800 px-2 py-1 font-semibold">
+                          {pack.area ? areaLabels[pack.area] : 'Área libre'}
                         </span>
-                      </td>
-                      <td className="px-3 py-3 align-top">
-                        <div className="space-y-1">
-                          <p className="font-semibold">{routine.title}</p>
-                          {routine.description && <p className="text-xs text-slate-400">{routine.description}</p>}
-                        </div>
-                      </td>
-                      <td className="px-3 py-3 align-top">
-                        <span
-                          className={`rounded-full border px-2 py-1 text-xs font-semibold ${priorityBadges[routine.priority]}`}
-                        >
-                          {priorityLabels[routine.priority]}
-                        </span>
-                      </td>
-                      <td className="px-3 py-3 align-top">
-                        <label className="inline-flex items-center gap-2 text-xs font-semibold text-slate-200">
-                          <input
-                            type="checkbox"
-                            checked={routine.is_active}
-                            disabled={updatingId === routine.id}
-                            onChange={() => handleToggleActive(routine)}
-                            className="h-4 w-4 rounded border-slate-600 bg-slate-900 text-emerald-500 focus:ring-emerald-500"
-                          />
-                          <span>{routine.is_active ? 'Activa' : 'Inactiva'}</span>
-                        </label>
-                      </td>
-                      <td className="px-3 py-3 align-top">
-                        <button
-                          type="button"
-                          onClick={() => openEditModal(routine)}
-                          className="rounded-lg border border-slate-700 bg-slate-950/60 px-3 py-1 text-xs font-semibold text-slate-100 hover:border-slate-500"
-                        >
-                          Editar
-                        </button>
-                      </td>
-                        </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          )}
+                        {!pack.enabled && (
+                          <span className="rounded-full bg-slate-800 px-2 py-1 font-semibold text-amber-200">
+                            Pausado
+                          </span>
+                        )}
+                        {pack.auto_generate && (
+                          <span className="rounded-full bg-emerald-900/40 px-2 py-1 font-semibold text-emerald-100">
+                            Auto
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        openEditPackModal(pack);
+                      }}
+                      className="rounded-lg border border-slate-700 bg-slate-950/60 px-3 py-1 text-xs font-semibold text-slate-100 hover:border-slate-500"
+                    >
+                      Editar
+                    </button>
+                  </div>
 
-          <div className="flex items-center justify-between text-xs text-slate-500">
-            <span>
-              {lastUpdated
-                ? `Actualizado ${lastUpdated.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })}`
-                : 'A la espera de la primera carga...'}
-            </span>
-            <button
-              type="button"
-              disabled={isLoading}
-              onClick={() => loadRoutines()}
-              className="text-emerald-200 hover:text-emerald-100 disabled:opacity-50"
-            >
-              Refrescar
-            </button>
+                  <div className="mt-3 flex flex-wrap items-center gap-4 text-xs font-semibold text-slate-200">
+                    <label className="inline-flex items-center gap-2">
+                      <input
+                        type="checkbox"
+                        checked={pack.enabled}
+                        disabled={packUpdatingId === pack.id}
+                        onChange={(event) => {
+                          event.stopPropagation();
+                          handleTogglePack(pack, 'enabled');
+                        }}
+                        className="h-4 w-4 rounded border-slate-600 bg-slate-900 text-emerald-500 focus:ring-emerald-500"
+                      />
+                      <span>Enabled</span>
+                    </label>
+                    <label className="inline-flex items-center gap-2">
+                      <input
+                        type="checkbox"
+                        checked={pack.auto_generate}
+                        disabled={packUpdatingId === pack.id}
+                        onChange={(event) => {
+                          event.stopPropagation();
+                          handleTogglePack(pack, 'auto_generate');
+                        }}
+                        className="h-4 w-4 rounded border-slate-600 bg-slate-900 text-emerald-500 focus:ring-emerald-500"
+                      />
+                      <span>Auto</span>
+                    </label>
+                  </div>
+                  <p className="mt-2 text-[11px] text-slate-400">
+                    Si está activo, este pack generará tareas automáticamente cada semana (cron). Si no, solo al pulsar
+                    Generar semana.
+                  </p>
+                </div>
+              );
+            })}
           </div>
         </div>
 
-        <div className="space-y-4 rounded-xl border border-slate-800 bg-slate-900/70 p-4">
-          <div className="space-y-1">
-            <p className="text-lg font-semibold text-white">Generar tareas de la semana</p>
-            <p className="text-sm text-slate-400">
-              Selecciona el lunes de referencia y crea las tareas de esa semana solo para rutinas activas.
-            </p>
+        <div className="space-y-4">
+          <div className="space-y-4 rounded-xl border border-slate-800 bg-slate-900/70 p-4">
+            <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+              <div className="space-y-1">
+                <p className="text-lg font-semibold text-white">
+                  Rutinas del pack {selectedPack ? `"${selectedPack.name}"` : 'sin pack'}
+                </p>
+                <p className="text-sm text-slate-400">
+                  Solo ves las rutinas del pack seleccionado. Las nuevas se asignarán automáticamente al pack activo.
+                </p>
+                {selectedPack && (
+                  <div className="flex flex-wrap gap-2 text-[11px] text-slate-300">
+                    <span className="rounded-full bg-slate-800 px-2 py-1 font-semibold">
+                      {selectedPack.area ? areaLabels[selectedPack.area] : 'Área libre'}
+                    </span>
+                    <span className="rounded-full bg-slate-800 px-2 py-1 font-semibold">
+                      {selectedPack.enabled ? 'Enabled' : 'Pausado'}
+                    </span>
+                    <span className="rounded-full bg-slate-800 px-2 py-1 font-semibold">
+                      {selectedPack.auto_generate ? 'Auto semanal' : 'Manual'}
+                    </span>
+                  </div>
+                )}
+              </div>
+              <button
+                type="button"
+                onClick={openCreateModal}
+                className="self-start rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-emerald-500"
+              >
+                + Nueva rutina
+              </button>
+            </div>
+
+            <div className="flex flex-wrap gap-2 text-sm text-slate-200">
+              <label className="flex items-center gap-2">
+                <span className="text-xs uppercase tracking-wide text-slate-400">Área</span>
+                <select
+                  value={filters.area}
+                  onChange={(event) => setFilters((prev) => ({ ...prev, area: event.target.value as Filters['area'] }))}
+                  className="rounded-lg border border-slate-700 bg-slate-950/60 px-3 py-1.5"
+                >
+                  <option value="all">Todas</option>
+                  <option value="kitchen">Cocina</option>
+                  <option value="maintenance">Mantenimiento</option>
+                </select>
+              </label>
+
+              <label className="flex items-center gap-2">
+                <span className="text-xs uppercase tracking-wide text-slate-400">Estado</span>
+                <select
+                  value={filters.status}
+                  onChange={(event) =>
+                    setFilters((prev) => ({ ...prev, status: event.target.value as Filters['status'] }))
+                  }
+                  className="rounded-lg border border-slate-700 bg-slate-950/60 px-3 py-1.5"
+                >
+                  <option value="active">Activas</option>
+                  <option value="inactive">Inactivas</option>
+                  <option value="all">Todas</option>
+                </select>
+              </label>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setFilters({ area: 'all', status: 'active' });
+                  loadRoutines(selectedPackId);
+                }}
+                className="rounded-lg border border-slate-700 bg-slate-950/60 px-3 py-1.5 font-semibold hover:border-slate-500"
+              >
+                Reset filtros
+              </button>
+            </div>
+
+            {isLoading && <p className="text-sm text-slate-400">Cargando rutinas…</p>}
+            {error && <p className="text-sm text-amber-200">{error}</p>}
+            {actionError && <p className="text-sm text-amber-200">{actionError}</p>}
+
+            {!isLoading && filteredRoutines.length === 0 && (
+              <div className="rounded-lg border border-dashed border-slate-800 bg-slate-950/50 p-6 text-sm text-slate-300">
+                No hay rutinas que coincidan con los filtros seleccionados.
+              </div>
+            )}
+
+            {!isLoading && filteredRoutines.length > 0 && (
+              <div className="overflow-x-auto">
+                <table className="min-w-full divide-y divide-slate-800 text-sm">
+                  <thead>
+                    <tr className="text-left text-xs uppercase tracking-wide text-slate-400">
+                      <th className="px-3 py-2">Ventana</th>
+                      <th className="px-3 py-2">Área</th>
+                      <th className="px-3 py-2">Título</th>
+                      <th className="px-3 py-2">Prioridad</th>
+                      <th className="px-3 py-2">Activa</th>
+                      <th className="px-3 py-2">Acciones</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-800">
+                    {filteredRoutines.map((routine) => {
+                      const startDay = getRoutineStartDay(routine);
+                      const endDay = getRoutineEndDay(routine);
+                      const windowLabel =
+                        startDay === endDay
+                          ? getDayLabel(endDay)
+                          : `${getDayLabel(startDay)} → ${getDayLabel(endDay)}`;
+
+                      return (
+                        <tr key={routine.id} className="text-slate-100">
+                          <td className="px-3 py-3 align-top">
+                            <div className="inline-flex items-center gap-2 rounded-lg bg-slate-800 px-3 py-1 text-sm font-semibold text-white">
+                              Ventana: {windowLabel}
+                            </div>
+                          </td>
+                          <td className="px-3 py-3 align-top text-xs">
+                            <span className="rounded-full bg-slate-800 px-2 py-1 font-semibold text-slate-200">
+                              {areaLabels[routine.area]}
+                            </span>
+                          </td>
+                          <td className="px-3 py-3 align-top">
+                            <div className="space-y-1">
+                              <p className="font-semibold">{routine.title}</p>
+                              {routine.description && <p className="text-xs text-slate-400">{routine.description}</p>}
+                            </div>
+                          </td>
+                          <td className="px-3 py-3 align-top">
+                            <span
+                              className={`rounded-full border px-2 py-1 text-xs font-semibold ${priorityBadges[routine.priority]}`}
+                            >
+                              {priorityLabels[routine.priority]}
+                            </span>
+                          </td>
+                          <td className="px-3 py-3 align-top">
+                            <label className="inline-flex items-center gap-2 text-xs font-semibold text-slate-200">
+                              <input
+                                type="checkbox"
+                                checked={routine.is_active}
+                                disabled={updatingId === routine.id}
+                                onChange={() => handleToggleActive(routine)}
+                                className="h-4 w-4 rounded border-slate-600 bg-slate-900 text-emerald-500 focus:ring-emerald-500"
+                              />
+                              <span>{routine.is_active ? 'Activa' : 'Inactiva'}</span>
+                            </label>
+                          </td>
+                          <td className="px-3 py-3 align-top">
+                            <button
+                              type="button"
+                              onClick={() => openEditModal(routine)}
+                              className="rounded-lg border border-slate-700 bg-slate-950/60 px-3 py-1 text-xs font-semibold text-slate-100 hover:border-slate-500"
+                            >
+                              Editar
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+
+            <div className="flex items-center justify-between text-xs text-slate-500">
+              <span>
+                {lastUpdated
+                  ? `Actualizado ${lastUpdated.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })}`
+                  : 'A la espera de la primera carga...'}
+              </span>
+              <button
+                type="button"
+                disabled={isLoading}
+                onClick={() => loadRoutines(selectedPackId)}
+                className="text-emerald-200 hover:text-emerald-100 disabled:opacity-50"
+              >
+                Refrescar
+              </button>
+            </div>
           </div>
 
-          <div className="space-y-3 text-sm text-slate-200">
-            <label className="space-y-2">
-              <span className="block text-xs uppercase tracking-wide text-slate-400">Semana (lunes)</span>
-              <input
-                type="date"
-                value={weekStart}
-                onChange={(event) => setWeekStart(event.target.value)}
-                className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-white focus:border-slate-500 focus:outline-none"
-              />
-            </label>
-
-            <button
-              type="button"
-              onClick={handleGenerateWeek}
-              disabled={generationLoading}
-              className="w-full rounded-lg bg-primary-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-primary-500 disabled:opacity-60"
-            >
-              {generationLoading ? 'Generando…' : 'Generar tareas de esta semana'}
-            </button>
-
-            {generationResult && (
-              <p className="text-sm text-emerald-200">
-                Creadas {generationResult.created}, omitidas {generationResult.skipped}
+          <div className="space-y-4 rounded-xl border border-slate-800 bg-slate-900/70 p-4">
+            <div className="space-y-1">
+              <p className="text-lg font-semibold text-white">Generar tareas de la semana</p>
+              <p className="text-sm text-slate-400">
+                Selecciona el lunes de referencia y crea las tareas de esa semana solo para rutinas activas de packs
+                habilitados.
               </p>
-            )}
-            {generationError && <p className="text-sm text-amber-200">{generationError}</p>}
+            </div>
+
+            <div className="space-y-3 text-sm text-slate-200">
+              <label className="space-y-2">
+                <span className="block text-xs uppercase tracking-wide text-slate-400">Semana (lunes)</span>
+                <input
+                  type="date"
+                  value={weekStart}
+                  onChange={(event) => setWeekStart(event.target.value)}
+                  className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-white focus:border-slate-500 focus:outline-none"
+                />
+              </label>
+
+              <button
+                type="button"
+                onClick={handleGenerateWeek}
+                disabled={generationLoading}
+                className="w-full rounded-lg bg-primary-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-primary-500 disabled:opacity-60"
+              >
+                {generationLoading ? 'Generando…' : 'Generar tareas de esta semana'}
+              </button>
+
+              {generationResult && (
+                <p className="text-sm text-emerald-200">
+                  Creadas {generationResult.created}, omitidas {generationResult.skipped}
+                </p>
+              )}
+              {generationError && <p className="text-sm text-amber-200">{generationError}</p>}
+            </div>
           </div>
         </div>
       </div>
@@ -632,6 +977,121 @@ export function WeeklyRoutinesManager() {
                     className="rounded-lg bg-emerald-600 px-4 py-2 font-semibold text-white shadow-sm hover:bg-emerald-500 disabled:opacity-60"
                   >
                     {isSubmitting ? 'Guardando…' : 'Guardar'}
+                  </button>
+                </div>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {packModalMode && (
+        <div className="fixed inset-0 z-50 flex items-start justify-center bg-black/60 px-4 py-10">
+          <div className="w-full max-w-2xl space-y-6 rounded-2xl border border-slate-800 bg-slate-950 p-6 shadow-2xl shadow-black/60">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-xs uppercase tracking-wide text-slate-400">
+                  {packModalMode === 'create' ? 'Nuevo pack' : 'Editar pack'}
+                </p>
+                <h3 className="text-xl font-semibold text-slate-100">
+                  {packModalMode === 'create' ? 'Crear pack de rutinas' : editingPack?.name}
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={closePackModal}
+                className="rounded-md border border-slate-800 bg-slate-900 px-3 py-1 text-sm font-semibold text-slate-200 hover:bg-slate-800"
+              >
+                Cerrar
+              </button>
+            </div>
+
+            <form className="space-y-4" onSubmit={handlePackSubmit}>
+              <div className="grid gap-4 md:grid-cols-2">
+                <label className="space-y-2 text-sm text-slate-200">
+                  <span className="block font-semibold">Nombre</span>
+                  <input
+                    type="text"
+                    value={packFormState.name}
+                    onChange={(event) => setPackFormState((prev) => ({ ...prev, name: event.target.value }))}
+                    className="w-full rounded-lg border border-slate-800 bg-slate-900 px-3 py-2 text-sm text-white focus:border-slate-600 focus:outline-none"
+                    placeholder="Nombre del pack"
+                    required
+                  />
+                </label>
+
+                <label className="space-y-2 text-sm text-slate-200">
+                  <span className="block font-semibold">Área (opcional)</span>
+                  <select
+                    value={packFormState.area}
+                    onChange={(event) =>
+                      setPackFormState((prev) => ({ ...prev, area: event.target.value as RoutineArea | '' }))
+                    }
+                    className="w-full rounded-lg border border-slate-800 bg-slate-900 px-3 py-2 text-sm text-white focus:border-slate-600 focus:outline-none"
+                  >
+                    <option value="">Sin área fija</option>
+                    <option value="kitchen">Cocina</option>
+                    <option value="maintenance">Mantenimiento</option>
+                  </select>
+                </label>
+              </div>
+
+              <label className="space-y-2 text-sm text-slate-200">
+                <span className="block font-semibold">Descripción</span>
+                <textarea
+                  value={packFormState.description}
+                  onChange={(event) => setPackFormState((prev) => ({ ...prev, description: event.target.value }))}
+                  className="h-24 w-full rounded-lg border border-slate-800 bg-slate-900 px-3 py-2 text-sm text-white focus:border-slate-600 focus:outline-none"
+                  placeholder="¿Qué cubre este pack?"
+                />
+              </label>
+
+              <div className="grid gap-4 md:grid-cols-2">
+                <label className="flex items-center gap-2 text-sm font-semibold text-slate-200">
+                  <input
+                    type="checkbox"
+                    checked={packFormState.enabled}
+                    onChange={(event) => setPackFormState((prev) => ({ ...prev, enabled: event.target.checked }))}
+                    className="h-4 w-4 rounded border-slate-600 bg-slate-900 text-emerald-500 focus:ring-emerald-500"
+                  />
+                  <span>Enabled</span>
+                </label>
+
+                <div className="space-y-1 text-sm text-slate-200">
+                  <label className="flex items-center gap-2 font-semibold">
+                    <input
+                      type="checkbox"
+                      checked={packFormState.auto_generate}
+                      onChange={(event) =>
+                        setPackFormState((prev) => ({ ...prev, auto_generate: event.target.checked }))
+                      }
+                      className="h-4 w-4 rounded border-slate-600 bg-slate-900 text-emerald-500 focus:ring-emerald-500"
+                    />
+                    <span>Auto</span>
+                  </label>
+                  <p className="text-xs font-normal text-slate-400">
+                    Si está activo, este pack generará tareas automáticamente cada semana (cron). Si no, solo al pulsar
+                    Generar semana.
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex flex-wrap items-center justify-between gap-3 text-sm">
+                {packActionError && <p className="text-amber-200">{packActionError}</p>}
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={closePackModal}
+                    className="rounded-lg border border-slate-700 bg-slate-900 px-4 py-2 font-semibold text-slate-100 hover:border-slate-500"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={packSubmitting}
+                    className="rounded-lg bg-emerald-600 px-4 py-2 font-semibold text-white shadow-sm hover:bg-emerald-500 disabled:opacity-60"
+                  >
+                    {packSubmitting ? 'Guardando…' : 'Guardar'}
                   </button>
                 </div>
               </div>

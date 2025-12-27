@@ -38,6 +38,12 @@ function normalizeDescription(value: unknown) {
   return trimmed.length > 0 ? trimmed : null;
 }
 
+function normalizeRoutinePackId(value: unknown) {
+  if (value === null) return null;
+  if (typeof value === 'string') return value;
+  return undefined;
+}
+
 export async function GET(req: NextRequest) {
   const supabaseResponse = NextResponse.next();
   const authClient = createSupabaseRouteHandlerClient(supabaseResponse);
@@ -53,6 +59,7 @@ export async function GET(req: NextRequest) {
 
   const area = req.nextUrl.searchParams.get('area');
   const isActiveParam = req.nextUrl.searchParams.get('is_active');
+  const packIdParam = req.nextUrl.searchParams.get('pack_id');
 
   if (area && !isValidArea(area)) {
     const invalidArea = NextResponse.json({ error: 'Invalid area' }, { status: 400 });
@@ -61,6 +68,8 @@ export async function GET(req: NextRequest) {
   }
 
   const isActiveFilter = parseIsActiveQuery(isActiveParam);
+  const packFilter =
+    packIdParam === null ? undefined : packIdParam === 'null' || packIdParam === '' ? null : packIdParam;
 
   if (isActiveFilter === 'invalid') {
     const invalidActive = NextResponse.json({ error: 'Invalid is_active value' }, { status: 400 });
@@ -77,6 +86,10 @@ export async function GET(req: NextRequest) {
 
   if (isActiveFilter !== null) {
     query = query.eq('is_active', isActiveFilter);
+  }
+
+  if (packFilter !== undefined) {
+    query = packFilter === null ? query.is('routine_pack_id', null) : query.eq('routine_pack_id', packFilter);
   }
 
   const { data, error } = await query;
@@ -115,6 +128,7 @@ export async function POST(req: NextRequest) {
   const dayOfWeek = Number(body?.day_of_week);
   const priority = (body?.priority as Priority | undefined) ?? 'normal';
   const isActive = typeof body?.is_active === 'boolean' ? body.is_active : true;
+  const routinePackId = normalizeRoutinePackId(body?.routine_pack_id ?? null);
 
   if (!isValidArea(area)) {
     const invalidArea = NextResponse.json({ error: 'Invalid area' }, { status: 400 });
@@ -158,6 +172,12 @@ export async function POST(req: NextRequest) {
     return invalidPriority;
   }
 
+  if (routinePackId === undefined) {
+    const invalidPack = NextResponse.json({ error: 'Invalid routine_pack_id' }, { status: 400 });
+    mergeResponseCookies(supabaseResponse, invalidPack);
+    return invalidPack;
+  }
+
   const supabase = createSupabaseAdminClient();
   const { data, error } = await supabase
     .from('routines')
@@ -170,6 +190,7 @@ export async function POST(req: NextRequest) {
       day_of_week: finalEndDay,
       priority,
       is_active: isActive,
+      routine_pack_id: routinePackId ?? null,
     })
     .select()
     .maybeSingle();

@@ -25,6 +25,12 @@ function normalizeDescription(value: unknown) {
   return trimmed.length > 0 ? trimmed : null;
 }
 
+function normalizeRoutinePackId(value: unknown) {
+  if (value === null) return null;
+  if (typeof value === 'string') return value;
+  return undefined;
+}
+
 export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
   const supabaseResponse = NextResponse.next();
   const authClient = createSupabaseRouteHandlerClient(supabaseResponse);
@@ -142,6 +148,16 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
       return invalidActive;
     }
     updates.is_active = body.is_active;
+  }
+
+  if (body && Object.prototype.hasOwnProperty.call(body, 'routine_pack_id')) {
+    const routinePackId = normalizeRoutinePackId(body.routine_pack_id);
+    if (routinePackId === undefined) {
+      const invalidPack = NextResponse.json({ error: 'Invalid routine_pack_id' }, { status: 400 });
+      mergeResponseCookies(supabaseResponse, invalidPack);
+      return invalidPack;
+    }
+    updates.routine_pack_id = routinePackId;
   }
 
   if (Object.keys(updates).length === 0) {
