@@ -189,3 +189,64 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   mergeResponseCookies(supabaseResponse, response);
   return response;
 }
+
+export async function DELETE(_req: NextRequest, { params }: { params: { id: string } }) {
+  const supabaseResponse = NextResponse.next();
+  const authClient = createSupabaseRouteHandlerClient(supabaseResponse);
+  const {
+    data: { session },
+  } = await authClient.auth.getSession();
+
+  if (!session) {
+    const unauthorized = NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    mergeResponseCookies(supabaseResponse, unauthorized);
+    return unauthorized;
+  }
+
+  const supabase = createSupabaseAdminClient();
+
+  const { count, error: countError } = await supabase
+    .from('tasks')
+    .select('id', { count: 'exact', head: true })
+    .eq('routine_id', params.id);
+
+  if (countError) {
+    const serverError = NextResponse.json({ error: countError.message }, { status: 500 });
+    mergeResponseCookies(supabaseResponse, serverError);
+    return serverError;
+  }
+
+  const { error: unlinkError } = await supabase
+    .from('tasks')
+    .update({ routine_id: null, routine_week_start: null })
+    .eq('routine_id', params.id);
+
+  if (unlinkError) {
+    const serverError = NextResponse.json({ error: unlinkError.message }, { status: 500 });
+    mergeResponseCookies(supabaseResponse, serverError);
+    return serverError;
+  }
+
+  const { data, error } = await supabase
+    .from('routines')
+    .delete()
+    .eq('id', params.id)
+    .select('id')
+    .maybeSingle();
+
+  if (error) {
+    const serverError = NextResponse.json({ error: error.message }, { status: 500 });
+    mergeResponseCookies(supabaseResponse, serverError);
+    return serverError;
+  }
+
+  if (!data) {
+    const notFound = NextResponse.json({ error: 'Routine not found' }, { status: 404 });
+    mergeResponseCookies(supabaseResponse, notFound);
+    return notFound;
+  }
+
+  const response = NextResponse.json({ deleted: true, unlinked_tasks: count ?? 0 });
+  mergeResponseCookies(supabaseResponse, response);
+  return response;
+}

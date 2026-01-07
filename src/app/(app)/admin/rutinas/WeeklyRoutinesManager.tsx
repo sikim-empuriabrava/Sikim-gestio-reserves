@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 type RoutineArea = 'kitchen' | 'maintenance';
 type RoutinePriority = 'low' | 'normal' | 'high';
@@ -159,7 +159,9 @@ export function WeeklyRoutinesManager() {
   const [generationLoading, setGenerationLoading] = useState<'pack' | 'all' | null>(null);
   const [generationError, setGenerationError] = useState<string | null>(null);
   const [generationResult, setGenerationResult] = useState<GenerationResult | null>(null);
+  const [routineToast, setRoutineToast] = useState<string | null>(null);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
+  const toastTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const selectedPack = useMemo(
     () => routinePacks.find((pack) => pack.id === selectedPackId) ?? null,
@@ -222,6 +224,14 @@ export function WeeklyRoutinesManager() {
   useEffect(() => {
     loadRoutines(selectedPackId);
   }, [loadRoutines, selectedPackId]);
+
+  useEffect(() => {
+    return () => {
+      if (toastTimeoutRef.current) {
+        clearTimeout(toastTimeoutRef.current);
+      }
+    };
+  }, []);
 
   const filteredRoutines = useMemo(() => {
     return routines.filter((routine) => {
@@ -394,17 +404,87 @@ export function WeeklyRoutinesManager() {
         body: JSON.stringify(payload),
       });
 
-      const payload = await response.json().catch(() => ({}));
+      const responseBody = await response.json().catch(() => ({}));
 
       if (!response.ok) {
-        throw new Error(payload?.error || 'No se pudieron generar las tareas');
+        throw new Error(responseBody?.error || 'No se pudieron generar las tareas');
       }
 
-      setGenerationResult(payload as GenerationResult);
+      setGenerationResult(responseBody as GenerationResult);
     } catch (err) {
       setGenerationError(err instanceof Error ? err.message : 'No se pudieron generar las tareas');
     } finally {
       setGenerationLoading(null);
+    }
+  };
+
+  const handleDeletePack = async (pack: RoutinePack) => {
+    if (!window.confirm('¿Eliminar pack? Solo se puede si no tiene rutinas.')) return;
+
+    setPackActionError(null);
+    setPackUpdatingId(pack.id);
+    try {
+      const response = await fetch(`/api/routine-packs/${pack.id}`, { method: 'DELETE' });
+      const body = await response.json().catch(() => ({}));
+
+      if (response.status === 409) {
+        throw new Error('No se puede borrar: el pack tiene rutinas. Borra o mueve las rutinas primero.');
+      }
+
+      if (!response.ok) {
+        throw new Error(body?.error || 'No se pudo borrar el pack');
+      }
+
+      await loadRoutinePacks();
+
+      if (selectedPackId === pack.id) {
+        setSelectedPackId(NO_PACK_ID);
+      }
+    } catch (err) {
+      setPackActionError(err instanceof Error ? err.message : 'No se pudo borrar el pack');
+    } finally {
+      setPackUpdatingId(null);
+    }
+  };
+
+  const handleDeleteRoutine = async (routine: Routine) => {
+    if (
+      !window.confirm(
+        '¿Eliminar rutina? Las tareas ya generadas quedarán como tareas normales (sin vínculo a rutina).'
+      )
+    ) {
+      return;
+    }
+
+    setActionError(null);
+    setUpdatingId(routine.id);
+    try {
+      const response = await fetch(`/api/routines/${routine.id}`, { method: 'DELETE' });
+      const body = await response.json().catch(() => ({}));
+
+      if (!response.ok) {
+        throw new Error(body?.error || 'No se pudo borrar la rutina');
+      }
+
+      await loadRoutines(selectedPackId);
+
+      const unlinkedTasks = Number(body?.unlinked_tasks ?? 0);
+      const message =
+        unlinkedTasks > 0
+          ? `Rutina eliminada. Se desvincularon ${unlinkedTasks} tareas.`
+          : 'Rutina eliminada. No había tareas vinculadas.';
+
+      setRoutineToast(message);
+      if (toastTimeoutRef.current) {
+        clearTimeout(toastTimeoutRef.current);
+      }
+      toastTimeoutRef.current = setTimeout(() => {
+        setRoutineToast(null);
+      }, 4000);
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : 'No se pudo borrar la rutina');
+    } finally {
+      setUpdatingId(null);
     }
   };
 
@@ -582,16 +662,29 @@ export function WeeklyRoutinesManager() {
                         )}
                       </div>
                     </div>
-                    <button
-                      type="button"
-                      onClick={(event) => {
-                        event.stopPropagation();
-                        openEditPackModal(pack);
-                      }}
-                      className="rounded-lg border border-slate-700 bg-slate-950/60 px-3 py-1 text-xs font-semibold text-slate-100 hover:border-slate-500"
-                    >
-                      Editar
-                    </button>
+                    <div className="flex flex-col gap-2">
+                      <button
+                        type="button"
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          openEditPackModal(pack);
+                        }}
+                        className="rounded-lg border border-slate-700 bg-slate-950/60 px-3 py-1 text-xs font-semibold text-slate-100 hover:border-slate-500"
+                      >
+                        Editar
+                      </button>
+                      <button
+                        type="button"
+                        disabled={packUpdatingId === pack.id}
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          handleDeletePack(pack);
+                        }}
+                        className="rounded-lg border border-rose-500/70 bg-rose-950/40 px-3 py-1 text-xs font-semibold text-rose-100 hover:border-rose-400 disabled:opacity-60"
+                      >
+                        Eliminar pack
+                      </button>
+                    </div>
                   </div>
 
                   <div className="mt-3 flex flex-wrap items-center gap-4 text-xs font-semibold text-slate-200">
@@ -708,6 +801,7 @@ export function WeeklyRoutinesManager() {
             {isLoading && <p className="text-sm text-slate-400">Cargando rutinas…</p>}
             {error && <p className="text-sm text-amber-200">{error}</p>}
             {actionError && <p className="text-sm text-amber-200">{actionError}</p>}
+            {routineToast && <p className="text-sm text-emerald-200">{routineToast}</p>}
 
             {!isLoading && filteredRoutines.length === 0 && (
               <div className="rounded-lg border border-dashed border-slate-800 bg-slate-950/50 p-6 text-sm text-slate-300">
@@ -775,13 +869,23 @@ export function WeeklyRoutinesManager() {
                             </label>
                           </td>
                           <td className="px-3 py-3 align-top">
-                            <button
-                              type="button"
-                              onClick={() => openEditModal(routine)}
-                              className="rounded-lg border border-slate-700 bg-slate-950/60 px-3 py-1 text-xs font-semibold text-slate-100 hover:border-slate-500"
-                            >
-                              Editar
-                            </button>
+                            <div className="flex flex-wrap gap-2">
+                              <button
+                                type="button"
+                                onClick={() => openEditModal(routine)}
+                                className="rounded-lg border border-slate-700 bg-slate-950/60 px-3 py-1 text-xs font-semibold text-slate-100 hover:border-slate-500"
+                              >
+                                Editar
+                              </button>
+                              <button
+                                type="button"
+                                disabled={updatingId === routine.id}
+                                onClick={() => handleDeleteRoutine(routine)}
+                                className="rounded-lg border border-rose-500/70 bg-rose-950/40 px-3 py-1 text-xs font-semibold text-rose-100 hover:border-rose-400 disabled:opacity-60"
+                              >
+                                Eliminar
+                              </button>
+                            </div>
                           </td>
                         </tr>
                       );
