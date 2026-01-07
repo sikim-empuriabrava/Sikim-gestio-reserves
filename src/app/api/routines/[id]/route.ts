@@ -33,6 +33,19 @@ function normalizeRoutinePackId(value: unknown) {
   return undefined;
 }
 
+function isValidDateString(value: unknown) {
+  if (typeof value !== 'string') return false;
+  const matches = /^\d{4}-\d{2}-\d{2}$/.test(value);
+  if (!matches) return false;
+  const parsed = new Date(`${value}T00:00:00Z`);
+  return !Number.isNaN(parsed.getTime());
+}
+
+function isMonday(dateString: string) {
+  const date = new Date(`${dateString}T00:00:00Z`);
+  return date.getUTCDay() === 1;
+}
+
 export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
   const supabaseResponse = NextResponse.next();
   const authClient = createSupabaseRouteHandlerClient(supabaseResponse);
@@ -205,28 +218,109 @@ export async function DELETE(_req: NextRequest, { params }: { params: { id: stri
     return unauthorized;
   }
 
-  const supabase = createSupabaseAdminClient();
+  const body = await _req.json().catch(() => null);
+  const mode = body?.mode ?? 'keep_all';
+  const cutoffWeekStart = body?.cutoff_week_start;
 
-  const { count, error: countError } = await supabase
-    .from('tasks')
-    .select('id', { count: 'exact', head: true })
-    .eq('routine_id', params.id);
-
-  if (countError) {
-    const serverError = NextResponse.json({ error: countError.message }, { status: 500 });
-    mergeResponseCookies(supabaseResponse, serverError);
-    return serverError;
+  if (mode !== 'keep_all' && mode !== 'delete_from_week') {
+    const invalidMode = NextResponse.json({ error: 'Invalid mode' }, { status: 400 });
+    mergeResponseCookies(supabaseResponse, invalidMode);
+    return invalidMode;
   }
 
-  const { error: unlinkError } = await supabase
-    .from('tasks')
-    .update({ routine_id: null, routine_week_start: null })
-    .eq('routine_id', params.id);
+  if (mode === 'delete_from_week') {
+    if (!isValidDateString(cutoffWeekStart)) {
+      const invalidDate = NextResponse.json({ error: 'cutoff_week_start must be YYYY-MM-DD' }, { status: 400 });
+      mergeResponseCookies(supabaseResponse, invalidDate);
+      return invalidDate;
+    }
 
-  if (unlinkError) {
-    const serverError = NextResponse.json({ error: unlinkError.message }, { status: 500 });
-    mergeResponseCookies(supabaseResponse, serverError);
-    return serverError;
+    if (!isMonday(cutoffWeekStart)) {
+      const notMonday = NextResponse.json({ error: 'cutoff_week_start debe ser lunes' }, { status: 400 });
+      mergeResponseCookies(supabaseResponse, notMonday);
+      return notMonday;
+    }
+  }
+
+  const supabase = createSupabaseAdminClient();
+  let deletedTasks = 0;
+  let unlinkedTasks = 0;
+
+  if (mode === 'delete_from_week') {
+    const { count: deleteCount, error: deleteCountError } = await supabase
+      .from('tasks')
+      .select('id', { count: 'exact', head: true })
+      .eq('routine_id', params.id)
+      .gte('routine_week_start', cutoffWeekStart);
+
+    if (deleteCountError) {
+      const serverError = NextResponse.json({ error: deleteCountError.message }, { status: 500 });
+      mergeResponseCookies(supabaseResponse, serverError);
+      return serverError;
+    }
+
+    const { count: unlinkCount, error: unlinkCountError } = await supabase
+      .from('tasks')
+      .select('id', { count: 'exact', head: true })
+      .eq('routine_id', params.id)
+      .or(`routine_week_start.lt.${cutoffWeekStart},routine_week_start.is.null`);
+
+    if (unlinkCountError) {
+      const serverError = NextResponse.json({ error: unlinkCountError.message }, { status: 500 });
+      mergeResponseCookies(supabaseResponse, serverError);
+      return serverError;
+    }
+
+    deletedTasks = deleteCount ?? 0;
+    unlinkedTasks = unlinkCount ?? 0;
+
+    const { error: deleteError } = await supabase
+      .from('tasks')
+      .delete()
+      .eq('routine_id', params.id)
+      .gte('routine_week_start', cutoffWeekStart);
+
+    if (deleteError) {
+      const serverError = NextResponse.json({ error: deleteError.message }, { status: 500 });
+      mergeResponseCookies(supabaseResponse, serverError);
+      return serverError;
+    }
+
+    const { error: unlinkError } = await supabase
+      .from('tasks')
+      .update({ routine_id: null, routine_week_start: null })
+      .eq('routine_id', params.id)
+      .or(`routine_week_start.lt.${cutoffWeekStart},routine_week_start.is.null`);
+
+    if (unlinkError) {
+      const serverError = NextResponse.json({ error: unlinkError.message }, { status: 500 });
+      mergeResponseCookies(supabaseResponse, serverError);
+      return serverError;
+    }
+  } else {
+    const { count: unlinkCount, error: unlinkCountError } = await supabase
+      .from('tasks')
+      .select('id', { count: 'exact', head: true })
+      .eq('routine_id', params.id);
+
+    if (unlinkCountError) {
+      const serverError = NextResponse.json({ error: unlinkCountError.message }, { status: 500 });
+      mergeResponseCookies(supabaseResponse, serverError);
+      return serverError;
+    }
+
+    unlinkedTasks = unlinkCount ?? 0;
+
+    const { error: unlinkError } = await supabase
+      .from('tasks')
+      .update({ routine_id: null, routine_week_start: null })
+      .eq('routine_id', params.id);
+
+    if (unlinkError) {
+      const serverError = NextResponse.json({ error: unlinkError.message }, { status: 500 });
+      mergeResponseCookies(supabaseResponse, serverError);
+      return serverError;
+    }
   }
 
   const { data, error } = await supabase
@@ -248,7 +342,7 @@ export async function DELETE(_req: NextRequest, { params }: { params: { id: stri
     return notFound;
   }
 
-  const response = NextResponse.json({ deleted: true, unlinked_tasks: count ?? 0 });
+  const response = NextResponse.json({ deleted: true, deleted_tasks: deletedTasks, unlinked_tasks: unlinkedTasks });
   mergeResponseCookies(supabaseResponse, response);
   return response;
 }
