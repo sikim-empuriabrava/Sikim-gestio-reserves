@@ -56,6 +56,7 @@ type PackFormState = {
 type GenerationResult = {
   created: number;
   skipped: number;
+  scope?: 'pack' | 'all';
 };
 
 const NO_PACK_ID = 'none';
@@ -155,7 +156,7 @@ export function WeeklyRoutinesManager() {
   const [formState, setFormState] = useState<FormState>(buildDefaultForm());
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [weekStart, setWeekStart] = useState(getCurrentWeekMonday());
-  const [generationLoading, setGenerationLoading] = useState(false);
+  const [generationLoading, setGenerationLoading] = useState<'pack' | 'all' | null>(null);
   const [generationError, setGenerationError] = useState<string | null>(null);
   const [generationResult, setGenerationResult] = useState<GenerationResult | null>(null);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
@@ -376,16 +377,21 @@ export function WeeklyRoutinesManager() {
     }
   };
 
-  const handleGenerateWeek = async () => {
-    setGenerationLoading(true);
+  const handleGenerateWeek = async (scope: 'pack' | 'all') => {
+    setGenerationLoading(scope);
     setGenerationError(null);
     setGenerationResult(null);
+
+    const payload =
+      scope === 'pack'
+        ? { week_start: weekStart, pack_id: selectedPackId === NO_PACK_ID ? NO_PACK_ID : selectedPackId }
+        : { week_start: weekStart };
 
     try {
       const response = await fetch('/api/routines/generate-week', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ week_start: weekStart }),
+        body: JSON.stringify(payload),
       });
 
       const payload = await response.json().catch(() => ({}));
@@ -398,7 +404,7 @@ export function WeeklyRoutinesManager() {
     } catch (err) {
       setGenerationError(err instanceof Error ? err.message : 'No se pudieron generar las tareas');
     } finally {
-      setGenerationLoading(false);
+      setGenerationLoading(null);
     }
   };
 
@@ -806,8 +812,8 @@ export function WeeklyRoutinesManager() {
             <div className="space-y-1">
               <p className="text-lg font-semibold text-white">Generar tareas de la semana</p>
               <p className="text-sm text-slate-400">
-                Selecciona el lunes de referencia y crea las tareas de esa semana solo para rutinas activas de packs
-                habilitados.
+                &quot;Generar para este pack&quot; solo afecta al pack visible. &quot;Generar todo&quot; crea tareas para
+                todos los packs habilitados y rutinas sin pack.
               </p>
             </div>
 
@@ -824,11 +830,23 @@ export function WeeklyRoutinesManager() {
 
               <button
                 type="button"
-                onClick={handleGenerateWeek}
-                disabled={generationLoading}
+                onClick={() => handleGenerateWeek('pack')}
+                disabled={generationLoading !== null}
                 className="w-full rounded-lg bg-primary-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-primary-500 disabled:opacity-60"
               >
-                {generationLoading ? 'Generando…' : 'Generar tareas de esta semana'}
+                {generationLoading === 'pack'
+                  ? 'Generando…'
+                  : selectedPackId === NO_PACK_ID
+                  ? 'Generar sin pack'
+                  : 'Generar para este pack'}
+              </button>
+              <button
+                type="button"
+                onClick={() => handleGenerateWeek('all')}
+                disabled={generationLoading !== null}
+                className="w-full rounded-lg border border-slate-700 bg-slate-950/60 px-4 py-2 text-sm font-semibold text-slate-100 hover:border-slate-500 disabled:opacity-60"
+              >
+                {generationLoading === 'all' ? 'Generando…' : 'Generar todo (packs habilitados + sin pack)'}
               </button>
 
               {generationResult && (
