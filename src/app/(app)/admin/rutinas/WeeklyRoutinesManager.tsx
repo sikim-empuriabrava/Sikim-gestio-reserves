@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 type RoutineArea = 'kitchen' | 'maintenance';
 type RoutinePriority = 'low' | 'normal' | 'high';
@@ -34,6 +34,11 @@ type Filters = {
 
 type ModalMode = 'create' | 'edit';
 type PackModalMode = 'create' | 'edit';
+type DeleteMode = 'keep_all' | 'delete_from_week';
+type DeleteCutoffPreset = 'next' | 'next_two' | 'custom';
+type DeleteTarget =
+  | { type: 'pack'; pack: RoutinePack }
+  | { type: 'routine'; routine: Routine };
 
 type FormState = {
   area: RoutineArea;
@@ -56,6 +61,7 @@ type PackFormState = {
 type GenerationResult = {
   created: number;
   skipped: number;
+  scope?: 'pack' | 'all';
 };
 
 const NO_PACK_ID = 'none';
@@ -94,6 +100,24 @@ function getCurrentWeekMonday() {
   const diff = day === 0 ? -6 : 1 - day;
   utcDate.setUTCDate(utcDate.getUTCDate() + diff);
   return utcDate.toISOString().slice(0, 10);
+}
+
+function getNextWeekMonday(weeksAhead: number) {
+  const currentMonday = new Date(`${getCurrentWeekMonday()}T00:00:00Z`);
+  currentMonday.setUTCDate(currentMonday.getUTCDate() + weeksAhead * 7);
+  return currentMonday.toISOString().slice(0, 10);
+}
+
+function isValidDateString(value: string) {
+  const matches = /^\d{4}-\d{2}-\d{2}$/.test(value);
+  if (!matches) return false;
+  const parsed = new Date(`${value}T00:00:00Z`);
+  return !Number.isNaN(parsed.getTime());
+}
+
+function isMonday(dateString: string) {
+  const date = new Date(`${dateString}T00:00:00Z`);
+  return date.getUTCDay() === 1;
 }
 
 function getDayLabel(value: number) {
@@ -155,10 +179,18 @@ export function WeeklyRoutinesManager() {
   const [formState, setFormState] = useState<FormState>(buildDefaultForm());
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [weekStart, setWeekStart] = useState(getCurrentWeekMonday());
-  const [generationLoading, setGenerationLoading] = useState(false);
+  const [generationLoading, setGenerationLoading] = useState<'pack' | 'all' | null>(null);
   const [generationError, setGenerationError] = useState<string | null>(null);
   const [generationResult, setGenerationResult] = useState<GenerationResult | null>(null);
+  const [actionToast, setActionToast] = useState<string | null>(null);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
+  const toastTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<DeleteTarget | null>(null);
+  const [deleteMode, setDeleteMode] = useState<DeleteMode>('keep_all');
+  const [deleteCutoffPreset, setDeleteCutoffPreset] = useState<DeleteCutoffPreset>('next');
+  const [deleteCutoffDate, setDeleteCutoffDate] = useState(getNextWeekMonday(1));
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [deleteSubmitting, setDeleteSubmitting] = useState(false);
 
   const selectedPack = useMemo(
     () => routinePacks.find((pack) => pack.id === selectedPackId) ?? null,
@@ -221,6 +253,23 @@ export function WeeklyRoutinesManager() {
   useEffect(() => {
     loadRoutines(selectedPackId);
   }, [loadRoutines, selectedPackId]);
+
+  useEffect(() => {
+    return () => {
+      if (toastTimeoutRef.current) {
+        clearTimeout(toastTimeoutRef.current);
+      }
+    };
+  }, []);
+
+  const clearActionToast = useCallback(() => {
+    if (toastTimeoutRef.current) {
+      clearTimeout(toastTimeoutRef.current);
+    }
+    toastTimeoutRef.current = setTimeout(() => {
+      setActionToast(null);
+    }, 4000);
+  }, []);
 
   const filteredRoutines = useMemo(() => {
     return routines.filter((routine) => {
@@ -376,29 +425,123 @@ export function WeeklyRoutinesManager() {
     }
   };
 
-  const handleGenerateWeek = async () => {
-    setGenerationLoading(true);
+  const handleGenerateWeek = async (scope: 'pack' | 'all') => {
+    setGenerationLoading(scope);
     setGenerationError(null);
     setGenerationResult(null);
+
+    const payload =
+      scope === 'pack'
+        ? { week_start: weekStart, pack_id: selectedPackId === NO_PACK_ID ? NO_PACK_ID : selectedPackId }
+        : { week_start: weekStart };
 
     try {
       const response = await fetch('/api/routines/generate-week', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ week_start: weekStart }),
+        body: JSON.stringify(payload),
       });
 
-      const payload = await response.json().catch(() => ({}));
+      const responseBody = await response.json().catch(() => ({}));
 
       if (!response.ok) {
-        throw new Error(payload?.error || 'No se pudieron generar las tareas');
+        throw new Error(responseBody?.error || 'No se pudieron generar las tareas');
       }
 
-      setGenerationResult(payload as GenerationResult);
+      setGenerationResult(responseBody as GenerationResult);
     } catch (err) {
       setGenerationError(err instanceof Error ? err.message : 'No se pudieron generar las tareas');
     } finally {
-      setGenerationLoading(false);
+      setGenerationLoading(null);
+    }
+  };
+
+  const openDeletePackModal = (pack: RoutinePack) => {
+    setDeleteTarget({ type: 'pack', pack });
+    setDeleteMode('keep_all');
+    setDeleteCutoffPreset('next');
+    setDeleteCutoffDate(getNextWeekMonday(1));
+    setDeleteError(null);
+  };
+
+  const openDeleteRoutineModal = (routine: Routine) => {
+    setDeleteTarget({ type: 'routine', routine });
+    setDeleteMode('keep_all');
+    setDeleteCutoffPreset('next');
+    setDeleteCutoffDate(getNextWeekMonday(1));
+    setDeleteError(null);
+  };
+
+  const closeDeleteModal = () => {
+    setDeleteTarget(null);
+    setDeleteError(null);
+    setDeleteSubmitting(false);
+  };
+
+  const resolveCutoffDate = () => {
+    if (deleteCutoffPreset === 'next') return getNextWeekMonday(1);
+    if (deleteCutoffPreset === 'next_two') return getNextWeekMonday(2);
+    return deleteCutoffDate;
+  };
+
+  const deleteCutoffResolved = resolveCutoffDate();
+  const isDeleteCutoffValid = isValidDateString(deleteCutoffResolved) && isMonday(deleteCutoffResolved);
+
+  const handleConfirmDelete = async () => {
+    if (!deleteTarget) return;
+    const cutoff = resolveCutoffDate();
+    if (deleteMode === 'delete_from_week' && (!isValidDateString(cutoff) || !isMonday(cutoff))) {
+      setDeleteError('Selecciona un lunes válido.');
+      return;
+    }
+
+    setDeleteSubmitting(true);
+    setDeleteError(null);
+
+    try {
+      const body =
+        deleteMode === 'keep_all' ? { mode: 'keep_all' } : { mode: 'delete_from_week', cutoff_week_start: cutoff };
+      const endpoint =
+        deleteTarget.type === 'pack'
+          ? `/api/routine-packs/${deleteTarget.pack.id}`
+          : `/api/routines/${deleteTarget.routine.id}`;
+      const response = await fetch(endpoint, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      const payload = await response.json().catch(() => ({}));
+
+      if (!response.ok) {
+        throw new Error(payload?.error || 'No se pudo borrar');
+      }
+
+      if (deleteTarget.type === 'pack') {
+        await loadRoutinePacks();
+        if (selectedPackId === deleteTarget.pack.id) {
+          setSelectedPackId(NO_PACK_ID);
+        }
+        const deletedRoutines = Number(payload?.deleted_routines ?? 0);
+        const deletedTasks = Number(payload?.deleted_tasks ?? 0);
+        const unlinkedTasks = Number(payload?.unlinked_tasks ?? 0);
+        setActionToast(
+          `Pack eliminado. Rutinas eliminadas: ${deletedRoutines}. Tareas borradas: ${deletedTasks}. Tareas desvinculadas: ${unlinkedTasks}.`
+        );
+      } else {
+        await loadRoutines(selectedPackId);
+        const deletedTasks = Number(payload?.deleted_tasks ?? 0);
+        const unlinkedTasks = Number(payload?.unlinked_tasks ?? 0);
+        setActionToast(
+          `Rutina eliminada. Tareas borradas: ${deletedTasks}. Tareas desvinculadas: ${unlinkedTasks}.`
+        );
+      }
+
+      clearActionToast();
+      closeDeleteModal();
+    } catch (err) {
+      setDeleteError(err instanceof Error ? err.message : 'No se pudo borrar');
+    } finally {
+      setDeleteSubmitting(false);
     }
   };
 
@@ -576,16 +719,29 @@ export function WeeklyRoutinesManager() {
                         )}
                       </div>
                     </div>
-                    <button
-                      type="button"
-                      onClick={(event) => {
-                        event.stopPropagation();
-                        openEditPackModal(pack);
-                      }}
-                      className="rounded-lg border border-slate-700 bg-slate-950/60 px-3 py-1 text-xs font-semibold text-slate-100 hover:border-slate-500"
-                    >
-                      Editar
-                    </button>
+                    <div className="flex flex-col gap-2">
+                      <button
+                        type="button"
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          openEditPackModal(pack);
+                        }}
+                        className="rounded-lg border border-slate-700 bg-slate-950/60 px-3 py-1 text-xs font-semibold text-slate-100 hover:border-slate-500"
+                      >
+                        Editar
+                      </button>
+                      <button
+                        type="button"
+                        disabled={packUpdatingId === pack.id}
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          openDeletePackModal(pack);
+                        }}
+                        className="rounded-lg border border-rose-500/70 bg-rose-950/40 px-3 py-1 text-xs font-semibold text-rose-100 hover:border-rose-400 disabled:opacity-60"
+                      >
+                        Eliminar pack
+                      </button>
+                    </div>
                   </div>
 
                   <div className="mt-3 flex flex-wrap items-center gap-4 text-xs font-semibold text-slate-200">
@@ -702,6 +858,7 @@ export function WeeklyRoutinesManager() {
             {isLoading && <p className="text-sm text-slate-400">Cargando rutinas…</p>}
             {error && <p className="text-sm text-amber-200">{error}</p>}
             {actionError && <p className="text-sm text-amber-200">{actionError}</p>}
+            {actionToast && <p className="text-sm text-emerald-200">{actionToast}</p>}
 
             {!isLoading && filteredRoutines.length === 0 && (
               <div className="rounded-lg border border-dashed border-slate-800 bg-slate-950/50 p-6 text-sm text-slate-300">
@@ -769,13 +926,23 @@ export function WeeklyRoutinesManager() {
                             </label>
                           </td>
                           <td className="px-3 py-3 align-top">
-                            <button
-                              type="button"
-                              onClick={() => openEditModal(routine)}
-                              className="rounded-lg border border-slate-700 bg-slate-950/60 px-3 py-1 text-xs font-semibold text-slate-100 hover:border-slate-500"
-                            >
-                              Editar
-                            </button>
+                            <div className="flex flex-wrap gap-2">
+                              <button
+                                type="button"
+                                onClick={() => openEditModal(routine)}
+                                className="rounded-lg border border-slate-700 bg-slate-950/60 px-3 py-1 text-xs font-semibold text-slate-100 hover:border-slate-500"
+                              >
+                                Editar
+                              </button>
+                              <button
+                                type="button"
+                                disabled={updatingId === routine.id}
+                                onClick={() => openDeleteRoutineModal(routine)}
+                                className="rounded-lg border border-rose-500/70 bg-rose-950/40 px-3 py-1 text-xs font-semibold text-rose-100 hover:border-rose-400 disabled:opacity-60"
+                              >
+                                Eliminar
+                              </button>
+                            </div>
                           </td>
                         </tr>
                       );
@@ -806,8 +973,8 @@ export function WeeklyRoutinesManager() {
             <div className="space-y-1">
               <p className="text-lg font-semibold text-white">Generar tareas de la semana</p>
               <p className="text-sm text-slate-400">
-                Selecciona el lunes de referencia y crea las tareas de esa semana solo para rutinas activas de packs
-                habilitados.
+                &quot;Generar para este pack&quot; solo afecta al pack visible. &quot;Generar todo&quot; crea tareas para
+                todos los packs habilitados y rutinas sin pack.
               </p>
             </div>
 
@@ -824,11 +991,23 @@ export function WeeklyRoutinesManager() {
 
               <button
                 type="button"
-                onClick={handleGenerateWeek}
-                disabled={generationLoading}
+                onClick={() => handleGenerateWeek('pack')}
+                disabled={generationLoading !== null}
                 className="w-full rounded-lg bg-primary-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-primary-500 disabled:opacity-60"
               >
-                {generationLoading ? 'Generando…' : 'Generar tareas de esta semana'}
+                {generationLoading === 'pack'
+                  ? 'Generando…'
+                  : selectedPackId === NO_PACK_ID
+                  ? 'Generar sin pack'
+                  : 'Generar para este pack'}
+              </button>
+              <button
+                type="button"
+                onClick={() => handleGenerateWeek('all')}
+                disabled={generationLoading !== null}
+                className="w-full rounded-lg border border-slate-700 bg-slate-950/60 px-4 py-2 text-sm font-semibold text-slate-100 hover:border-slate-500 disabled:opacity-60"
+              >
+                {generationLoading === 'all' ? 'Generando…' : 'Generar todo (packs habilitados + sin pack)'}
               </button>
 
               {generationResult && (
@@ -841,6 +1020,134 @@ export function WeeklyRoutinesManager() {
           </div>
         </div>
       </div>
+
+      {deleteTarget && (
+        <div className="fixed inset-0 z-50 flex items-start justify-center bg-black/60 px-4 py-10">
+          <div className="w-full max-w-2xl space-y-6 rounded-2xl border border-slate-800 bg-slate-950 p-6 shadow-2xl shadow-black/60">
+            <div className="flex items-start justify-between gap-4">
+              <div className="space-y-1">
+                <p className="text-xs uppercase tracking-wide text-slate-400">
+                  {deleteTarget.type === 'pack' ? 'Eliminar pack' : 'Eliminar rutina'}
+                </p>
+                <h3 className="text-xl font-semibold text-slate-100">
+                  {deleteTarget.type === 'pack'
+                    ? `Eliminar "${deleteTarget.pack.name}"`
+                    : `Eliminar "${deleteTarget.routine.title}"`}
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={closeDeleteModal}
+                className="rounded-md border border-slate-800 bg-slate-900 px-3 py-1 text-sm font-semibold text-slate-200 hover:bg-slate-800"
+              >
+                Cerrar
+              </button>
+            </div>
+
+            <div className="space-y-4 text-sm text-slate-200">
+              <label className="flex items-start gap-3 rounded-lg border border-slate-800 bg-slate-900/60 p-3">
+                <input
+                  type="radio"
+                  checked={deleteMode === 'keep_all'}
+                  onChange={() => setDeleteMode('keep_all')}
+                  className="mt-1 h-4 w-4 border-slate-600 bg-slate-900 text-emerald-500 focus:ring-emerald-500"
+                />
+                <span>
+                  Eliminar plantilla pero conservar todas las tareas ya generadas (histórico).
+                </span>
+              </label>
+
+              <label className="flex flex-col gap-3 rounded-lg border border-slate-800 bg-slate-900/60 p-3">
+                <div className="flex items-start gap-3">
+                  <input
+                    type="radio"
+                    checked={deleteMode === 'delete_from_week'}
+                    onChange={() => setDeleteMode('delete_from_week')}
+                    className="mt-1 h-4 w-4 border-slate-600 bg-slate-900 text-emerald-500 focus:ring-emerald-500"
+                  />
+                  <span>Eliminar y borrar tareas desde una semana específica.</span>
+                </div>
+
+                {deleteMode === 'delete_from_week' && (
+                  <div className="space-y-3 pl-7 text-sm text-slate-200">
+                    <label className="flex items-center gap-2">
+                      <input
+                        type="radio"
+                        checked={deleteCutoffPreset === 'next'}
+                        onChange={() => {
+                          setDeleteCutoffPreset('next');
+                          setDeleteCutoffDate(getNextWeekMonday(1));
+                          setDeleteError(null);
+                        }}
+                        className="h-4 w-4 border-slate-600 bg-slate-900 text-emerald-500 focus:ring-emerald-500"
+                      />
+                      <span>Semana que viene ({getNextWeekMonday(1)})</span>
+                    </label>
+                    <label className="flex items-center gap-2">
+                      <input
+                        type="radio"
+                        checked={deleteCutoffPreset === 'next_two'}
+                        onChange={() => {
+                          setDeleteCutoffPreset('next_two');
+                          setDeleteCutoffDate(getNextWeekMonday(2));
+                          setDeleteError(null);
+                        }}
+                        className="h-4 w-4 border-slate-600 bg-slate-900 text-emerald-500 focus:ring-emerald-500"
+                      />
+                      <span>Dentro de 2 semanas ({getNextWeekMonday(2)})</span>
+                    </label>
+                    <label className="flex flex-col gap-2">
+                      <span className="flex items-center gap-2">
+                        <input
+                          type="radio"
+                          checked={deleteCutoffPreset === 'custom'}
+                          onChange={() => {
+                            setDeleteCutoffPreset('custom');
+                            setDeleteError(null);
+                          }}
+                          className="h-4 w-4 border-slate-600 bg-slate-900 text-emerald-500 focus:ring-emerald-500"
+                        />
+                        <span>Elegir semana (lunes)</span>
+                      </span>
+                      {deleteCutoffPreset === 'custom' && (
+                        <input
+                          type="date"
+                          value={deleteCutoffDate}
+                          onChange={(event) => setDeleteCutoffDate(event.target.value)}
+                          className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-white focus:border-slate-500 focus:outline-none"
+                        />
+                      )}
+                    </label>
+                    {!isDeleteCutoffValid && deleteCutoffPreset === 'custom' && (
+                      <p className="text-xs text-amber-200">Selecciona un lunes válido.</p>
+                    )}
+                  </div>
+                )}
+              </label>
+
+              {deleteError && <p className="text-sm text-amber-200">{deleteError}</p>}
+            </div>
+
+            <div className="flex flex-wrap items-center justify-between gap-3 text-sm">
+              <button
+                type="button"
+                onClick={closeDeleteModal}
+                className="rounded-lg border border-slate-700 bg-slate-900 px-4 py-2 font-semibold text-slate-100 hover:border-slate-500"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmDelete}
+                disabled={deleteSubmitting || (deleteMode === 'delete_from_week' && !isDeleteCutoffValid)}
+                className="rounded-lg bg-rose-600 px-4 py-2 font-semibold text-white shadow-sm hover:bg-rose-500 disabled:opacity-60"
+              >
+                {deleteSubmitting ? 'Eliminando…' : 'Confirmar eliminación'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {modalMode && (
         <div className="fixed inset-0 z-50 flex items-start justify-center bg-black/60 px-4 py-10">
