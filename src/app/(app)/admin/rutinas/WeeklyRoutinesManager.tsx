@@ -469,10 +469,7 @@ export function WeeklyRoutinesManager() {
       await loadRoutines(selectedPackId);
 
       const unlinkedTasks = Number(body?.unlinked_tasks ?? 0);
-      const message =
-        unlinkedTasks > 0
-          ? `Rutina eliminada. Se desvincularon ${unlinkedTasks} tareas.`
-          : 'Rutina eliminada. No había tareas vinculadas.';
+      const message = `Rutina eliminada. Tareas desvinculadas: ${unlinkedTasks}.`;
 
       setRoutineToast(message);
       if (toastTimeoutRef.current) {
@@ -682,7 +679,7 @@ export function WeeklyRoutinesManager() {
                         }}
                         className="rounded-lg border border-rose-500/70 bg-rose-950/40 px-3 py-1 text-xs font-semibold text-rose-100 hover:border-rose-400 disabled:opacity-60"
                       >
-                        Eliminar pack
+                        Eliminar
                       </button>
                     </div>
                   </div>

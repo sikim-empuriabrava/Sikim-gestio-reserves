@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createSupabaseRouteHandlerClient, mergeResponseCookies } from '@/lib/supabase/route';
 import { createSupabaseAdminClient } from '@/lib/supabaseAdmin';
 
+export const runtime = 'nodejs';
+
 const VALID_PRIORITIES = ['low', 'normal', 'high'] as const;
 
 type Priority = (typeof VALID_PRIORITIES)[number];
