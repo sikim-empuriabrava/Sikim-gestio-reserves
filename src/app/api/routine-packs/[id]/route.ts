@@ -3,7 +3,16 @@ import { createSupabaseRouteHandlerClient, mergeResponseCookies } from '@/lib/su
 import { createSupabaseAdminClient } from '@/lib/supabaseAdmin';
 
 const VALID_AREAS = ['maintenance', 'kitchen'] as const;
+
 type Area = (typeof VALID_AREAS)[number];
+
+type RoutinePackPatchPayload = {
+  name?: unknown;
+  description?: unknown;
+  area?: unknown;
+  enabled?: unknown;
+  auto_generate?: unknown;
+};
 
 function isValidArea(value: unknown): value is Area {
   return typeof value === 'string' && VALID_AREAS.includes(value as Area);
@@ -20,6 +29,12 @@ function normalizeDescription(value: unknown) {
   return trimmed.length > 0 ? trimmed : null;
 }
 
+function parseOptionalBoolean(value: unknown) {
+  if (typeof value === 'boolean') return value;
+  if (value === undefined) return undefined;
+  return 'invalid';
+}
+
 export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
   const supabaseResponse = NextResponse.next();
   const authClient = createSupabaseRouteHandlerClient(supabaseResponse);
@@ -33,8 +48,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     return unauthorized;
   }
 
-  const body = await req.json().catch(() => null);
-
+  const body = (await req.json().catch(() => null)) as RoutinePackPatchPayload | null;
   const updates: Record<string, string | boolean | null> = {};
 
   if (body && Object.prototype.hasOwnProperty.call(body, 'name')) {
@@ -51,32 +65,34 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     updates.description = normalizeDescription(body.description);
   }
 
-  if (body && Object.prototype.hasOwnProperty.call(body, 'enabled')) {
-    if (typeof body.enabled !== 'boolean') {
-      const invalidEnabled = NextResponse.json({ error: 'Invalid enabled flag' }, { status: 400 });
-      mergeResponseCookies(supabaseResponse, invalidEnabled);
-      return invalidEnabled;
-    }
-    updates.enabled = body.enabled;
-  }
-
-  if (body && Object.prototype.hasOwnProperty.call(body, 'auto_generate')) {
-    if (typeof body.auto_generate !== 'boolean') {
-      const invalidAuto = NextResponse.json({ error: 'Invalid auto_generate flag' }, { status: 400 });
-      mergeResponseCookies(supabaseResponse, invalidAuto);
-      return invalidAuto;
-    }
-    updates.auto_generate = body.auto_generate;
-  }
-
   if (body && Object.prototype.hasOwnProperty.call(body, 'area')) {
-    if (body.area !== null && !isValidArea(body.area)) {
+    const area = body.area ?? null;
+    if (area !== null && !isValidArea(area)) {
       const invalidArea = NextResponse.json({ error: 'Invalid area' }, { status: 400 });
       mergeResponseCookies(supabaseResponse, invalidArea);
       return invalidArea;
     }
+    updates.area = area;
+  }
 
-    updates.area = body.area;
+  if (body && Object.prototype.hasOwnProperty.call(body, 'enabled')) {
+    const enabled = parseOptionalBoolean(body.enabled);
+    if (enabled === 'invalid') {
+      const invalidEnabled = NextResponse.json({ error: 'Invalid enabled' }, { status: 400 });
+      mergeResponseCookies(supabaseResponse, invalidEnabled);
+      return invalidEnabled;
+    }
+    updates.enabled = enabled ?? false;
+  }
+
+  if (body && Object.prototype.hasOwnProperty.call(body, 'auto_generate')) {
+    const autoGenerate = parseOptionalBoolean(body.auto_generate);
+    if (autoGenerate === 'invalid') {
+      const invalidAuto = NextResponse.json({ error: 'Invalid auto_generate' }, { status: 400 });
+      mergeResponseCookies(supabaseResponse, invalidAuto);
+      return invalidAuto;
+    }
+    updates.auto_generate = autoGenerate ?? false;
   }
 
   if (Object.keys(updates).length === 0) {
@@ -124,23 +140,20 @@ export async function DELETE(_req: NextRequest, { params }: { params: { id: stri
   }
 
   const supabase = createSupabaseAdminClient();
-
-  const { count, error: countError } = await supabase
+  const { data: routines, error: routineError } = await supabase
     .from('routines')
-    .select('id', { count: 'exact', head: true })
-    .eq('routine_pack_id', params.id);
+    .select('id')
+    .eq('routine_pack_id', params.id)
+    .limit(1);
 
-  if (countError) {
-    const serverError = NextResponse.json({ error: countError.message }, { status: 500 });
+  if (routineError) {
+    const serverError = NextResponse.json({ error: routineError.message }, { status: 500 });
     mergeResponseCookies(supabaseResponse, serverError);
     return serverError;
   }
 
-  if ((count ?? 0) > 0) {
-    const conflict = NextResponse.json(
-      { error: 'No se puede borrar el pack porque tiene rutinas asociadas' },
-      { status: 409 }
-    );
+  if (routines && routines.length > 0) {
+    const conflict = NextResponse.json({ error: 'Pack has routines' }, { status: 409 });
     mergeResponseCookies(supabaseResponse, conflict);
     return conflict;
   }
@@ -164,7 +177,7 @@ export async function DELETE(_req: NextRequest, { params }: { params: { id: stri
     return notFound;
   }
 
-  const response = NextResponse.json(null, { status: 204 });
+  const response = NextResponse.json({ success: true });
   mergeResponseCookies(supabaseResponse, response);
   return response;
 }

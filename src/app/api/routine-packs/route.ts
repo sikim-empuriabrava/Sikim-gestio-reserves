@@ -3,7 +3,16 @@ import { createSupabaseRouteHandlerClient, mergeResponseCookies } from '@/lib/su
 import { createSupabaseAdminClient } from '@/lib/supabaseAdmin';
 
 const VALID_AREAS = ['maintenance', 'kitchen'] as const;
+
 type Area = (typeof VALID_AREAS)[number];
+
+type RoutinePackPayload = {
+  name?: unknown;
+  description?: unknown;
+  area?: unknown;
+  enabled?: unknown;
+  auto_generate?: unknown;
+};
 
 function isValidArea(value: unknown): value is Area {
   return typeof value === 'string' && VALID_AREAS.includes(value as Area);
@@ -18,6 +27,12 @@ function normalizeDescription(value: unknown) {
   if (typeof value !== 'string') return null;
   const trimmed = value.trim();
   return trimmed.length > 0 ? trimmed : null;
+}
+
+function parseOptionalBoolean(value: unknown) {
+  if (typeof value === 'boolean') return value;
+  if (value === undefined) return undefined;
+  return 'invalid';
 }
 
 export async function GET() {
@@ -60,12 +75,12 @@ export async function POST(req: NextRequest) {
     return unauthorized;
   }
 
-  const body = await req.json().catch(() => null);
+  const body = (await req.json().catch(() => null)) as RoutinePackPayload | null;
   const name = normalizeName(body?.name);
   const description = normalizeDescription(body?.description);
-  const enabled = typeof body?.enabled === 'boolean' ? body.enabled : true;
-  const autoGenerate = typeof body?.auto_generate === 'boolean' ? body.auto_generate : false;
   const area = body?.area ?? null;
+  const enabled = parseOptionalBoolean(body?.enabled);
+  const autoGenerate = parseOptionalBoolean(body?.auto_generate);
 
   if (!name) {
     const invalidName = NextResponse.json({ error: 'Missing name' }, { status: 400 });
@@ -79,15 +94,27 @@ export async function POST(req: NextRequest) {
     return invalidArea;
   }
 
+  if (enabled === 'invalid') {
+    const invalidEnabled = NextResponse.json({ error: 'Invalid enabled' }, { status: 400 });
+    mergeResponseCookies(supabaseResponse, invalidEnabled);
+    return invalidEnabled;
+  }
+
+  if (autoGenerate === 'invalid') {
+    const invalidAuto = NextResponse.json({ error: 'Invalid auto_generate' }, { status: 400 });
+    mergeResponseCookies(supabaseResponse, invalidAuto);
+    return invalidAuto;
+  }
+
   const supabase = createSupabaseAdminClient();
   const { data, error } = await supabase
     .from('routine_packs')
     .insert({
       name,
       description,
-      enabled,
-      auto_generate: autoGenerate,
       area,
+      enabled: enabled ?? false,
+      auto_generate: autoGenerate ?? false,
     })
     .select()
     .maybeSingle();
