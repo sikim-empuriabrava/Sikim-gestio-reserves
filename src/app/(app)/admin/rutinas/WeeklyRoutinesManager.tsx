@@ -58,6 +58,8 @@ type GenerationResult = {
   skipped: number;
 };
 
+const NO_PACK_ID = 'none';
+
 const areaLabels: Record<RoutineArea, string> = {
   kitchen: 'Cocina',
   maintenance: 'Mantenimiento',
@@ -116,7 +118,7 @@ function buildDefaultPackForm(): PackFormState {
   return {
     name: '',
     description: '',
-    enabled: true,
+    enabled: false,
     auto_generate: false,
     area: '',
   };
@@ -132,7 +134,7 @@ function getRoutineEndDay(routine: Routine) {
 
 export function WeeklyRoutinesManager() {
   const [routinePacks, setRoutinePacks] = useState<RoutinePack[]>([]);
-  const [selectedPackId, setSelectedPackId] = useState<string | null>(null);
+  const [selectedPackId, setSelectedPackId] = useState<string>(NO_PACK_ID);
   const [packsLoading, setPacksLoading] = useState(true);
   const [packsError, setPacksError] = useState<string | null>(null);
   const [packActionError, setPackActionError] = useState<string | null>(null);
@@ -177,8 +179,8 @@ export function WeeklyRoutinesManager() {
 
       setRoutinePacks(payload ?? []);
 
-      if (selectedPackId && !(payload ?? []).some((pack: RoutinePack) => pack.id === selectedPackId)) {
-        setSelectedPackId(null);
+      if (selectedPackId !== NO_PACK_ID && !(payload ?? []).some((pack: RoutinePack) => pack.id === selectedPackId)) {
+        setSelectedPackId(NO_PACK_ID);
       }
     } catch (err) {
       setPacksError(err instanceof Error ? err.message : 'Error al cargar los packs');
@@ -188,12 +190,12 @@ export function WeeklyRoutinesManager() {
   }, [selectedPackId]);
 
   const loadRoutines = useCallback(
-    async (packId: string | null = selectedPackId) => {
+    async (packId: string = selectedPackId) => {
       setIsLoading(true);
       setError(null);
       setActionError(null);
       try {
-        const query = packId === undefined ? '' : `?pack_id=${packId ?? 'null'}`;
+        const query = `?pack_id=${packId}`;
         const response = await fetch(`/api/routines${query}`, { cache: 'no-store' });
         const payload = await response.json().catch(() => []);
 
@@ -316,7 +318,7 @@ export function WeeklyRoutinesManager() {
 
       if (modalMode === 'create') {
         payload.area = formState.area;
-        payload.routine_pack_id = selectedPackId;
+        payload.routine_pack_id = selectedPackId === NO_PACK_ID ? null : selectedPackId;
       }
 
       if (modalMode === 'edit') {
@@ -511,9 +513,9 @@ export function WeeklyRoutinesManager() {
           <div className="space-y-2">
             <button
               type="button"
-              onClick={() => setSelectedPackId(null)}
+              onClick={() => setSelectedPackId(NO_PACK_ID)}
               className={`w-full rounded-lg border px-3 py-3 text-left transition ${
-                selectedPackId === null
+                selectedPackId === NO_PACK_ID
                   ? 'border-emerald-500 bg-slate-800/70 text-white'
                   : 'border-slate-800 bg-slate-950/60 text-slate-200 hover:border-slate-700'
               }`}
@@ -615,8 +617,7 @@ export function WeeklyRoutinesManager() {
                     </label>
                   </div>
                   <p className="mt-2 text-[11px] text-slate-400">
-                    Si está activo, este pack generará tareas automáticamente cada semana (cron). Si no, solo al pulsar
-                    Generar semana.
+                    Enabled controla si se genera manual/auto. Auto solo afecta al cron.
                   </p>
                 </div>
               );
@@ -1070,8 +1071,7 @@ export function WeeklyRoutinesManager() {
                     <span>Auto</span>
                   </label>
                   <p className="text-xs font-normal text-slate-400">
-                    Si está activo, este pack generará tareas automáticamente cada semana (cron). Si no, solo al pulsar
-                    Generar semana.
+                    Enabled controla si se genera manual/auto. Auto solo afecta al cron.
                   </p>
                 </div>
               </div>

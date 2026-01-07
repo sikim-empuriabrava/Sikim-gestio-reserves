@@ -69,7 +69,11 @@ export async function GET(req: NextRequest) {
 
   const isActiveFilter = parseIsActiveQuery(isActiveParam);
   const packFilter =
-    packIdParam === null ? undefined : packIdParam === 'null' || packIdParam === '' ? null : packIdParam;
+    packIdParam === null || packIdParam === undefined
+      ? undefined
+      : packIdParam === 'none' || packIdParam === 'null' || packIdParam === ''
+      ? null
+      : packIdParam;
 
   if (isActiveFilter === 'invalid') {
     const invalidActive = NextResponse.json({ error: 'Invalid is_active value' }, { status: 400 });
