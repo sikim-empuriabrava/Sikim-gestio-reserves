@@ -5,8 +5,10 @@ import { createSupabaseAdminClient } from '@/lib/supabaseAdmin';
 export const runtime = 'nodejs';
 
 const VALID_AREAS = ['maintenance', 'kitchen'] as const;
+const VALID_DELETE_MODES = ['keep_all', 'delete_from_week'] as const;
 
 type Area = (typeof VALID_AREAS)[number];
+type DeleteMode = (typeof VALID_DELETE_MODES)[number];
 
 type RoutinePackPatchPayload = {
   name?: unknown;
@@ -18,6 +20,10 @@ type RoutinePackPatchPayload = {
 
 function isValidArea(value: unknown): value is Area {
   return typeof value === 'string' && VALID_AREAS.includes(value as Area);
+}
+
+function isValidDeleteMode(value: unknown): value is DeleteMode {
+  return typeof value === 'string' && VALID_DELETE_MODES.includes(value as DeleteMode);
 }
 
 function normalizeName(value: unknown) {
@@ -160,7 +166,7 @@ export async function DELETE(_req: NextRequest, { params }: { params: { id: stri
   const mode = body?.mode ?? 'keep_all';
   const cutoffWeekStart = body?.cutoff_week_start;
 
-  if (mode !== 'keep_all' && mode !== 'delete_from_week') {
+  if (!isValidDeleteMode(mode)) {
     const invalidMode = NextResponse.json({ error: 'Invalid mode' }, { status: 400 });
     mergeResponseCookies(supabaseResponse, invalidMode);
     return invalidMode;

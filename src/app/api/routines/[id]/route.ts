@@ -5,11 +5,17 @@ import { createSupabaseAdminClient } from '@/lib/supabaseAdmin';
 export const runtime = 'nodejs';
 
 const VALID_PRIORITIES = ['low', 'normal', 'high'] as const;
+const VALID_DELETE_MODES = ['keep_all', 'delete_from_week'] as const;
 
 type Priority = (typeof VALID_PRIORITIES)[number];
+type DeleteMode = (typeof VALID_DELETE_MODES)[number];
 
 function isValidPriority(value: unknown): value is Priority {
   return typeof value === 'string' && VALID_PRIORITIES.includes(value as Priority);
+}
+
+function isValidDeleteMode(value: unknown): value is DeleteMode {
+  return typeof value === 'string' && VALID_DELETE_MODES.includes(value as DeleteMode);
 }
 
 function isValidDayOfWeek(value: unknown): value is number {
@@ -224,7 +230,7 @@ export async function DELETE(_req: NextRequest, { params }: { params: { id: stri
   const mode = body?.mode ?? 'keep_all';
   const cutoffWeekStart = body?.cutoff_week_start;
 
-  if (mode !== 'keep_all' && mode !== 'delete_from_week') {
+  if (!isValidDeleteMode(mode)) {
     const invalidMode = NextResponse.json({ error: 'Invalid mode' }, { status: 400 });
     mergeResponseCookies(supabaseResponse, invalidMode);
     return invalidMode;
