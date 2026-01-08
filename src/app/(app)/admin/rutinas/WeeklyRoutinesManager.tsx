@@ -517,10 +517,10 @@ export function WeeklyRoutinesManager() {
       }
 
       if (deleteTarget.type === 'pack') {
+        const nextSelectedPackId = selectedPackId === deleteTarget.pack.id ? NO_PACK_ID : selectedPackId;
         await loadRoutinePacks();
-        if (selectedPackId === deleteTarget.pack.id) {
-          setSelectedPackId(NO_PACK_ID);
-        }
+        setSelectedPackId(nextSelectedPackId);
+        await loadRoutines(nextSelectedPackId);
         const deletedRoutines = Number(payload?.deleted_routines ?? 0);
         const deletedTasks = Number(payload?.deleted_tasks ?? 0);
         const unlinkedTasks = Number(payload?.unlinked_tasks ?? 0);
@@ -529,10 +529,11 @@ export function WeeklyRoutinesManager() {
         );
       } else {
         await loadRoutines(selectedPackId);
+        const deletedRoutines = Number(payload?.deleted ?? 0);
         const deletedTasks = Number(payload?.deleted_tasks ?? 0);
         const unlinkedTasks = Number(payload?.unlinked_tasks ?? 0);
         setActionToast(
-          `Rutina eliminada. Tareas borradas: ${deletedTasks}. Tareas desvinculadas: ${unlinkedTasks}.`
+          `Rutina eliminada. Rutinas eliminadas: ${deletedRoutines}. Tareas borradas: ${deletedTasks}. Tareas desvinculadas: ${unlinkedTasks}.`
         );
       }
 
@@ -1053,7 +1054,7 @@ export function WeeklyRoutinesManager() {
                   className="mt-1 h-4 w-4 border-slate-600 bg-slate-900 text-emerald-500 focus:ring-emerald-500"
                 />
                 <span>
-                  Eliminar plantilla pero conservar todas las tareas ya generadas (histórico).
+                  Eliminar plantilla y conservar todas las tareas ya generadas (histórico).
                 </span>
               </label>
 
@@ -1121,6 +1122,9 @@ export function WeeklyRoutinesManager() {
                     {!isDeleteCutoffValid && deleteCutoffPreset === 'custom' && (
                       <p className="text-xs text-amber-200">Selecciona un lunes válido.</p>
                     )}
+                    <p className="text-xs text-slate-400">
+                      Esta opción NO borra tareas de esta semana si eliges &quot;Semana que viene&quot;.
+                    </p>
                   </div>
                 )}
               </label>
