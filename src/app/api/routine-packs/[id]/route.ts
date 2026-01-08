@@ -147,7 +147,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   return response;
 }
 
-export async function DELETE(_req: NextRequest, { params }: { params: { id: string } }) {
+export async function DELETE(req: NextRequest, { params }: { params: { id: string } }) {
   const supabaseResponse = NextResponse.next();
   const authClient = createSupabaseRouteHandlerClient(supabaseResponse);
   const {
@@ -160,11 +160,10 @@ export async function DELETE(_req: NextRequest, { params }: { params: { id: stri
     return unauthorized;
   }
 
-  const body = (await _req.json().catch(() => null)) as
-    | { mode?: unknown; cutoff_week_start?: unknown }
-    | null;
-  const mode = body?.mode ?? 'keep_all';
-  const cutoffWeekStart = body?.cutoff_week_start;
+  const body = (await req.json().catch(() => ({}))) as Record<string, unknown>;
+  const mode = typeof body.mode === 'string' ? body.mode : 'keep_all';
+  const cutoffRaw = body.cutoff_week_start;
+  const cutoffWeekStart = typeof cutoffRaw === 'string' ? cutoffRaw : null;
 
   if (!isValidDeleteMode(mode)) {
     const invalidMode = NextResponse.json({ error: 'Invalid mode' }, { status: 400 });
@@ -173,6 +172,12 @@ export async function DELETE(_req: NextRequest, { params }: { params: { id: stri
   }
 
   if (mode === 'delete_from_week') {
+    if (!cutoffWeekStart) {
+      const invalidDate = NextResponse.json({ error: 'cutoff_week_start is required' }, { status: 400 });
+      mergeResponseCookies(supabaseResponse, invalidDate);
+      return invalidDate;
+    }
+
     if (!isValidDateString(cutoffWeekStart)) {
       const invalidDate = NextResponse.json({ error: 'cutoff_week_start must be YYYY-MM-DD' }, { status: 400 });
       mergeResponseCookies(supabaseResponse, invalidDate);
