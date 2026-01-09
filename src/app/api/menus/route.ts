@@ -6,6 +6,7 @@ export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 export async function GET() {
+  const noStoreHeaders = { 'Cache-Control': 'no-store' };
   const supabaseResponse = NextResponse.next();
   const authClient = createSupabaseRouteHandlerClient(supabaseResponse);
   const {
@@ -15,7 +16,7 @@ export async function GET() {
   if (!session) {
     const unauthorized = NextResponse.json(
       { error: 'Unauthorized' },
-      { status: 401, headers: { 'Cache-Control': 'no-store' } },
+      { status: 401, headers: noStoreHeaders },
     );
     mergeResponseCookies(supabaseResponse, unauthorized);
     return unauthorized;
@@ -31,13 +32,13 @@ export async function GET() {
   if (menusError) {
     const response = NextResponse.json(
       { error: menusError.message ?? 'Unknown error loading menus' },
-      { status: 500, headers: { 'Cache-Control': 'no-store' } },
+      { status: 500, headers: noStoreHeaders },
     );
     mergeResponseCookies(supabaseResponse, response);
     return response;
   }
 
-  const response = NextResponse.json({ menus: menusData ?? [] }, { headers: { 'Cache-Control': 'no-store' } });
+  const response = NextResponse.json({ menus: menusData ?? [] }, { headers: noStoreHeaders });
   mergeResponseCookies(supabaseResponse, response);
 
   return response;
