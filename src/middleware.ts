@@ -62,8 +62,7 @@ export async function middleware(req: NextRequest) {
   const handleConfigError = () =>
     handleConfigErrorResponse(isApiRoute, supabaseResponse, redirectUrl, req);
 
-  const isAdminPage = pathname.startsWith('/admin');
-  const isAdminApiRoute = pathname.startsWith('/api/routine-packs') || pathname.startsWith('/api/routines');
+  const isAdminPath = pathname.startsWith('/admin');
 
   if (!user) {
     return handleUnauthorized();
@@ -75,14 +74,10 @@ export async function middleware(req: NextRequest) {
     return handleNotAllowed();
   }
 
-  const {
-    data: allowedUser,
-    error: allowlistError,
-  } = await supabase
+  const { data: allowedUser, error: allowlistError } = await supabase
     .from('app_allowed_users')
-    .select('email, role, is_active')
+    .select('id, role, is_active')
     .eq('email', email)
-    .eq('is_active', true)
     .maybeSingle();
 
   if (allowlistError) {
@@ -94,18 +89,12 @@ export async function middleware(req: NextRequest) {
     return handleNotAllowed();
   }
 
-  if (isAdminPage && allowedUser.role !== 'admin') {
+  if (isAdminPath && allowedUser.role !== 'admin') {
     const url = new URL('/', req.url);
     url.searchParams.set('error', 'forbidden');
     const response = NextResponse.redirect(url);
     mergeCookies(supabaseResponse, response);
     return setDebugHeader(response);
-  }
-
-  if (isAdminApiRoute && req.method !== 'GET' && allowedUser.role !== 'admin') {
-    const forbidden = NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-    mergeCookies(supabaseResponse, forbidden);
-    return setDebugHeader(forbidden);
   }
 
   return supabaseResponse;

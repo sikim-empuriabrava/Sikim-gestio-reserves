@@ -22,7 +22,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   const email = user.email?.toLowerCase();
 
   if (!email) {
-    redirect('/');
+    redirect('/login?error=not_allowed');
   }
 
   const {
@@ -30,9 +30,8 @@ export default async function AdminLayout({ children }: { children: React.ReactN
     error: allowlistError,
   } = await supabase
     .from('app_allowed_users')
-    .select('email, role, is_active')
+    .select('role')
     .eq('email', email)
-    .eq('is_active', true)
     .maybeSingle();
 
   if (allowlistError) {
@@ -40,8 +39,12 @@ export default async function AdminLayout({ children }: { children: React.ReactN
     redirect('/');
   }
 
-  if (!allowedUser || allowedUser.role !== 'admin') {
-    redirect('/');
+  if (!allowedUser) {
+    redirect('/login?error=not_allowed');
+  }
+
+  if (allowedUser.role !== 'admin') {
+    redirect('/?error=forbidden');
   }
 
   return (
