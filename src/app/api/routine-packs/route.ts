@@ -40,17 +40,23 @@ export async function GET() {
   const supabaseResponse = NextResponse.next();
   const authClient = createSupabaseRouteHandlerClient(supabaseResponse);
   const {
-    data: { session },
-  } = await authClient.auth.getSession();
+    data: { user },
+  } = await authClient.auth.getUser();
 
-  if (!session) {
+  if (!user) {
     const unauthorized = NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     mergeResponseCookies(supabaseResponse, unauthorized);
     return unauthorized;
   }
 
-  const { role } = await getAllowlistRoleFromRequest(authClient);
-  if (!role) {
+  const allowlistInfo = await getAllowlistRoleFromRequest(authClient);
+  if (allowlistInfo.error) {
+    const allowlistError = NextResponse.json({ error: 'Allowlist check failed' }, { status: 500 });
+    mergeResponseCookies(supabaseResponse, allowlistError);
+    return allowlistError;
+  }
+
+  if (!allowlistInfo.allowlisted) {
     const forbidden = NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     mergeResponseCookies(supabaseResponse, forbidden);
     return forbidden;
@@ -74,17 +80,23 @@ export async function POST(req: NextRequest) {
   const supabaseResponse = NextResponse.next();
   const authClient = createSupabaseRouteHandlerClient(supabaseResponse);
   const {
-    data: { session },
-  } = await authClient.auth.getSession();
+    data: { user },
+  } = await authClient.auth.getUser();
 
-  if (!session) {
+  if (!user) {
     const unauthorized = NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     mergeResponseCookies(supabaseResponse, unauthorized);
     return unauthorized;
   }
 
-  const { role } = await getAllowlistRoleFromRequest(authClient);
-  if (!isAdmin(role)) {
+  const allowlistInfo = await getAllowlistRoleFromRequest(authClient);
+  if (allowlistInfo.error) {
+    const allowlistError = NextResponse.json({ error: 'Allowlist check failed' }, { status: 500 });
+    mergeResponseCookies(supabaseResponse, allowlistError);
+    return allowlistError;
+  }
+
+  if (!allowlistInfo.allowlisted || !isAdmin(allowlistInfo.role)) {
     const forbidden = NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     mergeResponseCookies(supabaseResponse, forbidden);
     return forbidden;

@@ -1,17 +1,23 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 
-type AllowlistRoleResponse = {
+export type AllowlistInfo = {
+  allowlisted: boolean;
   role: string | null;
+  error: string | null;
 };
 
-export async function getAllowlistRoleFromRequest(supabaseAuthClient: SupabaseClient): Promise<AllowlistRoleResponse> {
-  const { data, error } = await supabaseAuthClient.from('app_allowed_users').select('role').maybeSingle();
+export async function getAllowlistRoleFromRequest(supabaseAuthClient: SupabaseClient): Promise<AllowlistInfo> {
+  const { data, error } = await supabaseAuthClient.from('app_allowed_users').select('id, role').maybeSingle();
 
   if (error) {
-    return { role: null };
+    return { allowlisted: false, role: null, error: error.message };
   }
 
-  return { role: data?.role ?? null };
+  if (!data) {
+    return { allowlisted: false, role: null, error: null };
+  }
+
+  return { allowlisted: true, role: data.role ?? null, error: null };
 }
 
 export function isAdmin(role: string | null): boolean {
