@@ -10,9 +10,6 @@ type DbMenu = {
   code: string;
   display_name: string;
   price_eur: number;
-  starters_text: string | null;
-  dessert_text: string | null;
-  drinks_text: string | null;
 };
 
 type MenuWithSeconds = DbMenu & {
@@ -181,15 +178,22 @@ export default function NuevaReservaClient() {
     const loadMenus = async () => {
       setMenusLoading(true);
       setMenusError(null);
+      let responseStatus: number | null = null;
       try {
         const response = await fetch('/api/menus', { cache: 'no-store' });
 
+        responseStatus = response.status;
         if (!response.ok) {
+          const body = await response.text();
+          console.error('menus load failed', response.status, body);
           throw new Error(`HTTP ${response.status}`);
         }
 
-        const data = (await response.json()) as { menus?: MenuWithSeconds[]; error?: string };
-        const menusResponse = data.menus ?? [];
+        const data = (await response.json()) as { menus?: DbMenu[]; error?: string };
+        const menusResponse = (data.menus ?? []).map((menu) => ({
+          ...menu,
+          segundos: [],
+        }));
 
         if (menusResponse.length === 0) {
           throw new Error(data.error ?? 'No se han podido cargar los menús.');
@@ -199,7 +203,9 @@ export default function NuevaReservaClient() {
         setMenuId((prev) => prev || menusResponse[0]?.id || '');
       } catch (error) {
         console.error('[Nueva reserva] Error cargando menús', error);
-        setMenusError('No se han podido cargar los menús.');
+        setMenusError(
+          `No se han podido cargar los menús.${responseStatus ? ` (status ${responseStatus})` : ''}`,
+        );
       } finally {
         setMenusLoading(false);
       }
