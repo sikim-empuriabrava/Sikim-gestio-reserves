@@ -2,6 +2,13 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createSupabaseRouteHandlerClient, mergeResponseCookies } from '@/lib/supabase/route';
 import { createSupabaseAdminClient } from '@/lib/supabaseAdmin';
 
+export const runtime = 'nodejs';
+export const dynamic = 'force-dynamic';
+const noStoreHeaders = { 'Cache-Control': 'no-store' };
+
+const dayStatusSelect =
+  'event_date, validated, is_validated, needs_revalidation, notes_general, notes_kitchen, notes_maintenance, day_notes, last_validated_at, last_validated_by, events_last_reviewed_at, last_edited_at';
+
 export async function GET(req: NextRequest) {
   const supabaseResponse = NextResponse.next();
   const authClient = createSupabaseRouteHandlerClient(supabaseResponse);
@@ -25,10 +32,8 @@ export async function GET(req: NextRequest) {
 
   const supabase = createSupabaseAdminClient();
   const { data, error } = await supabase
-    .from('day_status')
-    .select(
-      'event_date, validated, is_validated, needs_revalidation, notes_general, notes_kitchen, notes_maintenance, day_notes, cocina_notes, mantenimiento_notes, last_validated_at, last_validated_by, events_last_reviewed_at, last_edited_at'
-    )
+    .from('v_day_status')
+    .select(dayStatusSelect)
     .eq('event_date', date)
     .maybeSingle();
 
@@ -38,7 +43,7 @@ export async function GET(req: NextRequest) {
     return serverError;
   }
 
-  const response = NextResponse.json(data ?? null);
+  const response = NextResponse.json(data ?? null, { headers: noStoreHeaders });
   mergeResponseCookies(supabaseResponse, response);
   return response;
 }
@@ -67,41 +72,61 @@ export async function POST(req: NextRequest) {
 
   const action = body?.action as 'save' | 'validate' | undefined;
   const generalNotes = body?.notes_general ?? body?.notesGeneral ?? body?.day_notes;
-  const kitchenNotes = body?.notes_kitchen ?? body?.notesKitchen ?? '';
-  const maintenanceNotes = body?.notes_maintenance ?? body?.notesMaintenance ?? '';
+  const kitchenNotes = body?.notes_kitchen ?? body?.notesKitchen;
+  const maintenanceNotes = body?.notes_maintenance ?? body?.notesMaintenance;
+  const hasOnlyDayNotes =
+    action === undefined &&
+    body?.day_notes !== undefined &&
+    body?.notes_general === undefined &&
+    body?.notesGeneral === undefined &&
+    body?.notes_kitchen === undefined &&
+    body?.notesKitchen === undefined &&
+    body?.notes_maintenance === undefined &&
+    body?.notesMaintenance === undefined;
+  const resolvedAction: 'save' | 'validate' = action ?? (hasOnlyDayNotes ? 'validate' : 'save');
 
   const supabase = createSupabaseAdminClient();
   const now = new Date().toISOString();
 
   const payload: Record<string, unknown> = {
     event_date: date,
-    notes_kitchen: kitchenNotes,
-    notes_maintenance: maintenanceNotes,
-    cocina_notes: kitchenNotes,
-    mantenimiento_notes: maintenanceNotes,
     last_edited_at: now,
   };
 
-  if (generalNotes !== undefined) {
-    payload.notes_general = generalNotes ?? '';
-    payload.day_notes = generalNotes ?? '';
+  if (kitchenNotes !== undefined) {
+    payload.notes_kitchen = kitchenNotes ?? '';
   }
 
-  if (action === 'validate') {
+  if (maintenanceNotes !== undefined) {
+    payload.notes_maintenance = maintenanceNotes ?? '';
+  }
+
+  if (generalNotes !== undefined) {
+    payload.notes_general = generalNotes ?? '';
+  }
+
+  if (resolvedAction === 'validate') {
     payload.validated = true;
     payload.is_validated = true;
     payload.last_validated_at = now;
-    payload.last_validated_by = 'Carla';
+    payload.last_validated_by = session.user.email ?? 'unknown';
     payload.events_last_reviewed_at = now;
-  } else {
-    payload.validated = false;
-    payload.is_validated = false;
+  }
+
+  const { error: upsertError } = await supabase.from('day_status').upsert(payload, {
+    onConflict: 'event_date',
+  });
+
+  if (upsertError) {
+    const serverError = NextResponse.json({ error: upsertError.message }, { status: 500 });
+    mergeResponseCookies(supabaseResponse, serverError);
+    return serverError;
   }
 
   const { data, error } = await supabase
-    .from('day_status')
-    .upsert(payload, { onConflict: 'event_date' })
-    .select()
+    .from('v_day_status')
+    .select(dayStatusSelect)
+    .eq('event_date', date)
     .maybeSingle();
 
   if (error) {
@@ -110,7 +135,7 @@ export async function POST(req: NextRequest) {
     return serverError;
   }
 
-  const response = NextResponse.json(data);
+  const response = NextResponse.json(data ?? null, { headers: noStoreHeaders });
   mergeResponseCookies(supabaseResponse, response);
   return response;
 }

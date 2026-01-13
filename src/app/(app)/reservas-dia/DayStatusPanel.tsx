@@ -57,6 +57,7 @@ export function DayStatusPanel({ eventDate }: { eventDate: string }) {
         body: JSON.stringify({
           date: eventDate,
           day_notes: dayNotes,
+          action: 'validate',
         }),
       });
 
