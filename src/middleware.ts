@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createSupabaseMiddlewareClient } from './lib/supabase/middleware';
-import { createSupabaseAdminClient } from './lib/supabaseAdmin';
 import { getSupabaseUrl } from './lib/supabase/env';
 
 const PUBLIC_PATHS = [
@@ -63,6 +62,8 @@ export async function middleware(req: NextRequest) {
   const handleConfigError = () =>
     handleConfigErrorResponse(isApiRoute, supabaseResponse, redirectUrl, req);
 
+  const isAdminPath = pathname.startsWith('/admin');
+
   if (!user) {
     return handleUnauthorized();
   }
@@ -73,30 +74,26 @@ export async function middleware(req: NextRequest) {
     return handleNotAllowed();
   }
 
-  try {
-    const supabaseAdmin = createSupabaseAdminClient();
+  const { data: allowedUser, error: allowlistError } = await supabase
+    .from('app_allowed_users')
+    .select('id, role, is_active')
+    .maybeSingle();
 
-    const {
-      data: allowedUser,
-      error: allowlistError,
-    } = await supabaseAdmin
-      .from('app_allowed_users')
-      .select('id')
-      .eq('email', email)
-      .eq('is_active', true)
-      .maybeSingle();
-
-    if (allowlistError) {
-      console.error('[middleware] allowlist query error', allowlistError);
-      return handleConfigError();
-    }
-
-    if (!allowedUser) {
-      return handleNotAllowed();
-    }
-  } catch (error) {
-    console.error('[middleware] allowlist check failed', error);
+  if (allowlistError) {
+    console.error('[middleware] allowlist query error', allowlistError);
     return handleConfigError();
+  }
+
+  if (!allowedUser) {
+    return handleNotAllowed();
+  }
+
+  if (isAdminPath && allowedUser.role !== 'admin') {
+    const url = new URL('/', req.url);
+    url.searchParams.set('error', 'forbidden');
+    const response = NextResponse.redirect(url);
+    mergeCookies(supabaseResponse, response);
+    return setDebugHeader(response);
   }
 
   return supabaseResponse;
