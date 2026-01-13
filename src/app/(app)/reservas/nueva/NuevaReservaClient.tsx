@@ -30,16 +30,14 @@ type EntrecotPoints = {
   muyHecho: number;
 };
 
-type CustomSecondType = 'especial' | 'infantil';
+type CustomSecondKind = 'custom_menu' | 'kids_menu';
 
 type CustomSecond = {
   id: string;
-  tipo: CustomSecondType;
-  nombre: string;
+  name: string;
   cantidad: number;
-  notas: string;
-  notasPrimeros?: string;
-  notasSegundos?: string;
+  kind: CustomSecondKind;
+  notes?: string;
 };
 
 type RoomOption = {
@@ -69,6 +67,14 @@ export default function NuevaReservaClient() {
     muyHecho: 0,
   });
   const [customSeconds, setCustomSeconds] = useState<CustomSecond[]>([]);
+  const [isCustomMenuModalOpen, setIsCustomMenuModalOpen] = useState(false);
+  const [isKidsMenuModalOpen, setIsKidsMenuModalOpen] = useState(false);
+  const [customMenuName, setCustomMenuName] = useState('');
+  const [customMenuCantidad, setCustomMenuCantidad] = useState(1);
+  const [customMenuNotes, setCustomMenuNotes] = useState('');
+  const [kidsMenuName, setKidsMenuName] = useState('Menú infantil');
+  const [kidsMenuCantidad, setKidsMenuCantidad] = useState(1);
+  const [kidsMenuNotes, setKidsMenuNotes] = useState('');
   const [warningMenus, setWarningMenus] = useState<string | null>(null);
   const [warningEntrecot, setWarningEntrecot] = useState<string | null>(null);
   const [rooms, setRooms] = useState<RoomOption[]>([]);
@@ -88,6 +94,10 @@ export default function NuevaReservaClient() {
     () => menus.find((m) => m.id === menuId) ?? null,
     [menus, menuId],
   );
+  const customMenusCount = useMemo(
+    () => customSeconds.reduce((sum, custom) => sum + custom.cantidad, 0),
+    [customSeconds],
+  );
 
   const updateEntrecotPoint = (key: keyof EntrecotPoints, value: number) => {
     setEntrecotPoints((prev) => ({
@@ -106,32 +116,60 @@ export default function NuevaReservaClient() {
     });
   };
 
-  const handleAddCustomMenu = () => {
+  const handleCreateCustomMenu = () => {
+    if (!customMenuName.trim()) {
+      return;
+    }
     setCustomSeconds((prev) => [
       ...prev,
       {
         id: crypto.randomUUID(),
-        tipo: 'especial',
-        nombre: '',
-        cantidad: 1,
-        notas: '',
+        kind: 'custom_menu',
+        name: customMenuName.trim(),
+        cantidad: Math.max(1, customMenuCantidad || 1),
+        notes: customMenuNotes.trim() || undefined,
       },
     ]);
+    setCustomMenuName('');
+    setCustomMenuCantidad(1);
+    setCustomMenuNotes('');
+    setIsCustomMenuModalOpen(false);
   };
 
-  const handleAddInfantilMenu = () => {
+  const handleCloseCustomMenuModal = () => {
+    setCustomMenuName('');
+    setCustomMenuCantidad(1);
+    setCustomMenuNotes('');
+    setIsCustomMenuModalOpen(false);
+  };
+
+  const handleCreateKidsMenu = () => {
+    const trimmedName = kidsMenuName.trim() || 'Menú infantil';
     setCustomSeconds((prev) => [
       ...prev,
       {
         id: crypto.randomUUID(),
-        tipo: 'infantil',
-        nombre: 'Menú infantil',
-        cantidad: 1,
-        notas: '',
-        notasPrimeros: 'Fingers de pollo, croquetas de jamón con patatas',
-        notasSegundos: 'Macarrones o hamburguesa (o indicar segundo personalizado)',
+        kind: 'kids_menu',
+        name: trimmedName,
+        cantidad: Math.max(1, kidsMenuCantidad || 1),
+        notes: kidsMenuNotes.trim() || undefined,
       },
     ]);
+    setKidsMenuName('Menú infantil');
+    setKidsMenuCantidad(1);
+    setKidsMenuNotes('');
+    setIsKidsMenuModalOpen(false);
+  };
+
+  const handleCloseKidsMenuModal = () => {
+    setKidsMenuName('Menú infantil');
+    setKidsMenuCantidad(1);
+    setKidsMenuNotes('');
+    setIsKidsMenuModalOpen(false);
+  };
+
+  const updateCustomSecond = (id: string, updates: Partial<CustomSecond>) => {
+    setCustomSeconds((prev) => prev.map((custom) => (custom.id === id ? { ...custom, ...updates } : custom)));
   };
 
   const validateMenus = useCallback(() => {
@@ -313,48 +351,36 @@ export default function NuevaReservaClient() {
         }
       }
 
-      const especiales = customSeconds.filter((s) => s.tipo === 'especial');
-      const infantiles = customSeconds.filter((s) => s.tipo === 'infantil');
+      const customMenus = customSeconds.filter((s) => s.kind === 'custom_menu');
+      const kidsMenus = customSeconds.filter((s) => s.kind === 'kids_menu');
 
-      const especialesTexto =
-        especiales.length > 0
+      const customMenusTexto =
+        customMenus.length > 0
           ? [
-              'Segundos personalizados / menús especiales:',
-              ...especiales.map(
-                (s) =>
-                  `- ${s.nombre || 'Menú especial'}: ${s.cantidad} pax${
-                    s.notas ? ` (Notas: ${s.notas})` : ''
-                  }`,
+              'Menús personalizados:',
+              ...customMenus.map(
+                (s) => `- ${s.name}: ${s.cantidad}${s.notes ? ` — ${s.notes}` : ''}`,
               ),
             ].join('\n')
           : null;
 
-      const infantilesTexto =
-        infantiles.length > 0
+      const kidsMenusTexto =
+        kidsMenus.length > 0
           ? [
               'Menús infantiles:',
-              ...infantiles.map(
-                (s) =>
-                  [
-                    `- ${s.nombre || 'Menú infantil'}: ${s.cantidad} pax`,
-                    `  Primeros: ${
-                      s.notasPrimeros?.trim() || 'Fingers de pollo, croquetas de jamón con patatas'
-                    }`,
-                    `  Segundos: ${
-                      s.notasSegundos?.trim() || 'Macarrones o hamburguesa (o indicar segundo personalizado)'
-                    }`,
-                  ].join('\n'),
+              ...kidsMenus.map(
+                (s) => `- ${s.name}: ${s.cantidad}${s.notes ? ` — ${s.notes}` : ''}`,
               ),
             ].join('\n')
           : null;
 
       const partesMenuText = [
         selectedMenu ? `Menú asignado: ${selectedMenu.display_name}` : null,
-        segundosBaseTexto ? 'Segundos estándar:' : null,
+        segundosBaseTexto ? 'Plato principal:' : null,
         segundosBaseTexto || null,
         detalleEntrecot,
-        especialesTexto,
-        infantilesTexto,
+        customMenusTexto,
+        kidsMenusTexto,
       ];
 
       menuText = partesMenuText
@@ -692,10 +718,10 @@ export default function NuevaReservaClient() {
               <div className="space-y-2">
                 <p className="text-sm font-semibold text-white">Menús personalizados e infantiles</p>
                 <div className="flex gap-2">
-                  <button type="button" className="button-secondary" onClick={handleAddCustomMenu}>
-                    + Crear menú personalizado
+                  <button type="button" className="button-secondary" onClick={() => setIsCustomMenuModalOpen(true)}>
+                    + Crear menú
                   </button>
-                  <button type="button" className="button-secondary" onClick={handleAddInfantilMenu}>
+                  <button type="button" className="button-secondary" onClick={() => setIsKidsMenuModalOpen(true)}>
                     + Menú infantil
                   </button>
                 </div>
@@ -707,9 +733,7 @@ export default function NuevaReservaClient() {
                       className="space-y-3 rounded-lg border border-slate-800 bg-slate-900/60 p-3"
                     >
                       <div className="flex items-center justify-between text-xs uppercase tracking-wide text-slate-400">
-                        <span>
-                          {custom.tipo === 'especial' ? 'Menú especial' : 'Menú infantil'}
-                        </span>
+                        <span>{custom.kind === 'custom_menu' ? 'Menú personalizado' : 'Menú infantil'}</span>
                         <button
                           type="button"
                           className="text-xs text-red-300 hover:text-red-200"
@@ -724,91 +748,173 @@ export default function NuevaReservaClient() {
                           <span className="label text-xs">Nombre</span>
                           <input
                             className="input"
-                            value={custom.nombre}
-                            onChange={(e) =>
-                              setCustomSeconds((prev) =>
-                                prev.map((c) =>
-                                  c.id === custom.id ? { ...c, nombre: e.target.value } : c,
-                                ),
-                              )
-                            }
+                            value={custom.name}
+                            onChange={(e) => updateCustomSecond(custom.id, { name: e.target.value })}
                             placeholder="Ej: Vegano sin soja"
                           />
                         </label>
-                        <label className="space-y-1 text-sm text-slate-200">
+                        <div className="space-y-1 text-sm text-slate-200">
                           <span className="label text-xs">Cantidad</span>
-                          <input
-                            type="number"
-                            min={0}
-                            className="input"
-                            value={custom.cantidad}
-                            onChange={(e) =>
-                              setCustomSeconds((prev) =>
-                                prev.map((c) =>
-                                  c.id === custom.id ? { ...c, cantidad: parseInt(e.target.value) || 0 } : c,
-                                ),
-                              )
-                            }
-                          />
-                        </label>
+                          <div className="flex items-center gap-2">
+                            <button
+                              type="button"
+                              className="rounded-md border border-slate-700 px-2 py-1 text-sm text-slate-200 hover:bg-slate-800"
+                              onClick={() =>
+                                updateCustomSecond(custom.id, {
+                                  cantidad: Math.max(1, custom.cantidad - 1),
+                                })
+                              }
+                              aria-label="Restar cantidad"
+                            >
+                              -
+                            </button>
+                            <input
+                              type="number"
+                              min={1}
+                              className="input w-20 text-center"
+                              value={custom.cantidad}
+                              onChange={(e) =>
+                                updateCustomSecond(custom.id, {
+                                  cantidad: Math.max(1, parseInt(e.target.value) || 1),
+                                })
+                              }
+                            />
+                            <button
+                              type="button"
+                              className="rounded-md border border-slate-700 px-2 py-1 text-sm text-slate-200 hover:bg-slate-800"
+                              onClick={() => updateCustomSecond(custom.id, { cantidad: custom.cantidad + 1 })}
+                              aria-label="Sumar cantidad"
+                            >
+                              +
+                            </button>
+                          </div>
+                        </div>
                       </div>
 
-                      {custom.tipo === 'especial' ? (
-                        <label className="space-y-1 text-sm text-slate-200">
-                          <span className="label text-xs">Notas</span>
-                          <textarea
-                            className="input"
-                            value={custom.notas}
-                            onChange={(e) =>
-                              setCustomSeconds((prev) =>
-                                prev.map((c) => (c.id === custom.id ? { ...c, notas: e.target.value } : c)),
-                              )
-                            }
-                            placeholder="Indicaciones específicas"
-                          />
-                        </label>
-                      ) : (
-                        <div className="space-y-3">
-                          <label className="space-y-1 text-sm text-slate-200">
-                            <span className="label text-xs">Primeros</span>
-                            <textarea
-                              className="input"
-                              value={custom.notasPrimeros ?? ''}
-                              onChange={(e) =>
-                                setCustomSeconds((prev) =>
-                                  prev.map((c) =>
-                                    c.id === custom.id
-                                      ? { ...c, notasPrimeros: e.target.value }
-                                      : c,
-                                  ),
-                                )
-                              }
-                              placeholder="Fingers de pollo, croquetas de jamón con patatas"
-                            />
-                          </label>
-                          <label className="space-y-1 text-sm text-slate-200">
-                            <span className="label text-xs">Segundos</span>
-                            <textarea
-                              className="input"
-                              value={custom.notasSegundos ?? ''}
-                              onChange={(e) =>
-                                setCustomSeconds((prev) =>
-                                  prev.map((c) =>
-                                    c.id === custom.id
-                                      ? { ...c, notasSegundos: e.target.value }
-                                      : c,
-                                  ),
-                                )
-                              }
-                              placeholder="Macarrones o hamburguesa (o indicar segundo personalizado)"
-                            />
-                          </label>
-                        </div>
-                      )}
+                      <label className="space-y-1 text-sm text-slate-200">
+                        <span className="label text-xs">Notas (opcional)</span>
+                        <input
+                          className="input"
+                          value={custom.notes ?? ''}
+                          onChange={(e) => updateCustomSecond(custom.id, { notes: e.target.value })}
+                          placeholder="Indicaciones específicas"
+                        />
+                      </label>
                     </div>
                   ))}
                 </div>
               </div>
+
+              {isCustomMenuModalOpen && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4">
+                  <div className="w-full max-w-lg space-y-4 rounded-xl border border-slate-800 bg-slate-950 p-6">
+                    <div>
+                      <p className="text-lg font-semibold text-white">Crear menú personalizado</p>
+                      <p className="text-sm text-slate-400">Añade un nombre y cantidad para este menú.</p>
+                    </div>
+                    <form
+                      className="space-y-3"
+                      onSubmit={(event) => {
+                        event.preventDefault();
+                        handleCreateCustomMenu();
+                      }}
+                    >
+                      <label className="space-y-1 text-sm text-slate-200">
+                        <span className="label text-xs">Nombre</span>
+                        <input
+                          className="input"
+                          value={customMenuName}
+                          onChange={(e) => setCustomMenuName(e.target.value)}
+                          placeholder="Ej: Menú vegano"
+                          required
+                        />
+                      </label>
+                      <label className="space-y-1 text-sm text-slate-200">
+                        <span className="label text-xs">Cantidad</span>
+                        <input
+                          type="number"
+                          min={1}
+                          className="input"
+                          value={customMenuCantidad}
+                          onChange={(e) => setCustomMenuCantidad(parseInt(e.target.value) || 1)}
+                        />
+                      </label>
+                      <label className="space-y-1 text-sm text-slate-200">
+                        <span className="label text-xs">Notas (opcional)</span>
+                        <input
+                          className="input"
+                          value={customMenuNotes}
+                          onChange={(e) => setCustomMenuNotes(e.target.value)}
+                          placeholder="Indicaciones específicas"
+                        />
+                      </label>
+                      <div className="flex justify-end gap-2">
+                        <button type="button" className="button-secondary" onClick={handleCloseCustomMenuModal}>
+                          Cancelar
+                        </button>
+                        <button type="submit" className="button-primary" disabled={!customMenuName.trim()}>
+                          Crear menú
+                        </button>
+                      </div>
+                    </form>
+                  </div>
+                </div>
+              )}
+
+              {isKidsMenuModalOpen && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4">
+                  <div className="w-full max-w-lg space-y-4 rounded-xl border border-slate-800 bg-slate-950 p-6">
+                    <div>
+                      <p className="text-lg font-semibold text-white">Crear menú infantil</p>
+                      <p className="text-sm text-slate-400">Indica cantidad y notas para este menú.</p>
+                    </div>
+                    <form
+                      className="space-y-3"
+                      onSubmit={(event) => {
+                        event.preventDefault();
+                        handleCreateKidsMenu();
+                      }}
+                    >
+                      <label className="space-y-1 text-sm text-slate-200">
+                        <span className="label text-xs">Nombre (opcional)</span>
+                        <input
+                          className="input"
+                          value={kidsMenuName}
+                          onChange={(e) => setKidsMenuName(e.target.value)}
+                          placeholder="Menú infantil"
+                        />
+                      </label>
+                      <label className="space-y-1 text-sm text-slate-200">
+                        <span className="label text-xs">Cantidad</span>
+                        <input
+                          type="number"
+                          min={1}
+                          className="input"
+                          value={kidsMenuCantidad}
+                          onChange={(e) => setKidsMenuCantidad(parseInt(e.target.value) || 1)}
+                        />
+                      </label>
+                      <label className="space-y-1 text-sm text-slate-200">
+                        <span className="label text-xs">Notas (opcional)</span>
+                        <input
+                          className="input"
+                          value={kidsMenuNotes}
+                          onChange={(e) => setKidsMenuNotes(e.target.value)}
+                          placeholder="Indicaciones específicas"
+                        />
+                      </label>
+                      <div className="flex justify-end gap-2">
+                        <button type="button" className="button-secondary" onClick={handleCloseKidsMenuModal}>
+                          Cancelar
+                        </button>
+                        <button type="submit" className="button-primary">
+                          Crear menú
+                        </button>
+                      </div>
+                    </form>
+                  </div>
+                </div>
+              )}
 
               <div className="rounded-lg border border-primary-500/30 bg-primary-500/10 p-4 text-sm text-primary-100">
                 <div className="flex items-center gap-2 font-semibold">
@@ -823,6 +929,7 @@ export default function NuevaReservaClient() {
                         .join(' · ')
                     : 'Añade cantidades para organizar la comanda.'}
                 </p>
+                <p className="mt-1 text-primary-50">Especiales/infantiles: {customMenusCount}</p>
               </div>
 
               {submitError && <p className="text-sm text-red-400">{submitError}</p>}
