@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createSupabaseRouteHandlerClient, mergeResponseCookies } from '@/lib/supabase/route';
 import { createSupabaseAdminClient } from '@/lib/supabaseAdmin';
+import { getAllowlistRoleFromRequest, isAdmin } from '@/lib/auth/requireRole';
 
 const VALID_AREAS = ['maintenance', 'kitchen'] as const;
 const VALID_PRIORITIES = ['low', 'normal', 'high'] as const;
@@ -55,6 +56,13 @@ export async function GET(req: NextRequest) {
     const unauthorized = NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     mergeResponseCookies(supabaseResponse, unauthorized);
     return unauthorized;
+  }
+
+  const { role } = await getAllowlistRoleFromRequest(authClient);
+  if (!role) {
+    const forbidden = NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    mergeResponseCookies(supabaseResponse, forbidden);
+    return forbidden;
   }
 
   const area = req.nextUrl.searchParams.get('area');
@@ -120,6 +128,13 @@ export async function POST(req: NextRequest) {
     const unauthorized = NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     mergeResponseCookies(supabaseResponse, unauthorized);
     return unauthorized;
+  }
+
+  const { role } = await getAllowlistRoleFromRequest(authClient);
+  if (!isAdmin(role)) {
+    const forbidden = NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    mergeResponseCookies(supabaseResponse, forbidden);
+    return forbidden;
   }
 
   const body = await req.json().catch(() => null);

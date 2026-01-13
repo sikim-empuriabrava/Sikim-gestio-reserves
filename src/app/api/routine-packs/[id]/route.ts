@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createSupabaseRouteHandlerClient, mergeResponseCookies } from '@/lib/supabase/route';
 import { createSupabaseAdminClient } from '@/lib/supabaseAdmin';
+import { getAllowlistRoleFromRequest, isAdmin } from '@/lib/auth/requireRole';
 
 export const runtime = 'nodejs';
 
@@ -67,6 +68,13 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     const unauthorized = NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     mergeResponseCookies(supabaseResponse, unauthorized);
     return unauthorized;
+  }
+
+  const { role } = await getAllowlistRoleFromRequest(authClient);
+  if (!isAdmin(role)) {
+    const forbidden = NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    mergeResponseCookies(supabaseResponse, forbidden);
+    return forbidden;
   }
 
   const body = (await req.json().catch(() => null)) as RoutinePackPatchPayload | null;
@@ -158,6 +166,13 @@ export async function DELETE(req: NextRequest, { params }: { params: { id: strin
     const unauthorized = NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     mergeResponseCookies(supabaseResponse, unauthorized);
     return unauthorized;
+  }
+
+  const { role } = await getAllowlistRoleFromRequest(authClient);
+  if (!isAdmin(role)) {
+    const forbidden = NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    mergeResponseCookies(supabaseResponse, forbidden);
+    return forbidden;
   }
 
   const body = (await req.json().catch(() => ({}))) as Record<string, unknown>;
