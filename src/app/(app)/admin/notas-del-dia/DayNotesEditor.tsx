@@ -71,6 +71,7 @@ export function DayNotesEditor() {
           date: selectedDate,
           notes_kitchen: notesKitchen,
           notes_maintenance: notesMaintenance,
+          action: 'save',
         }),
       });
 
