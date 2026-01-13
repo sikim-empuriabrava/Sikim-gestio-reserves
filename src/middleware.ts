@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createSupabaseMiddlewareClient } from './lib/supabase/middleware';
-import { createSupabaseAdminClient } from './lib/supabaseAdmin';
 import { getSupabaseUrl } from './lib/supabase/env';
 
 const PUBLIC_PATHS = [
@@ -63,6 +62,9 @@ export async function middleware(req: NextRequest) {
   const handleConfigError = () =>
     handleConfigErrorResponse(isApiRoute, supabaseResponse, redirectUrl, req);
 
+  const isAdminPage = pathname.startsWith('/admin');
+  const isAdminApiRoute = pathname.startsWith('/api/routine-packs') || pathname.startsWith('/api/routines');
+
   if (!user) {
     return handleUnauthorized();
   }
@@ -73,30 +75,37 @@ export async function middleware(req: NextRequest) {
     return handleNotAllowed();
   }
 
-  try {
-    const supabaseAdmin = createSupabaseAdminClient();
+  const {
+    data: allowedUser,
+    error: allowlistError,
+  } = await supabase
+    .from('app_allowed_users')
+    .select('email, role, is_active')
+    .eq('email', email)
+    .eq('is_active', true)
+    .maybeSingle();
 
-    const {
-      data: allowedUser,
-      error: allowlistError,
-    } = await supabaseAdmin
-      .from('app_allowed_users')
-      .select('id')
-      .eq('email', email)
-      .eq('is_active', true)
-      .maybeSingle();
-
-    if (allowlistError) {
-      console.error('[middleware] allowlist query error', allowlistError);
-      return handleConfigError();
-    }
-
-    if (!allowedUser) {
-      return handleNotAllowed();
-    }
-  } catch (error) {
-    console.error('[middleware] allowlist check failed', error);
+  if (allowlistError) {
+    console.error('[middleware] allowlist query error', allowlistError);
     return handleConfigError();
+  }
+
+  if (!allowedUser) {
+    return handleNotAllowed();
+  }
+
+  if (isAdminPage && allowedUser.role !== 'admin') {
+    const url = new URL('/', req.url);
+    url.searchParams.set('error', 'forbidden');
+    const response = NextResponse.redirect(url);
+    mergeCookies(supabaseResponse, response);
+    return setDebugHeader(response);
+  }
+
+  if (isAdminApiRoute && req.method !== 'GET' && allowedUser.role !== 'admin') {
+    const forbidden = NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    mergeCookies(supabaseResponse, forbidden);
+    return setDebugHeader(forbidden);
   }
 
   return supabaseResponse;
