@@ -77,7 +77,6 @@ export async function middleware(req: NextRequest) {
   const { data: allowedUser, error: allowlistError } = await supabase
     .from('app_allowed_users')
     .select('id, role, is_active')
-    .eq('email', email)
     .maybeSingle();
 
   if (allowlistError) {

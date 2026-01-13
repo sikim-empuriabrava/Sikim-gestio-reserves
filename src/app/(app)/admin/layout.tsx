@@ -31,7 +31,6 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   } = await supabase
     .from('app_allowed_users')
     .select('role')
-    .eq('email', email)
     .maybeSingle();
 
   if (allowlistError) {
