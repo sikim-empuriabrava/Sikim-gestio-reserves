@@ -68,15 +68,18 @@ export async function middleware(req: NextRequest) {
     return handleUnauthorized();
   }
 
-  const email = user.email?.toLowerCase();
+  const email = user.email?.trim().toLowerCase();
 
   if (!email) {
     return handleNotAllowed();
   }
 
+  // Filter by email and active status to avoid mismatches or multi-row errors.
   const { data: allowedUser, error: allowlistError } = await supabase
     .from('app_allowed_users')
-    .select('id, role, is_active')
+    .select('email, role, is_active')
+    .eq('email', email)
+    .eq('is_active', true)
     .maybeSingle();
 
   if (allowlistError) {
