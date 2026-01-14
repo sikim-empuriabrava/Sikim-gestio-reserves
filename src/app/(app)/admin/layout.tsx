@@ -1,4 +1,5 @@
 import { ModuleSubnav } from '@/components/ModuleSubnav';
+import { getAllowlistRoleForUserEmail, isAdmin } from '@/lib/auth/requireRole';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { redirect } from 'next/navigation';
 
@@ -16,33 +17,19 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   } = await supabase.auth.getUser();
 
   if (!user) {
-    redirect(`/login?next=${encodeURIComponent('/admin')}`);
+    redirect('/login?error=unauthorized');
   }
 
-  const email = user.email?.toLowerCase();
+  // Segunda barrera server-side por si el middleware falla y evitar renderizar el panel sin allowlist.
+  const email = user.email?.trim().toLowerCase();
 
-  if (!email) {
+  const { allowlisted, role } = await getAllowlistRoleForUserEmail(email);
+
+  if (!allowlisted) {
     redirect('/login?error=not_allowed');
   }
 
-  const {
-    data: allowedUser,
-    error: allowlistError,
-  } = await supabase
-    .from('app_allowed_users')
-    .select('role')
-    .maybeSingle();
-
-  if (allowlistError) {
-    console.error('[admin layout] allowlist query error', allowlistError);
-    redirect('/');
-  }
-
-  if (!allowedUser) {
-    redirect('/login?error=not_allowed');
-  }
-
-  if (allowedUser.role !== 'admin') {
+  if (!isAdmin(role)) {
     redirect('/?error=forbidden');
   }
 
