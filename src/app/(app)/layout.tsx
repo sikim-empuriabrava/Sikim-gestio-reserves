@@ -2,7 +2,7 @@ import { AppSidebar } from '@/components/AppSidebar';
 import { UserMenu } from '@/components/UserMenu';
 import { getAllowlistRoleForUserEmail } from '@/lib/auth/requireRole';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
-import { headers } from 'next/headers';
+
 import { redirect } from 'next/navigation';
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
@@ -13,8 +13,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
 
   // Segunda barrera server-side por si el middleware falla y evitar renderizar el panel sin allowlist.
   if (!user) {
-    const pathname = headers().get('x-pathname') ?? '/';
-    redirect(`/login?error=unauthorized&next=${encodeURIComponent(pathname)}`);
+    redirect('/login?error=unauthorized&next=%2Freservas');
   }
 
   const email = user.email?.trim().toLowerCase();
