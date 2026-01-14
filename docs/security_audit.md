@@ -1,6 +1,6 @@
 # Auditoría de permisos y seguridad
 
-Fecha: 2025-02-14
+Fecha: 2026-01-14
 
 ## Alcance
 - Revisión de **Route Handlers** en `src/app/api/**/route.ts`.
@@ -54,5 +54,5 @@ Fecha: 2025-02-14
 
 ## 3) Top issues (priorizado)
 
-- **P2** – Las páginas de debug (`/debug-supabase`, `/debug-calendar-sync`) usan admin client y exponen datos sensibles cuando `ENABLE_DEBUG_PAGES=true`. Actualmente solo están protegidas por allowlist genérico (no por rol admin). Considerar exigir rol admin o un flag adicional de seguridad. (Archivos: `src/app/(app)/debug-supabase/page.tsx`, `src/app/(app)/debug-calendar-sync/page.tsx`).
+- **P1** – Las páginas de debug (`/debug-supabase`, `/debug-calendar-sync`) usan admin client y exponen datos sensibles cuando `ENABLE_DEBUG_PAGES=true`. Actualmente solo están protegidas por allowlist genérico (no por rol admin). Considerar exigir rol admin o un flag adicional de seguridad. (Archivos: `src/app/(app)/debug-supabase/page.tsx`, `src/app/(app)/debug-calendar-sync/page.tsx`).
 - **P0/P1** – No se detectaron: no hay uso de `getSession` en route handlers, no hay retornos sin `mergeResponseCookies`, ni uso de admin client antes de guardas de auth/allowlist en handlers revisados.
