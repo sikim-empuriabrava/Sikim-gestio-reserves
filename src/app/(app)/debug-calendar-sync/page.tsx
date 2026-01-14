@@ -1,5 +1,7 @@
-import { notFound } from 'next/navigation';
+import { notFound, redirect } from 'next/navigation';
 import { createSupabaseAdminClient } from '@/lib/supabaseAdmin';
+import { getAllowlistRoleForUserEmail, isAdmin } from '@/lib/auth/requireRole';
+import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { SyncNowButton } from './SyncNowButton';
 
 type CalendarSyncRow = {
@@ -17,6 +19,31 @@ type CalendarSyncRow = {
 export default async function DebugCalendarSyncPage() {
   if (process.env.ENABLE_DEBUG_PAGES !== 'true') {
     notFound();
+  }
+
+  const supabaseServer = createSupabaseServerClient();
+  const {
+    data: { user },
+  } = await supabaseServer.auth.getUser();
+
+  if (!user) {
+    redirect('/login?error=unauthorized&next=%2Fdebug-calendar-sync');
+  }
+
+  const email = user.email?.trim().toLowerCase();
+
+  if (!email) {
+    redirect('/login?error=not_allowed');
+  }
+
+  const { allowlisted, role } = await getAllowlistRoleForUserEmail(email);
+
+  if (!allowlisted) {
+    redirect('/login?error=not_allowed');
+  }
+
+  if (!isAdmin(role)) {
+    redirect('/?error=forbidden');
   }
 
   const supabase = createSupabaseAdminClient();
