@@ -104,8 +104,11 @@ def render_functions(functions):
 def render_how_to():
     return [
         "## Cómo actualizar",
+        "El snapshot de esquema vive en `supabase/schema_snapshot.sql` y se genera con `pg_dump --schema-only`.",
+        "Incluye tablas, vistas, funciones/RPC, políticas RLS (con `ALTER TABLE ... ENABLE ROW LEVEL SECURITY`), índices y constraints.",
+        "No incluye datos.",
         "- Local/Codex: `SUPABASE_DB_URL=... bash scripts/db_snapshot.sh`",
-        "- GitHub Actions: workflow `db-schema-snapshot` (workflow_dispatch)",
+        "- GitHub Actions: workflow `db-schema-snapshot` (workflow_dispatch). Usa el secret `SUPABASE_DB_URL`.",
     ]
 
 

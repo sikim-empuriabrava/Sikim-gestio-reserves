@@ -2,10 +2,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict eHNKOOTnsOW2oJbXkAXXIkbr2rfdYGYDK0D7z0UT6bgbvVlRD276aHzN3bRpY2G
 
--- Dumped from database version 17.6
--- Dumped by pg_dump version 17.7 (Ubuntu 17.7-3.pgdg24.04+1)
 
 SET statement_timeout = 0;
 SET lock_timeout = 0;
