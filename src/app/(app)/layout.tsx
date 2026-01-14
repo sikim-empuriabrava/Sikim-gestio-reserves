@@ -17,6 +17,10 @@ export default async function AppLayout({ children }: { children: React.ReactNod
 
   const email = user.email?.trim().toLowerCase();
 
+  if (!email) {
+    redirect('/login?error=not_allowed');
+  }
+
   const { allowlisted } = await getAllowlistRoleForUserEmail(email);
 
   if (!allowlisted) {
