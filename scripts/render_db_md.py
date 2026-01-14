@@ -45,6 +45,17 @@ def render_enums(enums):
     return lines
 
 
+def render_views(views):
+    lines = ["## Views"]
+    if not views:
+        lines.append("No hay vistas en el esquema público.")
+        return lines
+
+    for view in sorted(views, key=lambda v: v.get("name", "")):
+        lines.append(f"- `{view.get('name')}`")
+    return lines
+
+
 def render_policies(policies):
     lines = ["## RLS & Policies"]
     if not policies:
@@ -104,8 +115,11 @@ def render_functions(functions):
 def render_how_to():
     return [
         "## Cómo actualizar",
+        "El snapshot de esquema vive en `supabase/schema_snapshot.sql` y se genera con `pg_dump --schema-only`.",
+        "Incluye tablas, vistas, funciones/RPC, políticas RLS (con `ALTER TABLE ... ENABLE ROW LEVEL SECURITY`), índices y constraints.",
+        "No incluye datos.",
         "- Local/Codex: `SUPABASE_DB_URL=... bash scripts/db_snapshot.sh`",
-        "- GitHub Actions: workflow `db-schema-snapshot` (workflow_dispatch)",
+        "- GitHub Actions: workflow `db-schema-snapshot` (workflow_dispatch). Usa el secret `SUPABASE_DB_URL`.",
     ]
 
 
@@ -129,6 +143,8 @@ def main():
     lines.extend(render_tables(data.get("tables") or []))
     lines.append("")
     lines.extend(render_enums(data.get("enums") or []))
+    lines.append("")
+    lines.extend(render_views(data.get("views") or []))
     lines.append("")
     lines.extend(render_policies(data.get("policies") or []))
     lines.append("")

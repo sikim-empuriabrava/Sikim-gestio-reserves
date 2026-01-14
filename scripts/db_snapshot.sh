@@ -10,13 +10,22 @@ export PGSSLMODE=${PGSSLMODE:-require}
 
 mkdir -p supabase docs
 
+tmp_schema_raw=$(mktemp)
 tmp_schema=$(mktemp)
 pg_dump "$SUPABASE_DB_URL" \
   --schema-only \
   --schema=public \
   --no-owner \
   --no-privileges \
-  --file "$tmp_schema"
+  --no-comments \
+  --file "$tmp_schema_raw"
+
+sed -E \
+  -e '/^-- Dumped from database version /d' \
+  -e '/^-- Dumped by pg_dump version /d' \
+  -e '/^\\restrict /d' \
+  "$tmp_schema_raw" > "$tmp_schema"
+rm -f "$tmp_schema_raw"
 
 if [[ -f supabase/schema_snapshot.sql ]] && cmp -s "$tmp_schema" supabase/schema_snapshot.sql; then
   rm -f "$tmp_schema"

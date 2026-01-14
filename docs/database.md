@@ -217,6 +217,14 @@ RLS: deshabilitado
 - `task_priority`: `low`, `normal`, `high`
 - `task_status`: `open`, `in_progress`, `done`
 
+## Views
+- `v_daily_room_occupancy`
+- `v_daily_staffing_summary`
+- `v_day_status`
+- `v_group_events_calendar_sync`
+- `v_group_events_daily_detail`
+- `v_maintenance_daily_detail`
+
 ## RLS & Policies
 | Tabla | Política | Comando | Roles | USING | WITH CHECK |
 | --- | --- | --- | --- | --- | --- |
@@ -257,5 +265,8 @@ RLS: deshabilitado
 | `trg_recalculate_group_staffing_plan` | `` | `trigger` |
 
 ## Cómo actualizar
+El snapshot de esquema vive en `supabase/schema_snapshot.sql` y se genera con `pg_dump --schema-only`.
+Incluye tablas, vistas, funciones/RPC, políticas RLS (con `ALTER TABLE ... ENABLE ROW LEVEL SECURITY`), índices y constraints.
+No incluye datos.
 - Local/Codex: `SUPABASE_DB_URL=... bash scripts/db_snapshot.sh`
-- GitHub Actions: workflow `db-schema-snapshot` (workflow_dispatch)
+- GitHub Actions: workflow `db-schema-snapshot` (workflow_dispatch). Usa el secret `SUPABASE_DB_URL`.
