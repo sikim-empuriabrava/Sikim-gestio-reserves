@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createSupabaseRouteHandlerClient, mergeResponseCookies } from '@/lib/supabase/route';
 import { createSupabaseAdminClient } from '@/lib/supabaseAdmin';
+import { getAllowlistRoleForUserEmail, isAdmin } from '@/lib/auth/requireRole';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -13,13 +14,26 @@ export async function GET(req: NextRequest) {
   const supabaseResponse = NextResponse.next();
   const authClient = createSupabaseRouteHandlerClient(supabaseResponse);
   const {
-    data: { session },
-  } = await authClient.auth.getSession();
+    data: { user },
+  } = await authClient.auth.getUser();
 
-  if (!session) {
+  if (!user) {
     const unauthorized = NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     mergeResponseCookies(supabaseResponse, unauthorized);
     return unauthorized;
+  }
+
+  const allowlistInfo = await getAllowlistRoleForUserEmail(user.email);
+  if (allowlistInfo.error) {
+    const allowlistError = NextResponse.json({ error: 'Allowlist check failed' }, { status: 500 });
+    mergeResponseCookies(supabaseResponse, allowlistError);
+    return allowlistError;
+  }
+
+  if (!allowlistInfo.allowlisted) {
+    const forbidden = NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    mergeResponseCookies(supabaseResponse, forbidden);
+    return forbidden;
   }
 
   const date = req.nextUrl.searchParams.get('date');
@@ -52,13 +66,26 @@ export async function POST(req: NextRequest) {
   const supabaseResponse = NextResponse.next();
   const authClient = createSupabaseRouteHandlerClient(supabaseResponse);
   const {
-    data: { session },
-  } = await authClient.auth.getSession();
+    data: { user },
+  } = await authClient.auth.getUser();
 
-  if (!session) {
+  if (!user) {
     const unauthorized = NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     mergeResponseCookies(supabaseResponse, unauthorized);
     return unauthorized;
+  }
+
+  const allowlistInfo = await getAllowlistRoleForUserEmail(user.email);
+  if (allowlistInfo.error) {
+    const allowlistError = NextResponse.json({ error: 'Allowlist check failed' }, { status: 500 });
+    mergeResponseCookies(supabaseResponse, allowlistError);
+    return allowlistError;
+  }
+
+  if (!allowlistInfo.allowlisted || !isAdmin(allowlistInfo.role)) {
+    const forbidden = NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    mergeResponseCookies(supabaseResponse, forbidden);
+    return forbidden;
   }
 
   const body = await req.json().catch(() => null);
@@ -109,7 +136,7 @@ export async function POST(req: NextRequest) {
     payload.validated = true;
     payload.is_validated = true;
     payload.last_validated_at = now;
-    payload.last_validated_by = session.user.email ?? 'unknown';
+    payload.last_validated_by = user.email ?? 'unknown';
     payload.events_last_reviewed_at = now;
   }
 

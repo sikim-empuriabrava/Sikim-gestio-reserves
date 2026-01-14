@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createSupabaseRouteHandlerClient, mergeResponseCookies } from '@/lib/supabase/route';
 import { createSupabaseAdminClient } from '@/lib/supabaseAdmin';
+import { getAllowlistRoleForUserEmail, isAdmin } from '@/lib/auth/requireRole';
 
 export const runtime = 'nodejs';
 
@@ -60,13 +61,26 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   const supabaseResponse = NextResponse.next();
   const authClient = createSupabaseRouteHandlerClient(supabaseResponse);
   const {
-    data: { session },
-  } = await authClient.auth.getSession();
+    data: { user },
+  } = await authClient.auth.getUser();
 
-  if (!session) {
+  if (!user) {
     const unauthorized = NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     mergeResponseCookies(supabaseResponse, unauthorized);
     return unauthorized;
+  }
+
+  const allowlistInfo = await getAllowlistRoleForUserEmail(user.email);
+  if (allowlistInfo.error) {
+    const allowlistError = NextResponse.json({ error: 'Allowlist check failed' }, { status: 500 });
+    mergeResponseCookies(supabaseResponse, allowlistError);
+    return allowlistError;
+  }
+
+  if (!allowlistInfo.allowlisted || !isAdmin(allowlistInfo.role)) {
+    const forbidden = NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    mergeResponseCookies(supabaseResponse, forbidden);
+    return forbidden;
   }
 
   const body = (await req.json().catch(() => null)) as RoutinePackPatchPayload | null;
@@ -151,13 +165,26 @@ export async function DELETE(req: NextRequest, { params }: { params: { id: strin
   const supabaseResponse = NextResponse.next();
   const authClient = createSupabaseRouteHandlerClient(supabaseResponse);
   const {
-    data: { session },
-  } = await authClient.auth.getSession();
+    data: { user },
+  } = await authClient.auth.getUser();
 
-  if (!session) {
+  if (!user) {
     const unauthorized = NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     mergeResponseCookies(supabaseResponse, unauthorized);
     return unauthorized;
+  }
+
+  const allowlistInfo = await getAllowlistRoleForUserEmail(user.email);
+  if (allowlistInfo.error) {
+    const allowlistError = NextResponse.json({ error: 'Allowlist check failed' }, { status: 500 });
+    mergeResponseCookies(supabaseResponse, allowlistError);
+    return allowlistError;
+  }
+
+  if (!allowlistInfo.allowlisted || !isAdmin(allowlistInfo.role)) {
+    const forbidden = NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    mergeResponseCookies(supabaseResponse, forbidden);
+    return forbidden;
   }
 
   const body = (await req.json().catch(() => ({}))) as Record<string, unknown>;

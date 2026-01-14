@@ -1,6 +1,9 @@
 import { NextResponse } from 'next/server';
 import { createSupabaseRouteHandlerClient, mergeResponseCookies } from '@/lib/supabase/route';
 import { createSupabaseAdminClient } from '@/lib/supabaseAdmin';
+import { getAllowlistRoleForUserEmail } from '@/lib/auth/requireRole';
+
+export const runtime = 'nodejs';
 
 export const dynamic = 'force-dynamic';
 
@@ -14,13 +17,26 @@ export async function GET() {
   const supabaseResponse = NextResponse.next();
   const authClient = createSupabaseRouteHandlerClient(supabaseResponse);
   const {
-    data: { session },
-  } = await authClient.auth.getSession();
+    data: { user },
+  } = await authClient.auth.getUser();
 
-  if (!session) {
+  if (!user) {
     const unauthorized = NextResponse.json({ error: 'Unauthorized' }, { status: 401, headers: noStoreHeaders });
     mergeResponseCookies(supabaseResponse, unauthorized);
     return unauthorized;
+  }
+
+  const allowlistInfo = await getAllowlistRoleForUserEmail(user.email);
+  if (allowlistInfo.error) {
+    const allowlistError = NextResponse.json({ error: 'Allowlist check failed' }, { status: 500, headers: noStoreHeaders });
+    mergeResponseCookies(supabaseResponse, allowlistError);
+    return allowlistError;
+  }
+
+  if (!allowlistInfo.allowlisted) {
+    const forbidden = NextResponse.json({ error: 'Forbidden' }, { status: 403, headers: noStoreHeaders });
+    mergeResponseCookies(supabaseResponse, forbidden);
+    return forbidden;
   }
 
   try {

@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createSupabaseRouteHandlerClient, mergeResponseCookies } from '@/lib/supabase/route';
 import { createSupabaseAdminClient } from '@/lib/supabaseAdmin';
+import { getAllowlistRoleForUserEmail, isAdmin } from '@/lib/auth/requireRole';
+
+export const runtime = 'nodejs';
 
 function isValidDateString(value: unknown) {
   if (typeof value !== 'string') return false;
@@ -24,13 +27,26 @@ export async function POST(req: NextRequest) {
   const supabaseResponse = NextResponse.next();
   const authClient = createSupabaseRouteHandlerClient(supabaseResponse);
   const {
-    data: { session },
-  } = await authClient.auth.getSession();
+    data: { user },
+  } = await authClient.auth.getUser();
 
-  if (!session) {
+  if (!user) {
     const unauthorized = NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     mergeResponseCookies(supabaseResponse, unauthorized);
     return unauthorized;
+  }
+
+  const allowlistInfo = await getAllowlistRoleForUserEmail(user.email);
+  if (allowlistInfo.error) {
+    const allowlistError = NextResponse.json({ error: 'Allowlist check failed' }, { status: 500 });
+    mergeResponseCookies(supabaseResponse, allowlistError);
+    return allowlistError;
+  }
+
+  if (!allowlistInfo.allowlisted || !isAdmin(allowlistInfo.role)) {
+    const forbidden = NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    mergeResponseCookies(supabaseResponse, forbidden);
+    return forbidden;
   }
 
   const body = await req.json().catch(() => null);
@@ -66,14 +82,14 @@ export async function POST(req: NextRequest) {
     const { data: rpcData, error: rpcError } = await supabase.rpc('generate_weekly_tasks_for_pack', {
       p_week_start: weekStart,
       p_pack_id: packId === 'none' ? null : packId,
-      p_created_by_email: session.user.email,
+      p_created_by_email: user.email ?? 'unknown',
     });
     data = rpcData;
     error = rpcError;
   } else {
     const { data: rpcData, error: rpcError } = await supabase.rpc('generate_weekly_tasks', {
       p_week_start: weekStart,
-      p_created_by_email: session.user.email,
+      p_created_by_email: user.email ?? 'unknown',
     });
     data = rpcData;
     error = rpcError;

@@ -6,6 +6,9 @@ import {
   deleteCalendarEvent,
   updateCalendarEvent,
 } from '@/lib/googleCalendar';
+import { getAllowlistRoleForUserEmail, isAdmin } from '@/lib/auth/requireRole';
+
+export const runtime = 'nodejs';
 
 type CalendarSyncRow = {
   group_event_id: string;
@@ -29,8 +32,8 @@ export async function POST(req: NextRequest) {
   const supabaseResponse = NextResponse.next();
   const authClient = createSupabaseRouteHandlerClient(supabaseResponse);
   const {
-    data: { session },
-  } = await authClient.auth.getSession();
+    data: { user },
+  } = await authClient.auth.getUser();
 
   const respond = (
     body: Record<string, unknown>,
@@ -41,8 +44,17 @@ export async function POST(req: NextRequest) {
     return response;
   };
 
-  if (!session) {
+  if (!user) {
     return respond({ error: 'Unauthorized' }, { status: 401, headers: { 'Cache-Control': 'no-store' } });
+  }
+
+  const allowlistInfo = await getAllowlistRoleForUserEmail(user.email);
+  if (allowlistInfo.error) {
+    return respond({ error: 'Allowlist check failed' }, { status: 500, headers: { 'Cache-Control': 'no-store' } });
+  }
+
+  if (!allowlistInfo.allowlisted || !isAdmin(allowlistInfo.role)) {
+    return respond({ error: 'Forbidden' }, { status: 403, headers: { 'Cache-Control': 'no-store' } });
   }
 
   try {

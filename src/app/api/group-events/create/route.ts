@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createSupabaseAdminClient } from '@/lib/supabaseAdmin';
 import { createSupabaseRouteHandlerClient, mergeResponseCookies } from '@/lib/supabase/route';
+import { getAllowlistRoleForUserEmail, isAdmin } from '@/lib/auth/requireRole';
+
+export const runtime = 'nodejs';
 
 export const dynamic = 'force-dynamic';
 
@@ -26,25 +29,35 @@ type CreateGroupEventPayload = {
 export async function POST(req: NextRequest) {
   const supabaseResponse = NextResponse.next();
 
+  const respond = (body: Record<string, unknown>, init?: Parameters<typeof NextResponse.json>[1]) => {
+    const response = NextResponse.json(body, init);
+    mergeResponseCookies(supabaseResponse, response);
+    return response;
+  };
+
   const supabaseAuth = createSupabaseRouteHandlerClient(supabaseResponse);
   const {
-    data: { session },
-  } = await supabaseAuth.auth.getSession();
+    data: { user },
+  } = await supabaseAuth.auth.getUser();
 
-  if (!session) {
-    const unauthorized = NextResponse.json(
-      { error: 'Unauthorized' },
-      { status: 401, headers: noStoreHeaders },
-    );
-    mergeResponseCookies(supabaseResponse, unauthorized);
-    return unauthorized;
+  if (!user) {
+    return respond({ error: 'Unauthorized' }, { status: 401, headers: noStoreHeaders });
+  }
+
+  const allowlistInfo = await getAllowlistRoleForUserEmail(user.email);
+  if (allowlistInfo.error) {
+    return respond({ error: 'Allowlist check failed' }, { status: 500, headers: noStoreHeaders });
+  }
+
+  if (!allowlistInfo.allowlisted || !isAdmin(allowlistInfo.role)) {
+    return respond({ error: 'Forbidden' }, { status: 403, headers: noStoreHeaders });
   }
 
   try {
     const payload = (await req.json()) as CreateGroupEventPayload;
 
     if (!payload) {
-      return NextResponse.json({ error: 'Missing payload' }, { status: 400, headers: noStoreHeaders });
+      return respond({ error: 'Missing payload' }, { status: 400, headers: noStoreHeaders });
     }
 
     const {
@@ -65,7 +78,7 @@ export async function POST(req: NextRequest) {
     } = payload;
 
     if (!name || !event_date || typeof adults !== 'number' || !room_id) {
-      return NextResponse.json(
+      return respond(
         { error: 'Missing required fields (name, event_date, adults, room_id)' },
         { status: 400, headers: noStoreHeaders },
       );
@@ -98,7 +111,7 @@ export async function POST(req: NextRequest) {
 
     if (groupEventError || !groupEventData) {
       const message = groupEventError?.message ?? 'Unable to create group event';
-      return NextResponse.json({ error: message }, { status: 500, headers: noStoreHeaders });
+      return respond({ error: message }, { status: 500, headers: noStoreHeaders });
     }
 
     const { error: allocationError } = await supabase
@@ -113,7 +126,7 @@ export async function POST(req: NextRequest) {
       });
 
     if (allocationError) {
-      return NextResponse.json(
+      return respond(
         {
           error:
             'Reservation created but room allocation failed. Please try assigning the room again from the reservation detail.',
@@ -122,18 +135,12 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const response = NextResponse.json({ groupEventId: groupEventData.id }, { headers: noStoreHeaders });
-    mergeResponseCookies(supabaseResponse, response);
-
-    return response;
+    return respond({ groupEventId: groupEventData.id }, { headers: noStoreHeaders });
   } catch (error) {
     console.error('[API] group-events/create', error);
-    const response = NextResponse.json(
+    return respond(
       { error: 'Unexpected error while creating the reservation' },
       { status: 500, headers: noStoreHeaders },
     );
-    mergeResponseCookies(supabaseResponse, response);
-
-    return response;
   }
 }
