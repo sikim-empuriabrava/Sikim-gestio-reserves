@@ -2,6 +2,7 @@ import { AppSidebar } from '@/components/AppSidebar';
 import { UserMenu } from '@/components/UserMenu';
 import { getAllowlistRoleForUserEmail } from '@/lib/auth/requireRole';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
+
 import { redirect } from 'next/navigation';
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
