@@ -2,7 +2,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict SUeqLm7SrTqqY8spS5srtNf5siAjODFemhB3iDDYOanCGu31i5uumd3bRj4phur
+\restrict guyafQs0iOU0AfqtYm0TX6dKY7wc4AHCQpqtng7FbPAUadeKVfrEhz5lhHvyiup
 
 -- Dumped from database version 17.6
 -- Dumped by pg_dump version 17.7 (Ubuntu 17.7-3.pgdg24.04+1)
@@ -76,6 +76,420 @@ CREATE TYPE public.task_status AS ENUM (
     'in_progress',
     'done'
 );
+
+
+--
+-- Name: app_allowed_users_email_lowercase(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.app_allowed_users_email_lowercase() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+begin
+  if new.email is not null then
+    new.email := lower(new.email);
+  end if;
+  return new;
+end;
+$$;
+
+
+--
+-- Name: day_status_sync_legacy_columns(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.day_status_sync_legacy_columns() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+begin
+  -- Notes: canonical <-> legacy
+  if new.notes_general is null and new.day_notes is not null then
+    new.notes_general := new.day_notes;
+  end if;
+  new.day_notes := coalesce(new.notes_general, '');
+
+  if new.notes_kitchen is null and new.cocina_notes is not null then
+    new.notes_kitchen := new.cocina_notes;
+  end if;
+  new.cocina_notes := coalesce(new.notes_kitchen, '');
+
+  if new.notes_maintenance is null and new.mantenimiento_notes is not null then
+    new.notes_maintenance := new.mantenimiento_notes;
+  end if;
+  new.mantenimiento_notes := coalesce(new.notes_maintenance, '');
+
+  -- Validation flags: keep in sync
+  new.validated := coalesce(new.validated, new.is_validated, false);
+  new.is_validated := new.validated;
+
+  -- Validation metadata: keep in sync when present
+  -- (si alguna columna no existiera en tu esquema real, esto fallaría.
+  --  En ese caso, me pegas el error y lo ajusto a tu snapshot real.)
+  if new.last_validated_at is null and new.validated_at is not null then
+    new.last_validated_at := new.validated_at;
+  end if;
+  new.validated_at := new.last_validated_at;
+
+  if new.last_validated_by is null and new.validated_by is not null then
+    new.last_validated_by := new.validated_by;
+  end if;
+  new.validated_by := new.last_validated_by;
+
+  return new;
+end;
+$$;
+
+
+--
+-- Name: delete_routine_pack(uuid, text, date); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.delete_routine_pack(p_pack_id uuid, p_mode text DEFAULT 'keep_all'::text, p_cutoff_week_start date DEFAULT NULL::date) RETURNS TABLE(deleted_pack boolean, deleted_routines integer, deleted_tasks integer, unlinked_tasks integer)
+    LANGUAGE plpgsql
+    AS $$
+declare
+  routine_ids uuid[];
+  deleted_tasks_count integer := 0;
+  unlinked_tasks_count integer := 0;
+  deleted_routines_count integer := 0;
+  deleted_pack_count integer := 0;
+begin
+  if p_pack_id is null then
+    raise exception 'pack_id is required';
+  end if;
+
+  if p_mode not in ('keep_all', 'delete_from_week') then
+    raise exception 'invalid mode: %', p_mode;
+  end if;
+
+  if p_mode = 'delete_from_week' then
+    if p_cutoff_week_start is null then
+      raise exception 'cutoff_week_start is required for delete_from_week';
+    end if;
+    if extract(dow from p_cutoff_week_start) <> 1 then
+      raise exception 'cutoff_week_start must be a Monday (got %)', p_cutoff_week_start;
+    end if;
+  end if;
+
+  select array_agg(r.id)
+    into routine_ids
+  from public.routines r
+  where r.routine_pack_id = p_pack_id;
+
+  if routine_ids is not null then
+    if p_mode = 'delete_from_week' then
+      delete from public.tasks
+      where routine_id = any(routine_ids)
+        and routine_week_start is not null
+        and routine_week_start >= p_cutoff_week_start;
+      get diagnostics deleted_tasks_count = row_count;
+
+      update public.tasks
+      set routine_id = null,
+          routine_week_start = null
+      where routine_id = any(routine_ids)
+        and (
+          routine_week_start is null
+          or routine_week_start < p_cutoff_week_start
+        );
+      get diagnostics unlinked_tasks_count = row_count;
+    else
+      update public.tasks
+      set routine_id = null,
+          routine_week_start = null
+      where routine_id = any(routine_ids);
+      get diagnostics unlinked_tasks_count = row_count;
+    end if;
+
+    delete from public.routines
+    where id = any(routine_ids);
+    get diagnostics deleted_routines_count = row_count;
+  end if;
+
+  delete from public.routine_packs
+  where id = p_pack_id;
+  get diagnostics deleted_pack_count = row_count;
+
+  return query
+  select (deleted_pack_count = 1), deleted_routines_count, deleted_tasks_count, unlinked_tasks_count;
+end;
+$$;
+
+
+--
+-- Name: delete_routine_template(uuid, text, date); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.delete_routine_template(p_routine_id uuid, p_mode text DEFAULT 'keep_all'::text, p_cutoff_week_start date DEFAULT NULL::date) RETURNS TABLE(deleted boolean, deleted_tasks integer, unlinked_tasks integer)
+    LANGUAGE plpgsql
+    AS $$
+declare
+  deleted_tasks_count integer := 0;
+  unlinked_tasks_count integer := 0;
+  routine_deleted_count integer := 0;
+begin
+  if p_routine_id is null then
+    raise exception 'routine_id is required';
+  end if;
+
+  if p_mode not in ('keep_all', 'delete_from_week') then
+    raise exception 'invalid mode: %', p_mode;
+  end if;
+
+  if p_mode = 'delete_from_week' then
+    if p_cutoff_week_start is null then
+      raise exception 'cutoff_week_start is required for delete_from_week';
+    end if;
+    if extract(dow from p_cutoff_week_start) <> 1 then
+      raise exception 'cutoff_week_start must be a Monday (got %)', p_cutoff_week_start;
+    end if;
+
+    delete from public.tasks
+    where routine_id = p_routine_id
+      and routine_week_start is not null
+      and routine_week_start >= p_cutoff_week_start;
+    get diagnostics deleted_tasks_count = row_count;
+
+    update public.tasks
+    set routine_id = null,
+        routine_week_start = null
+    where routine_id = p_routine_id
+      and (
+        routine_week_start is null
+        or routine_week_start < p_cutoff_week_start
+      );
+    get diagnostics unlinked_tasks_count = row_count;
+  else
+    update public.tasks
+    set routine_id = null,
+        routine_week_start = null
+    where routine_id = p_routine_id;
+    get diagnostics unlinked_tasks_count = row_count;
+  end if;
+
+  delete from public.routines
+  where id = p_routine_id;
+  get diagnostics routine_deleted_count = row_count;
+
+  return query
+  select (routine_deleted_count = 1), deleted_tasks_count, unlinked_tasks_count;
+end;
+$$;
+
+
+--
+-- Name: generate_weekly_tasks(date, text); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.generate_weekly_tasks(p_week_start date, p_created_by_email text DEFAULT NULL::text) RETURNS TABLE(created integer, skipped integer)
+    LANGUAGE plpgsql
+    AS $$
+declare
+  total_count integer;
+  created_count integer;
+begin
+  if p_week_start is null then
+    raise exception 'week_start is required';
+  end if;
+
+  if extract(dow from p_week_start) <> 1 then
+    raise exception 'week_start must be a Monday (got %)', p_week_start;
+  end if;
+
+  select count(*)
+    into total_count
+  from public.routines r
+  left join public.routine_packs p on p.id = r.routine_pack_id
+  where r.is_active = true
+    and (r.routine_pack_id is null or p.enabled = true);
+
+  with inserted as (
+    insert into public.tasks (
+      area,
+      title,
+      description,
+      priority,
+      status,
+      window_start_date,
+      due_date,
+      routine_id,
+      routine_week_start,
+      created_by_email
+    )
+    select
+      r.area,
+      r.title,
+      r.description,
+      r.priority,
+      'open'::public.task_status,
+      (p_week_start + (r.start_day_of_week - 1)),
+      (p_week_start + (r.end_day_of_week - 1)),
+      r.id,
+      p_week_start,
+      p_created_by_email
+    from public.routines r
+    left join public.routine_packs p on p.id = r.routine_pack_id
+    where r.is_active = true
+      and (r.routine_pack_id is null or p.enabled = true)
+    on conflict (routine_id, routine_week_start) do nothing
+    returning 1
+  )
+  select count(*) into created_count from inserted;
+
+  return query
+    select created_count, (total_count - created_count);
+end;
+$$;
+
+
+--
+-- Name: generate_weekly_tasks_auto(date, text); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.generate_weekly_tasks_auto(p_week_start date, p_created_by_email text DEFAULT 'system'::text) RETURNS TABLE(created integer, skipped integer)
+    LANGUAGE plpgsql
+    AS $$
+declare
+  total_count integer;
+  created_count integer;
+begin
+  if p_week_start is null then
+    raise exception 'week_start is required';
+  end if;
+
+  if extract(dow from p_week_start) <> 1 then
+    raise exception 'week_start must be a Monday (got %)', p_week_start;
+  end if;
+
+  select count(*)
+    into total_count
+  from public.routines r
+  left join public.routine_packs p on p.id = r.routine_pack_id
+  where r.is_active = true
+    and (
+      r.routine_pack_id is null
+      or (p.enabled = true and p.auto_generate = true)
+    );
+
+  with inserted as (
+    insert into public.tasks (
+      area,
+      title,
+      description,
+      priority,
+      status,
+      window_start_date,
+      due_date,
+      routine_id,
+      routine_week_start,
+      created_by_email
+    )
+    select
+      r.area,
+      r.title,
+      r.description,
+      r.priority,
+      'open'::public.task_status,
+      (p_week_start + (r.start_day_of_week - 1)),
+      (p_week_start + (r.end_day_of_week - 1)),
+      r.id,
+      p_week_start,
+      p_created_by_email
+    from public.routines r
+    left join public.routine_packs p on p.id = r.routine_pack_id
+    where r.is_active = true
+      and (
+        r.routine_pack_id is null
+        or (p.enabled = true and p.auto_generate = true)
+      )
+    on conflict (routine_id, routine_week_start) do nothing
+    returning 1
+  )
+  select count(*) into created_count from inserted;
+
+  return query
+    select created_count, (total_count - created_count);
+end;
+$$;
+
+
+--
+-- Name: generate_weekly_tasks_for_pack(date, uuid, text); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.generate_weekly_tasks_for_pack(p_week_start date, p_pack_id uuid, p_created_by_email text DEFAULT NULL::text) RETURNS TABLE(created integer, skipped integer)
+    LANGUAGE plpgsql
+    AS $$
+declare
+  total_count integer;
+  created_count integer;
+begin
+  if p_week_start is null then
+    raise exception 'week_start is required';
+  end if;
+
+  if extract(dow from p_week_start) <> 1 then
+    raise exception 'week_start must be a Monday (got %)', p_week_start;
+  end if;
+
+  -- Contar rutinas elegibles según pack
+  if p_pack_id is null then
+    select count(*)
+      into total_count
+    from public.routines r
+    where r.is_active = true
+      and r.routine_pack_id is null;
+  else
+    select count(*)
+      into total_count
+    from public.routines r
+    join public.routine_packs p on p.id = r.routine_pack_id
+    where r.is_active = true
+      and r.routine_pack_id = p_pack_id
+      and p.enabled = true;
+  end if;
+
+  with inserted as (
+    insert into public.tasks (
+      area,
+      title,
+      description,
+      priority,
+      status,
+      window_start_date,
+      due_date,
+      routine_id,
+      routine_week_start,
+      created_by_email
+    )
+    select
+      r.area,
+      r.title,
+      r.description,
+      r.priority,
+      'open'::public.task_status,
+      (p_week_start + (r.start_day_of_week - 1)),
+      (p_week_start + (r.end_day_of_week - 1)),
+      r.id,
+      p_week_start,
+      p_created_by_email
+    from public.routines r
+    left join public.routine_packs p on p.id = r.routine_pack_id
+    where r.is_active = true
+      and (
+        (p_pack_id is null and r.routine_pack_id is null)
+        or
+        (p_pack_id is not null and r.routine_pack_id = p_pack_id and p.enabled = true)
+      )
+    on conflict (routine_id, routine_week_start) do nothing
+    returning 1
+  )
+  select count(*) into created_count from inserted;
+
+  return query
+    select created_count, (total_count - created_count);
+end;
+$$;
 
 
 --
@@ -217,6 +631,22 @@ CREATE FUNCTION public.set_updated_at() RETURNS trigger
     AS $$
 begin
   new.updated_at = now();
+  return new;
+end;
+$$;
+
+
+--
+-- Name: tg_normalize_allowed_user_email(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.tg_normalize_allowed_user_email() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+begin
+  if new.email is not null then
+    new.email := lower(btrim(new.email));
+  end if;
   return new;
 end;
 $$;
@@ -422,6 +852,22 @@ CREATE TABLE public.rooms (
 
 
 --
+-- Name: routine_packs; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.routine_packs (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    name text NOT NULL,
+    description text,
+    area public.task_area,
+    enabled boolean DEFAULT false NOT NULL,
+    auto_generate boolean DEFAULT false NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+--
 -- Name: routines; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -435,7 +881,11 @@ CREATE TABLE public.routines (
     is_active boolean DEFAULT true NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     updated_at timestamp with time zone DEFAULT now() NOT NULL,
-    CONSTRAINT routines_day_of_week_check CHECK (((day_of_week >= 1) AND (day_of_week <= 7)))
+    start_day_of_week integer DEFAULT 1 NOT NULL,
+    end_day_of_week integer DEFAULT 7 NOT NULL,
+    routine_pack_id uuid,
+    CONSTRAINT routines_day_of_week_check CHECK (((day_of_week >= 1) AND (day_of_week <= 7))),
+    CONSTRAINT routines_window_chk CHECK ((((start_day_of_week >= 1) AND (start_day_of_week <= 7)) AND ((end_day_of_week >= 1) AND (end_day_of_week <= 7)) AND (start_day_of_week <= end_day_of_week)))
 );
 
 
@@ -476,7 +926,12 @@ CREATE TABLE public.tasks (
     due_date date,
     created_by_email text,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
-    updated_at timestamp with time zone DEFAULT now() NOT NULL
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    routine_id uuid,
+    routine_week_start date,
+    window_start_date date,
+    CONSTRAINT tasks_routine_trace_chk CHECK ((((routine_id IS NULL) AND (routine_week_start IS NULL)) OR ((routine_id IS NOT NULL) AND (routine_week_start IS NOT NULL) AND (EXTRACT(dow FROM routine_week_start) = (1)::numeric)))),
+    CONSTRAINT tasks_window_dates_chk CHECK (((window_start_date IS NULL) OR (due_date IS NULL) OR (window_start_date <= due_date)))
 );
 
 
@@ -744,6 +1199,14 @@ ALTER TABLE ONLY public.rooms
 
 
 --
+-- Name: routine_packs routine_packs_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.routine_packs
+    ADD CONSTRAINT routine_packs_pkey PRIMARY KEY (id);
+
+
+--
 -- Name: routines routines_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -768,10 +1231,18 @@ ALTER TABLE ONLY public.tasks
 
 
 --
+-- Name: tasks tasks_routine_week_unique; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.tasks
+    ADD CONSTRAINT tasks_routine_week_unique UNIQUE (routine_id, routine_week_start);
+
+
+--
 -- Name: app_allowed_users_email_unique; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE UNIQUE INDEX app_allowed_users_email_unique ON public.app_allowed_users USING btree (lower(email));
+CREATE UNIQUE INDEX app_allowed_users_email_unique ON public.app_allowed_users USING btree (lower(btrim(email)));
 
 
 --
@@ -824,6 +1295,27 @@ CREATE INDEX group_staffing_plans_staffing_ratio_id_idx ON public.group_staffing
 
 
 --
+-- Name: idx_routines_pack_id; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_routines_pack_id ON public.routines USING btree (routine_pack_id);
+
+
+--
+-- Name: idx_tasks_routine_id; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_tasks_routine_id ON public.tasks USING btree (routine_id);
+
+
+--
+-- Name: idx_tasks_routine_week_start; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_tasks_routine_week_start ON public.tasks USING btree (routine_week_start);
+
+
+--
 -- Name: rooms_sort_order_idx; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -863,6 +1355,13 @@ CREATE INDEX tasks_area_status_idx ON public.tasks USING btree (area, status);
 --
 
 CREATE INDEX tasks_due_date_idx ON public.tasks USING btree (due_date);
+
+
+--
+-- Name: app_allowed_users normalize_allowed_user_email; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER normalize_allowed_user_email BEFORE INSERT OR UPDATE ON public.app_allowed_users FOR EACH ROW EXECUTE FUNCTION public.tg_normalize_allowed_user_email();
 
 
 --
@@ -919,6 +1418,20 @@ CREATE TRIGGER set_updated_at_menu_second_courses BEFORE UPDATE ON public.menu_s
 --
 
 CREATE TRIGGER set_updated_at_menus BEFORE UPDATE ON public.menus FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
+
+
+--
+-- Name: app_allowed_users trg_app_allowed_users_email_lowercase; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER trg_app_allowed_users_email_lowercase BEFORE INSERT OR UPDATE ON public.app_allowed_users FOR EACH ROW EXECUTE FUNCTION public.app_allowed_users_email_lowercase();
+
+
+--
+-- Name: day_status trg_day_status_sync_legacy_columns; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER trg_day_status_sync_legacy_columns BEFORE INSERT OR UPDATE ON public.day_status FOR EACH ROW EXECUTE FUNCTION public.day_status_sync_legacy_columns();
 
 
 --
@@ -984,6 +1497,22 @@ ALTER TABLE ONLY public.menu_second_courses
 
 
 --
+-- Name: routines routines_routine_pack_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.routines
+    ADD CONSTRAINT routines_routine_pack_id_fkey FOREIGN KEY (routine_pack_id) REFERENCES public.routine_packs(id) ON DELETE SET NULL;
+
+
+--
+-- Name: tasks tasks_routine_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.tasks
+    ADD CONSTRAINT tasks_routine_id_fkey FOREIGN KEY (routine_id) REFERENCES public.routines(id) ON DELETE RESTRICT;
+
+
+--
 -- Name: app_allowed_users; Type: ROW SECURITY; Schema: public; Owner: -
 --
 
@@ -993,12 +1522,12 @@ ALTER TABLE public.app_allowed_users ENABLE ROW LEVEL SECURITY;
 -- Name: app_allowed_users read own allowlist row; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY "read own allowlist row" ON public.app_allowed_users FOR SELECT TO authenticated USING (((is_active = true) AND (email = COALESCE((auth.jwt() ->> 'email'::text), current_setting('request.jwt.claim.email'::text, true)))));
+CREATE POLICY "read own allowlist row" ON public.app_allowed_users FOR SELECT TO authenticated USING (((is_active = true) AND (lower(email) = lower(COALESCE((auth.jwt() ->> 'email'::text), current_setting('request.jwt.claim.email'::text, true))))));
 
 
 --
 -- PostgreSQL database dump complete
 --
 
-\unrestrict SUeqLm7SrTqqY8spS5srtNf5siAjODFemhB3iDDYOanCGu31i5uumd3bRj4phur
+\unrestrict guyafQs0iOU0AfqtYm0TX6dKY7wc4AHCQpqtng7FbPAUadeKVfrEhz5lhHvyiup
 

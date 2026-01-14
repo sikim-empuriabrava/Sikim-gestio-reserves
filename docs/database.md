@@ -142,6 +142,20 @@ RLS: deshabilitado
 | `created_at` | `timestamp with time zone` | No | `now()` |
 | `updated_at` | `timestamp with time zone` | No | `now()` |
 
+### routine_packs
+RLS: deshabilitado
+
+| Columna | Tipo | Nullable | Default |
+| --- | --- | --- | --- |
+| `id` | `uuid` | No | `gen_random_uuid()` |
+| `name` | `text` | No |  |
+| `description` | `text` | Sí |  |
+| `area` | `task_area` | Sí |  |
+| `enabled` | `boolean` | No | `false` |
+| `auto_generate` | `boolean` | No | `false` |
+| `created_at` | `timestamp with time zone` | No | `now()` |
+| `updated_at` | `timestamp with time zone` | No | `now()` |
+
 ### routines
 RLS: deshabilitado
 
@@ -156,6 +170,9 @@ RLS: deshabilitado
 | `is_active` | `boolean` | No | `true` |
 | `created_at` | `timestamp with time zone` | No | `now()` |
 | `updated_at` | `timestamp with time zone` | No | `now()` |
+| `start_day_of_week` | `integer` | No | `1` |
+| `end_day_of_week` | `integer` | No | `7` |
+| `routine_pack_id` | `uuid` | Sí |  |
 
 ### staffing_ratios
 RLS: deshabilitado
@@ -189,6 +206,9 @@ RLS: deshabilitado
 | `created_by_email` | `text` | Sí |  |
 | `created_at` | `timestamp with time zone` | No | `now()` |
 | `updated_at` | `timestamp with time zone` | No | `now()` |
+| `routine_id` | `uuid` | Sí |  |
+| `routine_week_start` | `date` | Sí |  |
+| `window_start_date` | `date` | Sí |  |
 
 
 ## ENUMs
@@ -200,11 +220,14 @@ RLS: deshabilitado
 ## RLS & Policies
 | Tabla | Política | Comando | Roles | USING | WITH CHECK |
 | --- | --- | --- | --- | --- | --- |
-| `app_allowed_users` | `read own allowlist row` | SELECT | authenticated | `((is_active = true) AND (email = COALESCE((auth.jwt() ->> 'email'::text), current_setting('request.jwt.claim.email'::text, true))))` | `` |
+| `app_allowed_users` | `read own allowlist row` | SELECT | authenticated | `((is_active = true) AND (lower(email) = lower(COALESCE((auth.jwt() ->> 'email'::text), current_setting('request.jwt.claim.email'::text, true)))))` | `` |
 
 ## Triggers
 | Tabla | Trigger | Timing | Eventos |
 | --- | --- | --- | --- |
+| `app_allowed_users` | `normalize_allowed_user_email` | BEFORE | INSERT, UPDATE |
+| `app_allowed_users` | `trg_app_allowed_users_email_lowercase` | BEFORE | INSERT, UPDATE |
+| `day_status` | `trg_day_status_sync_legacy_columns` | BEFORE | INSERT, UPDATE |
 | `group_events` | `set_timestamp_group_events` | BEFORE | UPDATE |
 | `group_events` | `trg_group_events_recalculate_staffing` | AFTER | INSERT, UPDATE |
 | `group_room_allocations` | `set_timestamp_group_room_allocations` | BEFORE | UPDATE |
@@ -219,10 +242,18 @@ RLS: deshabilitado
 ## Functions
 | Función | Args | Devuelve |
 | --- | --- | --- |
+| `app_allowed_users_email_lowercase` | `` | `trigger` |
+| `day_status_sync_legacy_columns` | `` | `trigger` |
+| `delete_routine_pack` | `p_pack_id uuid, p_mode text DEFAULT 'keep_all'::text, p_cutoff_week_start date DEFAULT NULL::date` | `TABLE(deleted_pack boolean, deleted_routines integer, deleted_tasks integer, unlinked_tasks integer)` |
+| `delete_routine_template` | `p_routine_id uuid, p_mode text DEFAULT 'keep_all'::text, p_cutoff_week_start date DEFAULT NULL::date` | `TABLE(deleted boolean, deleted_tasks integer, unlinked_tasks integer)` |
+| `generate_weekly_tasks` | `p_week_start date, p_created_by_email text DEFAULT NULL::text` | `TABLE(created integer, skipped integer)` |
+| `generate_weekly_tasks_auto` | `p_week_start date, p_created_by_email text DEFAULT 'system'::text` | `TABLE(created integer, skipped integer)` |
+| `generate_weekly_tasks_for_pack` | `p_week_start date, p_pack_id uuid, p_created_by_email text DEFAULT NULL::text` | `TABLE(created integer, skipped integer)` |
 | `mark_past_events_completed` | `` | `void` |
 | `recalculate_group_staffing_plan` | `p_group_event_id uuid` | `void` |
 | `set_override_capacity` | `` | `trigger` |
 | `set_updated_at` | `` | `trigger` |
+| `tg_normalize_allowed_user_email` | `` | `trigger` |
 | `trg_recalculate_group_staffing_plan` | `` | `trigger` |
 
 ## Cómo actualizar
