@@ -3,6 +3,8 @@ import { createSupabaseRouteHandlerClient, mergeResponseCookies } from '@/lib/su
 import { createSupabaseAdminClient } from '@/lib/supabaseAdmin';
 import { getAllowlistRoleFromRequest, isAdmin } from '@/lib/auth/requireRole';
 
+export const runtime = 'nodejs';
+
 const VALID_AREAS = ['maintenance', 'kitchen'] as const;
 const VALID_PRIORITIES = ['low', 'normal', 'high'] as const;
 

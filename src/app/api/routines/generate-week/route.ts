@@ -3,6 +3,8 @@ import { createSupabaseRouteHandlerClient, mergeResponseCookies } from '@/lib/su
 import { createSupabaseAdminClient } from '@/lib/supabaseAdmin';
 import { getAllowlistRoleFromRequest, isAdmin } from '@/lib/auth/requireRole';
 
+export const runtime = 'nodejs';
+
 function isValidDateString(value: unknown) {
   if (typeof value !== 'string') return false;
   const matches = /^\d{4}-\d{2}-\d{2}$/.test(value);
@@ -80,14 +82,14 @@ export async function POST(req: NextRequest) {
     const { data: rpcData, error: rpcError } = await supabase.rpc('generate_weekly_tasks_for_pack', {
       p_week_start: weekStart,
       p_pack_id: packId === 'none' ? null : packId,
-      p_created_by_email: user.email,
+      p_created_by_email: user.email ?? 'unknown',
     });
     data = rpcData;
     error = rpcError;
   } else {
     const { data: rpcData, error: rpcError } = await supabase.rpc('generate_weekly_tasks', {
       p_week_start: weekStart,
-      p_created_by_email: user.email,
+      p_created_by_email: user.email ?? 'unknown',
     });
     data = rpcData;
     error = rpcError;
