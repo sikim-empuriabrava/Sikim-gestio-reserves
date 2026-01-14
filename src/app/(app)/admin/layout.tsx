@@ -17,7 +17,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   } = await supabase.auth.getUser();
 
   if (!user) {
-    redirect('/login?error=unauthorized');
+    redirect(`/login?error=unauthorized&next=${encodeURIComponent('/admin')}`);
   }
 
   // Segunda barrera server-side por si el middleware falla y evitar renderizar el panel sin allowlist.
