@@ -68,7 +68,9 @@ export async function middleware(req: NextRequest) {
     return handleUnauthorized();
   }
 
-  const email = user.email?.trim().toLowerCase();
+  const email =
+  user.email?.trim().toLowerCase() ??
+  (user.user_metadata?.email as string | undefined)?.trim().toLowerCase();
 
   if (!email) {
     return handleNotAllowed();
