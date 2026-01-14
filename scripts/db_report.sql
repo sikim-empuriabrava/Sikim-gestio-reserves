@@ -62,6 +62,12 @@ WITH table_info AS (
     FROM pg_proc p
     JOIN pg_namespace n ON n.oid = p.pronamespace
     WHERE n.nspname = 'public'
+), views AS (
+    SELECT
+        c.relname AS name
+    FROM pg_class c
+    JOIN pg_namespace n ON n.oid = c.relnamespace
+    WHERE n.nspname = 'public' AND c.relkind = 'v'
 )
 SELECT json_build_object(
     'generated_at', to_char(now(), 'YYYY-MM-DD"T"HH24:MI:SSZ'),
@@ -128,5 +134,13 @@ SELECT json_build_object(
             ) ORDER BY f.name
         ), '[]'::json)
         FROM functions f
+    ),
+    'views', (
+        SELECT COALESCE(json_agg(
+            json_build_object(
+                'name', v.name
+            ) ORDER BY v.name
+        ), '[]'::json)
+        FROM views v
     )
 ) AS report;

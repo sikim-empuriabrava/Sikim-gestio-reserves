@@ -217,6 +217,14 @@ RLS: deshabilitado
 - `task_priority`: `low`, `normal`, `high`
 - `task_status`: `open`, `in_progress`, `done`
 
+## Views
+- `v_daily_room_occupancy`
+- `v_daily_staffing_summary`
+- `v_day_status`
+- `v_group_events_calendar_sync`
+- `v_group_events_daily_detail`
+- `v_maintenance_daily_detail`
+
 ## RLS & Policies
 | Tabla | Política | Comando | Roles | USING | WITH CHECK |
 | --- | --- | --- | --- | --- | --- |

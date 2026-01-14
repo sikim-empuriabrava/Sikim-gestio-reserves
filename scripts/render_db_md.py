@@ -45,6 +45,17 @@ def render_enums(enums):
     return lines
 
 
+def render_views(views):
+    lines = ["## Views"]
+    if not views:
+        lines.append("No hay vistas en el esquema público.")
+        return lines
+
+    for view in sorted(views, key=lambda v: v.get("name", "")):
+        lines.append(f"- `{view.get('name')}`")
+    return lines
+
+
 def render_policies(policies):
     lines = ["## RLS & Policies"]
     if not policies:
@@ -132,6 +143,8 @@ def main():
     lines.extend(render_tables(data.get("tables") or []))
     lines.append("")
     lines.extend(render_enums(data.get("enums") or []))
+    lines.append("")
+    lines.extend(render_views(data.get("views") or []))
     lines.append("")
     lines.extend(render_policies(data.get("policies") or []))
     lines.append("")
