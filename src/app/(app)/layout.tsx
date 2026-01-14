@@ -1,12 +1,33 @@
 import { AppSidebar } from '@/components/AppSidebar';
 import { UserMenu } from '@/components/UserMenu';
+import { getAllowlistRoleForUserEmail } from '@/lib/auth/requireRole';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
+import { headers } from 'next/headers';
+import { redirect } from 'next/navigation';
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const supabase = createSupabaseServerClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
+
+  // Segunda barrera server-side por si el middleware falla y evitar renderizar el panel sin allowlist.
+  if (!user) {
+    const pathname = headers().get('x-pathname') ?? '/';
+    redirect(`/login?error=unauthorized&next=${encodeURIComponent(pathname)}`);
+  }
+
+  const email = user.email?.trim().toLowerCase();
+
+  if (!email) {
+    redirect('/login?error=not_allowed');
+  }
+
+  const { allowlisted } = await getAllowlistRoleForUserEmail(email);
+
+  if (!allowlisted) {
+    redirect('/login?error=not_allowed');
+  }
 
   return (
     <div className="mx-auto flex min-h-screen max-w-6xl gap-6 px-4 py-8 lg:px-0">
