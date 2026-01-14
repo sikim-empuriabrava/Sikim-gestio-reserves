@@ -6,7 +6,7 @@ import {
   deleteCalendarEvent,
   updateCalendarEvent,
 } from '@/lib/googleCalendar';
-import { getAllowlistRoleFromRequest, isAdmin } from '@/lib/auth/requireRole';
+import { getAllowlistRoleForUserEmail, isAdmin } from '@/lib/auth/requireRole';
 
 export const runtime = 'nodejs';
 
@@ -48,7 +48,7 @@ export async function POST(req: NextRequest) {
     return respond({ error: 'Unauthorized' }, { status: 401, headers: { 'Cache-Control': 'no-store' } });
   }
 
-  const allowlistInfo = await getAllowlistRoleFromRequest(authClient);
+  const allowlistInfo = await getAllowlistRoleForUserEmail(user.email);
   if (allowlistInfo.error) {
     return respond({ error: 'Allowlist check failed' }, { status: 500, headers: { 'Cache-Control': 'no-store' } });
   }

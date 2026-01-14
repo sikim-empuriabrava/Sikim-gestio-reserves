@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createSupabaseRouteHandlerClient, mergeResponseCookies } from '@/lib/supabase/route';
 import { createSupabaseAdminClient } from '@/lib/supabaseAdmin';
-import { getAllowlistRoleFromRequest, isAdmin } from '@/lib/auth/requireRole';
+import { getAllowlistRoleForUserEmail, isAdmin } from '@/lib/auth/requireRole';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -23,7 +23,7 @@ export async function GET(req: NextRequest) {
     return unauthorized;
   }
 
-  const allowlistInfo = await getAllowlistRoleFromRequest(authClient);
+  const allowlistInfo = await getAllowlistRoleForUserEmail(user.email);
   if (allowlistInfo.error) {
     const allowlistError = NextResponse.json({ error: 'Allowlist check failed' }, { status: 500 });
     mergeResponseCookies(supabaseResponse, allowlistError);
@@ -75,7 +75,7 @@ export async function POST(req: NextRequest) {
     return unauthorized;
   }
 
-  const allowlistInfo = await getAllowlistRoleFromRequest(authClient);
+  const allowlistInfo = await getAllowlistRoleForUserEmail(user.email);
   if (allowlistInfo.error) {
     const allowlistError = NextResponse.json({ error: 'Allowlist check failed' }, { status: 500 });
     mergeResponseCookies(supabaseResponse, allowlistError);

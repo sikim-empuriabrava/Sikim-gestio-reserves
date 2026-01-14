@@ -1,4 +1,6 @@
-import type { SupabaseClient } from '@supabase/supabase-js';
+import 'server-only';
+
+import { createSupabaseAdminClient } from '@/lib/supabaseAdmin';
 
 export type AllowlistInfo = {
   allowlisted: boolean;
@@ -6,8 +8,20 @@ export type AllowlistInfo = {
   error: string | null;
 };
 
-export async function getAllowlistRoleFromRequest(supabaseAuthClient: SupabaseClient): Promise<AllowlistInfo> {
-  const { data, error } = await supabaseAuthClient.from('app_allowed_users').select('id, role').maybeSingle();
+export async function getAllowlistRoleForUserEmail(email: string | null | undefined): Promise<AllowlistInfo> {
+  if (!email) {
+    return { allowlisted: false, role: null, error: null };
+  }
+
+  const supabaseAdmin = createSupabaseAdminClient();
+  const normalizedEmail = email.trim().toLowerCase();
+  const { data, error } = await supabaseAdmin
+    .from('app_allowed_users')
+    .select('id, role')
+    .eq('email', normalizedEmail)
+    .eq('is_active', true)
+    .limit(1)
+    .maybeSingle();
 
   if (error) {
     return { allowlisted: false, role: null, error: error.message };
@@ -22,4 +36,9 @@ export async function getAllowlistRoleFromRequest(supabaseAuthClient: SupabaseCl
 
 export function isAdmin(role: string | null): boolean {
   return role === 'admin';
+}
+
+export function hasRole(role: string | null, allowedRoles: string[]): boolean {
+  if (!role) return false;
+  return allowedRoles.includes(role);
 }

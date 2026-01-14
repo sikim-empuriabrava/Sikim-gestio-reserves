@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createSupabaseAdminClient } from '@/lib/supabaseAdmin';
 import { createSupabaseRouteHandlerClient, mergeResponseCookies } from '@/lib/supabase/route';
-import { getAllowlistRoleFromRequest } from '@/lib/auth/requireRole';
+import { getAllowlistRoleForUserEmail } from '@/lib/auth/requireRole';
 
 export const runtime = 'nodejs';
 
@@ -23,7 +23,7 @@ export async function GET() {
     return unauthorized;
   }
 
-  const allowlistInfo = await getAllowlistRoleFromRequest(authClient);
+  const allowlistInfo = await getAllowlistRoleForUserEmail(user.email);
   if (allowlistInfo.error) {
     const allowlistError = NextResponse.json(
       { error: 'Allowlist check failed' },
