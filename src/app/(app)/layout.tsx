@@ -22,17 +22,19 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     redirect('/login?error=not_allowed');
   }
 
-  const { allowlisted } = await getAllowlistRoleForUserEmail(email);
+  const allowlistInfo = await getAllowlistRoleForUserEmail(email);
 
-  if (!allowlisted) {
+  if (!allowlistInfo.allowlisted || !allowlistInfo.allowedUser?.is_active) {
     redirect('/login?error=not_allowed');
   }
+
+  const allowedUser = allowlistInfo.allowedUser;
 
   return (
     <div className="mx-auto flex min-h-screen max-w-6xl gap-6 px-4 py-8 lg:px-0">
       <aside className="hidden w-64 shrink-0 lg:block">
         <div className="sticky top-8">
-          <AppSidebar />
+          <AppSidebar allowedUser={allowedUser} />
         </div>
       </aside>
 
@@ -57,7 +59,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
                     <span className="text-slate-400 transition duration-200 group-open:rotate-180">▾</span>
                   </summary>
                   <div className="pt-3">
-                    <AppSidebar />
+                    <AppSidebar allowedUser={allowedUser} />
                   </div>
                 </details>
               </div>

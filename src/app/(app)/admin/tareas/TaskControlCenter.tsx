@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
-type TaskStatus = 'open' | 'in_progress' | 'done';
+type UiStatus = 'open' | 'done';
 type TaskPriority = 'low' | 'normal' | 'high';
 type TaskArea = 'kitchen' | 'maintenance';
 
@@ -11,7 +11,7 @@ type Task = {
   area: TaskArea;
   title: string;
   description: string | null;
-  status: TaskStatus;
+  status: string;
   priority: TaskPriority;
   window_start_date?: string | null;
   due_date?: string | null;
@@ -22,7 +22,7 @@ type Task = {
 
 type Filters = {
   area: TaskArea | 'all';
-  status: TaskStatus | 'all';
+  status: UiStatus | 'all';
   dueDate: 'any' | 'today' | 'week';
 };
 
@@ -30,7 +30,6 @@ type Summary = Record<
   TaskArea,
   {
     open: number;
-    in_progress: number;
     done: number;
   }
 >;
@@ -40,9 +39,8 @@ const areaLabels: Record<TaskArea, string> = {
   maintenance: 'Mantenimiento',
 };
 
-const statusLabels: Record<TaskStatus, string> = {
+const statusLabels: Record<UiStatus, string> = {
   open: 'Abierta',
-  in_progress: 'En curso',
   done: 'Hecha',
 };
 
@@ -52,9 +50,8 @@ const priorityLabels: Record<TaskPriority, string> = {
   high: 'Alta',
 };
 
-const statusBadges: Record<TaskStatus, string> = {
+const statusBadges: Record<UiStatus, string> = {
   open: 'bg-slate-800 text-slate-100 border-slate-700',
-  in_progress: 'bg-amber-900/50 text-amber-100 border-amber-800',
   done: 'bg-emerald-900/40 text-emerald-200 border-emerald-800',
 };
 
@@ -93,6 +90,10 @@ function formatShortDay(value: string | null | undefined) {
   } catch {
     return value;
   }
+}
+
+function toUiStatus(status: string): UiStatus {
+  return status === 'done' ? 'done' : 'open';
 }
 
 function sortTasks(tasks: Task[]) {
@@ -172,7 +173,8 @@ export function TaskControlCenter() {
     return sortTasks(
       tasks.filter((task) => {
         const matchesArea = filters.area === 'all' ? true : task.area === filters.area;
-        const matchesStatus = filters.status === 'all' ? true : task.status === filters.status;
+        const matchesStatus =
+          filters.status === 'all' ? true : toUiStatus(task.status) === filters.status;
 
         return matchesArea && matchesStatus && matchesDueDate(task);
       })
@@ -183,12 +185,12 @@ export function TaskControlCenter() {
     () =>
       tasks.reduce<Summary>(
         (acc, task) => {
-          acc[task.area][task.status] += 1;
+          acc[task.area][toUiStatus(task.status)] += 1;
           return acc;
         },
         {
-          kitchen: { open: 0, in_progress: 0, done: 0 },
-          maintenance: { open: 0, in_progress: 0, done: 0 },
+          kitchen: { open: 0, done: 0 },
+          maintenance: { open: 0, done: 0 },
         }
       ),
     [tasks]
@@ -235,7 +237,7 @@ export function TaskControlCenter() {
               <span>{tasks.filter((task) => task.area === area).length} tareas</span>
             </div>
             <div className="grid grid-cols-3 gap-2 text-sm">
-              {(Object.keys(statusLabels) as TaskStatus[]).map((status) => (
+              {(Object.keys(statusLabels) as UiStatus[]).map((status) => (
                 <div key={status} className="rounded-lg border border-slate-800 bg-slate-950/40 px-3 py-2 text-center">
                   <p className="text-[11px] uppercase tracking-wide text-slate-400">{statusLabels[status]}</p>
                   <p className="text-lg font-semibold text-white">{summary[area][status]}</p>
@@ -283,7 +285,6 @@ export function TaskControlCenter() {
               >
                 <option value="all">Todos</option>
                 <option value="open">Abiertas</option>
-                <option value="in_progress">En curso</option>
                 <option value="done">Hechas</option>
               </select>
             </label>
@@ -350,8 +351,8 @@ export function TaskControlCenter() {
                       </span>
                     </td>
                     <td className="px-3 py-3 align-top">
-                      <span className={`rounded-full border px-2 py-1 text-xs font-semibold ${statusBadges[task.status]}`}>
-                        {statusLabels[task.status]}
+                      <span className={`rounded-full border px-2 py-1 text-xs font-semibold ${statusBadges[toUiStatus(task.status)]}`}>
+                        {statusLabels[toUiStatus(task.status)]}
                       </span>
                     </td>
                     <td className="px-3 py-3 align-top">
@@ -379,13 +380,12 @@ export function TaskControlCenter() {
                         <label className="flex items-center gap-2">
                           <span className="text-[11px] uppercase tracking-wide text-slate-400">Estado</span>
                           <select
-                            value={task.status}
+                            value={toUiStatus(task.status)}
                             disabled={updatingId === task.id}
-                            onChange={(event) => handleUpdate(task.id, { status: event.target.value as TaskStatus })}
+                            onChange={(event) => handleUpdate(task.id, { status: event.target.value as UiStatus })}
                             className="rounded-lg border border-slate-700 bg-slate-950/60 px-2 py-1"
                           >
                             <option value="open">Abierta</option>
-                            <option value="in_progress">En curso</option>
                             <option value="done">Hecha</option>
                           </select>
                         </label>

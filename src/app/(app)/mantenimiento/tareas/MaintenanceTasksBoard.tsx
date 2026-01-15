@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from 'react';
 
-type TaskStatus = 'open' | 'in_progress' | 'done';
+type UiStatus = 'open' | 'done';
 type TaskPriority = 'low' | 'normal' | 'high';
 
 type Task = {
@@ -10,8 +10,9 @@ type Task = {
   area: string;
   title: string;
   description: string | null;
-  status: TaskStatus;
+  status: string;
   priority: TaskPriority;
+  routine_id?: string | null;
   window_start_date?: string | null;
   due_date?: string | null;
   created_by_email?: string | null;
@@ -19,16 +20,9 @@ type Task = {
   updated_at?: string;
 };
 
-const statusLabels: Record<TaskStatus, string> = {
+const statusLabels: Record<UiStatus, string> = {
   open: 'Abiertas',
-  in_progress: 'En curso',
   done: 'Hechas',
-};
-
-const statusCycle: Record<TaskStatus, TaskStatus | null> = {
-  open: 'in_progress',
-  in_progress: 'done',
-  done: null,
 };
 
 const priorityLabels: Record<TaskPriority, string> = {
@@ -54,13 +48,22 @@ function formatShortDay(value: string | null | undefined) {
   }
 }
 
+function toUiStatus(status: string): UiStatus {
+  return status === 'done' ? 'done' : 'open';
+}
+
+function getTaskType(task: Task) {
+  return task.routine_id ? 'routine' : 'incident';
+}
+
 type Props = {
   initialTasks: Task[];
 };
 
 export function MaintenanceTasksBoard({ initialTasks }: Props) {
   const [tasks, setTasks] = useState<Task[]>(initialTasks);
-  const [activeStatus, setActiveStatus] = useState<TaskStatus>('open');
+  const [activeStatus, setActiveStatus] = useState<UiStatus>('open');
+  const [typeFilter, setTypeFilter] = useState<'all' | 'routine' | 'incident'>('all');
   const [showForm, setShowForm] = useState(false);
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
@@ -72,8 +75,13 @@ export function MaintenanceTasksBoard({ initialTasks }: Props) {
   const [error, setError] = useState<string | null>(null);
 
   const filteredTasks = useMemo(
-    () => tasks.filter((task) => task.status === activeStatus),
-    [tasks, activeStatus]
+    () =>
+      tasks.filter((task) => {
+        const matchesStatus = toUiStatus(task.status) === activeStatus;
+        const matchesType = typeFilter === 'all' ? true : getTaskType(task) === typeFilter;
+        return matchesStatus && matchesType;
+      }),
+    [tasks, activeStatus, typeFilter]
   );
 
   const resetForm = () => {
@@ -120,8 +128,8 @@ export function MaintenanceTasksBoard({ initialTasks }: Props) {
   };
 
   const handleStatusChange = async (task: Task) => {
-    const nextStatus = statusCycle[task.status];
-    if (!nextStatus) return;
+    const currentStatus = toUiStatus(task.status);
+    const nextStatus: UiStatus = currentStatus === 'open' ? 'done' : 'open';
 
     setUpdatingId(task.id);
     setError(null);
@@ -153,7 +161,7 @@ export function MaintenanceTasksBoard({ initialTasks }: Props) {
     <div className="space-y-4">
       <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
         <div className="flex gap-2 rounded-lg border border-slate-800 bg-slate-900/80 p-1 text-sm">
-          {(Object.keys(statusLabels) as TaskStatus[]).map((status) => (
+          {(Object.keys(statusLabels) as UiStatus[]).map((status) => (
             <button
               key={status}
               type="button"
@@ -169,13 +177,31 @@ export function MaintenanceTasksBoard({ initialTasks }: Props) {
           ))}
         </div>
 
-        <button
-          type="button"
-          onClick={() => setShowForm((prev) => !prev)}
-          className="inline-flex items-center justify-center rounded-md border border-slate-700 bg-slate-100 px-4 py-2 text-sm font-semibold text-slate-900 transition hover:bg-white"
+        <div className="flex flex-wrap gap-2">
+          <button
+            type="button"
+            onClick={() => setShowForm((prev) => !prev)}
+            className="inline-flex items-center justify-center rounded-md border border-slate-700 bg-slate-100 px-4 py-2 text-sm font-semibold text-slate-900 transition hover:bg-white"
+          >
+            {showForm ? 'Cerrar' : 'Nueva tarea'}
+          </button>
+        </div>
+      </div>
+
+      <div className="flex flex-wrap items-center gap-3 rounded-lg border border-slate-800 bg-slate-900/70 p-3 text-sm text-slate-200">
+        <span className="text-xs uppercase tracking-wide text-slate-400">Tipo</span>
+        <select
+          value={typeFilter}
+          onChange={(event) => setTypeFilter(event.target.value as typeof typeFilter)}
+          className="rounded-lg border border-slate-700 bg-slate-950/60 px-3 py-1.5 text-sm text-slate-100"
         >
-          {showForm ? 'Cerrar' : 'Nueva tarea'}
-        </button>
+          <option value="all">Todas</option>
+          <option value="routine">Rutinas</option>
+          <option value="incident">Incidencias</option>
+        </select>
+        <span className="ml-auto text-xs text-slate-400">
+          {filteredTasks.length} tareas
+        </span>
       </div>
 
       {showForm && (
@@ -275,9 +301,10 @@ export function MaintenanceTasksBoard({ initialTasks }: Props) {
         )}
 
         {filteredTasks.map((task) => {
-          const nextStatus = statusCycle[task.status];
+          const currentStatus = toUiStatus(task.status);
           const windowStartLabel = formatShortDay(task.window_start_date);
           const windowEndLabel = formatShortDay(task.due_date ?? null);
+          const taskType = getTaskType(task);
           return (
             <div key={task.id} className="rounded-xl border border-slate-800 bg-slate-900/70 p-4">
               <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
@@ -292,6 +319,9 @@ export function MaintenanceTasksBoard({ initialTasks }: Props) {
                     >
                       Prioridad: {priorityLabels[task.priority]}
                     </span>
+                    <span className="rounded-full border border-slate-700 px-2 py-1 font-semibold text-slate-200">
+                      Tipo: {taskType === 'routine' ? 'Rutina' : 'Incidencia'}
+                    </span>
                     {windowStartLabel && task.due_date ? (
                       <span className="rounded-full bg-slate-800 px-2 py-1">
                         Ventana: {windowStartLabel} → {windowEndLabel ?? task.due_date}
@@ -304,16 +334,18 @@ export function MaintenanceTasksBoard({ initialTasks }: Props) {
                   </div>
                 </div>
 
-                {nextStatus && (
-                  <button
-                    type="button"
-                    disabled={updatingId === task.id}
-                    onClick={() => handleStatusChange(task)}
-                    className="rounded-md border border-slate-700 bg-slate-800 px-3 py-2 text-sm font-semibold text-slate-100 transition hover:border-slate-500 disabled:cursor-not-allowed disabled:opacity-60"
-                  >
-                    {updatingId === task.id ? 'Actualizando...' : `Mover a "${statusLabels[nextStatus]}"`}
-                  </button>
-                )}
+                <button
+                  type="button"
+                  disabled={updatingId === task.id}
+                  onClick={() => handleStatusChange(task)}
+                  className="rounded-md border border-slate-700 bg-slate-800 px-3 py-2 text-sm font-semibold text-slate-100 transition hover:border-slate-500 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {updatingId === task.id
+                    ? 'Actualizando...'
+                    : currentStatus === 'open'
+                      ? 'Marcar como hecha'
+                      : 'Reabrir'}
+                </button>
               </div>
             </div>
           );

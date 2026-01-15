@@ -23,13 +23,13 @@ export default async function DebugSupabasePage() {
     redirect('/login?error=not_allowed');
   }
 
-  const { allowlisted, role } = await getAllowlistRoleForUserEmail(email);
+  const allowlistInfo = await getAllowlistRoleForUserEmail(email);
 
-  if (!allowlisted) {
+  if (!allowlistInfo.allowlisted) {
     redirect('/login?error=not_allowed');
   }
 
-  if (!isAdmin(role)) {
+  if (!isAdmin(allowlistInfo.role)) {
     redirect('/?error=forbidden');
   }
 

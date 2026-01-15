@@ -8,7 +8,7 @@ type Task = {
   area: string;
   title: string;
   description: string | null;
-  status: 'open' | 'in_progress' | 'done';
+  status: string;
   priority: 'low' | 'normal' | 'high';
   window_start_date?: string | null;
   due_date?: string | null;

@@ -1,14 +1,6 @@
-import { ModuleSubnav } from '@/components/ModuleSubnav';
-import { getAllowlistRoleForUserEmail, isAdmin } from '@/lib/auth/requireRole';
+import { getAllowlistRoleForUserEmail, getDefaultModulePath, isAdmin } from '@/lib/auth/requireRole';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { redirect } from 'next/navigation';
-
-const links = [
-  { label: 'Usuarios y permisos', href: '/admin/usuarios', basePath: '/admin/usuarios' },
-  { label: 'Notas del día', href: '/admin/notas-del-dia', basePath: '/admin/notas-del-dia' },
-  { label: 'Centro de control', href: '/admin/tareas', basePath: '/admin/tareas' },
-  { label: 'Rutinas', href: '/admin/rutinas', basePath: '/admin/rutinas' },
-];
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
   const supabase = createSupabaseServerClient();
@@ -27,20 +19,17 @@ export default async function AdminLayout({ children }: { children: React.ReactN
     redirect('/login?error=not_allowed');
   }
 
-  const { allowlisted, role } = await getAllowlistRoleForUserEmail(email);
+  const allowlistInfo = await getAllowlistRoleForUserEmail(email);
 
-  if (!allowlisted) {
+  if (!allowlistInfo.allowlisted || !allowlistInfo.allowedUser?.is_active) {
     redirect('/login?error=not_allowed');
   }
 
-  if (!isAdmin(role)) {
-    redirect('/?error=forbidden');
+  if (!isAdmin(allowlistInfo.role)) {
+    redirect(getDefaultModulePath(allowlistInfo.allowedUser));
   }
 
   return (
-    <div className="flex flex-col gap-6">
-      <ModuleSubnav title="Admin" links={links} />
-      <div className="space-y-6">{children}</div>
-    </div>
+    <div className="space-y-6">{children}</div>
   );
 }

@@ -1,17 +1,32 @@
-import { ModuleSubnav } from '@/components/ModuleSubnav';
+import { getAllowlistRoleForUserEmail, getDefaultModulePath } from '@/lib/auth/requireRole';
+import { createSupabaseServerClient } from '@/lib/supabase/server';
+import { redirect } from 'next/navigation';
 
-const links = [
-  { label: 'Servicio de hoy', href: '/cocina', basePath: '/cocina' },
-  { label: 'Tareas', href: '/cocina/tareas', basePath: '/cocina/tareas' },
-  { label: 'Notas cocina', href: '/cocina/notas', basePath: '/cocina/notas' },
-  { label: 'Stock / mise en place', href: '/cocina/stock', basePath: '/cocina/stock' },
-];
+export default async function CocinaLayout({ children }: { children: React.ReactNode }) {
+  const supabase = createSupabaseServerClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
 
-export default function CocinaLayout({ children }: { children: React.ReactNode }) {
+  if (!user) {
+    redirect(`/login?error=unauthorized&next=${encodeURIComponent('/cocina')}`);
+  }
+
+  const email = user.email?.trim().toLowerCase();
+  if (!email) {
+    redirect('/login?error=not_allowed');
+  }
+
+  const allowlistInfo = await getAllowlistRoleForUserEmail(email);
+  if (!allowlistInfo.allowlisted || !allowlistInfo.allowedUser?.is_active) {
+    redirect('/login?error=not_allowed');
+  }
+
+  if (!allowlistInfo.allowedUser?.can_cocina) {
+    redirect(getDefaultModulePath(allowlistInfo.allowedUser));
+  }
+
   return (
-    <div className="flex flex-col gap-6">
-      <ModuleSubnav title="Cocina" links={links} />
-      <div className="space-y-6">{children}</div>
-    </div>
+    <div className="space-y-6">{children}</div>
   );
 }

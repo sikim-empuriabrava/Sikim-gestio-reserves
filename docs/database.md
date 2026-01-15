@@ -9,8 +9,12 @@ RLS: habilitado
 | Columna | Tipo | Nullable | Default |
 | --- | --- | --- | --- |
 | `email` | `text` | No |  |
+| `display_name` | `text` | Sí |  |
 | `role` | `text` | No | `'staff'::text` |
 | `is_active` | `boolean` | No | `true` |
+| `can_reservas` | `boolean` | No | `false` |
+| `can_mantenimiento` | `boolean` | No | `false` |
+| `can_cocina` | `boolean` | No | `false` |
 | `created_at` | `timestamp with time zone` | No | `now()` |
 | `id` | `uuid` | No | `gen_random_uuid()` |
 

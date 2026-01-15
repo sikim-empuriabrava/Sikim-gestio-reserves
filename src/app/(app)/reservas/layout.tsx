@@ -1,15 +1,32 @@
-import { ModuleSubnav } from '@/components/ModuleSubnav';
+import { getAllowlistRoleForUserEmail, getDefaultModulePath } from '@/lib/auth/requireRole';
+import { createSupabaseServerClient } from '@/lib/supabase/server';
+import { redirect } from 'next/navigation';
 
-const links = [
-  { label: 'Calendario', href: '/reservas?view=week', basePath: '/reservas', matchPaths: ['/reservas-dia', '/reservas-semana', '/reservas/grupo'] },
-  { label: 'Nueva reserva', href: '/reservas/nueva', basePath: '/reservas/nueva' },
-];
+export default async function ReservasLayout({ children }: { children: React.ReactNode }) {
+  const supabase = createSupabaseServerClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
 
-export default function ReservasLayout({ children }: { children: React.ReactNode }) {
+  if (!user) {
+    redirect(`/login?error=unauthorized&next=${encodeURIComponent('/reservas')}`);
+  }
+
+  const email = user.email?.trim().toLowerCase();
+  if (!email) {
+    redirect('/login?error=not_allowed');
+  }
+
+  const allowlistInfo = await getAllowlistRoleForUserEmail(email);
+  if (!allowlistInfo.allowlisted || !allowlistInfo.allowedUser?.is_active) {
+    redirect('/login?error=not_allowed');
+  }
+
+  if (!allowlistInfo.allowedUser?.can_reservas) {
+    redirect(getDefaultModulePath(allowlistInfo.allowedUser));
+  }
+
   return (
-    <div className="flex flex-col gap-6">
-      <ModuleSubnav title="Reservas" links={links} />
-      <div className="space-y-6">{children}</div>
-    </div>
+    <div className="space-y-6">{children}</div>
   );
 }

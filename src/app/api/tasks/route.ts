@@ -6,18 +6,12 @@ import { getAllowlistRoleForUserEmail, isAdmin } from '@/lib/auth/requireRole';
 export const runtime = 'nodejs';
 
 const VALID_AREAS = ['maintenance', 'kitchen'] as const;
-const VALID_STATUSES = ['open', 'in_progress', 'done'] as const;
+const VALID_STATUSES = ['open', 'done'] as const;
 const VALID_PRIORITIES = ['low', 'normal', 'high'] as const;
 
 type Area = (typeof VALID_AREAS)[number];
 type Status = (typeof VALID_STATUSES)[number];
 type Priority = (typeof VALID_PRIORITIES)[number];
-type TaskSource = {
-  type: string;
-  id: string;
-  event_date?: string;
-};
-
 function isValidArea(value: unknown): value is Area {
   return typeof value === 'string' && VALID_AREAS.includes(value as Area);
 }
@@ -39,26 +33,8 @@ function isValidPriority(value: unknown): value is Priority {
   return typeof value === 'string' && VALID_PRIORITIES.includes(value as Priority);
 }
 
-function isValidSource(value: unknown): value is TaskSource {
-  if (!value || typeof value !== 'object') return false;
-
-  const source = value as Record<string, unknown>;
-
-  return typeof source.type === 'string' && typeof source.id === 'string';
-}
-
-function formatDescription(description: unknown, source: TaskSource | null) {
-  const baseDescription =
-    typeof description === 'string' && description.trim().length > 0
-      ? description.trim()
-      : null;
-
-  if (!source) {
-    return baseDescription;
-  }
-
-  const sourceBlock = `Fuente: ${JSON.stringify(source)}`;
-  return baseDescription ? `${baseDescription}\n\n${sourceBlock}` : sourceBlock;
+function formatDescription(description: unknown) {
+  return typeof description === 'string' && description.trim().length > 0 ? description.trim() : null;
 }
 
 export async function GET(req: NextRequest) {
@@ -93,10 +69,28 @@ export async function GET(req: NextRequest) {
   const dueDateTo = req.nextUrl.searchParams.get('due_date_to');
   const includeNoDueDate = req.nextUrl.searchParams.get('include_no_due_date') === 'true';
 
+  if (!isAdmin(allowlistInfo.role) && area === 'maintenance' && !allowlistInfo.allowedUser?.can_mantenimiento) {
+    const forbidden = NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    mergeResponseCookies(supabaseResponse, forbidden);
+    return forbidden;
+  }
+
+  if (!isAdmin(allowlistInfo.role) && area === 'kitchen' && !allowlistInfo.allowedUser?.can_cocina) {
+    const forbidden = NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    mergeResponseCookies(supabaseResponse, forbidden);
+    return forbidden;
+  }
+
   if (area && !isValidArea(area)) {
     const invalidArea = NextResponse.json({ error: 'Invalid area' }, { status: 400 });
     mergeResponseCookies(supabaseResponse, invalidArea);
     return invalidArea;
+  }
+
+  if (!area && !isAdmin(allowlistInfo.role)) {
+    const forbidden = NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    mergeResponseCookies(supabaseResponse, forbidden);
+    return forbidden;
   }
 
   if (status && !isValidStatus(status)) {
@@ -219,8 +213,7 @@ export async function POST(req: NextRequest) {
   const body = await req.json().catch(() => null);
   const area = body?.area;
   const title = body?.title;
-  const source = (body?.source as TaskSource | undefined) ?? null;
-  const description = formatDescription(body?.description, source);
+  const description = formatDescription(body?.description);
   const priority = body?.priority ?? 'normal';
   const dueDate = body?.due_date ?? body?.dueDate ?? null;
   const status = body?.status ?? 'open';
@@ -247,12 +240,6 @@ export async function POST(req: NextRequest) {
     const invalidStatus = NextResponse.json({ error: 'Invalid status' }, { status: 400 });
     mergeResponseCookies(supabaseResponse, invalidStatus);
     return invalidStatus;
-  }
-
-  if (source && !isValidSource(source)) {
-    const invalidSource = NextResponse.json({ error: 'Invalid source' }, { status: 400 });
-    mergeResponseCookies(supabaseResponse, invalidSource);
-    return invalidSource;
   }
 
   const supabase = createSupabaseAdminClient();
