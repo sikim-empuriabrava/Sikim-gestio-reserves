@@ -5,7 +5,7 @@ import { getAllowlistRoleForUserEmail } from '@/lib/auth/requireRole';
 
 export const runtime = 'nodejs';
 
-const VALID_STATUSES = ['open', 'in_progress', 'done'] as const;
+const VALID_STATUSES = ['open', 'done'] as const;
 type Status = (typeof VALID_STATUSES)[number];
 
 function isValidStatus(value: unknown): value is Status {

@@ -1,18 +1,32 @@
-import { ModuleSubnav } from '@/components/ModuleSubnav';
+import { getAllowlistRoleForUserEmail, getDefaultModulePath } from '@/lib/auth/requireRole';
+import { createSupabaseServerClient } from '@/lib/supabase/server';
+import { redirect } from 'next/navigation';
 
-const links = [
-  { label: 'Dashboard', href: '/mantenimiento', basePath: '/mantenimiento' },
-  { label: 'Tareas / Incidencias', href: '/mantenimiento/tareas', basePath: '/mantenimiento/tareas' },
-  { label: 'Calendario', href: '/mantenimiento/calendario', basePath: '/mantenimiento/calendario' },
-  { label: 'Plan semanal', href: '/mantenimiento/rutinas', basePath: '/mantenimiento/rutinas' },
-  { label: 'Stock / reposición', href: '/mantenimiento/stock', basePath: '/mantenimiento/stock' },
-];
+export default async function MantenimientoLayout({ children }: { children: React.ReactNode }) {
+  const supabase = createSupabaseServerClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
 
-export default function MantenimientoLayout({ children }: { children: React.ReactNode }) {
+  if (!user) {
+    redirect(`/login?error=unauthorized&next=${encodeURIComponent('/mantenimiento')}`);
+  }
+
+  const email = user.email?.trim().toLowerCase();
+  if (!email) {
+    redirect('/login?error=not_allowed');
+  }
+
+  const allowlistInfo = await getAllowlistRoleForUserEmail(email);
+  if (!allowlistInfo.allowlisted) {
+    redirect('/login?error=not_allowed');
+  }
+
+  if (!allowlistInfo.can_mantenimiento) {
+    redirect(getDefaultModulePath(allowlistInfo) ?? '/sin-acceso');
+  }
+
   return (
-    <div className="flex flex-col gap-6">
-      <ModuleSubnav title="Mantenimiento" links={links} />
-      <div className="space-y-6">{children}</div>
-    </div>
+    <div className="space-y-6">{children}</div>
   );
 }

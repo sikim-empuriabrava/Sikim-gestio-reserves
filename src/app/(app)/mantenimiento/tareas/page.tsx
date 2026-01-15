@@ -10,6 +10,7 @@ type Task = {
   description: string | null;
   status: 'open' | 'in_progress' | 'done';
   priority: 'low' | 'normal' | 'high';
+  source?: 'routine' | 'manual' | 'incident' | null;
   window_start_date?: string | null;
   due_date?: string | null;
   created_by_email?: string | null;
@@ -41,12 +42,12 @@ export default async function MantenimientoTareasPage() {
   return (
     <div className="space-y-6">
       <div className="space-y-1">
-        <h1 className="text-2xl font-semibold">Tareas e incidencias</h1>
+        <h1 className="text-2xl font-semibold">Tareas</h1>
         <p className="text-slate-400">
           Organiza incidencias, tareas recurrentes y responsables para mantener el servicio en marcha.
         </p>
         <p className="text-sm text-slate-300">
-          Esta pantalla incluye incidencias y tareas manuales. Las rutinas semanales se ejecutan en Plan semanal.
+          Filtra por tipo para revisar tareas de rutina, manuales o incidencias en un solo flujo.
         </p>
       </div>
 

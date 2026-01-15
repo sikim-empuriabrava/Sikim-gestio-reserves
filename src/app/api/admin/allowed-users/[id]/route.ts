@@ -1,22 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createSupabaseRouteHandlerClient, mergeResponseCookies } from '@/lib/supabase/route';
 import { createSupabaseAdminClient } from '@/lib/supabaseAdmin';
-import { getAllowlistRoleForUserEmail } from '@/lib/auth/requireRole';
+import { getAllowlistRoleForUserEmail, isAdmin } from '@/lib/auth/requireRole';
 
 export const runtime = 'nodejs';
 
-const VALID_STATUSES = ['open', 'done'] as const;
-const VALID_PRIORITIES = ['low', 'normal', 'high'] as const;
+const VALID_ROLES = ['admin', 'staff', 'viewer'] as const;
+type Role = (typeof VALID_ROLES)[number];
 
-type Status = (typeof VALID_STATUSES)[number];
-type Priority = (typeof VALID_PRIORITIES)[number];
-
-function isValidStatus(value: unknown): value is Status {
-  return typeof value === 'string' && VALID_STATUSES.includes(value as Status);
-}
-
-function isValidPriority(value: unknown): value is Priority {
-  return typeof value === 'string' && VALID_PRIORITIES.includes(value as Priority);
+function isValidRole(value: unknown): value is Role {
+  return typeof value === 'string' && VALID_ROLES.includes(value as Role);
 }
 
 export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
@@ -39,47 +32,54 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     return allowlistError;
   }
 
-  if (!allowlistInfo.allowlisted) {
+  if (!allowlistInfo.allowlisted || !isAdmin(allowlistInfo.role)) {
     const forbidden = NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     mergeResponseCookies(supabaseResponse, forbidden);
     return forbidden;
   }
 
   const body = await req.json().catch(() => null);
-  const status = body?.status as Status | undefined;
-  const priority = body?.priority as Priority | undefined;
+  const updates: Record<string, unknown> = {};
 
-  if (!status && !priority) {
+  if (body?.display_name !== undefined) {
+    updates.display_name =
+      typeof body.display_name === 'string' ? body.display_name.trim() || null : null;
+  }
+
+  if (body?.role !== undefined) {
+    if (!isValidRole(body.role)) {
+      const invalidRole = NextResponse.json({ error: 'Invalid role' }, { status: 400 });
+      mergeResponseCookies(supabaseResponse, invalidRole);
+      return invalidRole;
+    }
+    updates.role = body.role;
+  }
+
+  if (body?.is_active !== undefined) {
+    updates.is_active = Boolean(body.is_active);
+  }
+
+  if (body?.can_reservas !== undefined) {
+    updates.can_reservas = Boolean(body.can_reservas);
+  }
+
+  if (body?.can_mantenimiento !== undefined) {
+    updates.can_mantenimiento = Boolean(body.can_mantenimiento);
+  }
+
+  if (body?.can_cocina !== undefined) {
+    updates.can_cocina = Boolean(body.can_cocina);
+  }
+
+  if (Object.keys(updates).length === 0) {
     const missing = NextResponse.json({ error: 'No fields to update' }, { status: 400 });
     mergeResponseCookies(supabaseResponse, missing);
     return missing;
   }
 
-  if (status && !isValidStatus(status)) {
-    const invalidStatus = NextResponse.json({ error: 'Invalid status' }, { status: 400 });
-    mergeResponseCookies(supabaseResponse, invalidStatus);
-    return invalidStatus;
-  }
-
-  if (priority && !isValidPriority(priority)) {
-    const invalidPriority = NextResponse.json({ error: 'Invalid priority' }, { status: 400 });
-    mergeResponseCookies(supabaseResponse, invalidPriority);
-    return invalidPriority;
-  }
-
-  const updates: Record<string, string> = {};
-
-  if (status) {
-    updates.status = status;
-  }
-
-  if (priority) {
-    updates.priority = priority;
-  }
-
   const supabase = createSupabaseAdminClient();
   const { data, error } = await supabase
-    .from('tasks')
+    .from('app_allowed_users')
     .update(updates)
     .eq('id', params.id)
     .select()
@@ -92,7 +92,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   }
 
   if (!data) {
-    const notFound = NextResponse.json({ error: 'Task not found' }, { status: 404 });
+    const notFound = NextResponse.json({ error: 'User not found' }, { status: 404 });
     mergeResponseCookies(supabaseResponse, notFound);
     return notFound;
   }

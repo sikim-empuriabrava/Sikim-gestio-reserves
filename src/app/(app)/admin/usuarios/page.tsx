@@ -1,22 +1,8 @@
 import { redirect } from 'next/navigation';
-import { ModulePlaceholder } from '@/components/ModulePlaceholder';
+import { createSupabaseAdminClient } from '@/lib/supabaseAdmin';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
-
-const cards = [
-  {
-    title: 'Usuarios y permisos',
-    description: 'Gestiona quién puede acceder a cada módulo y controla niveles de permisos.',
-    badge: 'Admin',
-  },
-  {
-    title: 'Controles de acceso',
-    description: 'Pronto podrás gestionar roles y permisos para cada área de la operación.',
-  },
-  {
-    title: 'Integraciones',
-    description: 'Conexión futura con proveedores, notificaciones y sistemas externos desde un único panel.',
-  },
-];
+import { getAllowlistRoleForUserEmail, getDefaultModulePath, isAdmin } from '@/lib/auth/requireRole';
+import { AllowedUsersManager } from './AllowedUsersManager';
 
 export default async function AdminUsuariosPage() {
   const supabase = createSupabaseServerClient();
@@ -28,11 +14,21 @@ export default async function AdminUsuariosPage() {
     redirect(`/login?next=${encodeURIComponent('/admin/usuarios')}`);
   }
 
-  return (
-    <ModulePlaceholder
-      title="Usuarios y permisos"
-      subtitle="Configura roles, permisos y acceso a cada módulo desde un único panel."
-      cards={cards}
-    />
-  );
+  const allowlistInfo = await getAllowlistRoleForUserEmail(user.email);
+
+  if (!allowlistInfo.allowlisted) {
+    redirect('/login?error=not_allowed');
+  }
+
+  if (!isAdmin(allowlistInfo.role)) {
+    redirect(getDefaultModulePath(allowlistInfo) ?? '/sin-acceso');
+  }
+
+  const supabaseAdmin = createSupabaseAdminClient();
+  const { data } = await supabaseAdmin
+    .from('app_allowed_users')
+    .select('id,email,display_name,role,is_active,can_reservas,can_mantenimiento,can_cocina')
+    .order('email', { ascending: true });
+
+  return <AllowedUsersManager initialUsers={data ?? []} />;
 }

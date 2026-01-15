@@ -6,13 +6,15 @@ import { getAllowlistRoleForUserEmail, isAdmin } from '@/lib/auth/requireRole';
 export const runtime = 'nodejs';
 
 const VALID_AREAS = ['maintenance', 'kitchen'] as const;
-const VALID_STATUSES = ['open', 'in_progress', 'done'] as const;
+const VALID_STATUSES = ['open', 'done'] as const;
 const VALID_PRIORITIES = ['low', 'normal', 'high'] as const;
+const VALID_SOURCES = ['routine', 'manual', 'incident'] as const;
 
 type Area = (typeof VALID_AREAS)[number];
 type Status = (typeof VALID_STATUSES)[number];
 type Priority = (typeof VALID_PRIORITIES)[number];
-type TaskSource = {
+type TaskSource = (typeof VALID_SOURCES)[number];
+type TaskSourceDetails = {
   type: string;
   id: string;
   event_date?: string;
@@ -40,6 +42,10 @@ function isValidPriority(value: unknown): value is Priority {
 }
 
 function isValidSource(value: unknown): value is TaskSource {
+  return typeof value === 'string' && VALID_SOURCES.includes(value as TaskSource);
+}
+
+function isValidSourceDetails(value: unknown): value is TaskSourceDetails {
   if (!value || typeof value !== 'object') return false;
 
   const source = value as Record<string, unknown>;
@@ -47,7 +53,7 @@ function isValidSource(value: unknown): value is TaskSource {
   return typeof source.type === 'string' && typeof source.id === 'string';
 }
 
-function formatDescription(description: unknown, source: TaskSource | null) {
+function formatDescription(description: unknown, source: TaskSourceDetails | null) {
   const baseDescription =
     typeof description === 'string' && description.trim().length > 0
       ? description.trim()
@@ -219,8 +225,10 @@ export async function POST(req: NextRequest) {
   const body = await req.json().catch(() => null);
   const area = body?.area;
   const title = body?.title;
-  const source = (body?.source as TaskSource | undefined) ?? null;
-  const description = formatDescription(body?.description, source);
+  const sourceValue = body?.source;
+  const sourceDetails = typeof sourceValue === 'object' ? sourceValue : null;
+  const source = typeof sourceValue === 'string' ? (sourceValue as TaskSource) : sourceDetails ? 'manual' : null;
+  const description = formatDescription(body?.description, sourceDetails as TaskSourceDetails | null);
   const priority = body?.priority ?? 'normal';
   const dueDate = body?.due_date ?? body?.dueDate ?? null;
   const status = body?.status ?? 'open';
@@ -255,6 +263,12 @@ export async function POST(req: NextRequest) {
     return invalidSource;
   }
 
+  if (sourceDetails && !isValidSourceDetails(sourceDetails)) {
+    const invalidSource = NextResponse.json({ error: 'Invalid source details' }, { status: 400 });
+    mergeResponseCookies(supabaseResponse, invalidSource);
+    return invalidSource;
+  }
+
   const supabase = createSupabaseAdminClient();
   const { data, error } = await supabase
     .from('tasks')
@@ -265,6 +279,7 @@ export async function POST(req: NextRequest) {
       priority,
       status,
       due_date: dueDate,
+      source,
       created_by_email: user.email ?? 'unknown',
     })
     .select()

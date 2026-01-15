@@ -17,52 +17,79 @@ type NavigationGroup = {
   links: NavigationLink[];
 };
 
-const groups: NavigationGroup[] = [
-  {
-    label: 'Reservas',
-    links: [
-      {
-        label: 'Calendario',
-        href: '/reservas?view=week',
-        basePath: '/reservas',
-        matchPaths: ['/reservas-dia', '/reservas-semana', '/reservas/grupo'],
-      },
-      {
-        label: 'Nueva reserva',
-        href: '/reservas/nueva',
-        basePath: '/reservas/nueva',
-      },
-    ],
-  },
-  {
-    label: 'Mantenimiento',
-    links: [
-      { label: 'Dashboard', href: '/mantenimiento', basePath: '/mantenimiento' },
-      { label: 'Tareas / Incidencias', href: '/mantenimiento/tareas', basePath: '/mantenimiento/tareas' },
-      { label: 'Plan semanal', href: '/mantenimiento/rutinas', basePath: '/mantenimiento/rutinas' },
-      { label: 'Stock / reposición', href: '/mantenimiento/stock', basePath: '/mantenimiento/stock' },
-    ],
-  },
-  {
-    label: 'Cocina',
-    links: [
-      { label: 'Servicio de hoy', href: '/cocina', basePath: '/cocina' },
-      { label: 'Tareas', href: '/cocina/tareas', basePath: '/cocina/tareas' },
-      { label: 'Notas cocina', href: '/cocina/notas', basePath: '/cocina/notas' },
-      { label: 'Stock / mise en place', href: '/cocina/stock', basePath: '/cocina/stock' },
-    ],
-  },
-  {
-    label: 'Admin',
-    links: [
-      { label: 'Panel', href: '/admin', basePath: '/admin' },
-      { label: 'Notas del día', href: '/admin/notas-del-dia', basePath: '/admin/notas-del-dia' },
-      { label: 'Tareas', href: '/admin/tareas', basePath: '/admin/tareas' },
-      { label: 'Rutinas', href: '/admin/rutinas', basePath: '/admin/rutinas' },
-      { label: 'Usuarios y permisos', href: '/admin/usuarios', basePath: '/admin/usuarios' },
-    ],
-  },
-];
+type AccessFlags = {
+  canReservas: boolean;
+  canMantenimiento: boolean;
+  canCocina: boolean;
+  role: string | null;
+};
+
+type Props = {
+  className?: string;
+  access: AccessFlags;
+};
+
+function buildGroups(access: AccessFlags): NavigationGroup[] {
+  const groups: NavigationGroup[] = [];
+
+  if (access.canReservas) {
+    groups.push({
+      label: 'Reservas',
+      links: [
+        {
+          label: 'Calendario',
+          href: '/reservas?view=week',
+          basePath: '/reservas',
+          matchPaths: ['/reservas-dia', '/reservas-semana', '/reservas/grupo'],
+        },
+        {
+          label: 'Nueva reserva',
+          href: '/reservas/nueva',
+          basePath: '/reservas/nueva',
+        },
+      ],
+    });
+  }
+
+  if (access.canMantenimiento) {
+    groups.push({
+      label: 'Mantenimiento',
+      links: [
+        { label: 'Dashboard', href: '/mantenimiento', basePath: '/mantenimiento' },
+        { label: 'Tareas', href: '/mantenimiento/tareas', basePath: '/mantenimiento/tareas' },
+        { label: 'Calendario', href: '/mantenimiento/calendario', basePath: '/mantenimiento/calendario' },
+        { label: 'Stock / reposición', href: '/mantenimiento/stock', basePath: '/mantenimiento/stock' },
+      ],
+    });
+  }
+
+  if (access.canCocina) {
+    groups.push({
+      label: 'Cocina',
+      links: [
+        { label: 'Servicio de hoy', href: '/cocina', basePath: '/cocina' },
+        { label: 'Tareas', href: '/cocina/tareas', basePath: '/cocina/tareas' },
+        { label: 'Notas cocina', href: '/cocina/notas', basePath: '/cocina/notas' },
+        { label: 'Stock / mise en place', href: '/cocina/stock', basePath: '/cocina/stock' },
+      ],
+    });
+  }
+
+  if (access.role === 'admin') {
+    groups.push({
+      label: 'Admin',
+      links: [
+        { label: 'Panel', href: '/admin', basePath: '/admin' },
+        { label: 'Notas del día', href: '/admin/notas-del-dia', basePath: '/admin/notas-del-dia' },
+        { label: 'Tareas', href: '/admin/tareas', basePath: '/admin/tareas' },
+        { label: 'Rutinas', href: '/admin/rutinas', basePath: '/admin/rutinas' },
+        { label: 'Usuarios y permisos', href: '/admin/usuarios', basePath: '/admin/usuarios' },
+      ],
+    });
+  }
+
+  return groups;
+}
 
 function isLinkActive(pathname: string, link: NavigationLink) {
   const matchChildren = pathname === link.basePath || pathname.startsWith(`${link.basePath}/`);
@@ -70,9 +97,23 @@ function isLinkActive(pathname: string, link: NavigationLink) {
   return matchChildren || Boolean(matchesExtra);
 }
 
-export function AppSidebar({ className }: { className?: string }) {
+export function AppSidebar({ className, access }: Props) {
   const pathname = usePathname();
-  const [openSection, setOpenSection] = useState<string | null>('reservas');
+  const groups = buildGroups(access);
+  const defaultSection = groups[0]?.label.toLowerCase() ?? null;
+  const [openSection, setOpenSection] = useState<string | null>(defaultSection);
+
+  useEffect(() => {
+    if (!defaultSection) {
+      setOpenSection(null);
+      return;
+    }
+
+    const exists = groups.some((group) => group.label.toLowerCase() === openSection);
+    if (!exists) {
+      setOpenSection(defaultSection);
+    }
+  }, [defaultSection, groups, openSection]);
 
   useEffect(() => {
     const activeGroup = groups.find((group) => group.links.some((link) => isLinkActive(pathname, link)));
@@ -83,7 +124,7 @@ export function AppSidebar({ className }: { className?: string }) {
         return prev === normalizedLabel ? prev : normalizedLabel;
       });
     }
-  }, [pathname]);
+  }, [groups, pathname]);
 
   return (
     <nav className={`space-y-3 ${className ?? ''}`} aria-label="Navegación principal">

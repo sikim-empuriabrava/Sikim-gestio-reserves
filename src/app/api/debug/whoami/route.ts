@@ -38,7 +38,7 @@ export async function GET() {
   const supabaseAdmin = createSupabaseAdminClient();
   const { data: allowedUser } = await supabaseAdmin
     .from('app_allowed_users')
-    .select('id,email,is_active,role')
+    .select('id,email,is_active,role,can_reservas,can_mantenimiento,can_cocina')
     .eq('email', email)
     .eq('is_active', true)
     .maybeSingle();
@@ -49,6 +49,11 @@ export async function GET() {
     normalizedEmail: email,
     allowlisted: !!allowedUser,
     allowlistRow: allowedUser ?? null,
+    permissions: {
+      can_reservas: allowlistInfo.can_reservas,
+      can_mantenimiento: allowlistInfo.can_mantenimiento,
+      can_cocina: allowlistInfo.can_cocina,
+    },
   });
 
   mergeResponseCookies(supabaseResponse, response);

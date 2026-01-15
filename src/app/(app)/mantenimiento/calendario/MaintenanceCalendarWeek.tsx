@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
 type TaskStatus = 'open' | 'in_progress' | 'done';
+type UiStatus = 'open' | 'done';
 type TaskPriority = 'low' | 'normal' | 'high';
 
 type Task = {
@@ -22,16 +23,9 @@ type DayColumn = {
   label: string;
 };
 
-const statusLabels: Record<TaskStatus, string> = {
+const statusLabels: Record<UiStatus, string> = {
   open: 'Abierta',
-  in_progress: 'En curso',
   done: 'Hecha',
-};
-
-const statusCycle: Record<TaskStatus, TaskStatus | null> = {
-  open: 'in_progress',
-  in_progress: 'done',
-  done: null,
 };
 
 const priorityLabels: Record<TaskPriority, string> = {
@@ -40,9 +34,8 @@ const priorityLabels: Record<TaskPriority, string> = {
   high: 'Alta',
 };
 
-const statusStyles: Record<TaskStatus, string> = {
+const statusStyles: Record<UiStatus, string> = {
   open: 'bg-amber-900/40 text-amber-200 border-amber-700/70',
-  in_progress: 'bg-blue-900/40 text-blue-100 border-blue-700/60',
   done: 'bg-emerald-900/40 text-emerald-100 border-emerald-700/60',
 };
 
@@ -51,6 +44,10 @@ const priorityStyles: Record<TaskPriority, string> = {
   normal: 'text-slate-200',
   high: 'text-amber-200',
 };
+
+function toUiStatus(status: TaskStatus): UiStatus {
+  return status === 'done' ? 'done' : 'open';
+}
 
 function getStartOfWeek(date: Date) {
   const day = date.getDay();
@@ -102,7 +99,7 @@ function buildWeek() {
 export function MaintenanceCalendarWeek() {
   const { days, start, end, rangeLabel } = useMemo(buildWeek, []);
   const [tasks, setTasks] = useState<Task[]>([]);
-  const [statusFilter, setStatusFilter] = useState<'all' | TaskStatus>('all');
+  const [statusFilter, setStatusFilter] = useState<'all' | UiStatus>('all');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [statusUpdatingId, setStatusUpdatingId] = useState<string | null>(null);
@@ -119,7 +116,7 @@ export function MaintenanceCalendarWeek() {
       include_no_due_date: 'true',
     });
 
-    if (statusFilter !== 'all') {
+    if (statusFilter === 'done') {
       params.set('status', statusFilter);
     }
 
@@ -145,8 +142,8 @@ export function MaintenanceCalendarWeek() {
   }, [fetchTasks]);
 
   const handleStatusAdvance = async (task: Task) => {
-    const nextStatus = statusCycle[task.status];
-    if (!nextStatus) return;
+    const currentStatus = toUiStatus(task.status);
+    const nextStatus: UiStatus = currentStatus === 'open' ? 'done' : 'open';
 
     setStatusUpdatingId(task.id);
     setError(null);
@@ -199,16 +196,21 @@ export function MaintenanceCalendarWeek() {
     }
   };
 
+  const visibleTasks = useMemo(() => {
+    if (statusFilter === 'all') return tasks;
+    return tasks.filter((task) => toUiStatus(task.status) === statusFilter);
+  }, [statusFilter, tasks]);
+
   const tasksByDate = useMemo(
     () =>
       days.reduce<Record<string, Task[]>>((acc, day) => {
-        acc[day.iso] = tasks.filter((task) => task.due_date === day.iso);
+        acc[day.iso] = visibleTasks.filter((task) => task.due_date === day.iso);
         return acc;
       }, {}),
-    [days, tasks]
+    [days, visibleTasks]
   );
 
-  const undatedTasks = useMemo(() => tasks.filter((task) => !task.due_date), [tasks]);
+  const undatedTasks = useMemo(() => visibleTasks.filter((task) => !task.due_date), [visibleTasks]);
 
   const isUpdating = (taskId: string) => statusUpdatingId === taskId || priorityUpdatingId === taskId;
 
@@ -221,7 +223,7 @@ export function MaintenanceCalendarWeek() {
 
       <div className="flex flex-wrap items-center gap-3 rounded-xl border border-slate-800 bg-slate-900/70 p-3">
         <span className="text-sm font-medium text-slate-300">Estado:</span>
-        {(['all', 'open', 'in_progress', 'done'] as const).map((status) => (
+        {(['all', 'open', 'done'] as const).map((status) => (
           <button
             key={status}
             type="button"
@@ -256,7 +258,9 @@ export function MaintenanceCalendarWeek() {
 
               <div className="space-y-3">
                 {tasksByDate[day.iso]?.length ? (
-                  tasksByDate[day.iso].map((task) => (
+                  tasksByDate[day.iso].map((task) => {
+                    const currentStatus = toUiStatus(task.status);
+                    return (
                     <div
                       key={task.id}
                       className="space-y-2 rounded-lg border border-slate-800 bg-slate-950/50 p-3"
@@ -265,8 +269,8 @@ export function MaintenanceCalendarWeek() {
                         <div className="space-y-1">
                           <p className="font-semibold text-white">{task.title}</p>
                           <div className="flex flex-wrap items-center gap-2 text-xs text-slate-300">
-                            <span className={`rounded-md border px-2 py-0.5 ${statusStyles[task.status]}`}>
-                              {statusLabels[task.status]}
+                            <span className={`rounded-md border px-2 py-0.5 ${statusStyles[currentStatus]}`}>
+                              {statusLabels[currentStatus]}
                             </span>
                             <span className={`${priorityStyles[task.priority]} rounded-md border border-slate-800 px-2 py-0.5`}>
                               Prioridad: {priorityLabels[task.priority]}
@@ -282,20 +286,18 @@ export function MaintenanceCalendarWeek() {
                       </div>
 
                       <div className="flex flex-wrap gap-2 text-sm">
-                        {statusCycle[task.status] && (
-                          <button
-                            type="button"
-                            disabled={isUpdating(task.id)}
-                            onClick={() => handleStatusAdvance(task)}
-                            className={`rounded-lg px-3 py-1.5 font-semibold transition ${
-                              isUpdating(task.id)
-                                ? 'cursor-not-allowed bg-slate-800 text-slate-500'
-                                : 'bg-slate-100 text-slate-900 hover:bg-white'
-                            }`}
-                          >
-                            Mover a {statusLabels[statusCycle[task.status] as TaskStatus]}
-                          </button>
-                        )}
+                        <button
+                          type="button"
+                          disabled={isUpdating(task.id)}
+                          onClick={() => handleStatusAdvance(task)}
+                          className={`rounded-lg px-3 py-1.5 font-semibold transition ${
+                            isUpdating(task.id)
+                              ? 'cursor-not-allowed bg-slate-800 text-slate-500'
+                              : 'bg-slate-100 text-slate-900 hover:bg-white'
+                          }`}
+                        >
+                          {currentStatus === 'open' ? 'Marcar como hecha' : 'Reabrir'}
+                        </button>
 
                         <label className="flex items-center gap-2 rounded-lg border border-slate-800 bg-slate-950/60 px-2 py-1 text-xs font-medium text-slate-200">
                           Prioridad
@@ -314,7 +316,8 @@ export function MaintenanceCalendarWeek() {
                         </label>
                       </div>
                     </div>
-                  ))
+                  );
+                })
                 ) : (
                   <p className="text-sm text-slate-500">Sin tareas programadas</p>
                 )}
@@ -333,7 +336,9 @@ export function MaintenanceCalendarWeek() {
 
           {undatedTasks.length ? (
             <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
-              {undatedTasks.map((task) => (
+              {undatedTasks.map((task) => {
+                const currentStatus = toUiStatus(task.status);
+                return (
                 <div
                   key={task.id}
                   className="space-y-2 rounded-lg border border-slate-800 bg-slate-950/60 p-3"
@@ -342,8 +347,8 @@ export function MaintenanceCalendarWeek() {
                     <div className="space-y-1">
                       <p className="font-semibold text-white">{task.title}</p>
                       <div className="flex flex-wrap items-center gap-2 text-xs text-slate-300">
-                        <span className={`rounded-md border px-2 py-0.5 ${statusStyles[task.status]}`}>
-                          {statusLabels[task.status]}
+                        <span className={`rounded-md border px-2 py-0.5 ${statusStyles[currentStatus]}`}>
+                          {statusLabels[currentStatus]}
                         </span>
                         <span className={`${priorityStyles[task.priority]} rounded-md border border-slate-800 px-2 py-0.5`}>
                           Prioridad: {priorityLabels[task.priority]}
@@ -359,20 +364,18 @@ export function MaintenanceCalendarWeek() {
                   </div>
 
                   <div className="flex flex-wrap gap-2 text-sm">
-                    {statusCycle[task.status] && (
-                      <button
-                        type="button"
-                        disabled={isUpdating(task.id)}
-                        onClick={() => handleStatusAdvance(task)}
-                        className={`rounded-lg px-3 py-1.5 font-semibold transition ${
-                          isUpdating(task.id)
-                            ? 'cursor-not-allowed bg-slate-800 text-slate-500'
-                            : 'bg-slate-100 text-slate-900 hover:bg-white'
-                        }`}
-                      >
-                        Mover a {statusLabels[statusCycle[task.status] as TaskStatus]}
-                      </button>
-                    )}
+                    <button
+                      type="button"
+                      disabled={isUpdating(task.id)}
+                      onClick={() => handleStatusAdvance(task)}
+                      className={`rounded-lg px-3 py-1.5 font-semibold transition ${
+                        isUpdating(task.id)
+                          ? 'cursor-not-allowed bg-slate-800 text-slate-500'
+                          : 'bg-slate-100 text-slate-900 hover:bg-white'
+                      }`}
+                    >
+                      {currentStatus === 'open' ? 'Marcar como hecha' : 'Reabrir'}
+                    </button>
 
                     <label className="flex items-center gap-2 rounded-lg border border-slate-800 bg-slate-950/60 px-2 py-1 text-xs font-medium text-slate-200">
                       Prioridad
@@ -391,7 +394,8 @@ export function MaintenanceCalendarWeek() {
                     </label>
                   </div>
                 </div>
-              ))}
+              );
+            })}
             </div>
           ) : (
             <p className="text-sm text-slate-400">Sin tareas sin fecha.</p>
