@@ -2,7 +2,6 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
-type TaskStatus = 'open' | 'in_progress' | 'done';
 type UiStatus = 'open' | 'done';
 type TaskPriority = 'low' | 'normal' | 'high';
 type TaskArea = 'kitchen' | 'maintenance';
@@ -12,7 +11,7 @@ type Task = {
   area: TaskArea;
   title: string;
   description: string | null;
-  status: TaskStatus;
+  status: string;
   priority: TaskPriority;
   window_start_date?: string | null;
   due_date?: string | null;
@@ -93,7 +92,7 @@ function formatShortDay(value: string | null | undefined) {
   }
 }
 
-function toUiStatus(status: TaskStatus): UiStatus {
+function toUiStatus(status: string): UiStatus {
   return status === 'done' ? 'done' : 'open';
 }
 

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createSupabaseRouteHandlerClient, mergeResponseCookies } from '@/lib/supabase/route';
 import { createSupabaseAdminClient } from '@/lib/supabaseAdmin';
-import { getAllowlistRoleForUserEmail } from '@/lib/auth/requireRole';
+import { getAllowlistRoleForUserEmail, isAdmin } from '@/lib/auth/requireRole';
 
 export const runtime = 'nodejs';
 
@@ -39,7 +39,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     return allowlistError;
   }
 
-  if (!allowlistInfo.allowlisted) {
+  if (!allowlistInfo.allowlisted || !allowlistInfo.allowedUser) {
     const forbidden = NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     mergeResponseCookies(supabaseResponse, forbidden);
     return forbidden;
@@ -78,6 +78,36 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   }
 
   const supabase = createSupabaseAdminClient();
+  const { data: existingTask, error: existingError } = await supabase
+    .from('tasks')
+    .select('id, area')
+    .eq('id', params.id)
+    .maybeSingle();
+
+  if (existingError) {
+    const serverError = NextResponse.json({ error: existingError.message }, { status: 500 });
+    mergeResponseCookies(supabaseResponse, serverError);
+    return serverError;
+  }
+
+  if (!existingTask) {
+    const notFound = NextResponse.json({ error: 'Task not found' }, { status: 404 });
+    mergeResponseCookies(supabaseResponse, notFound);
+    return notFound;
+  }
+
+  if (!isAdmin(allowlistInfo.role) && existingTask.area === 'maintenance' && !allowlistInfo.allowedUser.can_mantenimiento) {
+    const forbidden = NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    mergeResponseCookies(supabaseResponse, forbidden);
+    return forbidden;
+  }
+
+  if (!isAdmin(allowlistInfo.role) && existingTask.area === 'kitchen' && !allowlistInfo.allowedUser.can_cocina) {
+    const forbidden = NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    mergeResponseCookies(supabaseResponse, forbidden);
+    return forbidden;
+  }
+
   const { data, error } = await supabase
     .from('tasks')
     .update(updates)

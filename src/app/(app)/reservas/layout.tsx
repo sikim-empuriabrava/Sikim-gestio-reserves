@@ -18,12 +18,12 @@ export default async function ReservasLayout({ children }: { children: React.Rea
   }
 
   const allowlistInfo = await getAllowlistRoleForUserEmail(email);
-  if (!allowlistInfo.allowlisted) {
+  if (!allowlistInfo.allowlisted || !allowlistInfo.allowedUser?.is_active) {
     redirect('/login?error=not_allowed');
   }
 
-  if (!allowlistInfo.can_reservas) {
-    redirect(getDefaultModulePath(allowlistInfo) ?? '/sin-acceso');
+  if (!allowlistInfo.allowedUser?.can_reservas) {
+    redirect(getDefaultModulePath(allowlistInfo.allowedUser));
   }
 
   return (

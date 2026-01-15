@@ -62,7 +62,10 @@ export async function middleware(req: NextRequest) {
   const handleConfigError = () =>
     handleConfigErrorResponse(isApiRoute, supabaseResponse, redirectUrl, req);
 
-  const isAdminPath = pathname.startsWith('/admin');
+  const isAdminPath = pathname.startsWith('/admin') || pathname.startsWith('/api/admin');
+  const isReservasPath = pathname.startsWith('/reservas') || pathname.startsWith('/api/rooms') || pathname.startsWith('/api/group-events') || pathname.startsWith('/api/day-status') || pathname.startsWith('/api/menus');
+  const isMantenimientoPath = pathname.startsWith('/mantenimiento');
+  const isCocinaPath = pathname.startsWith('/cocina');
 
   if (!user) {
     return handleUnauthorized();
@@ -79,7 +82,7 @@ export async function middleware(req: NextRequest) {
   // Filter by email and active status to avoid mismatches or multi-row errors.
   const { data: allowedUser, error: allowlistError } = await supabase
     .from('app_allowed_users')
-    .select('email, role, is_active')
+    .select('email, role, is_active, can_reservas, can_mantenimiento, can_cocina')
     .eq('email', email)
     .eq('is_active', true)
     .maybeSingle();
@@ -93,12 +96,33 @@ export async function middleware(req: NextRequest) {
     return handleNotAllowed();
   }
 
-  if (isAdminPath && allowedUser.role !== 'admin') {
-    const url = new URL('/', req.url);
-    url.searchParams.set('error', 'forbidden');
-    const response = NextResponse.redirect(url);
+  const handleForbidden = () => {
+    if (isApiRoute) {
+      const forbidden = NextResponse.json({ error: 'forbidden' }, { status: 403 });
+      mergeCookies(supabaseResponse, forbidden);
+      return setDebugHeader(forbidden);
+    }
+
+    const redirectTarget = getDefaultModulePath(allowedUser);
+    const response = NextResponse.redirect(new URL(redirectTarget, req.url));
     mergeCookies(supabaseResponse, response);
     return setDebugHeader(response);
+  };
+
+  if (isAdminPath && allowedUser.role !== 'admin') {
+    return handleForbidden();
+  }
+
+  if (isReservasPath && !allowedUser.can_reservas) {
+    return handleForbidden();
+  }
+
+  if (isMantenimientoPath && !allowedUser.can_mantenimiento) {
+    return handleForbidden();
+  }
+
+  if (isCocinaPath && !allowedUser.can_cocina) {
+    return handleForbidden();
   }
 
   return supabaseResponse;
@@ -156,6 +180,17 @@ function mergeCookies(from: NextResponse, to: NextResponse) {
   from.cookies.getAll().forEach((cookie) => {
     to.cookies.set(cookie);
   });
+}
+
+function getDefaultModulePath(allowedUser: {
+  can_reservas?: boolean | null;
+  can_mantenimiento?: boolean | null;
+  can_cocina?: boolean | null;
+}) {
+  if (allowedUser?.can_reservas) return '/reservas';
+  if (allowedUser?.can_mantenimiento) return '/mantenimiento';
+  if (allowedUser?.can_cocina) return '/cocina';
+  return '/';
 }
 
 function setDebugHeader(response: NextResponse) {

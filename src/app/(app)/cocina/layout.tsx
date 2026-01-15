@@ -18,12 +18,12 @@ export default async function CocinaLayout({ children }: { children: React.React
   }
 
   const allowlistInfo = await getAllowlistRoleForUserEmail(email);
-  if (!allowlistInfo.allowlisted) {
+  if (!allowlistInfo.allowlisted || !allowlistInfo.allowedUser?.is_active) {
     redirect('/login?error=not_allowed');
   }
 
-  if (!allowlistInfo.can_cocina) {
-    redirect(getDefaultModulePath(allowlistInfo) ?? '/sin-acceso');
+  if (!allowlistInfo.allowedUser?.can_cocina) {
+    redirect(getDefaultModulePath(allowlistInfo.allowedUser));
   }
 
   return (

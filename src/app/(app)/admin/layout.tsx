@@ -21,12 +21,12 @@ export default async function AdminLayout({ children }: { children: React.ReactN
 
   const allowlistInfo = await getAllowlistRoleForUserEmail(email);
 
-  if (!allowlistInfo.allowlisted) {
+  if (!allowlistInfo.allowlisted || !allowlistInfo.allowedUser?.is_active) {
     redirect('/login?error=not_allowed');
   }
 
   if (!isAdmin(allowlistInfo.role)) {
-    redirect(getDefaultModulePath(allowlistInfo) ?? '/sin-acceso');
+    redirect(getDefaultModulePath(allowlistInfo.allowedUser));
   }
 
   return (

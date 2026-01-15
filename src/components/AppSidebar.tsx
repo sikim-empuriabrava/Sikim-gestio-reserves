@@ -17,22 +17,22 @@ type NavigationGroup = {
   links: NavigationLink[];
 };
 
-type AccessFlags = {
-  canReservas: boolean;
-  canMantenimiento: boolean;
-  canCocina: boolean;
+type AllowedUser = {
   role: string | null;
+  can_reservas: boolean;
+  can_mantenimiento: boolean;
+  can_cocina: boolean;
 };
 
 type Props = {
   className?: string;
-  access: AccessFlags;
+  allowedUser: AllowedUser | null;
 };
 
-function buildGroups(access: AccessFlags): NavigationGroup[] {
+function buildGroups(allowedUser: AllowedUser | null): NavigationGroup[] {
   const groups: NavigationGroup[] = [];
 
-  if (access.canReservas) {
+  if (allowedUser?.can_reservas) {
     groups.push({
       label: 'Reservas',
       links: [
@@ -51,7 +51,7 @@ function buildGroups(access: AccessFlags): NavigationGroup[] {
     });
   }
 
-  if (access.canMantenimiento) {
+  if (allowedUser?.can_mantenimiento) {
     groups.push({
       label: 'Mantenimiento',
       links: [
@@ -63,7 +63,7 @@ function buildGroups(access: AccessFlags): NavigationGroup[] {
     });
   }
 
-  if (access.canCocina) {
+  if (allowedUser?.can_cocina) {
     groups.push({
       label: 'Cocina',
       links: [
@@ -75,7 +75,7 @@ function buildGroups(access: AccessFlags): NavigationGroup[] {
     });
   }
 
-  if (access.role === 'admin') {
+  if (allowedUser?.role === 'admin') {
     groups.push({
       label: 'Admin',
       links: [
@@ -97,9 +97,9 @@ function isLinkActive(pathname: string, link: NavigationLink) {
   return matchChildren || Boolean(matchesExtra);
 }
 
-export function AppSidebar({ className, access }: Props) {
+export function AppSidebar({ className, allowedUser }: Props) {
   const pathname = usePathname();
-  const groups = buildGroups(access);
+  const groups = buildGroups(allowedUser);
   const defaultSection = groups[0]?.label.toLowerCase() ?? null;
   const [openSection, setOpenSection] = useState<string | null>(defaultSection);
 

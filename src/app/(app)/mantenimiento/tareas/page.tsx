@@ -8,9 +8,9 @@ type Task = {
   area: string;
   title: string;
   description: string | null;
-  status: 'open' | 'in_progress' | 'done';
+  status: string;
   priority: 'low' | 'normal' | 'high';
-  source?: 'routine' | 'manual' | 'incident' | null;
+  routine_id?: string | null;
   window_start_date?: string | null;
   due_date?: string | null;
   created_by_email?: string | null;
@@ -47,7 +47,7 @@ export default async function MantenimientoTareasPage() {
           Organiza incidencias, tareas recurrentes y responsables para mantener el servicio en marcha.
         </p>
         <p className="text-sm text-slate-300">
-          Filtra por tipo para revisar tareas de rutina, manuales o incidencias en un solo flujo.
+          Filtra por tipo para separar tareas de rutina y las incidencias creadas manualmente.
         </p>
       </div>
 

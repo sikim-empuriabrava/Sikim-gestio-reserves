@@ -16,12 +16,12 @@ export default async function AdminUsuariosPage() {
 
   const allowlistInfo = await getAllowlistRoleForUserEmail(user.email);
 
-  if (!allowlistInfo.allowlisted) {
+  if (!allowlistInfo.allowlisted || !allowlistInfo.allowedUser?.is_active) {
     redirect('/login?error=not_allowed');
   }
 
   if (!isAdmin(allowlistInfo.role)) {
-    redirect(getDefaultModulePath(allowlistInfo) ?? '/sin-acceso');
+    redirect(getDefaultModulePath(allowlistInfo.allowedUser));
   }
 
   const supabaseAdmin = createSupabaseAdminClient();

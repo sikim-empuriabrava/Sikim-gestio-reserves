@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 
-type TaskStatus = 'open' | 'in_progress' | 'done';
+type UiStatus = 'open' | 'done';
 type TaskPriority = 'low' | 'normal' | 'high';
 
 export type RoutineTask = {
@@ -12,7 +12,7 @@ export type RoutineTask = {
   area: string;
   title: string;
   description: string | null;
-  status: TaskStatus;
+  status: string;
   priority: TaskPriority;
   window_start_date?: string | null;
   due_date?: string | null;
@@ -25,16 +25,9 @@ type Props = {
   weekStart: string;
 };
 
-const statusLabels: Record<TaskStatus, string> = {
+const statusLabels: Record<UiStatus, string> = {
   open: 'Abiertas',
-  in_progress: 'En curso',
   done: 'Hechas',
-};
-
-const statusCycle: Record<TaskStatus, TaskStatus | null> = {
-  open: 'in_progress',
-  in_progress: 'done',
-  done: null,
 };
 
 const priorityLabels: Record<TaskPriority, string> = {
@@ -93,6 +86,10 @@ function sortByDateLike(value?: string | null) {
   return Number.isNaN(parsed) ? Number.POSITIVE_INFINITY : parsed;
 }
 
+function toUiStatus(status: string): UiStatus {
+  return status === 'done' ? 'done' : 'open';
+}
+
 export function MaintenanceRoutineWeekBoard({ initialTasks, weekStart }: Props) {
   const router = useRouter();
   const pathname = usePathname();
@@ -133,10 +130,10 @@ export function MaintenanceRoutineWeekBoard({ initialTasks, weekStart }: Props) 
     () =>
       tasks.reduce(
         (acc, task) => {
-          acc[task.status] += 1;
+          acc[toUiStatus(task.status)] += 1;
           return acc;
         },
-        { open: 0, in_progress: 0, done: 0 } as Record<TaskStatus, number>,
+        { open: 0, done: 0 } as Record<UiStatus, number>,
       ),
     [tasks],
   );
@@ -187,8 +184,7 @@ export function MaintenanceRoutineWeekBoard({ initialTasks, weekStart }: Props) 
   };
 
   const handleAdvanceStatus = async (task: RoutineTask) => {
-    const nextStatus = statusCycle[task.status];
-    if (!nextStatus) return;
+    const nextStatus: UiStatus = toUiStatus(task.status) === 'open' ? 'done' : 'open';
 
     setIsUpdating(task.id);
     setError(null);
@@ -270,7 +266,7 @@ export function MaintenanceRoutineWeekBoard({ initialTasks, weekStart }: Props) 
       </div>
 
       <div className="flex flex-wrap items-center gap-3 rounded-xl border border-slate-800 bg-slate-900/70 p-4 text-sm text-slate-200">
-        {(Object.keys(statusLabels) as TaskStatus[]).map((status) => (
+        {(Object.keys(statusLabels) as UiStatus[]).map((status) => (
           <div
             key={status}
             className="flex items-center gap-2 rounded-lg border border-slate-800 bg-slate-950/60 px-3 py-2"
@@ -315,7 +311,6 @@ export function MaintenanceRoutineWeekBoard({ initialTasks, weekStart }: Props) 
 
               <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
                 {group.tasks.map((task) => {
-                  const nextStatus = statusCycle[task.status];
                   const windowLabel = buildWindowLabel(task);
                   return (
                     <div key={task.id} className="space-y-3 rounded-xl border border-slate-800 bg-slate-950/50 p-4">
@@ -335,16 +330,18 @@ export function MaintenanceRoutineWeekBoard({ initialTasks, weekStart }: Props) 
                         <span className="rounded-full bg-slate-800 px-2 py-1">Ventana: {windowLabel}</span>
                       </div>
 
-                      {nextStatus && (
-                        <button
-                          type="button"
-                          disabled={isUpdating === task.id}
-                          onClick={() => handleAdvanceStatus(task)}
-                          className="w-full rounded-md border border-slate-700 bg-slate-800 px-3 py-2 text-sm font-semibold text-slate-100 transition hover:border-slate-500 disabled:cursor-not-allowed disabled:opacity-60"
-                        >
-                          {isUpdating === task.id ? 'Actualizando...' : `Avanzar a "${statusLabels[nextStatus]}"`}
-                        </button>
-                      )}
+                      <button
+                        type="button"
+                        disabled={isUpdating === task.id}
+                        onClick={() => handleAdvanceStatus(task)}
+                        className="w-full rounded-md border border-slate-700 bg-slate-800 px-3 py-2 text-sm font-semibold text-slate-100 transition hover:border-slate-500 disabled:cursor-not-allowed disabled:opacity-60"
+                      >
+                        {isUpdating === task.id
+                          ? 'Actualizando...'
+                          : toUiStatus(task.status) === 'open'
+                            ? 'Marcar como hecha'
+                            : 'Reabrir'}
+                      </button>
                     </div>
                   );
                 })}

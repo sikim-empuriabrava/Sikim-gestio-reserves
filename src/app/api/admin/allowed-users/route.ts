@@ -46,6 +46,7 @@ export async function GET() {
   const { data, error } = await supabase
     .from('app_allowed_users')
     .select('id,email,display_name,role,is_active,can_reservas,can_mantenimiento,can_cocina')
+    .order('created_at', { ascending: false })
     .order('email', { ascending: true });
 
   if (error) {

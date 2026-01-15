@@ -2,19 +2,17 @@
 
 import { useMemo, useState } from 'react';
 
-type TaskStatus = 'open' | 'in_progress' | 'done';
 type UiStatus = 'open' | 'done';
 type TaskPriority = 'low' | 'normal' | 'high';
-type TaskSource = 'routine' | 'manual' | 'incident' | null;
 
 type Task = {
   id: string;
   area: string;
   title: string;
   description: string | null;
-  status: TaskStatus;
+  status: string;
   priority: TaskPriority;
-  source?: TaskSource;
+  routine_id?: string | null;
   window_start_date?: string | null;
   due_date?: string | null;
   created_by_email?: string | null;
@@ -39,18 +37,6 @@ const priorityStyles: Record<TaskPriority, string> = {
   high: 'bg-amber-900/40 text-amber-200 border-amber-700/80',
 };
 
-const sourceLabels: Record<Exclude<TaskSource, null>, string> = {
-  routine: 'Rutina',
-  manual: 'Manual',
-  incident: 'Incidencia',
-};
-
-const sourceStyles: Record<Exclude<TaskSource, null>, string> = {
-  routine: 'bg-slate-800 text-slate-200 border-slate-700',
-  manual: 'bg-blue-900/30 text-blue-100 border-blue-800/60',
-  incident: 'bg-rose-900/40 text-rose-200 border-rose-700/70',
-};
-
 function formatShortDay(value: string | null | undefined) {
   if (!value) return null;
   try {
@@ -62,12 +48,12 @@ function formatShortDay(value: string | null | undefined) {
   }
 }
 
-function toUiStatus(status: TaskStatus): UiStatus {
+function toUiStatus(status: string): UiStatus {
   return status === 'done' ? 'done' : 'open';
 }
 
-function normalizeSource(source?: TaskSource) {
-  return source ?? 'manual';
+function getTaskType(task: Task) {
+  return task.routine_id ? 'routine' : 'incident';
 }
 
 type Props = {
@@ -77,9 +63,8 @@ type Props = {
 export function MaintenanceTasksBoard({ initialTasks }: Props) {
   const [tasks, setTasks] = useState<Task[]>(initialTasks);
   const [activeStatus, setActiveStatus] = useState<UiStatus>('open');
-  const [sourceFilter, setSourceFilter] = useState<'all' | Exclude<TaskSource, null>>('all');
+  const [typeFilter, setTypeFilter] = useState<'all' | 'routine' | 'incident'>('all');
   const [showForm, setShowForm] = useState(false);
-  const [formSource, setFormSource] = useState<Exclude<TaskSource, null>>('manual');
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [priority, setPriority] = useState<TaskPriority>('normal');
@@ -93,27 +78,17 @@ export function MaintenanceTasksBoard({ initialTasks }: Props) {
     () =>
       tasks.filter((task) => {
         const matchesStatus = toUiStatus(task.status) === activeStatus;
-        const normalizedSource = normalizeSource(task.source);
-        const matchesSource = sourceFilter === 'all' ? true : normalizedSource === sourceFilter;
-        return matchesStatus && matchesSource;
+        const matchesType = typeFilter === 'all' ? true : getTaskType(task) === typeFilter;
+        return matchesStatus && matchesType;
       }),
-    [tasks, activeStatus, sourceFilter]
+    [tasks, activeStatus, typeFilter]
   );
 
   const resetForm = () => {
     setTitle('');
     setDescription('');
-    setPriority(formSource === 'incident' ? 'high' : 'normal');
+    setPriority('normal');
     setDueDate('');
-  };
-
-  const openForm = (source: Exclude<TaskSource, null>) => {
-    setFormSource(source);
-    setShowForm(true);
-    setTitle('');
-    setDescription('');
-    setDueDate('');
-    setPriority(source === 'incident' ? 'high' : 'normal');
   };
 
   const handleCreate = async (event: React.FormEvent<HTMLFormElement>) => {
@@ -131,7 +106,6 @@ export function MaintenanceTasksBoard({ initialTasks }: Props) {
           title: title.trim(),
           description: description.trim() || null,
           priority,
-          source: formSource,
           due_date: dueDate || null,
         }),
       });
@@ -206,41 +180,24 @@ export function MaintenanceTasksBoard({ initialTasks }: Props) {
         <div className="flex flex-wrap gap-2">
           <button
             type="button"
-            onClick={() => openForm('manual')}
+            onClick={() => setShowForm((prev) => !prev)}
             className="inline-flex items-center justify-center rounded-md border border-slate-700 bg-slate-100 px-4 py-2 text-sm font-semibold text-slate-900 transition hover:bg-white"
           >
-            Nueva tarea
+            {showForm ? 'Cerrar' : 'Nueva tarea'}
           </button>
-          <button
-            type="button"
-            onClick={() => openForm('incident')}
-            className="inline-flex items-center justify-center rounded-md border border-rose-700/60 bg-rose-500/20 px-4 py-2 text-sm font-semibold text-rose-100 transition hover:bg-rose-500/30"
-          >
-            Nueva incidencia
-          </button>
-          {showForm && (
-            <button
-              type="button"
-              onClick={() => setShowForm(false)}
-              className="inline-flex items-center justify-center rounded-md border border-slate-700 bg-transparent px-4 py-2 text-sm font-semibold text-slate-200 transition hover:border-slate-500"
-            >
-              Cerrar
-            </button>
-          )}
         </div>
       </div>
 
       <div className="flex flex-wrap items-center gap-3 rounded-lg border border-slate-800 bg-slate-900/70 p-3 text-sm text-slate-200">
         <span className="text-xs uppercase tracking-wide text-slate-400">Tipo</span>
         <select
-          value={sourceFilter}
-          onChange={(event) => setSourceFilter(event.target.value as typeof sourceFilter)}
+          value={typeFilter}
+          onChange={(event) => setTypeFilter(event.target.value as typeof typeFilter)}
           className="rounded-lg border border-slate-700 bg-slate-950/60 px-3 py-1.5 text-sm text-slate-100"
         >
           <option value="all">Todas</option>
-          <option value="routine">Rutina</option>
-          <option value="manual">Manual</option>
-          <option value="incident">Incidencia</option>
+          <option value="routine">Rutinas</option>
+          <option value="incident">Incidencias</option>
         </select>
         <span className="ml-auto text-xs text-slate-400">
           {filteredTasks.length} tareas
@@ -252,12 +209,6 @@ export function MaintenanceTasksBoard({ initialTasks }: Props) {
           onSubmit={handleCreate}
           className="space-y-4 rounded-xl border border-slate-800 bg-slate-900/70 p-4"
         >
-          <div className="flex items-center gap-2 text-xs text-slate-400">
-            <span className={`rounded-full border px-2 py-1 font-semibold ${sourceStyles[formSource]}`}>
-              {sourceLabels[formSource]}
-            </span>
-            <span>Tipo seleccionado para esta tarea.</span>
-          </div>
           <div className="grid gap-4 md:grid-cols-2">
             <label className="space-y-2 text-sm text-slate-200">
               <span className="block font-semibold">Título</span>
@@ -353,7 +304,7 @@ export function MaintenanceTasksBoard({ initialTasks }: Props) {
           const currentStatus = toUiStatus(task.status);
           const windowStartLabel = formatShortDay(task.window_start_date);
           const windowEndLabel = formatShortDay(task.due_date ?? null);
-          const normalizedSource = normalizeSource(task.source);
+          const taskType = getTaskType(task);
           return (
             <div key={task.id} className="rounded-xl border border-slate-800 bg-slate-900/70 p-4">
               <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
@@ -368,8 +319,8 @@ export function MaintenanceTasksBoard({ initialTasks }: Props) {
                     >
                       Prioridad: {priorityLabels[task.priority]}
                     </span>
-                    <span className={`rounded-full border px-2 py-1 font-semibold ${sourceStyles[normalizedSource]}`}>
-                      Tipo: {sourceLabels[normalizedSource]}
+                    <span className="rounded-full border border-slate-700 px-2 py-1 font-semibold text-slate-200">
+                      Tipo: {taskType === 'routine' ? 'Rutina' : 'Incidencia'}
                     </span>
                     {windowStartLabel && task.due_date ? (
                       <span className="rounded-full bg-slate-800 px-2 py-1">

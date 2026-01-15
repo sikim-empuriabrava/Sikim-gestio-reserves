@@ -12,5 +12,5 @@ export default async function MantenimientoRutinasPage({ searchParams }: { searc
   }
 
   const query = params.toString();
-  redirect(query ? `/admin/rutinas?${query}` : '/admin/rutinas');
+  redirect(query ? `/mantenimiento/calendario?${query}` : '/mantenimiento/calendario');
 }

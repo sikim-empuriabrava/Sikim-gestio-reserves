@@ -8,18 +8,10 @@ export const runtime = 'nodejs';
 const VALID_AREAS = ['maintenance', 'kitchen'] as const;
 const VALID_STATUSES = ['open', 'done'] as const;
 const VALID_PRIORITIES = ['low', 'normal', 'high'] as const;
-const VALID_SOURCES = ['routine', 'manual', 'incident'] as const;
 
 type Area = (typeof VALID_AREAS)[number];
 type Status = (typeof VALID_STATUSES)[number];
 type Priority = (typeof VALID_PRIORITIES)[number];
-type TaskSource = (typeof VALID_SOURCES)[number];
-type TaskSourceDetails = {
-  type: string;
-  id: string;
-  event_date?: string;
-};
-
 function isValidArea(value: unknown): value is Area {
   return typeof value === 'string' && VALID_AREAS.includes(value as Area);
 }
@@ -41,30 +33,8 @@ function isValidPriority(value: unknown): value is Priority {
   return typeof value === 'string' && VALID_PRIORITIES.includes(value as Priority);
 }
 
-function isValidSource(value: unknown): value is TaskSource {
-  return typeof value === 'string' && VALID_SOURCES.includes(value as TaskSource);
-}
-
-function isValidSourceDetails(value: unknown): value is TaskSourceDetails {
-  if (!value || typeof value !== 'object') return false;
-
-  const source = value as Record<string, unknown>;
-
-  return typeof source.type === 'string' && typeof source.id === 'string';
-}
-
-function formatDescription(description: unknown, source: TaskSourceDetails | null) {
-  const baseDescription =
-    typeof description === 'string' && description.trim().length > 0
-      ? description.trim()
-      : null;
-
-  if (!source) {
-    return baseDescription;
-  }
-
-  const sourceBlock = `Fuente: ${JSON.stringify(source)}`;
-  return baseDescription ? `${baseDescription}\n\n${sourceBlock}` : sourceBlock;
+function formatDescription(description: unknown) {
+  return typeof description === 'string' && description.trim().length > 0 ? description.trim() : null;
 }
 
 export async function GET(req: NextRequest) {
@@ -99,10 +69,28 @@ export async function GET(req: NextRequest) {
   const dueDateTo = req.nextUrl.searchParams.get('due_date_to');
   const includeNoDueDate = req.nextUrl.searchParams.get('include_no_due_date') === 'true';
 
+  if (!isAdmin(allowlistInfo.role) && area === 'maintenance' && !allowlistInfo.allowedUser?.can_mantenimiento) {
+    const forbidden = NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    mergeResponseCookies(supabaseResponse, forbidden);
+    return forbidden;
+  }
+
+  if (!isAdmin(allowlistInfo.role) && area === 'kitchen' && !allowlistInfo.allowedUser?.can_cocina) {
+    const forbidden = NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    mergeResponseCookies(supabaseResponse, forbidden);
+    return forbidden;
+  }
+
   if (area && !isValidArea(area)) {
     const invalidArea = NextResponse.json({ error: 'Invalid area' }, { status: 400 });
     mergeResponseCookies(supabaseResponse, invalidArea);
     return invalidArea;
+  }
+
+  if (!area && !isAdmin(allowlistInfo.role)) {
+    const forbidden = NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    mergeResponseCookies(supabaseResponse, forbidden);
+    return forbidden;
   }
 
   if (status && !isValidStatus(status)) {
@@ -225,10 +213,7 @@ export async function POST(req: NextRequest) {
   const body = await req.json().catch(() => null);
   const area = body?.area;
   const title = body?.title;
-  const sourceValue = body?.source;
-  const sourceDetails = typeof sourceValue === 'object' ? sourceValue : null;
-  const source = typeof sourceValue === 'string' ? (sourceValue as TaskSource) : sourceDetails ? 'manual' : null;
-  const description = formatDescription(body?.description, sourceDetails as TaskSourceDetails | null);
+  const description = formatDescription(body?.description);
   const priority = body?.priority ?? 'normal';
   const dueDate = body?.due_date ?? body?.dueDate ?? null;
   const status = body?.status ?? 'open';
@@ -257,18 +242,6 @@ export async function POST(req: NextRequest) {
     return invalidStatus;
   }
 
-  if (source && !isValidSource(source)) {
-    const invalidSource = NextResponse.json({ error: 'Invalid source' }, { status: 400 });
-    mergeResponseCookies(supabaseResponse, invalidSource);
-    return invalidSource;
-  }
-
-  if (sourceDetails && !isValidSourceDetails(sourceDetails)) {
-    const invalidSource = NextResponse.json({ error: 'Invalid source details' }, { status: 400 });
-    mergeResponseCookies(supabaseResponse, invalidSource);
-    return invalidSource;
-  }
-
   const supabase = createSupabaseAdminClient();
   const { data, error } = await supabase
     .from('tasks')
@@ -279,7 +252,6 @@ export async function POST(req: NextRequest) {
       priority,
       status,
       due_date: dueDate,
-      source,
       created_by_email: user.email ?? 'unknown',
     })
     .select()
