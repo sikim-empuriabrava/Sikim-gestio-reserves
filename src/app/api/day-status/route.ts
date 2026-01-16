@@ -23,15 +23,15 @@ export async function GET(req: NextRequest) {
     return unauthorized;
   }
 
-  const email = user.email?.trim().toLowerCase();
+  const requesterEmail = user.email?.trim().toLowerCase();
 
-  if (!email) {
+  if (!requesterEmail) {
     const notAllowed = NextResponse.json({ error: 'Not allowed' }, { status: 403 });
     mergeResponseCookies(supabaseResponse, notAllowed);
     return notAllowed;
   }
 
-  const allowlistInfo = await getAllowlistRoleForUserEmail(email);
+  const allowlistInfo = await getAllowlistRoleForUserEmail(requesterEmail);
   if (allowlistInfo.error) {
     const allowlistError = NextResponse.json({ error: 'Allowlist check failed' }, { status: 500 });
     mergeResponseCookies(supabaseResponse, allowlistError);
@@ -83,15 +83,15 @@ export async function POST(req: NextRequest) {
     return unauthorized;
   }
 
-  const email = user.email?.trim().toLowerCase();
+  const requesterEmail = user.email?.trim().toLowerCase();
 
-  if (!email) {
+  if (!requesterEmail) {
     const notAllowed = NextResponse.json({ error: 'Not allowed' }, { status: 403 });
     mergeResponseCookies(supabaseResponse, notAllowed);
     return notAllowed;
   }
 
-  const allowlistInfo = await getAllowlistRoleForUserEmail(email);
+  const allowlistInfo = await getAllowlistRoleForUserEmail(requesterEmail);
   if (allowlistInfo.error) {
     const allowlistError = NextResponse.json({ error: 'Allowlist check failed' }, { status: 500 });
     mergeResponseCookies(supabaseResponse, allowlistError);
@@ -152,7 +152,7 @@ export async function POST(req: NextRequest) {
     payload.validated = true;
     payload.is_validated = true;
     payload.last_validated_at = now;
-    payload.last_validated_by = email;
+    payload.last_validated_by = requesterEmail;
     payload.events_last_reviewed_at = now;
   }
 

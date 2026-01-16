@@ -25,15 +25,15 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     return unauthorized;
   }
 
-  const email = user.email?.trim().toLowerCase();
+  const requesterEmail = user.email?.trim().toLowerCase();
 
-  if (!email) {
+  if (!requesterEmail) {
     const notAllowed = NextResponse.json({ error: 'Not allowed' }, { status: 403 });
     mergeResponseCookies(supabaseResponse, notAllowed);
     return notAllowed;
   }
 
-  const allowlistInfo = await getAllowlistRoleForUserEmail(email);
+  const allowlistInfo = await getAllowlistRoleForUserEmail(requesterEmail);
   if (allowlistInfo.error) {
     const allowlistError = NextResponse.json({ error: 'Allowlist check failed' }, { status: 500 });
     mergeResponseCookies(supabaseResponse, allowlistError);
@@ -48,6 +48,21 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
 
   const body = await req.json().catch(() => null);
   const updates: Record<string, unknown> = {};
+
+  if (body?.email !== undefined) {
+    if (typeof body.email !== 'string') {
+      const invalidEmail = NextResponse.json({ error: 'Invalid email' }, { status: 400 });
+      mergeResponseCookies(supabaseResponse, invalidEmail);
+      return invalidEmail;
+    }
+    const targetEmail = body.email.trim().toLowerCase();
+    if (!targetEmail) {
+      const invalidEmail = NextResponse.json({ error: 'Invalid email' }, { status: 400 });
+      mergeResponseCookies(supabaseResponse, invalidEmail);
+      return invalidEmail;
+    }
+    updates.email = targetEmail;
+  }
 
   if (body?.display_name !== undefined) {
     updates.display_name =
@@ -89,6 +104,65 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   const { data, error } = await supabase
     .from('app_allowed_users')
     .update(updates)
+    .eq('id', params.id)
+    .select()
+    .maybeSingle();
+
+  if (error) {
+    const serverError = NextResponse.json({ error: error.message }, { status: 500 });
+    mergeResponseCookies(supabaseResponse, serverError);
+    return serverError;
+  }
+
+  if (!data) {
+    const notFound = NextResponse.json({ error: 'User not found' }, { status: 404 });
+    mergeResponseCookies(supabaseResponse, notFound);
+    return notFound;
+  }
+
+  const response = NextResponse.json(data);
+  mergeResponseCookies(supabaseResponse, response);
+  return response;
+}
+
+export async function DELETE(_req: NextRequest, { params }: { params: { id: string } }) {
+  const supabaseResponse = NextResponse.next();
+  const authClient = createSupabaseRouteHandlerClient(supabaseResponse);
+  const {
+    data: { user },
+  } = await authClient.auth.getUser();
+
+  if (!user) {
+    const unauthorized = NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    mergeResponseCookies(supabaseResponse, unauthorized);
+    return unauthorized;
+  }
+
+  const requesterEmail = user.email?.trim().toLowerCase();
+
+  if (!requesterEmail) {
+    const notAllowed = NextResponse.json({ error: 'Not allowed' }, { status: 403 });
+    mergeResponseCookies(supabaseResponse, notAllowed);
+    return notAllowed;
+  }
+
+  const allowlistInfo = await getAllowlistRoleForUserEmail(requesterEmail);
+  if (allowlistInfo.error) {
+    const allowlistError = NextResponse.json({ error: 'Allowlist check failed' }, { status: 500 });
+    mergeResponseCookies(supabaseResponse, allowlistError);
+    return allowlistError;
+  }
+
+  if (!allowlistInfo.allowlisted || !allowlistInfo.allowedUser?.is_active || !isAdmin(allowlistInfo.role)) {
+    const forbidden = NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    mergeResponseCookies(supabaseResponse, forbidden);
+    return forbidden;
+  }
+
+  const supabase = createSupabaseAdminClient();
+  const { data, error } = await supabase
+    .from('app_allowed_users')
+    .delete()
     .eq('id', params.id)
     .select()
     .maybeSingle();

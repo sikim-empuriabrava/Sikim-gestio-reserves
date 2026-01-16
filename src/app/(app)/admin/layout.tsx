@@ -13,13 +13,13 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   }
 
   // Segunda barrera server-side por si el middleware falla y evitar renderizar el panel sin allowlist.
-  const email = user.email?.trim().toLowerCase();
+  const requesterEmail = user.email?.trim().toLowerCase();
 
-  if (!email) {
+  if (!requesterEmail) {
     redirect('/login?error=not_allowed');
   }
 
-  const allowlistInfo = await getAllowlistRoleForUserEmail(email);
+  const allowlistInfo = await getAllowlistRoleForUserEmail(requesterEmail);
 
   if (!allowlistInfo.allowlisted || !allowlistInfo.allowedUser?.is_active) {
     redirect('/login?error=not_allowed');

@@ -29,15 +29,15 @@ export async function GET() {
     return unauthorized;
   }
 
-  const email = user.email?.trim().toLowerCase();
+  const requesterEmail = user.email?.trim().toLowerCase();
 
-  if (!email) {
+  if (!requesterEmail) {
     const notAllowed = NextResponse.json({ error: 'Not allowed' }, { status: 403 });
     mergeResponseCookies(supabaseResponse, notAllowed);
     return notAllowed;
   }
 
-  const allowlistInfo = await getAllowlistRoleForUserEmail(email);
+  const allowlistInfo = await getAllowlistRoleForUserEmail(requesterEmail);
   if (allowlistInfo.error) {
     const allowlistError = NextResponse.json({ error: 'Allowlist check failed' }, { status: 500 });
     mergeResponseCookies(supabaseResponse, allowlistError);
@@ -80,15 +80,15 @@ export async function POST(req: NextRequest) {
     return unauthorized;
   }
 
-  const email = user.email?.trim().toLowerCase();
+  const requesterEmail = user.email?.trim().toLowerCase();
 
-  if (!email) {
+  if (!requesterEmail) {
     const notAllowed = NextResponse.json({ error: 'Not allowed' }, { status: 403 });
     mergeResponseCookies(supabaseResponse, notAllowed);
     return notAllowed;
   }
 
-  const allowlistInfo = await getAllowlistRoleForUserEmail(email);
+  const allowlistInfo = await getAllowlistRoleForUserEmail(requesterEmail);
   if (allowlistInfo.error) {
     const allowlistError = NextResponse.json({ error: 'Allowlist check failed' }, { status: 500 });
     mergeResponseCookies(supabaseResponse, allowlistError);
@@ -102,7 +102,7 @@ export async function POST(req: NextRequest) {
   }
 
   const body = await req.json().catch(() => null);
-  const email = typeof body?.email === 'string' ? normalizeEmail(body.email) : null;
+  const targetEmail = typeof body?.email === 'string' ? normalizeEmail(body.email) : null;
   const displayName = typeof body?.display_name === 'string' ? body.display_name.trim() : null;
   const role = body?.role ?? 'viewer';
   const isActive = body?.is_active ?? true;
@@ -110,7 +110,7 @@ export async function POST(req: NextRequest) {
   const canMantenimiento = body?.can_mantenimiento ?? false;
   const canCocina = body?.can_cocina ?? false;
 
-  if (!email) {
+  if (!targetEmail) {
     const invalidEmail = NextResponse.json({ error: 'Missing email' }, { status: 400 });
     mergeResponseCookies(supabaseResponse, invalidEmail);
     return invalidEmail;
@@ -126,7 +126,7 @@ export async function POST(req: NextRequest) {
   const { data, error } = await supabase
     .from('app_allowed_users')
     .insert({
-      email,
+      email: targetEmail,
       display_name: displayName || null,
       role,
       is_active: Boolean(isActive),

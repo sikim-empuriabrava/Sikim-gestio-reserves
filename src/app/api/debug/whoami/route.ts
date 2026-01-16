@@ -20,15 +20,15 @@ export async function GET() {
     return unauthorized;
   }
 
-  const email = user.email?.trim().toLowerCase();
+  const requesterEmail = user.email?.trim().toLowerCase();
 
-  if (!email) {
+  if (!requesterEmail) {
     const notAllowed = NextResponse.json({ ok: false, error: 'not_allowed' }, { status: 403 });
     mergeResponseCookies(supabaseResponse, notAllowed);
     return notAllowed;
   }
 
-  const allowlistInfo = await getAllowlistRoleForUserEmail(email);
+  const allowlistInfo = await getAllowlistRoleForUserEmail(requesterEmail);
   if (allowlistInfo.error) {
     const allowlistError = NextResponse.json({ ok: false, error: 'Allowlist check failed' }, { status: 500 });
     mergeResponseCookies(supabaseResponse, allowlistError);
@@ -45,13 +45,13 @@ export async function GET() {
   const { data: allowedUser } = await supabaseAdmin
     .from('app_allowed_users')
     .select('id,email,display_name,is_active,role,can_reservas,can_mantenimiento,can_cocina')
-    .eq('email', email)
+    .eq('email', requesterEmail)
     .maybeSingle();
 
   const response = NextResponse.json({
     ok: true,
     user: { id: user.id, email: user.email },
-    normalizedEmail: email,
+    normalizedEmail: requesterEmail,
     allowlisted: !!allowedUser,
     allowlistRow: allowedUser ?? null,
     permissions: allowlistInfo.allowedUser

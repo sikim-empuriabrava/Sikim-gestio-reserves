@@ -12,12 +12,12 @@ export default async function ReservasLayout({ children }: { children: React.Rea
     redirect(`/login?error=unauthorized&next=${encodeURIComponent('/reservas')}`);
   }
 
-  const email = user.email?.trim().toLowerCase();
-  if (!email) {
+  const requesterEmail = user.email?.trim().toLowerCase();
+  if (!requesterEmail) {
     redirect('/login?error=not_allowed');
   }
 
-  const allowlistInfo = await getAllowlistRoleForUserEmail(email);
+  const allowlistInfo = await getAllowlistRoleForUserEmail(requesterEmail);
   if (!allowlistInfo.allowlisted || !allowlistInfo.allowedUser?.is_active) {
     redirect('/login?error=not_allowed');
   }

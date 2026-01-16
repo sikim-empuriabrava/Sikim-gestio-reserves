@@ -44,13 +44,13 @@ export async function POST(req: NextRequest) {
     return respond({ error: 'Unauthorized' }, { status: 401, headers: noStoreHeaders });
   }
 
-  const email = user.email?.trim().toLowerCase();
+  const requesterEmail = user.email?.trim().toLowerCase();
 
-  if (!email) {
+  if (!requesterEmail) {
     return respond({ error: 'Not allowed' }, { status: 403, headers: noStoreHeaders });
   }
 
-  const allowlistInfo = await getAllowlistRoleForUserEmail(email);
+  const allowlistInfo = await getAllowlistRoleForUserEmail(requesterEmail);
   if (allowlistInfo.error) {
     return respond({ error: 'Allowlist check failed' }, { status: 500, headers: noStoreHeaders });
   }

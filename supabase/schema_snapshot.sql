@@ -70,7 +70,6 @@ CREATE TYPE public.task_priority AS ENUM (
 
 CREATE TYPE public.task_status AS ENUM (
     'open',
-    'in_progress',
     'done'
 );
 
@@ -1527,4 +1526,3 @@ CREATE POLICY "read own allowlist row" ON public.app_allowed_users FOR SELECT TO
 --
 
 \unrestrict eHNKOOTnsOW2oJbXkAXXIkbr2rfdYGYDK0D7z0UT6bgbvVlRD276aHzN3bRpY2G
-

@@ -309,6 +309,11 @@ export function AllowedUsersManager({ initialUsers, currentUserEmail, currentUse
           <p className="text-sm font-semibold text-slate-200">Usuarios allowlisted</p>
           {savingId && <span className="text-xs text-slate-400">Guardando cambios...</span>}
         </div>
+        {error && (
+          <div className="border-b border-slate-800 px-4 py-2 text-xs text-amber-200">
+            {error}
+          </div>
+        )}
         <div className="overflow-x-auto">
           <table className="min-w-full divide-y divide-slate-800 text-sm">
             <thead className="text-left text-xs uppercase tracking-wide text-slate-400">
@@ -325,7 +330,22 @@ export function AllowedUsersManager({ initialUsers, currentUserEmail, currentUse
             <tbody className="divide-y divide-slate-800">
               {users.map((user) => (
                 <tr key={user.id} className="text-slate-100">
-                  <td className="px-4 py-3 text-sm font-semibold text-slate-100">{user.email}</td>
+                  <td className="px-4 py-3 text-sm font-semibold text-slate-100">
+                    <input
+                      value={user.email}
+                      onChange={(event) =>
+                        setUsers((prev) =>
+                          prev.map((item) =>
+                            item.id === user.id ? { ...item, email: event.target.value } : item
+                          )
+                        )
+                      }
+                      onBlur={(event) => handleUpdate(user.id, { email: event.target.value })}
+                      className="w-full rounded-md border border-slate-700 bg-slate-950/60 px-2 py-1 text-sm text-white focus:border-slate-500 focus:outline-none"
+                      placeholder="email@empresa.com"
+                      disabled={savingId === user.id}
+                    />
+                  </td>
                   <td className="px-4 py-3 text-sm text-slate-300">
                     <input
                       value={user.display_name ?? ''}
