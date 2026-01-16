@@ -44,12 +44,18 @@ export async function POST(req: NextRequest) {
     return respond({ error: 'Unauthorized' }, { status: 401, headers: noStoreHeaders });
   }
 
-  const allowlistInfo = await getAllowlistRoleForUserEmail(user.email);
+  const requesterEmail = user.email?.trim().toLowerCase();
+
+  if (!requesterEmail) {
+    return respond({ error: 'Not allowed' }, { status: 403, headers: noStoreHeaders });
+  }
+
+  const allowlistInfo = await getAllowlistRoleForUserEmail(requesterEmail);
   if (allowlistInfo.error) {
     return respond({ error: 'Allowlist check failed' }, { status: 500, headers: noStoreHeaders });
   }
 
-  if (!allowlistInfo.allowlisted || !isAdmin(allowlistInfo.role)) {
+  if (!allowlistInfo.allowlisted || !allowlistInfo.allowedUser?.is_active || !isAdmin(allowlistInfo.role)) {
     return respond({ error: 'Forbidden' }, { status: 403, headers: noStoreHeaders });
   }
 

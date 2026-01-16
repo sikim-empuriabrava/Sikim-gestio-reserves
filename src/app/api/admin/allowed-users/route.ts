@@ -29,14 +29,22 @@ export async function GET() {
     return unauthorized;
   }
 
-  const allowlistInfo = await getAllowlistRoleForUserEmail(user.email);
+  const requesterEmail = user.email?.trim().toLowerCase();
+
+  if (!requesterEmail) {
+    const notAllowed = NextResponse.json({ error: 'Not allowed' }, { status: 403 });
+    mergeResponseCookies(supabaseResponse, notAllowed);
+    return notAllowed;
+  }
+
+  const allowlistInfo = await getAllowlistRoleForUserEmail(requesterEmail);
   if (allowlistInfo.error) {
     const allowlistError = NextResponse.json({ error: 'Allowlist check failed' }, { status: 500 });
     mergeResponseCookies(supabaseResponse, allowlistError);
     return allowlistError;
   }
 
-  if (!allowlistInfo.allowlisted || !isAdmin(allowlistInfo.role)) {
+  if (!allowlistInfo.allowlisted || !allowlistInfo.allowedUser?.is_active || !isAdmin(allowlistInfo.role)) {
     const forbidden = NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     mergeResponseCookies(supabaseResponse, forbidden);
     return forbidden;
@@ -46,7 +54,6 @@ export async function GET() {
   const { data, error } = await supabase
     .from('app_allowed_users')
     .select('id,email,display_name,role,is_active,can_reservas,can_mantenimiento,can_cocina')
-    .order('created_at', { ascending: false })
     .order('email', { ascending: true });
 
   if (error) {
@@ -55,7 +62,7 @@ export async function GET() {
     return serverError;
   }
 
-  const response = NextResponse.json(data ?? []);
+  const response = NextResponse.json({ ok: true, rows: data ?? [] });
   mergeResponseCookies(supabaseResponse, response);
   return response;
 }
@@ -73,21 +80,29 @@ export async function POST(req: NextRequest) {
     return unauthorized;
   }
 
-  const allowlistInfo = await getAllowlistRoleForUserEmail(user.email);
+  const requesterEmail = user.email?.trim().toLowerCase();
+
+  if (!requesterEmail) {
+    const notAllowed = NextResponse.json({ error: 'Not allowed' }, { status: 403 });
+    mergeResponseCookies(supabaseResponse, notAllowed);
+    return notAllowed;
+  }
+
+  const allowlistInfo = await getAllowlistRoleForUserEmail(requesterEmail);
   if (allowlistInfo.error) {
     const allowlistError = NextResponse.json({ error: 'Allowlist check failed' }, { status: 500 });
     mergeResponseCookies(supabaseResponse, allowlistError);
     return allowlistError;
   }
 
-  if (!allowlistInfo.allowlisted || !isAdmin(allowlistInfo.role)) {
+  if (!allowlistInfo.allowlisted || !allowlistInfo.allowedUser?.is_active || !isAdmin(allowlistInfo.role)) {
     const forbidden = NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     mergeResponseCookies(supabaseResponse, forbidden);
     return forbidden;
   }
 
   const body = await req.json().catch(() => null);
-  const email = typeof body?.email === 'string' ? normalizeEmail(body.email) : null;
+  const targetEmail = typeof body?.email === 'string' ? normalizeEmail(body.email) : null;
   const displayName = typeof body?.display_name === 'string' ? body.display_name.trim() : null;
   const role = body?.role ?? 'viewer';
   const isActive = body?.is_active ?? true;
@@ -95,7 +110,7 @@ export async function POST(req: NextRequest) {
   const canMantenimiento = body?.can_mantenimiento ?? false;
   const canCocina = body?.can_cocina ?? false;
 
-  if (!email) {
+  if (!targetEmail) {
     const invalidEmail = NextResponse.json({ error: 'Missing email' }, { status: 400 });
     mergeResponseCookies(supabaseResponse, invalidEmail);
     return invalidEmail;
@@ -111,7 +126,7 @@ export async function POST(req: NextRequest) {
   const { data, error } = await supabase
     .from('app_allowed_users')
     .insert({
-      email,
+      email: targetEmail,
       display_name: displayName || null,
       role,
       is_active: Boolean(isActive),

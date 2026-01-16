@@ -16,13 +16,13 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     redirect('/login?error=unauthorized&next=%2Freservas');
   }
 
-  const email = user.email?.trim().toLowerCase();
+  const requesterEmail = user.email?.trim().toLowerCase();
 
-  if (!email) {
+  if (!requesterEmail) {
     redirect('/login?error=not_allowed');
   }
 
-  const allowlistInfo = await getAllowlistRoleForUserEmail(email);
+  const allowlistInfo = await getAllowlistRoleForUserEmail(requesterEmail);
 
   if (!allowlistInfo.allowlisted || !allowlistInfo.allowedUser?.is_active) {
     redirect('/login?error=not_allowed');

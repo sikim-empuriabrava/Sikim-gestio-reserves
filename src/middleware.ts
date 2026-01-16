@@ -63,7 +63,12 @@ export async function middleware(req: NextRequest) {
     handleConfigErrorResponse(isApiRoute, supabaseResponse, redirectUrl, req);
 
   const isAdminPath = pathname.startsWith('/admin') || pathname.startsWith('/api/admin');
-  const isReservasPath = pathname.startsWith('/reservas') || pathname.startsWith('/api/rooms') || pathname.startsWith('/api/group-events') || pathname.startsWith('/api/day-status') || pathname.startsWith('/api/menus');
+  const isReservasPath =
+    pathname.startsWith('/reservas') ||
+    pathname.startsWith('/api/rooms') ||
+    pathname.startsWith('/api/group-events') ||
+    pathname.startsWith('/api/day-status') ||
+    pathname.startsWith('/api/menus');
   const isMantenimientoPath = pathname.startsWith('/mantenimiento');
   const isCocinaPath = pathname.startsWith('/cocina');
 
@@ -71,11 +76,11 @@ export async function middleware(req: NextRequest) {
     return handleUnauthorized();
   }
 
-  const email =
-  user.email?.trim().toLowerCase() ??
-  (user.user_metadata?.email as string | undefined)?.trim().toLowerCase();
+  const requesterEmail =
+    user.email?.trim().toLowerCase() ??
+    (user.user_metadata?.email as string | undefined)?.trim().toLowerCase();
 
-  if (!email) {
+  if (!requesterEmail) {
     return handleNotAllowed();
   }
 
@@ -83,7 +88,7 @@ export async function middleware(req: NextRequest) {
   const { data: allowedUser, error: allowlistError } = await supabase
     .from('app_allowed_users')
     .select('email, role, is_active, can_reservas, can_mantenimiento, can_cocina')
-    .eq('email', email)
+    .eq('email', requesterEmail)
     .eq('is_active', true)
     .maybeSingle();
 
@@ -95,6 +100,8 @@ export async function middleware(req: NextRequest) {
   if (!allowedUser) {
     return handleNotAllowed();
   }
+
+  const isAdminUser = allowedUser.role === 'admin';
 
   const handleForbidden = () => {
     if (isApiRoute) {
@@ -109,19 +116,19 @@ export async function middleware(req: NextRequest) {
     return setDebugHeader(response);
   };
 
-  if (isAdminPath && allowedUser.role !== 'admin') {
+  if (isAdminPath && !isAdminUser) {
     return handleForbidden();
   }
 
-  if (isReservasPath && !allowedUser.can_reservas) {
+  if (isReservasPath && !isAdminUser && !allowedUser.can_reservas) {
     return handleForbidden();
   }
 
-  if (isMantenimientoPath && !allowedUser.can_mantenimiento) {
+  if (isMantenimientoPath && !isAdminUser && !allowedUser.can_mantenimiento) {
     return handleForbidden();
   }
 
-  if (isCocinaPath && !allowedUser.can_cocina) {
+  if (isCocinaPath && !isAdminUser && !allowedUser.can_cocina) {
     return handleForbidden();
   }
 

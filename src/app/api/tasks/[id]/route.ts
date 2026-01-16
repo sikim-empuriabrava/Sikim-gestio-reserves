@@ -32,14 +32,22 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     return unauthorized;
   }
 
-  const allowlistInfo = await getAllowlistRoleForUserEmail(user.email);
+  const requesterEmail = user.email?.trim().toLowerCase();
+
+  if (!requesterEmail) {
+    const notAllowed = NextResponse.json({ error: 'Not allowed' }, { status: 403 });
+    mergeResponseCookies(supabaseResponse, notAllowed);
+    return notAllowed;
+  }
+
+  const allowlistInfo = await getAllowlistRoleForUserEmail(requesterEmail);
   if (allowlistInfo.error) {
     const allowlistError = NextResponse.json({ error: 'Allowlist check failed' }, { status: 500 });
     mergeResponseCookies(supabaseResponse, allowlistError);
     return allowlistError;
   }
 
-  if (!allowlistInfo.allowlisted || !allowlistInfo.allowedUser) {
+  if (!allowlistInfo.allowlisted || !allowlistInfo.allowedUser?.is_active) {
     const forbidden = NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     mergeResponseCookies(supabaseResponse, forbidden);
     return forbidden;

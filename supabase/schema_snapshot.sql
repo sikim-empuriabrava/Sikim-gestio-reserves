@@ -63,7 +63,6 @@ CREATE TYPE public.task_priority AS ENUM (
 
 CREATE TYPE public.task_status AS ENUM (
     'open',
-    'in_progress',
     'done'
 );
 
@@ -1524,5 +1523,4 @@ CREATE POLICY "read own allowlist row" ON public.app_allowed_users FOR SELECT TO
 -- PostgreSQL database dump complete
 --
 
-\unrestrict bkUIG94AdOlGaLJaEB873jfOPvwM5QMsNm42ANiGNN6BwYUiMbAzd5KDQsrfVDK
-
+\unrestrict eHNKOOTnsOW2oJbXkAXXIkbr2rfdYGYDK0D7z0UT6bgbvVlRD276aHzN3bRpY2G

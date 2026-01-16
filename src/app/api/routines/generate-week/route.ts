@@ -36,14 +36,22 @@ export async function POST(req: NextRequest) {
     return unauthorized;
   }
 
-  const allowlistInfo = await getAllowlistRoleForUserEmail(user.email);
+  const requesterEmail = user.email?.trim().toLowerCase();
+
+  if (!requesterEmail) {
+    const notAllowed = NextResponse.json({ error: 'Not allowed' }, { status: 403 });
+    mergeResponseCookies(supabaseResponse, notAllowed);
+    return notAllowed;
+  }
+
+  const allowlistInfo = await getAllowlistRoleForUserEmail(requesterEmail);
   if (allowlistInfo.error) {
     const allowlistError = NextResponse.json({ error: 'Allowlist check failed' }, { status: 500 });
     mergeResponseCookies(supabaseResponse, allowlistError);
     return allowlistError;
   }
 
-  if (!allowlistInfo.allowlisted || !isAdmin(allowlistInfo.role)) {
+  if (!allowlistInfo.allowlisted || !allowlistInfo.allowedUser?.is_active || !isAdmin(allowlistInfo.role)) {
     const forbidden = NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     mergeResponseCookies(supabaseResponse, forbidden);
     return forbidden;
@@ -82,14 +90,14 @@ export async function POST(req: NextRequest) {
     const { data: rpcData, error: rpcError } = await supabase.rpc('generate_weekly_tasks_for_pack', {
       p_week_start: weekStart,
       p_pack_id: packId === 'none' ? null : packId,
-      p_created_by_email: user.email ?? 'unknown',
+      p_created_by_email: requesterEmail,
     });
     data = rpcData;
     error = rpcError;
   } else {
     const { data: rpcData, error: rpcError } = await supabase.rpc('generate_weekly_tasks', {
       p_week_start: weekStart,
-      p_created_by_email: user.email ?? 'unknown',
+      p_created_by_email: requesterEmail,
     });
     data = rpcData;
     error = rpcError;

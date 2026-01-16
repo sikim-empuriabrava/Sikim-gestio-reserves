@@ -51,14 +51,22 @@ export async function GET() {
     return unauthorized;
   }
 
-  const allowlistInfo = await getAllowlistRoleForUserEmail(user.email);
+  const requesterEmail = user.email?.trim().toLowerCase();
+
+  if (!requesterEmail) {
+    const notAllowed = NextResponse.json({ error: 'Not allowed' }, { status: 403 });
+    mergeResponseCookies(supabaseResponse, notAllowed);
+    return notAllowed;
+  }
+
+  const allowlistInfo = await getAllowlistRoleForUserEmail(requesterEmail);
   if (allowlistInfo.error) {
     const allowlistError = NextResponse.json({ error: 'Allowlist check failed' }, { status: 500 });
     mergeResponseCookies(supabaseResponse, allowlistError);
     return allowlistError;
   }
 
-  if (!allowlistInfo.allowlisted) {
+  if (!allowlistInfo.allowlisted || !allowlistInfo.allowedUser?.is_active) {
     const forbidden = NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     mergeResponseCookies(supabaseResponse, forbidden);
     return forbidden;
@@ -91,14 +99,22 @@ export async function POST(req: NextRequest) {
     return unauthorized;
   }
 
-  const allowlistInfo = await getAllowlistRoleForUserEmail(user.email);
+  const requesterEmail = user.email?.trim().toLowerCase();
+
+  if (!requesterEmail) {
+    const notAllowed = NextResponse.json({ error: 'Not allowed' }, { status: 403 });
+    mergeResponseCookies(supabaseResponse, notAllowed);
+    return notAllowed;
+  }
+
+  const allowlistInfo = await getAllowlistRoleForUserEmail(requesterEmail);
   if (allowlistInfo.error) {
     const allowlistError = NextResponse.json({ error: 'Allowlist check failed' }, { status: 500 });
     mergeResponseCookies(supabaseResponse, allowlistError);
     return allowlistError;
   }
 
-  if (!allowlistInfo.allowlisted || !isAdmin(allowlistInfo.role)) {
+  if (!allowlistInfo.allowlisted || !allowlistInfo.allowedUser?.is_active || !isAdmin(allowlistInfo.role)) {
     const forbidden = NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     mergeResponseCookies(supabaseResponse, forbidden);
     return forbidden;

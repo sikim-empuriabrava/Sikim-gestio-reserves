@@ -31,7 +31,6 @@ export async function getAllowlistRoleForUserEmail(email: string | null | undefi
     .from('app_allowed_users')
     .select('id, email, display_name, role, is_active, can_reservas, can_mantenimiento, can_cocina')
     .eq('email', normalizedEmail)
-    .eq('is_active', true)
     .limit(1)
     .maybeSingle();
 
@@ -65,6 +64,7 @@ export function isAdmin(role: string | null): boolean {
 }
 
 export function getDefaultModulePath(allowedUser: AllowedUser | null): string {
+  if (allowedUser?.role === 'admin') return '/admin';
   if (allowedUser?.can_reservas) return '/reservas';
   if (allowedUser?.can_mantenimiento) return '/mantenimiento';
   if (allowedUser?.can_cocina) return '/cocina';

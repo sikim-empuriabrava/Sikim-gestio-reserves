@@ -17,15 +17,15 @@ export default async function DebugSupabasePage() {
     redirect('/login?error=unauthorized&next=%2Fdebug-supabase');
   }
 
-  const email = user.email?.trim().toLowerCase();
+  const requesterEmail = user.email?.trim().toLowerCase();
 
-  if (!email) {
+  if (!requesterEmail) {
     redirect('/login?error=not_allowed');
   }
 
-  const allowlistInfo = await getAllowlistRoleForUserEmail(email);
+  const allowlistInfo = await getAllowlistRoleForUserEmail(requesterEmail);
 
-  if (!allowlistInfo.allowlisted) {
+  if (!allowlistInfo.allowlisted || !allowlistInfo.allowedUser?.is_active) {
     redirect('/login?error=not_allowed');
   }
 

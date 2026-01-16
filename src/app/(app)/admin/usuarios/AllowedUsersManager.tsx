@@ -42,9 +42,11 @@ const defaultForm: FormState = {
 
 type Props = {
   initialUsers: AllowedUser[];
+  currentUserEmail: string;
+  currentUserRole: string | null;
 };
 
-export function AllowedUsersManager({ initialUsers }: Props) {
+export function AllowedUsersManager({ initialUsers, currentUserEmail, currentUserRole }: Props) {
   const [users, setUsers] = useState<AllowedUser[]>(initialUsers);
   const [form, setForm] = useState<FormState>(defaultForm);
   const [loading, setLoading] = useState(false);
@@ -58,13 +60,13 @@ export function AllowedUsersManager({ initialUsers }: Props) {
     setError(null);
     try {
       const response = await fetch('/api/admin/allowed-users', { cache: 'no-store' });
-      const payload = await response.json().catch(() => []);
+      const payload = await response.json().catch(() => ({}));
 
       if (!response.ok) {
         throw new Error(payload?.error || 'No se pudieron cargar los usuarios');
       }
 
-      setUsers(payload ?? []);
+      setUsers(payload?.rows ?? []);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Error desconocido');
     } finally {
@@ -167,6 +169,24 @@ export function AllowedUsersManager({ initialUsers }: Props) {
           >
             {loading ? 'Actualizando...' : 'Refrescar'}
           </button>
+        </div>
+      </div>
+
+      <div className="rounded-2xl border border-emerald-900/60 bg-emerald-950/40 p-4 text-sm text-emerald-100">
+        <p className="font-semibold">Debug allowlist</p>
+        <div className="mt-2 grid gap-2 text-xs text-emerald-200/90 sm:grid-cols-3">
+          <div>
+            <span className="uppercase tracking-wide text-emerald-300/80">Logged as</span>
+            <div className="font-semibold">{currentUserEmail}</div>
+          </div>
+          <div>
+            <span className="uppercase tracking-wide text-emerald-300/80">Role</span>
+            <div className="font-semibold">{currentUserRole ?? '—'}</div>
+          </div>
+          <div>
+            <span className="uppercase tracking-wide text-emerald-300/80">Rows</span>
+            <div className="font-semibold">{counts.total}</div>
+          </div>
         </div>
       </div>
 
@@ -289,6 +309,11 @@ export function AllowedUsersManager({ initialUsers }: Props) {
           <p className="text-sm font-semibold text-slate-200">Usuarios allowlisted</p>
           {savingId && <span className="text-xs text-slate-400">Guardando cambios...</span>}
         </div>
+        {error && (
+          <div className="border-b border-slate-800 px-4 py-2 text-xs text-amber-200">
+            {error}
+          </div>
+        )}
         <div className="overflow-x-auto">
           <table className="min-w-full divide-y divide-slate-800 text-sm">
             <thead className="text-left text-xs uppercase tracking-wide text-slate-400">
@@ -305,7 +330,22 @@ export function AllowedUsersManager({ initialUsers }: Props) {
             <tbody className="divide-y divide-slate-800">
               {users.map((user) => (
                 <tr key={user.id} className="text-slate-100">
-                  <td className="px-4 py-3 text-sm font-semibold text-slate-100">{user.email}</td>
+                  <td className="px-4 py-3 text-sm font-semibold text-slate-100">
+                    <input
+                      value={user.email}
+                      onChange={(event) =>
+                        setUsers((prev) =>
+                          prev.map((item) =>
+                            item.id === user.id ? { ...item, email: event.target.value } : item
+                          )
+                        )
+                      }
+                      onBlur={(event) => handleUpdate(user.id, { email: event.target.value })}
+                      className="w-full rounded-md border border-slate-700 bg-slate-950/60 px-2 py-1 text-sm text-white focus:border-slate-500 focus:outline-none"
+                      placeholder="email@empresa.com"
+                      disabled={savingId === user.id}
+                    />
+                  </td>
                   <td className="px-4 py-3 text-sm text-slate-300">
                     <input
                       value={user.display_name ?? ''}
@@ -374,6 +414,13 @@ export function AllowedUsersManager({ initialUsers }: Props) {
                   </td>
                 </tr>
               ))}
+              {users.length === 0 && loading && (
+                <tr>
+                  <td colSpan={7} className="px-4 py-6 text-center text-sm text-slate-400">
+                    Cargando usuarios...
+                  </td>
+                </tr>
+              )}
               {users.length === 0 && !loading && (
                 <tr>
                   <td colSpan={7} className="px-4 py-6 text-center text-sm text-slate-400">

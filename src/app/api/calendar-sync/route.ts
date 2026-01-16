@@ -48,12 +48,18 @@ export async function POST(req: NextRequest) {
     return respond({ error: 'Unauthorized' }, { status: 401, headers: { 'Cache-Control': 'no-store' } });
   }
 
-  const allowlistInfo = await getAllowlistRoleForUserEmail(user.email);
+  const requesterEmail = user.email?.trim().toLowerCase();
+
+  if (!requesterEmail) {
+    return respond({ error: 'Not allowed' }, { status: 403, headers: { 'Cache-Control': 'no-store' } });
+  }
+
+  const allowlistInfo = await getAllowlistRoleForUserEmail(requesterEmail);
   if (allowlistInfo.error) {
     return respond({ error: 'Allowlist check failed' }, { status: 500, headers: { 'Cache-Control': 'no-store' } });
   }
 
-  if (!allowlistInfo.allowlisted || !isAdmin(allowlistInfo.role)) {
+  if (!allowlistInfo.allowlisted || !allowlistInfo.allowedUser?.is_active || !isAdmin(allowlistInfo.role)) {
     return respond({ error: 'Forbidden' }, { status: 403, headers: { 'Cache-Control': 'no-store' } });
   }
 
