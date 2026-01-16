@@ -31,8 +31,9 @@ type Props = {
 
 function buildGroups(allowedUser: AllowedUser | null): NavigationGroup[] {
   const groups: NavigationGroup[] = [];
+  const isAdmin = allowedUser?.role === 'admin';
 
-  if (allowedUser?.can_reservas) {
+  if (isAdmin || allowedUser?.can_reservas) {
     groups.push({
       label: 'Reservas',
       links: [
@@ -51,7 +52,7 @@ function buildGroups(allowedUser: AllowedUser | null): NavigationGroup[] {
     });
   }
 
-  if (allowedUser?.can_mantenimiento) {
+  if (isAdmin || allowedUser?.can_mantenimiento) {
     groups.push({
       label: 'Mantenimiento',
       links: [
@@ -63,7 +64,7 @@ function buildGroups(allowedUser: AllowedUser | null): NavigationGroup[] {
     });
   }
 
-  if (allowedUser?.can_cocina) {
+  if (isAdmin || allowedUser?.can_cocina) {
     groups.push({
       label: 'Cocina',
       links: [
@@ -75,7 +76,7 @@ function buildGroups(allowedUser: AllowedUser | null): NavigationGroup[] {
     });
   }
 
-  if (allowedUser?.role === 'admin') {
+  if (isAdmin) {
     groups.push({
       label: 'Admin',
       links: [

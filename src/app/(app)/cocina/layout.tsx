@@ -1,4 +1,4 @@
-import { getAllowlistRoleForUserEmail, getDefaultModulePath } from '@/lib/auth/requireRole';
+import { getAllowlistRoleForUserEmail, getDefaultModulePath, isAdmin } from '@/lib/auth/requireRole';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { redirect } from 'next/navigation';
 
@@ -22,7 +22,7 @@ export default async function CocinaLayout({ children }: { children: React.React
     redirect('/login?error=not_allowed');
   }
 
-  if (!allowlistInfo.allowedUser?.can_cocina) {
+  if (!isAdmin(allowlistInfo.role) && !allowlistInfo.allowedUser?.can_cocina) {
     redirect(getDefaultModulePath(allowlistInfo.allowedUser));
   }
 

@@ -38,7 +38,7 @@ export default async function DebugCalendarSyncPage() {
 
   const allowlistInfo = await getAllowlistRoleForUserEmail(email);
 
-  if (!allowlistInfo.allowlisted) {
+  if (!allowlistInfo.allowlisted || !allowlistInfo.allowedUser?.is_active) {
     redirect('/login?error=not_allowed');
   }
 

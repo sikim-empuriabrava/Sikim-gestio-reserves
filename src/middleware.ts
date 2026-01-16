@@ -63,7 +63,12 @@ export async function middleware(req: NextRequest) {
     handleConfigErrorResponse(isApiRoute, supabaseResponse, redirectUrl, req);
 
   const isAdminPath = pathname.startsWith('/admin') || pathname.startsWith('/api/admin');
-  const isReservasPath = pathname.startsWith('/reservas') || pathname.startsWith('/api/rooms') || pathname.startsWith('/api/group-events') || pathname.startsWith('/api/day-status') || pathname.startsWith('/api/menus');
+  const isReservasPath =
+    pathname.startsWith('/reservas') ||
+    pathname.startsWith('/api/rooms') ||
+    pathname.startsWith('/api/group-events') ||
+    pathname.startsWith('/api/day-status') ||
+    pathname.startsWith('/api/menus');
   const isMantenimientoPath = pathname.startsWith('/mantenimiento');
   const isCocinaPath = pathname.startsWith('/cocina');
 
@@ -72,8 +77,8 @@ export async function middleware(req: NextRequest) {
   }
 
   const email =
-  user.email?.trim().toLowerCase() ??
-  (user.user_metadata?.email as string | undefined)?.trim().toLowerCase();
+    user.email?.trim().toLowerCase() ??
+    (user.user_metadata?.email as string | undefined)?.trim().toLowerCase();
 
   if (!email) {
     return handleNotAllowed();
@@ -96,6 +101,8 @@ export async function middleware(req: NextRequest) {
     return handleNotAllowed();
   }
 
+  const isAdminUser = allowedUser.role === 'admin';
+
   const handleForbidden = () => {
     if (isApiRoute) {
       const forbidden = NextResponse.json({ error: 'forbidden' }, { status: 403 });
@@ -109,19 +116,19 @@ export async function middleware(req: NextRequest) {
     return setDebugHeader(response);
   };
 
-  if (isAdminPath && allowedUser.role !== 'admin') {
+  if (isAdminPath && !isAdminUser) {
     return handleForbidden();
   }
 
-  if (isReservasPath && !allowedUser.can_reservas) {
+  if (isReservasPath && !isAdminUser && !allowedUser.can_reservas) {
     return handleForbidden();
   }
 
-  if (isMantenimientoPath && !allowedUser.can_mantenimiento) {
+  if (isMantenimientoPath && !isAdminUser && !allowedUser.can_mantenimiento) {
     return handleForbidden();
   }
 
-  if (isCocinaPath && !allowedUser.can_cocina) {
+  if (isCocinaPath && !isAdminUser && !allowedUser.can_cocina) {
     return handleForbidden();
   }
 

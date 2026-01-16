@@ -20,27 +20,32 @@ export async function GET() {
     return unauthorized;
   }
 
-  const allowlistInfo = await getAllowlistRoleForUserEmail(user.email);
+  const email = user.email?.trim().toLowerCase();
+
+  if (!email) {
+    const notAllowed = NextResponse.json({ ok: false, error: 'not_allowed' }, { status: 403 });
+    mergeResponseCookies(supabaseResponse, notAllowed);
+    return notAllowed;
+  }
+
+  const allowlistInfo = await getAllowlistRoleForUserEmail(email);
   if (allowlistInfo.error) {
     const allowlistError = NextResponse.json({ ok: false, error: 'Allowlist check failed' }, { status: 500 });
     mergeResponseCookies(supabaseResponse, allowlistError);
     return allowlistError;
   }
 
-  if (!allowlistInfo.allowlisted) {
+  if (!allowlistInfo.allowlisted || !allowlistInfo.allowedUser?.is_active) {
     const forbidden = NextResponse.json({ ok: false, error: 'forbidden' }, { status: 403 });
     mergeResponseCookies(supabaseResponse, forbidden);
     return forbidden;
   }
-
-  const email = user.email?.toLowerCase() ?? null;
 
   const supabaseAdmin = createSupabaseAdminClient();
   const { data: allowedUser } = await supabaseAdmin
     .from('app_allowed_users')
     .select('id,email,display_name,is_active,role,can_reservas,can_mantenimiento,can_cocina')
     .eq('email', email)
-    .eq('is_active', true)
     .maybeSingle();
 
   const response = NextResponse.json({
