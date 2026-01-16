@@ -24,13 +24,6 @@ CREATE SCHEMA public;
 
 
 --
--- Name: SCHEMA public; Type: COMMENT; Schema: -; Owner: -
---
-
-COMMENT ON SCHEMA public IS 'standard public schema';
-
-
---
 -- Name: group_service_outcome; Type: TYPE; Schema: public; Owner: -
 --
 
@@ -686,6 +679,10 @@ CREATE TABLE public.app_allowed_users (
     is_active boolean DEFAULT true NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     id uuid DEFAULT gen_random_uuid() NOT NULL,
+    can_reservas boolean DEFAULT true NOT NULL,
+    can_mantenimiento boolean DEFAULT true NOT NULL,
+    can_cocina boolean DEFAULT true NOT NULL,
+    display_name text,
     CONSTRAINT app_allowed_users_email_lower_chk CHECK ((email = lower(email))),
     CONSTRAINT app_allowed_users_role_check CHECK ((role = ANY (ARRAY['admin'::text, 'staff'::text, 'viewer'::text])))
 );
@@ -927,6 +924,7 @@ CREATE TABLE public.tasks (
     routine_week_start date,
     window_start_date date,
     CONSTRAINT tasks_routine_trace_chk CHECK ((((routine_id IS NULL) AND (routine_week_start IS NULL)) OR ((routine_id IS NOT NULL) AND (routine_week_start IS NOT NULL) AND (EXTRACT(dow FROM routine_week_start) = (1)::numeric)))),
+    CONSTRAINT tasks_status_open_done CHECK ((status = ANY (ARRAY['open'::public.task_status, 'done'::public.task_status]))),
     CONSTRAINT tasks_window_dates_chk CHECK (((window_start_date IS NULL) OR (due_date IS NULL) OR (window_start_date <= due_date)))
 );
 
