@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { ChevronDownIcon } from '@heroicons/react/24/outline';
@@ -100,32 +100,54 @@ function isLinkActive(pathname: string, link: NavigationLink) {
 
 export function AppSidebar({ className, allowedUser }: Props) {
   const pathname = usePathname();
-  const groups = buildGroups(allowedUser);
-  const defaultSection = groups[0]?.label.toLowerCase() ?? null;
-  const [openSection, setOpenSection] = useState<string | null>(defaultSection);
-
-  useEffect(() => {
-    if (!defaultSection) {
-      setOpenSection(null);
-      return;
-    }
-
-    const exists = groups.some((group) => group.label.toLowerCase() === openSection);
-    if (!exists) {
-      setOpenSection(defaultSection);
-    }
-  }, [defaultSection, groups, openSection]);
+  const role = allowedUser?.role ?? null;
+  const canReservas = Boolean(allowedUser?.can_reservas);
+  const canMantenimiento = Boolean(allowedUser?.can_mantenimiento);
+  const canCocina = Boolean(allowedUser?.can_cocina);
+  const groups = useMemo(
+    () =>
+      buildGroups({
+        role,
+        can_reservas: canReservas,
+        can_mantenimiento: canMantenimiento,
+        can_cocina: canCocina,
+      }),
+    [role, canReservas, canMantenimiento, canCocina],
+  );
+  const [openSection, setOpenSection] = useState<string | null>(() => {
+    const activeGroup = groups.find((group) =>
+      group.links.some((link) => isLinkActive(pathname, link)),
+    );
+    return activeGroup?.label.toLowerCase() ?? groups[0]?.label.toLowerCase() ?? null;
+  });
 
   useEffect(() => {
     const activeGroup = groups.find((group) => group.links.some((link) => isLinkActive(pathname, link)));
+    const normalizedActiveLabel = activeGroup?.label.toLowerCase() ?? null;
 
-    if (activeGroup) {
-      setOpenSection((prev) => {
-        const normalizedLabel = activeGroup.label.toLowerCase();
-        return prev === normalizedLabel ? prev : normalizedLabel;
-      });
+    if (normalizedActiveLabel) {
+      if (openSection !== normalizedActiveLabel) {
+        setOpenSection(normalizedActiveLabel);
+      }
+      return;
     }
-  }, [groups, pathname]);
+
+    const defaultSection = groups[0]?.label.toLowerCase() ?? null;
+    const hasValidSection = openSection
+      ? groups.some((group) => group.label.toLowerCase() === openSection)
+      : false;
+
+    if (!defaultSection) {
+      if (openSection !== null) {
+        setOpenSection(null);
+      }
+      return;
+    }
+
+    if (!hasValidSection && openSection !== defaultSection) {
+      setOpenSection(defaultSection);
+    }
+  }, [groups, pathname, openSection]);
 
   return (
     <nav className={`space-y-3 ${className ?? ''}`} aria-label="Navegación principal">

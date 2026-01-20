@@ -75,10 +75,10 @@ export function AllowedUsersManager({ initialUsers, currentUserEmail, currentUse
   }, []);
 
   useEffect(() => {
-    if (initialUsers.length === 0) {
+    if (initialUsers.length === 0 && users.length === 0) {
       loadUsers();
     }
-  }, [initialUsers.length, loadUsers]);
+  }, [initialUsers.length, loadUsers, users.length]);
 
   const handleCreate = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
