@@ -63,6 +63,7 @@ CREATE TYPE public.task_priority AS ENUM (
 
 CREATE TYPE public.task_status AS ENUM (
     'open',
+    'in_progress',
     'done'
 );
 
@@ -924,6 +925,8 @@ CREATE TABLE public.tasks (
     routine_week_start date,
     window_start_date date,
     CONSTRAINT tasks_routine_trace_chk CHECK ((((routine_id IS NULL) AND (routine_week_start IS NULL)) OR ((routine_id IS NOT NULL) AND (routine_week_start IS NOT NULL) AND (EXTRACT(dow FROM routine_week_start) = (1)::numeric)))),
+    CONSTRAINT tasks_status_allowed CHECK (((status)::text = ANY (ARRAY['open'::text, 'done'::text]))),
+    CONSTRAINT tasks_status_only_open_done CHECK (((status)::text = ANY (ARRAY['open'::text, 'done'::text]))),
     CONSTRAINT tasks_status_open_done CHECK ((status = ANY (ARRAY['open'::public.task_status, 'done'::public.task_status]))),
     CONSTRAINT tasks_window_dates_chk CHECK (((window_start_date IS NULL) OR (due_date IS NULL) OR (window_start_date <= due_date)))
 );
@@ -1523,4 +1526,5 @@ CREATE POLICY "read own allowlist row" ON public.app_allowed_users FOR SELECT TO
 -- PostgreSQL database dump complete
 --
 
-\unrestrict eHNKOOTnsOW2oJbXkAXXIkbr2rfdYGYDK0D7z0UT6bgbvVlRD276aHzN3bRpY2G
+\unrestrict q4fioO8JDWdQCQrUFI0XpiwpEO574gBU99vPbwn8LeZ4EddvY2TVEmjV5rn2wkr
+

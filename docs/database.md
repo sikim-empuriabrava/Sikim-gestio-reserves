@@ -219,7 +219,7 @@ RLS: deshabilitado
 - `group_service_outcome`: `normal`, `annotation`, `incident`, `no_show`, `note`
 - `task_area`: `maintenance`, `kitchen`
 - `task_priority`: `low`, `normal`, `high`
-- `task_status`: `open`, `done`
+- `task_status`: `open`, `in_progress`, `done`
 
 ## Views
 - `v_daily_room_occupancy`
