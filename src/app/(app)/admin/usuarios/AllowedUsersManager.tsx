@@ -42,11 +42,17 @@ const defaultForm: FormState = {
 
 type Props = {
   initialUsers: AllowedUser[];
+  initialLoadError?: string | null;
   currentUserEmail: string;
   currentUserRole: string | null;
 };
 
-export function AllowedUsersManager({ initialUsers, currentUserEmail, currentUserRole }: Props) {
+export function AllowedUsersManager({
+  initialUsers,
+  initialLoadError,
+  currentUserEmail,
+  currentUserRole,
+}: Props) {
   const [users, setUsers] = useState<AllowedUser[]>(initialUsers);
   const [form, setForm] = useState<FormState>(defaultForm);
   const [loading, setLoading] = useState(false);
@@ -171,6 +177,13 @@ export function AllowedUsersManager({ initialUsers, currentUserEmail, currentUse
           </button>
         </div>
       </div>
+
+      {initialLoadError && (
+        <div className="rounded-2xl border border-amber-900/60 bg-amber-950/40 p-4 text-sm text-amber-100">
+          No se pudo precargar la lista de usuarios en el servidor. La app intentará cargarlos
+          desde el navegador. Detalle: {initialLoadError}
+        </div>
+      )}
 
       <div className="rounded-2xl border border-emerald-900/60 bg-emerald-950/40 p-4 text-sm text-emerald-100">
         <p className="font-semibold">Debug allowlist</p>
