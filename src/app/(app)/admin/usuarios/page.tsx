@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { getAllowlistRoleForUserEmail, getDefaultModulePath, isAdmin } from '@/lib/auth/requireRole';
+import { createSupabaseAdminClient } from '@/lib/supabaseAdmin';
 import { AllowedUsersManager } from './AllowedUsersManager';
 
 export default async function AdminUsuariosPage() {
@@ -29,9 +30,16 @@ export default async function AdminUsuariosPage() {
     redirect(getDefaultModulePath(allowlistInfo.allowedUser));
   }
 
+  const supabaseAdmin = createSupabaseAdminClient();
+  const { data: rows } = await supabaseAdmin
+    .from('app_allowed_users')
+    .select('id,email,display_name,role,is_active,can_reservas,can_mantenimiento,can_cocina')
+    .order('email', { ascending: true });
+  const initialUsers = rows ?? [];
+
   return (
     <AllowedUsersManager
-      initialUsers={[]}
+      initialUsers={initialUsers}
       currentUserEmail={requesterEmail}
       currentUserRole={allowlistInfo.role}
     />
