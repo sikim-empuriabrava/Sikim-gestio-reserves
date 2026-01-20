@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { ChevronDownIcon } from '@heroicons/react/24/outline';
@@ -114,6 +114,7 @@ export function AppSidebar({ className, allowedUser }: Props) {
       }),
     [role, canReservas, canMantenimiento, canCocina],
   );
+  const groupsRef = useRef(groups);
   const [openSection, setOpenSection] = useState<string | null>(() => {
     const activeGroup = groups.find((group) =>
       group.links.some((link) => isLinkActive(pathname, link)),
@@ -122,16 +123,21 @@ export function AppSidebar({ className, allowedUser }: Props) {
   });
 
   useEffect(() => {
-    const activeGroup = groups.find((group) => group.links.some((link) => isLinkActive(pathname, link)));
+    groupsRef.current = groups;
+  }, [groups]);
+
+  useEffect(() => {
+    const activeGroup = groupsRef.current.find((group) =>
+      group.links.some((link) => isLinkActive(pathname, link)),
+    );
     const normalizedActiveLabel = activeGroup?.label.toLowerCase() ?? null;
 
     if (normalizedActiveLabel) {
-      if (openSection !== normalizedActiveLabel) {
-        setOpenSection(normalizedActiveLabel);
-      }
-      return;
+      setOpenSection(normalizedActiveLabel);
     }
+  }, [pathname]);
 
+  useEffect(() => {
     const defaultSection = groups[0]?.label.toLowerCase() ?? null;
     const hasValidSection = openSection
       ? groups.some((group) => group.label.toLowerCase() === openSection)
@@ -147,7 +153,7 @@ export function AppSidebar({ className, allowedUser }: Props) {
     if (!hasValidSection && openSection !== defaultSection) {
       setOpenSection(defaultSection);
     }
-  }, [groups, pathname, openSection]);
+  }, [groups, openSection]);
 
   return (
     <nav className={`space-y-3 ${className ?? ''}`} aria-label="Navegación principal">
