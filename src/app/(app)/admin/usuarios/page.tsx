@@ -33,7 +33,9 @@ export default async function AdminUsuariosPage() {
   const supabaseAdmin = createSupabaseAdminClient();
   const { data: rows, error } = await supabaseAdmin
     .from('app_allowed_users')
-    .select('id,email,display_name,role,is_active,can_reservas,can_mantenimiento,can_cocina')
+    .select(
+      'id,email,display_name,role,is_active,can_reservas,can_mantenimiento,can_cocina,can_cheffing',
+    )
     .order('email', { ascending: true });
   if (error) {
     console.error('[admin/usuarios] Failed to load app_allowed_users', error);

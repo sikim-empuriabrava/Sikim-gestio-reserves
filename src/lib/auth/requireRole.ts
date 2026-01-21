@@ -11,6 +11,7 @@ export type AllowedUser = {
   can_reservas: boolean;
   can_mantenimiento: boolean;
   can_cocina: boolean;
+  can_cheffing: boolean;
 };
 
 export type AllowlistInfo = {
@@ -29,7 +30,9 @@ export async function getAllowlistRoleForUserEmail(email: string | null | undefi
   const normalizedEmail = email.trim().toLowerCase();
   const { data, error } = await supabaseAdmin
     .from('app_allowed_users')
-    .select('id, email, display_name, role, is_active, can_reservas, can_mantenimiento, can_cocina')
+    .select(
+      'id, email, display_name, role, is_active, can_reservas, can_mantenimiento, can_cocina, can_cheffing',
+    )
     .eq('email', normalizedEmail)
     .limit(1)
     .maybeSingle();
@@ -54,6 +57,7 @@ export async function getAllowlistRoleForUserEmail(email: string | null | undefi
       can_reservas: Boolean(data.can_reservas),
       can_mantenimiento: Boolean(data.can_mantenimiento),
       can_cocina: Boolean(data.can_cocina),
+      can_cheffing: Boolean(data.can_cheffing),
     },
     error: null,
   };
@@ -68,6 +72,7 @@ export function getDefaultModulePath(allowedUser: AllowedUser | null): string {
   if (allowedUser?.can_reservas) return '/reservas';
   if (allowedUser?.can_mantenimiento) return '/mantenimiento';
   if (allowedUser?.can_cocina) return '/cocina';
+  if (allowedUser?.can_cheffing) return '/cheffing';
   return '/';
 }
 

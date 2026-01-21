@@ -6,6 +6,11 @@ Fecha: 2026-01-14
 - Revisión de **Route Handlers** en `src/app/api/**/route.ts`.
 - Revisión de **SSR (Server Components / layouts / pages)** con uso de admin client o lecturas sensibles.
 
+## Notas recientes
+- Nuevo módulo `/cheffing` protegido por allowlist y permisos server-side.
+- Nuevo flag `can_cheffing` en `public.app_allowed_users` para habilitar acceso al módulo.
+- Los usuarios con rol `admin` mantienen acceso total aunque `can_cheffing=false`.
+
 ## 1) Tabla de endpoints
 
 | Archivo | Método | Tipo de acceso | Valida auth | Valida allowlist | Usa admin client | mergeResponseCookies | Observaciones / riesgos |

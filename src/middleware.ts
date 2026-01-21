@@ -87,7 +87,7 @@ export async function middleware(req: NextRequest) {
   // Filter by email and active status to avoid mismatches or multi-row errors.
   const { data: allowedUser, error: allowlistError } = await supabase
     .from('app_allowed_users')
-    .select('email, role, is_active, can_reservas, can_mantenimiento, can_cocina')
+    .select('email, role, is_active, can_reservas, can_mantenimiento, can_cocina, can_cheffing')
     .eq('email', requesterEmail)
     .eq('is_active', true)
     .maybeSingle();
@@ -193,10 +193,12 @@ function getDefaultModulePath(allowedUser: {
   can_reservas?: boolean | null;
   can_mantenimiento?: boolean | null;
   can_cocina?: boolean | null;
+  can_cheffing?: boolean | null;
 }) {
   if (allowedUser?.can_reservas) return '/reservas';
   if (allowedUser?.can_mantenimiento) return '/mantenimiento';
   if (allowedUser?.can_cocina) return '/cocina';
+  if (allowedUser?.can_cheffing) return '/cheffing';
   return '/';
 }
 
