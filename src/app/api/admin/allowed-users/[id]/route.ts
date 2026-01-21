@@ -94,6 +94,10 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     updates.can_cocina = Boolean(body.can_cocina);
   }
 
+  if (body?.can_cheffing !== undefined) {
+    updates.can_cheffing = Boolean(body.can_cheffing);
+  }
+
   if (Object.keys(updates).length === 0) {
     const missing = NextResponse.json({ error: 'No fields to update' }, { status: 400 });
     mergeResponseCookies(supabaseResponse, missing);

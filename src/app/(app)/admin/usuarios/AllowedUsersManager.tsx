@@ -12,6 +12,7 @@ type AllowedUser = {
   can_reservas: boolean;
   can_mantenimiento: boolean;
   can_cocina: boolean;
+  can_cheffing: boolean;
 };
 
 type FormState = {
@@ -22,6 +23,7 @@ type FormState = {
   can_reservas: boolean;
   can_mantenimiento: boolean;
   can_cocina: boolean;
+  can_cheffing: boolean;
 };
 
 const roleLabels: Record<Role, string> = {
@@ -38,6 +40,7 @@ const defaultForm: FormState = {
   can_reservas: false,
   can_mantenimiento: false,
   can_cocina: false,
+  can_cheffing: false,
 };
 
 type Props = {
@@ -157,7 +160,7 @@ export function AllowedUsersManager({
         <div>
           <h1 className="text-2xl font-semibold text-white">Usuarios y permisos</h1>
           <p className="text-sm text-slate-400">
-            Activa usuarios y controla el acceso a Reservas, Mantenimiento y Cocina.
+            Activa usuarios y controla el acceso a Reservas, Mantenimiento, Cocina y Cheffing.
           </p>
         </div>
         <div className="flex items-center gap-3 text-sm text-slate-300">
@@ -266,7 +269,7 @@ export function AllowedUsersManager({
 
         <div className="space-y-2">
           <p className="text-sm font-semibold text-slate-200">Permisos por módulo</p>
-          <div className="grid gap-3 md:grid-cols-3">
+          <div className="grid gap-3 md:grid-cols-4">
             <label className="flex items-center gap-3 rounded-lg border border-slate-800 bg-slate-950/40 px-3 py-2 text-sm text-slate-200">
               <input
                 type="checkbox"
@@ -293,6 +296,15 @@ export function AllowedUsersManager({
                 className="h-4 w-4 accent-emerald-500"
               />
               <span>Cocina</span>
+            </label>
+            <label className="flex items-center gap-3 rounded-lg border border-slate-800 bg-slate-950/40 px-3 py-2 text-sm text-slate-200">
+              <input
+                type="checkbox"
+                checked={form.can_cheffing}
+                onChange={(event) => setForm((prev) => ({ ...prev, can_cheffing: event.target.checked }))}
+                className="h-4 w-4 accent-emerald-500"
+              />
+              <span>Cheffing</span>
             </label>
           </div>
         </div>
@@ -338,6 +350,7 @@ export function AllowedUsersManager({
                 <th className="px-4 py-3">Reservas</th>
                 <th className="px-4 py-3">Mantenimiento</th>
                 <th className="px-4 py-3">Cocina</th>
+                <th className="px-4 py-3">Cheffing</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-800">
@@ -425,18 +438,27 @@ export function AllowedUsersManager({
                       disabled={savingId === user.id}
                     />
                   </td>
+                  <td className="px-4 py-3">
+                    <input
+                      type="checkbox"
+                      checked={user.can_cheffing}
+                      onChange={(event) => handleUpdate(user.id, { can_cheffing: event.target.checked })}
+                      className="h-4 w-4 accent-emerald-500"
+                      disabled={savingId === user.id}
+                    />
+                  </td>
                 </tr>
               ))}
               {users.length === 0 && loading && (
                 <tr>
-                  <td colSpan={7} className="px-4 py-6 text-center text-sm text-slate-400">
+                  <td colSpan={8} className="px-4 py-6 text-center text-sm text-slate-400">
                     Cargando usuarios...
                   </td>
                 </tr>
               )}
               {users.length === 0 && !loading && (
                 <tr>
-                  <td colSpan={7} className="px-4 py-6 text-center text-sm text-slate-400">
+                  <td colSpan={8} className="px-4 py-6 text-center text-sm text-slate-400">
                     No hay usuarios allowlisted todavía.
                   </td>
                 </tr>

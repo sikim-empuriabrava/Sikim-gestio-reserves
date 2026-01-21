@@ -22,6 +22,7 @@ type AllowedUser = {
   can_reservas: boolean;
   can_mantenimiento: boolean;
   can_cocina: boolean;
+  can_cheffing: boolean;
 };
 
 type Props = {
@@ -76,6 +77,13 @@ function buildGroups(allowedUser: AllowedUser | null): NavigationGroup[] {
     });
   }
 
+  if (isAdmin || allowedUser?.can_cheffing) {
+    groups.push({
+      label: 'Cheffing',
+      links: [{ label: 'Cheffing', href: '/cheffing', basePath: '/cheffing' }],
+    });
+  }
+
   if (isAdmin) {
     groups.push({
       label: 'Admin',
@@ -104,6 +112,7 @@ export function AppSidebar({ className, allowedUser }: Props) {
   const canReservas = Boolean(allowedUser?.can_reservas);
   const canMantenimiento = Boolean(allowedUser?.can_mantenimiento);
   const canCocina = Boolean(allowedUser?.can_cocina);
+  const canCheffing = Boolean(allowedUser?.can_cheffing);
   const groups = useMemo(
     () =>
       buildGroups({
@@ -111,8 +120,9 @@ export function AppSidebar({ className, allowedUser }: Props) {
         can_reservas: canReservas,
         can_mantenimiento: canMantenimiento,
         can_cocina: canCocina,
+        can_cheffing: canCheffing,
       }),
-    [role, canReservas, canMantenimiento, canCocina],
+    [role, canReservas, canMantenimiento, canCocina, canCheffing],
   );
   const groupsRef = useRef(groups);
   const [openSection, setOpenSection] = useState<string | null>(() => {
