@@ -7,6 +7,7 @@ const PUBLIC_PATHS = [
   /^\/auth\/callback/,
   /^\/_next\//,
   /^\/api\/version$/,
+  /^\/api\/_health\/env$/,
   /^\/favicon\.ico$/,
 ];
 
