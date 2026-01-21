@@ -104,7 +104,8 @@ export default function LoginPage() {
         ) : null}
         {error === 'config' ? (
           <p className="rounded-lg bg-red-900/40 px-3 py-2 text-sm text-red-100">
-            Configuración incompleta en servidor (SUPABASE_SERVICE_ROLE_KEY). Contacta con administración.
+            Configuración incompleta en servidor (NEXT_PUBLIC_SUPABASE_URL / NEXT_PUBLIC_SUPABASE_ANON_KEY).
+            Contacta con administración.
           </p>
         ) : null}
       </div>
