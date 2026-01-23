@@ -85,6 +85,42 @@ $$;
 
 
 --
+-- Name: cheffing_is_admin(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.cheffing_is_admin() RETURNS boolean
+    LANGUAGE sql STABLE SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+  select exists (
+    select 1
+    from public.app_allowed_users
+    where is_active = true
+      and lower(email) = lower(coalesce(auth.jwt() ->> 'email', ''))
+      and role = 'admin'
+  );
+$$;
+
+
+--
+-- Name: cheffing_is_allowed(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.cheffing_is_allowed() RETURNS boolean
+    LANGUAGE sql STABLE SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+  select exists (
+    select 1
+    from public.app_allowed_users
+    where is_active = true
+      and lower(email) = lower(coalesce(auth.jwt() ->> 'email', ''))
+      and (role = 'admin' or can_cheffing = true)
+  );
+$$;
+
+
+--
 -- Name: day_status_sync_legacy_columns(); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -643,6 +679,20 @@ $$;
 
 
 --
+-- Name: tg_set_updated_at(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.tg_set_updated_at() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+begin
+  new.updated_at := now();
+  return new;
+end;
+$$;
+
+
+--
 -- Name: trg_recalculate_group_staffing_plan(); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -684,8 +734,118 @@ CREATE TABLE public.app_allowed_users (
     can_mantenimiento boolean DEFAULT true NOT NULL,
     can_cocina boolean DEFAULT true NOT NULL,
     display_name text,
+    can_cheffing boolean DEFAULT false NOT NULL,
     CONSTRAINT app_allowed_users_email_lower_chk CHECK ((email = lower(email))),
     CONSTRAINT app_allowed_users_role_check CHECK ((role = ANY (ARRAY['admin'::text, 'staff'::text, 'viewer'::text])))
+);
+
+
+--
+-- Name: cheffing_dish_items; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.cheffing_dish_items (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    dish_id uuid NOT NULL,
+    ingredient_id uuid,
+    subrecipe_id uuid,
+    unit_code text NOT NULL,
+    quantity numeric NOT NULL,
+    notes text,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT cheffing_dish_items_component_check CHECK (((ingredient_id IS NULL) <> (subrecipe_id IS NULL))),
+    CONSTRAINT cheffing_dish_items_quantity_check CHECK ((quantity > (0)::numeric))
+);
+
+
+--
+-- Name: cheffing_dishes; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.cheffing_dishes (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    name text NOT NULL,
+    selling_price numeric,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT cheffing_dishes_selling_price_check CHECK (((selling_price IS NULL) OR (selling_price >= (0)::numeric)))
+);
+
+
+--
+-- Name: cheffing_ingredients; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.cheffing_ingredients (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    name text NOT NULL,
+    purchase_unit_code text NOT NULL,
+    purchase_pack_qty numeric NOT NULL,
+    purchase_price numeric NOT NULL,
+    waste_pct numeric DEFAULT 0 NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT cheffing_ingredients_purchase_pack_qty_check CHECK ((purchase_pack_qty > (0)::numeric)),
+    CONSTRAINT cheffing_ingredients_purchase_price_check CHECK ((purchase_price >= (0)::numeric)),
+    CONSTRAINT cheffing_ingredients_waste_lt_one CHECK (((waste_pct >= (0)::numeric) AND (waste_pct < (1)::numeric))),
+    CONSTRAINT cheffing_ingredients_waste_pct_check CHECK (((waste_pct >= (0)::numeric) AND (waste_pct < (1)::numeric)))
+);
+
+
+--
+-- Name: cheffing_subrecipe_items; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.cheffing_subrecipe_items (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    subrecipe_id uuid NOT NULL,
+    ingredient_id uuid,
+    subrecipe_component_id uuid,
+    unit_code text NOT NULL,
+    quantity numeric NOT NULL,
+    notes text,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT cheffing_subrecipe_items_component_check CHECK (((ingredient_id IS NULL) <> (subrecipe_component_id IS NULL))),
+    CONSTRAINT cheffing_subrecipe_items_no_self_component CHECK (((subrecipe_component_id IS NULL) OR (subrecipe_component_id <> subrecipe_id))),
+    CONSTRAINT cheffing_subrecipe_items_quantity_check CHECK ((quantity > (0)::numeric)),
+    CONSTRAINT cheffing_subrecipe_no_self_ref CHECK (((subrecipe_component_id IS NULL) OR (subrecipe_component_id <> subrecipe_id)))
+);
+
+
+--
+-- Name: cheffing_subrecipes; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.cheffing_subrecipes (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    name text NOT NULL,
+    output_unit_code text NOT NULL,
+    output_qty numeric NOT NULL,
+    waste_pct numeric DEFAULT 0 NOT NULL,
+    notes text,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT cheffing_subrecipes_output_qty_check CHECK ((output_qty > (0)::numeric)),
+    CONSTRAINT cheffing_subrecipes_waste_lt_one CHECK (((waste_pct >= (0)::numeric) AND (waste_pct < (1)::numeric))),
+    CONSTRAINT cheffing_subrecipes_waste_pct_check CHECK (((waste_pct >= (0)::numeric) AND (waste_pct < (1)::numeric)))
+);
+
+
+--
+-- Name: cheffing_units; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.cheffing_units (
+    code text NOT NULL,
+    name text,
+    dimension text NOT NULL,
+    to_base_factor numeric NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT cheffing_units_dimension_check CHECK ((dimension = ANY (ARRAY['mass'::text, 'volume'::text, 'unit'::text]))),
+    CONSTRAINT cheffing_units_to_base_factor_check CHECK ((to_base_factor > (0)::numeric))
 );
 
 
@@ -928,8 +1088,98 @@ CREATE TABLE public.tasks (
     CONSTRAINT tasks_status_allowed CHECK (((status)::text = ANY (ARRAY['open'::text, 'done'::text]))),
     CONSTRAINT tasks_status_only_open_done CHECK (((status)::text = ANY (ARRAY['open'::text, 'done'::text]))),
     CONSTRAINT tasks_status_open_done CHECK ((status = ANY (ARRAY['open'::public.task_status, 'done'::public.task_status]))),
+    CONSTRAINT tasks_status_open_done_check CHECK ((status = ANY (ARRAY['open'::public.task_status, 'done'::public.task_status]))),
+    CONSTRAINT tasks_status_open_done_only CHECK ((status = ANY (ARRAY['open'::public.task_status, 'done'::public.task_status]))),
     CONSTRAINT tasks_window_dates_chk CHECK (((window_start_date IS NULL) OR (due_date IS NULL) OR (window_start_date <= due_date)))
 );
+
+
+--
+-- Name: v_cheffing_ingredients_cost; Type: VIEW; Schema: public; Owner: -
+--
+
+CREATE VIEW public.v_cheffing_ingredients_cost WITH (security_invoker='true') AS
+ SELECT i.id,
+    i.name,
+    i.purchase_unit_code,
+    i.purchase_pack_qty,
+    i.purchase_price,
+    i.waste_pct,
+    i.created_at,
+    i.updated_at,
+    u.dimension AS purchase_unit_dimension,
+    u.to_base_factor AS purchase_unit_factor,
+    (i.purchase_price / NULLIF((i.purchase_pack_qty * u.to_base_factor), (0)::numeric)) AS cost_gross_per_base,
+    ((i.purchase_price / NULLIF((i.purchase_pack_qty * u.to_base_factor), (0)::numeric)) / NULLIF(((1)::numeric - i.waste_pct), (0)::numeric)) AS cost_net_per_base,
+    ((1)::numeric / NULLIF(((1)::numeric - i.waste_pct), (0)::numeric)) AS waste_factor
+   FROM (public.cheffing_ingredients i
+     JOIN public.cheffing_units u ON ((u.code = i.purchase_unit_code)));
+
+
+--
+-- Name: v_cheffing_subrecipe_cost; Type: VIEW; Schema: public; Owner: -
+--
+
+CREATE VIEW public.v_cheffing_subrecipe_cost WITH (security_invoker='true') AS
+ WITH item_costs AS (
+         SELECT s_1.id AS subrecipe_id,
+            sum(
+                CASE
+                    WHEN ((si.ingredient_id IS NOT NULL) AND (u_item.dimension = vic.purchase_unit_dimension)) THEN (vic.cost_net_per_base * (si.quantity * u_item.to_base_factor))
+                    ELSE NULL::numeric
+                END) AS items_cost_total
+           FROM (((public.cheffing_subrecipes s_1
+             LEFT JOIN public.cheffing_subrecipe_items si ON ((si.subrecipe_id = s_1.id)))
+             LEFT JOIN public.v_cheffing_ingredients_cost vic ON ((vic.id = si.ingredient_id)))
+             LEFT JOIN public.cheffing_units u_item ON ((u_item.code = si.unit_code)))
+          GROUP BY s_1.id
+        )
+ SELECT s.id,
+    s.name,
+    s.output_unit_code,
+    s.output_qty,
+    s.waste_pct,
+    s.created_at,
+    s.updated_at,
+    u.dimension AS output_unit_dimension,
+    u.to_base_factor AS output_unit_factor,
+    ic.items_cost_total,
+    (ic.items_cost_total / NULLIF((s.output_qty * u.to_base_factor), (0)::numeric)) AS cost_gross_per_base,
+    ((ic.items_cost_total / NULLIF((s.output_qty * u.to_base_factor), (0)::numeric)) / NULLIF(((1)::numeric - s.waste_pct), (0)::numeric)) AS cost_net_per_base,
+    ((1)::numeric / NULLIF(((1)::numeric - s.waste_pct), (0)::numeric)) AS waste_factor
+   FROM ((public.cheffing_subrecipes s
+     JOIN public.cheffing_units u ON ((u.code = s.output_unit_code)))
+     LEFT JOIN item_costs ic ON ((ic.subrecipe_id = s.id)));
+
+
+--
+-- Name: v_cheffing_dish_cost; Type: VIEW; Schema: public; Owner: -
+--
+
+CREATE VIEW public.v_cheffing_dish_cost WITH (security_invoker='true') AS
+ WITH item_costs AS (
+         SELECT d_1.id AS dish_id,
+            sum(
+                CASE
+                    WHEN ((di.ingredient_id IS NOT NULL) AND (u_item.dimension = vic.purchase_unit_dimension)) THEN (vic.cost_net_per_base * (di.quantity * u_item.to_base_factor))
+                    WHEN ((di.subrecipe_id IS NOT NULL) AND (u_item.dimension = vsc.output_unit_dimension)) THEN (vsc.cost_net_per_base * (di.quantity * u_item.to_base_factor))
+                    ELSE NULL::numeric
+                END) AS items_cost_total
+           FROM ((((public.cheffing_dishes d_1
+             LEFT JOIN public.cheffing_dish_items di ON ((di.dish_id = d_1.id)))
+             LEFT JOIN public.v_cheffing_ingredients_cost vic ON ((vic.id = di.ingredient_id)))
+             LEFT JOIN public.v_cheffing_subrecipe_cost vsc ON ((vsc.id = di.subrecipe_id)))
+             LEFT JOIN public.cheffing_units u_item ON ((u_item.code = di.unit_code)))
+          GROUP BY d_1.id
+        )
+ SELECT d.id,
+    d.name,
+    d.selling_price,
+    d.created_at,
+    d.updated_at,
+    ic.items_cost_total
+   FROM (public.cheffing_dishes d
+     LEFT JOIN item_costs ic ON ((ic.dish_id = d.id)));
 
 
 --
@@ -1100,6 +1350,54 @@ ALTER TABLE ONLY public.app_allowed_users
 
 
 --
+-- Name: cheffing_dish_items cheffing_dish_items_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.cheffing_dish_items
+    ADD CONSTRAINT cheffing_dish_items_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: cheffing_dishes cheffing_dishes_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.cheffing_dishes
+    ADD CONSTRAINT cheffing_dishes_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: cheffing_ingredients cheffing_ingredients_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.cheffing_ingredients
+    ADD CONSTRAINT cheffing_ingredients_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: cheffing_subrecipe_items cheffing_subrecipe_items_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.cheffing_subrecipe_items
+    ADD CONSTRAINT cheffing_subrecipe_items_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: cheffing_subrecipes cheffing_subrecipes_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.cheffing_subrecipes
+    ADD CONSTRAINT cheffing_subrecipes_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: cheffing_units cheffing_units_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.cheffing_units
+    ADD CONSTRAINT cheffing_units_pkey PRIMARY KEY (code);
+
+
+--
 -- Name: group_events group_events_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -1243,6 +1541,83 @@ CREATE UNIQUE INDEX app_allowed_users_email_unique ON public.app_allowed_users U
 
 
 --
+-- Name: cheffing_dish_items_dish_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX cheffing_dish_items_dish_id_idx ON public.cheffing_dish_items USING btree (dish_id);
+
+
+--
+-- Name: cheffing_dish_items_ingredient_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX cheffing_dish_items_ingredient_id_idx ON public.cheffing_dish_items USING btree (ingredient_id);
+
+
+--
+-- Name: cheffing_dish_items_subrecipe_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX cheffing_dish_items_subrecipe_id_idx ON public.cheffing_dish_items USING btree (subrecipe_id);
+
+
+--
+-- Name: cheffing_dishes_name_ci_unique; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX cheffing_dishes_name_ci_unique ON public.cheffing_dishes USING btree (lower(name));
+
+
+--
+-- Name: cheffing_ingredients_name_ci_unique; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX cheffing_ingredients_name_ci_unique ON public.cheffing_ingredients USING btree (lower(name));
+
+
+--
+-- Name: cheffing_ingredients_purchase_unit_code_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX cheffing_ingredients_purchase_unit_code_idx ON public.cheffing_ingredients USING btree (purchase_unit_code);
+
+
+--
+-- Name: cheffing_subrecipe_items_ingredient_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX cheffing_subrecipe_items_ingredient_id_idx ON public.cheffing_subrecipe_items USING btree (ingredient_id);
+
+
+--
+-- Name: cheffing_subrecipe_items_subrecipe_component_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX cheffing_subrecipe_items_subrecipe_component_id_idx ON public.cheffing_subrecipe_items USING btree (subrecipe_component_id);
+
+
+--
+-- Name: cheffing_subrecipe_items_subrecipe_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX cheffing_subrecipe_items_subrecipe_id_idx ON public.cheffing_subrecipe_items USING btree (subrecipe_id);
+
+
+--
+-- Name: cheffing_subrecipes_name_ci_unique; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX cheffing_subrecipes_name_ci_unique ON public.cheffing_subrecipes USING btree (lower(name));
+
+
+--
+-- Name: cheffing_subrecipes_output_unit_code_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX cheffing_subrecipes_output_unit_code_idx ON public.cheffing_subrecipes USING btree (output_unit_code);
+
+
+--
 -- Name: day_status_event_date_idx; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -1289,6 +1664,62 @@ CREATE INDEX group_staffing_plans_group_event_id_idx ON public.group_staffing_pl
 --
 
 CREATE INDEX group_staffing_plans_staffing_ratio_id_idx ON public.group_staffing_plans USING btree (staffing_ratio_id);
+
+
+--
+-- Name: idx_cheffing_dish_items_dish_id; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_cheffing_dish_items_dish_id ON public.cheffing_dish_items USING btree (dish_id);
+
+
+--
+-- Name: idx_cheffing_dish_items_ingredient_id; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_cheffing_dish_items_ingredient_id ON public.cheffing_dish_items USING btree (ingredient_id);
+
+
+--
+-- Name: idx_cheffing_dish_items_subrecipe_id; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_cheffing_dish_items_subrecipe_id ON public.cheffing_dish_items USING btree (subrecipe_id);
+
+
+--
+-- Name: idx_cheffing_ingredients_purchase_unit_code; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_cheffing_ingredients_purchase_unit_code ON public.cheffing_ingredients USING btree (purchase_unit_code);
+
+
+--
+-- Name: idx_cheffing_subrecipe_items_ingredient_id; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_cheffing_subrecipe_items_ingredient_id ON public.cheffing_subrecipe_items USING btree (ingredient_id);
+
+
+--
+-- Name: idx_cheffing_subrecipe_items_subrecipe_component_id; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_cheffing_subrecipe_items_subrecipe_component_id ON public.cheffing_subrecipe_items USING btree (subrecipe_component_id);
+
+
+--
+-- Name: idx_cheffing_subrecipe_items_subrecipe_id; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_cheffing_subrecipe_items_subrecipe_id ON public.cheffing_subrecipe_items USING btree (subrecipe_id);
+
+
+--
+-- Name: idx_cheffing_subrecipes_output_unit_code; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_cheffing_subrecipes_output_unit_code ON public.cheffing_subrecipes USING btree (output_unit_code);
 
 
 --
@@ -1404,6 +1835,48 @@ CREATE TRIGGER set_timestamp_tasks BEFORE UPDATE ON public.tasks FOR EACH ROW EX
 
 
 --
+-- Name: cheffing_dish_items set_updated_at_cheffing_dish_items; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER set_updated_at_cheffing_dish_items BEFORE UPDATE ON public.cheffing_dish_items FOR EACH ROW EXECUTE FUNCTION public.tg_set_updated_at();
+
+
+--
+-- Name: cheffing_dishes set_updated_at_cheffing_dishes; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER set_updated_at_cheffing_dishes BEFORE UPDATE ON public.cheffing_dishes FOR EACH ROW EXECUTE FUNCTION public.tg_set_updated_at();
+
+
+--
+-- Name: cheffing_ingredients set_updated_at_cheffing_ingredients; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER set_updated_at_cheffing_ingredients BEFORE UPDATE ON public.cheffing_ingredients FOR EACH ROW EXECUTE FUNCTION public.tg_set_updated_at();
+
+
+--
+-- Name: cheffing_subrecipe_items set_updated_at_cheffing_subrecipe_items; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER set_updated_at_cheffing_subrecipe_items BEFORE UPDATE ON public.cheffing_subrecipe_items FOR EACH ROW EXECUTE FUNCTION public.tg_set_updated_at();
+
+
+--
+-- Name: cheffing_subrecipes set_updated_at_cheffing_subrecipes; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER set_updated_at_cheffing_subrecipes BEFORE UPDATE ON public.cheffing_subrecipes FOR EACH ROW EXECUTE FUNCTION public.tg_set_updated_at();
+
+
+--
+-- Name: cheffing_units set_updated_at_cheffing_units; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER set_updated_at_cheffing_units BEFORE UPDATE ON public.cheffing_units FOR EACH ROW EXECUTE FUNCTION public.tg_set_updated_at();
+
+
+--
 -- Name: menu_second_courses set_updated_at_menu_second_courses; Type: TRIGGER; Schema: public; Owner: -
 --
 
@@ -1425,6 +1898,48 @@ CREATE TRIGGER trg_app_allowed_users_email_lowercase BEFORE INSERT OR UPDATE ON 
 
 
 --
+-- Name: cheffing_dish_items trg_cheffing_dish_items_updated_at; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER trg_cheffing_dish_items_updated_at BEFORE UPDATE ON public.cheffing_dish_items FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
+
+
+--
+-- Name: cheffing_dishes trg_cheffing_dishes_updated_at; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER trg_cheffing_dishes_updated_at BEFORE UPDATE ON public.cheffing_dishes FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
+
+
+--
+-- Name: cheffing_ingredients trg_cheffing_ingredients_updated_at; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER trg_cheffing_ingredients_updated_at BEFORE UPDATE ON public.cheffing_ingredients FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
+
+
+--
+-- Name: cheffing_subrecipe_items trg_cheffing_subrecipe_items_updated_at; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER trg_cheffing_subrecipe_items_updated_at BEFORE UPDATE ON public.cheffing_subrecipe_items FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
+
+
+--
+-- Name: cheffing_subrecipes trg_cheffing_subrecipes_updated_at; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER trg_cheffing_subrecipes_updated_at BEFORE UPDATE ON public.cheffing_subrecipes FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
+
+
+--
+-- Name: cheffing_units trg_cheffing_units_updated_at; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER trg_cheffing_units_updated_at BEFORE UPDATE ON public.cheffing_units FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
+
+
+--
 -- Name: day_status trg_day_status_sync_legacy_columns; Type: TRIGGER; Schema: public; Owner: -
 --
 
@@ -1443,6 +1958,86 @@ CREATE TRIGGER trg_group_events_recalculate_staffing AFTER INSERT OR UPDATE ON p
 --
 
 CREATE TRIGGER trg_set_override_capacity BEFORE INSERT OR UPDATE ON public.group_room_allocations FOR EACH ROW EXECUTE FUNCTION public.set_override_capacity();
+
+
+--
+-- Name: cheffing_dish_items cheffing_dish_items_dish_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.cheffing_dish_items
+    ADD CONSTRAINT cheffing_dish_items_dish_id_fkey FOREIGN KEY (dish_id) REFERENCES public.cheffing_dishes(id) ON DELETE CASCADE;
+
+
+--
+-- Name: cheffing_dish_items cheffing_dish_items_ingredient_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.cheffing_dish_items
+    ADD CONSTRAINT cheffing_dish_items_ingredient_id_fkey FOREIGN KEY (ingredient_id) REFERENCES public.cheffing_ingredients(id);
+
+
+--
+-- Name: cheffing_dish_items cheffing_dish_items_subrecipe_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.cheffing_dish_items
+    ADD CONSTRAINT cheffing_dish_items_subrecipe_id_fkey FOREIGN KEY (subrecipe_id) REFERENCES public.cheffing_subrecipes(id);
+
+
+--
+-- Name: cheffing_dish_items cheffing_dish_items_unit_code_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.cheffing_dish_items
+    ADD CONSTRAINT cheffing_dish_items_unit_code_fkey FOREIGN KEY (unit_code) REFERENCES public.cheffing_units(code);
+
+
+--
+-- Name: cheffing_ingredients cheffing_ingredients_purchase_unit_code_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.cheffing_ingredients
+    ADD CONSTRAINT cheffing_ingredients_purchase_unit_code_fkey FOREIGN KEY (purchase_unit_code) REFERENCES public.cheffing_units(code);
+
+
+--
+-- Name: cheffing_subrecipe_items cheffing_subrecipe_items_ingredient_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.cheffing_subrecipe_items
+    ADD CONSTRAINT cheffing_subrecipe_items_ingredient_id_fkey FOREIGN KEY (ingredient_id) REFERENCES public.cheffing_ingredients(id);
+
+
+--
+-- Name: cheffing_subrecipe_items cheffing_subrecipe_items_subrecipe_component_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.cheffing_subrecipe_items
+    ADD CONSTRAINT cheffing_subrecipe_items_subrecipe_component_id_fkey FOREIGN KEY (subrecipe_component_id) REFERENCES public.cheffing_subrecipes(id);
+
+
+--
+-- Name: cheffing_subrecipe_items cheffing_subrecipe_items_subrecipe_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.cheffing_subrecipe_items
+    ADD CONSTRAINT cheffing_subrecipe_items_subrecipe_id_fkey FOREIGN KEY (subrecipe_id) REFERENCES public.cheffing_subrecipes(id) ON DELETE CASCADE;
+
+
+--
+-- Name: cheffing_subrecipe_items cheffing_subrecipe_items_unit_code_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.cheffing_subrecipe_items
+    ADD CONSTRAINT cheffing_subrecipe_items_unit_code_fkey FOREIGN KEY (unit_code) REFERENCES public.cheffing_units(code);
+
+
+--
+-- Name: cheffing_subrecipes cheffing_subrecipes_output_unit_code_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.cheffing_subrecipes
+    ADD CONSTRAINT cheffing_subrecipes_output_unit_code_fkey FOREIGN KEY (output_unit_code) REFERENCES public.cheffing_units(code);
 
 
 --
@@ -1516,6 +2111,210 @@ ALTER TABLE ONLY public.tasks
 ALTER TABLE public.app_allowed_users ENABLE ROW LEVEL SECURITY;
 
 --
+-- Name: cheffing_dish_items; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.cheffing_dish_items ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: cheffing_dish_items cheffing_dish_items_delete; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY cheffing_dish_items_delete ON public.cheffing_dish_items FOR DELETE USING (public.cheffing_is_allowed());
+
+
+--
+-- Name: cheffing_dish_items cheffing_dish_items_insert; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY cheffing_dish_items_insert ON public.cheffing_dish_items FOR INSERT WITH CHECK (public.cheffing_is_allowed());
+
+
+--
+-- Name: cheffing_dish_items cheffing_dish_items_select; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY cheffing_dish_items_select ON public.cheffing_dish_items FOR SELECT USING (public.cheffing_is_allowed());
+
+
+--
+-- Name: cheffing_dish_items cheffing_dish_items_update; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY cheffing_dish_items_update ON public.cheffing_dish_items FOR UPDATE USING (public.cheffing_is_allowed()) WITH CHECK (public.cheffing_is_allowed());
+
+
+--
+-- Name: cheffing_dishes; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.cheffing_dishes ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: cheffing_dishes cheffing_dishes_delete; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY cheffing_dishes_delete ON public.cheffing_dishes FOR DELETE USING (public.cheffing_is_allowed());
+
+
+--
+-- Name: cheffing_dishes cheffing_dishes_insert; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY cheffing_dishes_insert ON public.cheffing_dishes FOR INSERT WITH CHECK (public.cheffing_is_allowed());
+
+
+--
+-- Name: cheffing_dishes cheffing_dishes_select; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY cheffing_dishes_select ON public.cheffing_dishes FOR SELECT USING (public.cheffing_is_allowed());
+
+
+--
+-- Name: cheffing_dishes cheffing_dishes_update; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY cheffing_dishes_update ON public.cheffing_dishes FOR UPDATE USING (public.cheffing_is_allowed()) WITH CHECK (public.cheffing_is_allowed());
+
+
+--
+-- Name: cheffing_ingredients; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.cheffing_ingredients ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: cheffing_ingredients cheffing_ingredients_delete; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY cheffing_ingredients_delete ON public.cheffing_ingredients FOR DELETE USING (public.cheffing_is_allowed());
+
+
+--
+-- Name: cheffing_ingredients cheffing_ingredients_insert; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY cheffing_ingredients_insert ON public.cheffing_ingredients FOR INSERT WITH CHECK (public.cheffing_is_allowed());
+
+
+--
+-- Name: cheffing_ingredients cheffing_ingredients_select; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY cheffing_ingredients_select ON public.cheffing_ingredients FOR SELECT USING (public.cheffing_is_allowed());
+
+
+--
+-- Name: cheffing_ingredients cheffing_ingredients_update; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY cheffing_ingredients_update ON public.cheffing_ingredients FOR UPDATE USING (public.cheffing_is_allowed()) WITH CHECK (public.cheffing_is_allowed());
+
+
+--
+-- Name: cheffing_subrecipe_items; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.cheffing_subrecipe_items ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: cheffing_subrecipe_items cheffing_subrecipe_items_delete; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY cheffing_subrecipe_items_delete ON public.cheffing_subrecipe_items FOR DELETE USING (public.cheffing_is_allowed());
+
+
+--
+-- Name: cheffing_subrecipe_items cheffing_subrecipe_items_insert; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY cheffing_subrecipe_items_insert ON public.cheffing_subrecipe_items FOR INSERT WITH CHECK (public.cheffing_is_allowed());
+
+
+--
+-- Name: cheffing_subrecipe_items cheffing_subrecipe_items_select; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY cheffing_subrecipe_items_select ON public.cheffing_subrecipe_items FOR SELECT USING (public.cheffing_is_allowed());
+
+
+--
+-- Name: cheffing_subrecipe_items cheffing_subrecipe_items_update; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY cheffing_subrecipe_items_update ON public.cheffing_subrecipe_items FOR UPDATE USING (public.cheffing_is_allowed()) WITH CHECK (public.cheffing_is_allowed());
+
+
+--
+-- Name: cheffing_subrecipes; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.cheffing_subrecipes ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: cheffing_subrecipes cheffing_subrecipes_delete; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY cheffing_subrecipes_delete ON public.cheffing_subrecipes FOR DELETE USING (public.cheffing_is_allowed());
+
+
+--
+-- Name: cheffing_subrecipes cheffing_subrecipes_insert; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY cheffing_subrecipes_insert ON public.cheffing_subrecipes FOR INSERT WITH CHECK (public.cheffing_is_allowed());
+
+
+--
+-- Name: cheffing_subrecipes cheffing_subrecipes_select; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY cheffing_subrecipes_select ON public.cheffing_subrecipes FOR SELECT USING (public.cheffing_is_allowed());
+
+
+--
+-- Name: cheffing_subrecipes cheffing_subrecipes_update; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY cheffing_subrecipes_update ON public.cheffing_subrecipes FOR UPDATE USING (public.cheffing_is_allowed()) WITH CHECK (public.cheffing_is_allowed());
+
+
+--
+-- Name: cheffing_units; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.cheffing_units ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: cheffing_units cheffing_units_delete; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY cheffing_units_delete ON public.cheffing_units FOR DELETE USING (public.cheffing_is_admin());
+
+
+--
+-- Name: cheffing_units cheffing_units_insert; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY cheffing_units_insert ON public.cheffing_units FOR INSERT WITH CHECK (public.cheffing_is_admin());
+
+
+--
+-- Name: cheffing_units cheffing_units_select; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY cheffing_units_select ON public.cheffing_units FOR SELECT USING (public.cheffing_is_allowed());
+
+
+--
+-- Name: cheffing_units cheffing_units_update; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY cheffing_units_update ON public.cheffing_units FOR UPDATE USING (public.cheffing_is_admin()) WITH CHECK (public.cheffing_is_admin());
+
+
+--
 -- Name: app_allowed_users read own allowlist row; Type: POLICY; Schema: public; Owner: -
 --
 
@@ -1526,5 +2325,5 @@ CREATE POLICY "read own allowlist row" ON public.app_allowed_users FOR SELECT TO
 -- PostgreSQL database dump complete
 --
 
-\unrestrict q4fioO8JDWdQCQrUFI0XpiwpEO574gBU99vPbwn8LeZ4EddvY2TVEmjV5rn2wkr
+\unrestrict Q23vrdvctRd2fTLcr7avvJNyr68GhYHQThSZycjSKblQpsSwrq7NvovQfZytVM1
 
