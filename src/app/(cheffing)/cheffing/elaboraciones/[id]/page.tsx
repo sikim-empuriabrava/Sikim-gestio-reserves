@@ -49,7 +49,7 @@ export default async function CheffingElaboracionDetailPage({ params }: { params
   const { data: items, error: itemsError } = await supabase
     .from('v_cheffing_subrecipe_items_cost')
     .select(
-      'id, subrecipe_id, ingredient_id, subrecipe_component_id, unit_code, quantity, waste_pct, notes, line_cost_total, ingredient:cheffing_ingredients(id, name), subrecipe_component:cheffing_subrecipes!cheffing_subrecipe_items_subrecipe_component_id_fkey(id, name)',
+      'id, subrecipe_id, ingredient_id, subrecipe_component_id, unit_code, quantity, waste_pct, notes, line_cost_total, ingredient:cheffing_ingredients!cheffing_subrecipe_items_ingredient_id_fkey(id, name), subrecipe_component:cheffing_subrecipes!cheffing_subrecipe_items_subrecipe_component_id_fkey(id, name)',
     )
     .eq('subrecipe_id', params.id)
     .order('created_at', { ascending: true });
@@ -74,6 +74,18 @@ export default async function CheffingElaboracionDetailPage({ params }: { params
     );
   }
 
+  const normalizedItems = (items ?? []).map((item) => {
+    const ingredient = Array.isArray(item.ingredient) ? item.ingredient[0] ?? null : item.ingredient ?? null;
+    const subrecipeComponent = Array.isArray(item.subrecipe_component)
+      ? item.subrecipe_component[0] ?? null
+      : item.subrecipe_component ?? null;
+    return {
+      ...item,
+      ingredient,
+      subrecipe_component: subrecipeComponent,
+    };
+  });
+
   return (
     <section className="space-y-6">
       <div className="text-sm text-slate-400">
@@ -83,7 +95,7 @@ export default async function CheffingElaboracionDetailPage({ params }: { params
 
       <SubrecipeDetailManager
         subrecipe={subrecipe as SubrecipeCost}
-        items={(items ?? []) as SubrecipeItemWithDetails[]}
+        items={normalizedItems as SubrecipeItemWithDetails[]}
         ingredients={(ingredients ?? []) as Ingredient[]}
         subrecipes={(subrecipes ?? []) as Subrecipe[]}
         units={(units ?? []) as Unit[]}
