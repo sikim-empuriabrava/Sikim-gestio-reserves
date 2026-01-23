@@ -3,18 +3,28 @@ import Link from 'next/link';
 const modules = [
   {
     title: 'Ingredientes',
-    description: 'Controla materias primas y fichas técnicas (próximamente).',
+    description: 'Controla materias primas y fichas técnicas.',
     href: '/cheffing/ingredientes',
   },
   {
-    title: 'Recetas',
-    description: 'Gestiona recetas, escandallos y costes (próximamente).',
-    href: '/cheffing/recetas',
+    title: 'Elaboraciones',
+    description: 'Crea elaboraciones internas con ingredientes y merma.',
+    href: '/cheffing/elaboraciones',
+  },
+  {
+    title: 'Platos',
+    description: 'Define platos finales y añade sus líneas de coste.',
+    href: '/cheffing/platos',
   },
   {
     title: 'Menús',
-    description: 'Planifica menús y servicios semanales (próximamente).',
+    description: 'Planifica menús y servicios semanales.',
     href: '/cheffing/menus',
+  },
+  {
+    title: 'Recetas',
+    description: 'Gestiona recetas, escandallos y costes.',
+    href: '/cheffing/recetas',
   },
 ];
 

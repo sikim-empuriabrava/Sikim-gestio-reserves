@@ -102,7 +102,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   }
 
   if (body?.waste_pct !== undefined) {
-    if (!isValidNumber(body.waste_pct) || body.waste_pct < 0 || body.waste_pct > 1) {
+    if (!isValidNumber(body.waste_pct) || body.waste_pct < 0 || body.waste_pct >= 1) {
       const invalid = NextResponse.json({ error: 'Invalid waste_pct' }, { status: 400 });
       mergeResponseCookies(access.supabaseResponse, invalid);
       return invalid;
@@ -115,8 +115,6 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     mergeResponseCookies(access.supabaseResponse, invalid);
     return invalid;
   }
-
-  updates.updated_at = new Date().toISOString();
 
   const supabase = createSupabaseAdminClient();
   const { error } = await supabase.from('cheffing_ingredients').update(updates).eq('id', params.id);

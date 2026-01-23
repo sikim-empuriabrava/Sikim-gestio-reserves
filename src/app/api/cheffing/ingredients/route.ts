@@ -76,7 +76,7 @@ export async function POST(req: NextRequest) {
     return invalid;
   }
 
-  if (!isValidNumber(wastePct) || wastePct < 0 || wastePct > 1) {
+  if (!isValidNumber(wastePct) || wastePct < 0 || wastePct >= 1) {
     const invalid = NextResponse.json({ error: 'Invalid waste_pct' }, { status: 400 });
     mergeResponseCookies(supabaseResponse, invalid);
     return invalid;

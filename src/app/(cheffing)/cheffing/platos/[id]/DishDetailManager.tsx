@@ -1,0 +1,575 @@
+'use client';
+
+import { useState } from 'react';
+import type { FormEvent } from 'react';
+import Link from 'next/link';
+import { useRouter } from 'next/navigation';
+
+import type { Dish, DishItem, Ingredient, Subrecipe, Unit } from '@/lib/cheffing/types';
+
+type DishCost = Dish & {
+  items_cost_total: number | null;
+};
+
+type DishItemWithDetails = DishItem & {
+  ingredient?: { id: string; name: string } | null;
+  subrecipe?: { id: string; name: string } | null;
+};
+
+type DishDetailManagerProps = {
+  dish: DishCost;
+  items: DishItemWithDetails[];
+  ingredients: Ingredient[];
+  subrecipes: Subrecipe[];
+  units: Unit[];
+};
+
+type DishFormState = {
+  name: string;
+  selling_price: string;
+};
+
+type ItemFormState = {
+  itemType: 'ingredient' | 'subrecipe';
+  ingredient_id: string;
+  subrecipe_id: string;
+  unit_code: string;
+  quantity: string;
+  notes: string;
+};
+
+export function DishDetailManager({ dish, items, ingredients, subrecipes, units }: DishDetailManagerProps) {
+  const router = useRouter();
+  const [headerError, setHeaderError] = useState<string | null>(null);
+  const [itemsError, setItemsError] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [editingItemId, setEditingItemId] = useState<string | null>(null);
+  const [editingItemState, setEditingItemState] = useState<ItemFormState | null>(null);
+  const [formState, setFormState] = useState<DishFormState>({
+    name: dish.name,
+    selling_price: dish.selling_price === null ? '' : String(dish.selling_price),
+  });
+  const [itemFormState, setItemFormState] = useState<ItemFormState>({
+    itemType: ingredients.length > 0 ? 'ingredient' : 'subrecipe',
+    ingredient_id: ingredients[0]?.id ?? '',
+    subrecipe_id: subrecipes[0]?.id ?? '',
+    unit_code: units[0]?.code ?? 'g',
+    quantity: '1',
+    notes: '',
+  });
+
+  const formatCurrency = (value: number | null) => {
+    if (value === null || Number.isNaN(value)) return '—';
+    return `${value.toFixed(2)} €`;
+  };
+
+  const saveHeader = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setHeaderError(null);
+    setIsSubmitting(true);
+
+    try {
+      const sellingPriceValue = formState.selling_price.trim() === '' ? null : Number(formState.selling_price);
+
+      const response = await fetch(`/api/cheffing/dishes/${dish.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: formState.name,
+          selling_price: sellingPriceValue,
+        }),
+      });
+
+      if (!response.ok) {
+        const payload = await response.json().catch(() => ({}));
+        if (response.status === 409) {
+          throw new Error('Ya existe un plato con ese nombre.');
+        }
+        throw new Error(payload?.error ?? 'Error actualizando plato');
+      }
+
+      router.refresh();
+    } catch (err) {
+      setHeaderError(err instanceof Error ? err.message : 'Error desconocido');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const deleteDish = async () => {
+    setHeaderError(null);
+    setIsSubmitting(true);
+
+    try {
+      const response = await fetch(`/api/cheffing/dishes/${dish.id}`, {
+        method: 'DELETE',
+      });
+
+      if (!response.ok) {
+        const payload = await response.json().catch(() => ({}));
+        throw new Error(payload?.error ?? 'Error eliminando plato');
+      }
+
+      router.push('/cheffing/platos');
+      router.refresh();
+    } catch (err) {
+      setHeaderError(err instanceof Error ? err.message : 'Error desconocido');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const submitNewItem = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setItemsError(null);
+    setIsSubmitting(true);
+
+    try {
+      const ingredientId = itemFormState.itemType === 'ingredient' ? itemFormState.ingredient_id : null;
+      const subrecipeId = itemFormState.itemType === 'subrecipe' ? itemFormState.subrecipe_id : null;
+
+      const response = await fetch(`/api/cheffing/dishes/${dish.id}/items`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ingredient_id: ingredientId,
+          subrecipe_id: subrecipeId,
+          unit_code: itemFormState.unit_code,
+          quantity: Number(itemFormState.quantity),
+          notes: itemFormState.notes.trim() ? itemFormState.notes.trim() : null,
+        }),
+      });
+
+      if (!response.ok) {
+        const payload = await response.json().catch(() => ({}));
+        throw new Error(payload?.error ?? 'Error creando línea');
+      }
+
+      setItemFormState((prev) => ({
+        ...prev,
+        quantity: '1',
+        notes: '',
+      }));
+      router.refresh();
+    } catch (err) {
+      setItemsError(err instanceof Error ? err.message : 'Error desconocido');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const startEditingItem = (item: DishItemWithDetails) => {
+    const isIngredient = Boolean(item.ingredient_id);
+    setEditingItemId(item.id);
+    setEditingItemState({
+      itemType: isIngredient ? 'ingredient' : 'subrecipe',
+      ingredient_id: item.ingredient_id ?? ingredients[0]?.id ?? '',
+      subrecipe_id: item.subrecipe_id ?? subrecipes[0]?.id ?? '',
+      unit_code: item.unit_code,
+      quantity: String(item.quantity),
+      notes: item.notes ?? '',
+    });
+  };
+
+  const cancelEditingItem = () => {
+    setEditingItemId(null);
+    setEditingItemState(null);
+  };
+
+  const saveEditingItem = async (itemId: string) => {
+    if (!editingItemState) return;
+    setItemsError(null);
+    setIsSubmitting(true);
+
+    try {
+      const ingredientId = editingItemState.itemType === 'ingredient' ? editingItemState.ingredient_id : null;
+      const subrecipeId = editingItemState.itemType === 'subrecipe' ? editingItemState.subrecipe_id : null;
+
+      const response = await fetch(`/api/cheffing/dishes/items/${itemId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ingredient_id: ingredientId,
+          subrecipe_id: subrecipeId,
+          unit_code: editingItemState.unit_code,
+          quantity: Number(editingItemState.quantity),
+          notes: editingItemState.notes.trim() ? editingItemState.notes.trim() : null,
+        }),
+      });
+
+      if (!response.ok) {
+        const payload = await response.json().catch(() => ({}));
+        throw new Error(payload?.error ?? 'Error actualizando línea');
+      }
+
+      cancelEditingItem();
+      router.refresh();
+    } catch (err) {
+      setItemsError(err instanceof Error ? err.message : 'Error desconocido');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const deleteItem = async (itemId: string) => {
+    setItemsError(null);
+    setIsSubmitting(true);
+
+    try {
+      const response = await fetch(`/api/cheffing/dishes/items/${itemId}`, {
+        method: 'DELETE',
+      });
+
+      if (!response.ok) {
+        const payload = await response.json().catch(() => ({}));
+        throw new Error(payload?.error ?? 'Error eliminando línea');
+      }
+
+      router.refresh();
+    } catch (err) {
+      setItemsError(err instanceof Error ? err.message : 'Error desconocido');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  return (
+    <div className="space-y-8">
+      <form
+        onSubmit={saveHeader}
+        className="space-y-4 rounded-2xl border border-slate-800/70 bg-slate-950/60 p-5"
+      >
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <p className="text-xs uppercase text-slate-500">Plato</p>
+            <h2 className="text-xl font-semibold text-white">{dish.name}</h2>
+          </div>
+          <div className="text-right text-sm text-slate-300">
+            <p>Coste total: {formatCurrency(dish.items_cost_total)}</p>
+          </div>
+        </div>
+        {headerError ? <p className="text-sm text-rose-400">{headerError}</p> : null}
+        <div className="grid gap-4 md:grid-cols-2">
+          <label className="flex flex-col gap-2 text-sm text-slate-300">
+            Nombre
+            <input
+              className="rounded-lg border border-slate-700 bg-slate-950/70 px-3 py-2 text-white"
+              value={formState.name}
+              onChange={(event) => setFormState((prev) => ({ ...prev, name: event.target.value }))}
+              required
+            />
+          </label>
+          <label className="flex flex-col gap-2 text-sm text-slate-300">
+            PVP (€)
+            <input
+              type="number"
+              min="0"
+              step="0.01"
+              className="rounded-lg border border-slate-700 bg-slate-950/70 px-3 py-2 text-white"
+              value={formState.selling_price}
+              onChange={(event) => setFormState((prev) => ({ ...prev, selling_price: event.target.value }))}
+              placeholder="Opcional"
+            />
+          </label>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <button
+            type="submit"
+            disabled={isSubmitting}
+            className="rounded-full border border-emerald-400/60 bg-emerald-500/10 px-4 py-2 text-sm font-semibold text-emerald-200 transition hover:border-emerald-300 hover:text-emerald-100 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            Guardar cambios
+          </button>
+          <button
+            type="button"
+            onClick={deleteDish}
+            disabled={isSubmitting}
+            className="rounded-full border border-rose-500/70 px-4 py-2 text-sm font-semibold text-rose-200"
+          >
+            Eliminar plato
+          </button>
+        </div>
+      </form>
+
+      <div className="space-y-4 rounded-2xl border border-slate-800/70 bg-slate-950/60 p-5">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h3 className="text-lg font-semibold text-white">Ingredientes y elaboraciones</h3>
+            <p className="text-sm text-slate-400">Define la composición final del plato.</p>
+          </div>
+          {itemsError ? <p className="text-sm text-rose-400">{itemsError}</p> : null}
+        </div>
+        <form onSubmit={submitNewItem} className="grid gap-4 md:grid-cols-5">
+          <label className="flex flex-col gap-2 text-sm text-slate-300">
+            Tipo
+            <select
+              className="rounded-lg border border-slate-700 bg-slate-950/70 px-3 py-2 text-white"
+              value={itemFormState.itemType}
+              onChange={(event) =>
+                setItemFormState((prev) => ({ ...prev, itemType: event.target.value as ItemFormState['itemType'] }))
+              }
+            >
+              <option value="ingredient">Ingrediente</option>
+              <option value="subrecipe">Elaboración</option>
+            </select>
+          </label>
+          <label className="flex flex-col gap-2 text-sm text-slate-300">
+            Selección
+            {itemFormState.itemType === 'ingredient' ? (
+              <select
+                className="rounded-lg border border-slate-700 bg-slate-950/70 px-3 py-2 text-white"
+                value={itemFormState.ingredient_id}
+                onChange={(event) => setItemFormState((prev) => ({ ...prev, ingredient_id: event.target.value }))}
+              >
+                {ingredients.map((ingredient) => (
+                  <option key={ingredient.id} value={ingredient.id}>
+                    {ingredient.name}
+                  </option>
+                ))}
+              </select>
+            ) : (
+              <select
+                className="rounded-lg border border-slate-700 bg-slate-950/70 px-3 py-2 text-white"
+                value={itemFormState.subrecipe_id}
+                onChange={(event) => setItemFormState((prev) => ({ ...prev, subrecipe_id: event.target.value }))}
+              >
+                {subrecipes.map((entry) => (
+                  <option key={entry.id} value={entry.id}>
+                    {entry.name}
+                  </option>
+                ))}
+              </select>
+            )}
+          </label>
+          <label className="flex flex-col gap-2 text-sm text-slate-300">
+            Cantidad
+            <div className="flex gap-2">
+              <input
+                type="number"
+                min="0"
+                step="0.01"
+                className="w-28 rounded-lg border border-slate-700 bg-slate-950/70 px-3 py-2 text-white"
+                value={itemFormState.quantity}
+                onChange={(event) => setItemFormState((prev) => ({ ...prev, quantity: event.target.value }))}
+                required
+              />
+              <select
+                className="flex-1 rounded-lg border border-slate-700 bg-slate-950/70 px-3 py-2 text-white"
+                value={itemFormState.unit_code}
+                onChange={(event) => setItemFormState((prev) => ({ ...prev, unit_code: event.target.value }))}
+              >
+                {units.map((unit) => (
+                  <option key={unit.code} value={unit.code}>
+                    {unit.code}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </label>
+          <label className="flex flex-col gap-2 text-sm text-slate-300 md:col-span-2">
+            Notas
+            <input
+              className="rounded-lg border border-slate-700 bg-slate-950/70 px-3 py-2 text-white"
+              value={itemFormState.notes}
+              onChange={(event) => setItemFormState((prev) => ({ ...prev, notes: event.target.value }))}
+            />
+          </label>
+          <div className="md:col-span-5">
+            <button
+              type="submit"
+              disabled={isSubmitting}
+              className="rounded-full border border-emerald-400/60 bg-emerald-500/10 px-4 py-2 text-sm font-semibold text-emerald-200 transition hover:border-emerald-300 hover:text-emerald-100 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              Añadir línea
+            </button>
+          </div>
+        </form>
+
+        <div className="overflow-x-auto rounded-2xl border border-slate-800/70">
+          <table className="w-full min-w-[960px] text-left text-sm text-slate-200">
+            <thead className="bg-slate-950/70 text-xs uppercase text-slate-400">
+              <tr>
+                <th className="px-4 py-3">Tipo</th>
+                <th className="px-4 py-3">Detalle</th>
+                <th className="px-4 py-3">Cantidad</th>
+                <th className="px-4 py-3">Notas</th>
+                <th className="px-4 py-3">Acciones</th>
+              </tr>
+            </thead>
+            <tbody>
+              {items.length === 0 ? (
+                <tr>
+                  <td colSpan={5} className="px-4 py-6 text-center text-sm text-slate-500">
+                    Añade ingredientes o elaboraciones para calcular el coste.
+                  </td>
+                </tr>
+              ) : (
+                items.map((item) => {
+                  const isEditing = editingItemId === item.id;
+                  const editingValues = isEditing ? editingItemState : null;
+                  const itemType = item.ingredient_id ? 'Ingrediente' : 'Elaboración';
+                  const itemName = item.ingredient?.name ?? item.subrecipe?.name ?? '—';
+                  const itemLink = item.ingredient_id
+                    ? '/cheffing/ingredientes'
+                    : item.subrecipe_id
+                      ? `/cheffing/elaboraciones/${item.subrecipe_id}`
+                      : '#';
+
+                  return (
+                    <tr key={item.id} className="border-t border-slate-800/60">
+                      <td className="px-4 py-3">{itemType}</td>
+                      <td className="px-4 py-3">
+                        {isEditing ? (
+                          <div className="flex flex-col gap-2">
+                            <select
+                              className="rounded-md border border-slate-700 bg-slate-950/70 px-2 py-1 text-white"
+                              value={editingValues?.itemType ?? 'ingredient'}
+                              onChange={(event) =>
+                                setEditingItemState((prev) =>
+                                  prev ? { ...prev, itemType: event.target.value as ItemFormState['itemType'] } : prev,
+                                )
+                              }
+                            >
+                              <option value="ingredient">Ingrediente</option>
+                              <option value="subrecipe">Elaboración</option>
+                            </select>
+                            {editingValues?.itemType === 'ingredient' ? (
+                              <select
+                                className="rounded-md border border-slate-700 bg-slate-950/70 px-2 py-1 text-white"
+                                value={editingValues.ingredient_id}
+                                onChange={(event) =>
+                                  setEditingItemState((prev) =>
+                                    prev ? { ...prev, ingredient_id: event.target.value } : prev,
+                                  )
+                                }
+                              >
+                                {ingredients.map((ingredient) => (
+                                  <option key={ingredient.id} value={ingredient.id}>
+                                    {ingredient.name}
+                                  </option>
+                                ))}
+                              </select>
+                            ) : (
+                              <select
+                                className="rounded-md border border-slate-700 bg-slate-950/70 px-2 py-1 text-white"
+                                value={editingValues?.subrecipe_id ?? ''}
+                                onChange={(event) =>
+                                  setEditingItemState((prev) =>
+                                    prev ? { ...prev, subrecipe_id: event.target.value } : prev,
+                                  )
+                                }
+                              >
+                                {subrecipes.map((entry) => (
+                                  <option key={entry.id} value={entry.id}>
+                                    {entry.name}
+                                  </option>
+                                ))}
+                              </select>
+                            )}
+                          </div>
+                        ) : (
+                          <Link href={itemLink} className="font-semibold text-white">
+                            {itemName}
+                          </Link>
+                        )}
+                      </td>
+                      <td className="px-4 py-3">
+                        {isEditing ? (
+                          <div className="flex gap-2">
+                            <input
+                              type="number"
+                              min="0"
+                              step="0.01"
+                              className="w-24 rounded-md border border-slate-700 bg-slate-950/70 px-2 py-1 text-white"
+                              value={editingValues?.quantity ?? ''}
+                              onChange={(event) =>
+                                setEditingItemState((prev) =>
+                                  prev ? { ...prev, quantity: event.target.value } : prev,
+                                )
+                              }
+                            />
+                            <select
+                              className="rounded-md border border-slate-700 bg-slate-950/70 px-2 py-1 text-white"
+                              value={editingValues?.unit_code ?? ''}
+                              onChange={(event) =>
+                                setEditingItemState((prev) =>
+                                  prev ? { ...prev, unit_code: event.target.value } : prev,
+                                )
+                              }
+                            >
+                              {units.map((unit) => (
+                                <option key={unit.code} value={unit.code}>
+                                  {unit.code}
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+                        ) : (
+                          `${item.quantity} ${item.unit_code}`
+                        )}
+                      </td>
+                      <td className="px-4 py-3 text-slate-300">
+                        {isEditing ? (
+                          <input
+                            className="w-full rounded-md border border-slate-700 bg-slate-950/70 px-2 py-1 text-white"
+                            value={editingValues?.notes ?? ''}
+                            onChange={(event) =>
+                              setEditingItemState((prev) => (prev ? { ...prev, notes: event.target.value } : prev))
+                            }
+                          />
+                        ) : (
+                          item.notes ?? '—'
+                        )}
+                      </td>
+                      <td className="px-4 py-3">
+                        <div className="flex gap-2">
+                          {isEditing ? (
+                            <>
+                              <button
+                                type="button"
+                                onClick={() => saveEditingItem(item.id)}
+                                disabled={isSubmitting}
+                                className="rounded-full border border-emerald-400/60 px-3 py-1 text-xs font-semibold text-emerald-200"
+                              >
+                                Guardar
+                              </button>
+                              <button
+                                type="button"
+                                onClick={cancelEditingItem}
+                                className="rounded-full border border-slate-700 px-3 py-1 text-xs font-semibold text-slate-300"
+                              >
+                                Cancelar
+                              </button>
+                            </>
+                          ) : (
+                            <>
+                              <button
+                                type="button"
+                                onClick={() => startEditingItem(item)}
+                                className="rounded-full border border-slate-700 px-3 py-1 text-xs font-semibold text-slate-200"
+                              >
+                                Editar
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => deleteItem(item.id)}
+                                disabled={isSubmitting}
+                                className="rounded-full border border-rose-500/70 px-3 py-1 text-xs font-semibold text-rose-200"
+                              >
+                                Eliminar
+                              </button>
+                            </>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  );
+}
