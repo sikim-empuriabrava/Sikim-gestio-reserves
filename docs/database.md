@@ -17,6 +17,88 @@ RLS: habilitado
 | `can_mantenimiento` | `boolean` | No | `true` |
 | `can_cocina` | `boolean` | No | `true` |
 | `display_name` | `text` | Sí |  |
+| `can_cheffing` | `boolean` | No | `false` |
+
+### cheffing_dish_items
+RLS: habilitado
+
+| Columna | Tipo | Nullable | Default |
+| --- | --- | --- | --- |
+| `id` | `uuid` | No | `gen_random_uuid()` |
+| `dish_id` | `uuid` | No |  |
+| `ingredient_id` | `uuid` | Sí |  |
+| `subrecipe_id` | `uuid` | Sí |  |
+| `unit_code` | `text` | No |  |
+| `quantity` | `numeric` | No |  |
+| `notes` | `text` | Sí |  |
+| `created_at` | `timestamp with time zone` | No | `now()` |
+| `updated_at` | `timestamp with time zone` | No | `now()` |
+
+### cheffing_dishes
+RLS: habilitado
+
+| Columna | Tipo | Nullable | Default |
+| --- | --- | --- | --- |
+| `id` | `uuid` | No | `gen_random_uuid()` |
+| `name` | `text` | No |  |
+| `selling_price` | `numeric` | Sí |  |
+| `created_at` | `timestamp with time zone` | No | `now()` |
+| `updated_at` | `timestamp with time zone` | No | `now()` |
+
+### cheffing_ingredients
+RLS: habilitado
+
+| Columna | Tipo | Nullable | Default |
+| --- | --- | --- | --- |
+| `id` | `uuid` | No | `gen_random_uuid()` |
+| `name` | `text` | No |  |
+| `purchase_unit_code` | `text` | No |  |
+| `purchase_pack_qty` | `numeric` | No |  |
+| `purchase_price` | `numeric` | No |  |
+| `waste_pct` | `numeric` | No | `0` |
+| `created_at` | `timestamp with time zone` | No | `now()` |
+| `updated_at` | `timestamp with time zone` | No | `now()` |
+
+### cheffing_subrecipe_items
+RLS: habilitado
+
+| Columna | Tipo | Nullable | Default |
+| --- | --- | --- | --- |
+| `id` | `uuid` | No | `gen_random_uuid()` |
+| `subrecipe_id` | `uuid` | No |  |
+| `ingredient_id` | `uuid` | Sí |  |
+| `subrecipe_component_id` | `uuid` | Sí |  |
+| `unit_code` | `text` | No |  |
+| `quantity` | `numeric` | No |  |
+| `notes` | `text` | Sí |  |
+| `created_at` | `timestamp with time zone` | No | `now()` |
+| `updated_at` | `timestamp with time zone` | No | `now()` |
+
+### cheffing_subrecipes
+RLS: habilitado
+
+| Columna | Tipo | Nullable | Default |
+| --- | --- | --- | --- |
+| `id` | `uuid` | No | `gen_random_uuid()` |
+| `name` | `text` | No |  |
+| `output_unit_code` | `text` | No |  |
+| `output_qty` | `numeric` | No |  |
+| `waste_pct` | `numeric` | No | `0` |
+| `notes` | `text` | Sí |  |
+| `created_at` | `timestamp with time zone` | No | `now()` |
+| `updated_at` | `timestamp with time zone` | No | `now()` |
+
+### cheffing_units
+RLS: habilitado
+
+| Columna | Tipo | Nullable | Default |
+| --- | --- | --- | --- |
+| `code` | `text` | No |  |
+| `name` | `text` | Sí |  |
+| `dimension` | `text` | No |  |
+| `to_base_factor` | `numeric` | No |  |
+| `created_at` | `timestamp with time zone` | No | `now()` |
+| `updated_at` | `timestamp with time zone` | No | `now()` |
 
 ### day_status
 RLS: deshabilitado
@@ -222,6 +304,9 @@ RLS: deshabilitado
 - `task_status`: `open`, `in_progress`, `done`
 
 ## Views
+- `v_cheffing_dish_cost`
+- `v_cheffing_ingredients_cost`
+- `v_cheffing_subrecipe_cost`
 - `v_daily_room_occupancy`
 - `v_daily_staffing_summary`
 - `v_day_status`
@@ -233,12 +318,48 @@ RLS: deshabilitado
 | Tabla | Política | Comando | Roles | USING | WITH CHECK |
 | --- | --- | --- | --- | --- | --- |
 | `app_allowed_users` | `read own allowlist row` | SELECT | authenticated | `((is_active = true) AND (lower(email) = lower(COALESCE((auth.jwt() ->> 'email'::text), current_setting('request.jwt.claim.email'::text, true)))))` | `` |
+| `cheffing_dish_items` | `cheffing_dish_items_delete` | DELETE | public | `cheffing_is_allowed()` | `` |
+| `cheffing_dish_items` | `cheffing_dish_items_insert` | INSERT | public | `` | `cheffing_is_allowed()` |
+| `cheffing_dish_items` | `cheffing_dish_items_select` | SELECT | public | `cheffing_is_allowed()` | `` |
+| `cheffing_dish_items` | `cheffing_dish_items_update` | UPDATE | public | `cheffing_is_allowed()` | `cheffing_is_allowed()` |
+| `cheffing_dishes` | `cheffing_dishes_delete` | DELETE | public | `cheffing_is_allowed()` | `` |
+| `cheffing_dishes` | `cheffing_dishes_insert` | INSERT | public | `` | `cheffing_is_allowed()` |
+| `cheffing_dishes` | `cheffing_dishes_select` | SELECT | public | `cheffing_is_allowed()` | `` |
+| `cheffing_dishes` | `cheffing_dishes_update` | UPDATE | public | `cheffing_is_allowed()` | `cheffing_is_allowed()` |
+| `cheffing_ingredients` | `cheffing_ingredients_delete` | DELETE | public | `cheffing_is_allowed()` | `` |
+| `cheffing_ingredients` | `cheffing_ingredients_insert` | INSERT | public | `` | `cheffing_is_allowed()` |
+| `cheffing_ingredients` | `cheffing_ingredients_select` | SELECT | public | `cheffing_is_allowed()` | `` |
+| `cheffing_ingredients` | `cheffing_ingredients_update` | UPDATE | public | `cheffing_is_allowed()` | `cheffing_is_allowed()` |
+| `cheffing_subrecipe_items` | `cheffing_subrecipe_items_delete` | DELETE | public | `cheffing_is_allowed()` | `` |
+| `cheffing_subrecipe_items` | `cheffing_subrecipe_items_insert` | INSERT | public | `` | `cheffing_is_allowed()` |
+| `cheffing_subrecipe_items` | `cheffing_subrecipe_items_select` | SELECT | public | `cheffing_is_allowed()` | `` |
+| `cheffing_subrecipe_items` | `cheffing_subrecipe_items_update` | UPDATE | public | `cheffing_is_allowed()` | `cheffing_is_allowed()` |
+| `cheffing_subrecipes` | `cheffing_subrecipes_delete` | DELETE | public | `cheffing_is_allowed()` | `` |
+| `cheffing_subrecipes` | `cheffing_subrecipes_insert` | INSERT | public | `` | `cheffing_is_allowed()` |
+| `cheffing_subrecipes` | `cheffing_subrecipes_select` | SELECT | public | `cheffing_is_allowed()` | `` |
+| `cheffing_subrecipes` | `cheffing_subrecipes_update` | UPDATE | public | `cheffing_is_allowed()` | `cheffing_is_allowed()` |
+| `cheffing_units` | `cheffing_units_delete` | DELETE | public | `cheffing_is_admin()` | `` |
+| `cheffing_units` | `cheffing_units_insert` | INSERT | public | `` | `cheffing_is_admin()` |
+| `cheffing_units` | `cheffing_units_select` | SELECT | public | `cheffing_is_allowed()` | `` |
+| `cheffing_units` | `cheffing_units_update` | UPDATE | public | `cheffing_is_admin()` | `cheffing_is_admin()` |
 
 ## Triggers
 | Tabla | Trigger | Timing | Eventos |
 | --- | --- | --- | --- |
 | `app_allowed_users` | `normalize_allowed_user_email` | BEFORE | INSERT, UPDATE |
 | `app_allowed_users` | `trg_app_allowed_users_email_lowercase` | BEFORE | INSERT, UPDATE |
+| `cheffing_dish_items` | `set_updated_at_cheffing_dish_items` | BEFORE | UPDATE |
+| `cheffing_dish_items` | `trg_cheffing_dish_items_updated_at` | BEFORE | UPDATE |
+| `cheffing_dishes` | `set_updated_at_cheffing_dishes` | BEFORE | UPDATE |
+| `cheffing_dishes` | `trg_cheffing_dishes_updated_at` | BEFORE | UPDATE |
+| `cheffing_ingredients` | `set_updated_at_cheffing_ingredients` | BEFORE | UPDATE |
+| `cheffing_ingredients` | `trg_cheffing_ingredients_updated_at` | BEFORE | UPDATE |
+| `cheffing_subrecipe_items` | `set_updated_at_cheffing_subrecipe_items` | BEFORE | UPDATE |
+| `cheffing_subrecipe_items` | `trg_cheffing_subrecipe_items_updated_at` | BEFORE | UPDATE |
+| `cheffing_subrecipes` | `set_updated_at_cheffing_subrecipes` | BEFORE | UPDATE |
+| `cheffing_subrecipes` | `trg_cheffing_subrecipes_updated_at` | BEFORE | UPDATE |
+| `cheffing_units` | `set_updated_at_cheffing_units` | BEFORE | UPDATE |
+| `cheffing_units` | `trg_cheffing_units_updated_at` | BEFORE | UPDATE |
 | `day_status` | `trg_day_status_sync_legacy_columns` | BEFORE | INSERT, UPDATE |
 | `group_events` | `set_timestamp_group_events` | BEFORE | UPDATE |
 | `group_events` | `trg_group_events_recalculate_staffing` | AFTER | INSERT, UPDATE |
@@ -255,6 +376,8 @@ RLS: deshabilitado
 | Función | Args | Devuelve |
 | --- | --- | --- |
 | `app_allowed_users_email_lowercase` | `` | `trigger` |
+| `cheffing_is_admin` | `` | `boolean` |
+| `cheffing_is_allowed` | `` | `boolean` |
 | `day_status_sync_legacy_columns` | `` | `trigger` |
 | `delete_routine_pack` | `p_pack_id uuid, p_mode text DEFAULT 'keep_all'::text, p_cutoff_week_start date DEFAULT NULL::date` | `TABLE(deleted_pack boolean, deleted_routines integer, deleted_tasks integer, unlinked_tasks integer)` |
 | `delete_routine_template` | `p_routine_id uuid, p_mode text DEFAULT 'keep_all'::text, p_cutoff_week_start date DEFAULT NULL::date` | `TABLE(deleted boolean, deleted_tasks integer, unlinked_tasks integer)` |
@@ -266,6 +389,7 @@ RLS: deshabilitado
 | `set_override_capacity` | `` | `trigger` |
 | `set_updated_at` | `` | `trigger` |
 | `tg_normalize_allowed_user_email` | `` | `trigger` |
+| `tg_set_updated_at` | `` | `trigger` |
 | `trg_recalculate_group_staffing_plan` | `` | `trigger` |
 
 ## Cómo actualizar
