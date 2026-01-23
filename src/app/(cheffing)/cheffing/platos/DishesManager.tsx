@@ -9,6 +9,7 @@ import type { Dish } from '@/lib/cheffing/types';
 
 type DishCost = Dish & {
   items_cost_total: number | null;
+  cost_per_serving?: number | null;
 };
 
 type DishesManagerProps = {
@@ -18,6 +19,7 @@ type DishesManagerProps = {
 type DishFormState = {
   name: string;
   selling_price: string;
+  servings: string;
 };
 
 export function DishesManager({ initialDishes }: DishesManagerProps) {
@@ -29,6 +31,7 @@ export function DishesManager({ initialDishes }: DishesManagerProps) {
   const [formState, setFormState] = useState<DishFormState>({
     name: '',
     selling_price: '',
+    servings: '1',
   });
 
   const formatCurrency = (value: number | null) => {
@@ -44,6 +47,11 @@ export function DishesManager({ initialDishes }: DishesManagerProps) {
     try {
       const sellingPriceValue =
         formState.selling_price.trim() === '' ? null : Number(formState.selling_price);
+      const servingsValue = Number(formState.servings);
+
+      if (!Number.isFinite(servingsValue) || servingsValue <= 0) {
+        throw new Error('Las raciones deben ser mayores que 0.');
+      }
 
       const response = await fetch('/api/cheffing/dishes', {
         method: 'POST',
@@ -51,6 +59,7 @@ export function DishesManager({ initialDishes }: DishesManagerProps) {
         body: JSON.stringify({
           name: formState.name,
           selling_price: sellingPriceValue,
+          servings: servingsValue,
         }),
       });
 
@@ -62,7 +71,7 @@ export function DishesManager({ initialDishes }: DishesManagerProps) {
         throw new Error(payload?.error ?? 'Error creando plato');
       }
 
-      setFormState({ name: '', selling_price: '' });
+      setFormState({ name: '', selling_price: '', servings: '1' });
       router.refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Error desconocido');
@@ -76,6 +85,7 @@ export function DishesManager({ initialDishes }: DishesManagerProps) {
     setEditingState({
       name: dish.name,
       selling_price: dish.selling_price === null ? '' : String(dish.selling_price),
+      servings: String(dish.servings ?? 1),
     });
   };
 
@@ -92,6 +102,11 @@ export function DishesManager({ initialDishes }: DishesManagerProps) {
     try {
       const sellingPriceValue =
         editingState.selling_price.trim() === '' ? null : Number(editingState.selling_price);
+      const servingsValue = Number(editingState.servings);
+
+      if (!Number.isFinite(servingsValue) || servingsValue <= 0) {
+        throw new Error('Las raciones deben ser mayores que 0.');
+      }
 
       const response = await fetch(`/api/cheffing/dishes/${dishId}`, {
         method: 'PATCH',
@@ -99,6 +114,7 @@ export function DishesManager({ initialDishes }: DishesManagerProps) {
         body: JSON.stringify({
           name: editingState.name,
           selling_price: sellingPriceValue,
+          servings: servingsValue,
         }),
       });
 
@@ -124,6 +140,10 @@ export function DishesManager({ initialDishes }: DishesManagerProps) {
     setIsSubmitting(true);
 
     try {
+      const confirmed = window.confirm('¿Seguro que quieres eliminar este plato?');
+      if (!confirmed) {
+        return;
+      }
       const response = await fetch(`/api/cheffing/dishes/${dishId}`, {
         method: 'DELETE',
       });
@@ -151,7 +171,7 @@ export function DishesManager({ initialDishes }: DishesManagerProps) {
           <h3 className="text-lg font-semibold text-white">Nuevo plato</h3>
           {error ? <p className="text-sm text-rose-400">{error}</p> : null}
         </div>
-        <div className="grid gap-4 md:grid-cols-2">
+        <div className="grid gap-4 md:grid-cols-3">
           <label className="flex flex-col gap-2 text-sm text-slate-300">
             Nombre
             <input
@@ -174,6 +194,18 @@ export function DishesManager({ initialDishes }: DishesManagerProps) {
               placeholder="Opcional"
             />
           </label>
+          <label className="flex flex-col gap-2 text-sm text-slate-300">
+            Raciones
+            <input
+              type="number"
+              min="1"
+              step="1"
+              className="rounded-lg border border-slate-700 bg-slate-950/70 px-3 py-2 text-white"
+              value={formState.servings}
+              onChange={(event) => setFormState((prev) => ({ ...prev, servings: event.target.value }))}
+              required
+            />
+          </label>
         </div>
         <button
           type="submit"
@@ -185,19 +217,21 @@ export function DishesManager({ initialDishes }: DishesManagerProps) {
       </form>
 
       <div className="overflow-x-auto rounded-2xl border border-slate-800/70">
-        <table className="w-full min-w-[840px] text-left text-sm text-slate-200">
+        <table className="w-full min-w-[960px] text-left text-sm text-slate-200">
           <thead className="bg-slate-950/70 text-xs uppercase text-slate-400">
             <tr>
               <th className="px-4 py-3">Plato</th>
               <th className="px-4 py-3">PVP</th>
+              <th className="px-4 py-3">Raciones</th>
               <th className="px-4 py-3">Coste total</th>
+              <th className="px-4 py-3">Coste ración</th>
               <th className="px-4 py-3">Acciones</th>
             </tr>
           </thead>
           <tbody>
             {initialDishes.length === 0 ? (
               <tr>
-                <td colSpan={4} className="px-4 py-6 text-center text-sm text-slate-500">
+                <td colSpan={6} className="px-4 py-6 text-center text-sm text-slate-500">
                   No hay platos todavía.
                 </td>
               </tr>
@@ -239,8 +273,27 @@ export function DishesManager({ initialDishes }: DishesManagerProps) {
                         formatCurrency(dish.selling_price)
                       )}
                     </td>
+                    <td className="px-4 py-3 text-slate-300">
+                      {isEditing ? (
+                        <input
+                          type="number"
+                          min="1"
+                          step="1"
+                          className="w-20 rounded-md border border-slate-700 bg-slate-950/70 px-2 py-1 text-white"
+                          value={editingValues?.servings ?? ''}
+                          onChange={(event) =>
+                            setEditingState((prev) => (prev ? { ...prev, servings: event.target.value } : prev))
+                          }
+                        />
+                      ) : (
+                        dish.servings
+                      )}
+                    </td>
                     <td className="px-4 py-3 text-slate-100">
                       {formatCurrency(dish.items_cost_total)}
+                    </td>
+                    <td className="px-4 py-3 text-slate-100">
+                      {formatCurrency(dish.cost_per_serving ?? null)}
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex gap-2">

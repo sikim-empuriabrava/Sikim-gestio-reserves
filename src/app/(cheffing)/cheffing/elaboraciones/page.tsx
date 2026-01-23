@@ -20,7 +20,7 @@ export default async function CheffingElaboracionesPage() {
   const { data: subrecipes, error: subrecipesError } = await supabase
     .from('v_cheffing_subrecipe_cost')
     .select(
-      'id, name, output_unit_code, output_qty, waste_pct, created_at, updated_at, output_unit_dimension, output_unit_factor, items_cost_total, cost_gross_per_base, cost_net_per_base, waste_factor',
+      'id, name, output_unit_code, output_qty, waste_pct, notes, created_at, updated_at, output_unit_dimension, output_unit_factor, items_cost_total, cost_gross_per_base, cost_net_per_base, waste_factor',
     )
     .order('name', { ascending: true });
   const { data: units, error: unitsError } = await supabase

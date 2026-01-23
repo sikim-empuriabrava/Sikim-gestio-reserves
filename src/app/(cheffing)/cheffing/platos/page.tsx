@@ -14,7 +14,7 @@ export default async function CheffingPlatosPage() {
   const supabase = createSupabaseServerClient();
   const { data: dishes, error: dishesError } = await supabase
     .from('v_cheffing_dish_cost')
-    .select('id, name, selling_price, created_at, updated_at, items_cost_total')
+    .select('id, name, selling_price, servings, notes, created_at, updated_at, items_cost_total, cost_per_serving')
     .order('name', { ascending: true });
 
   if (dishesError) {

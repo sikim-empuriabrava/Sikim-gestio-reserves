@@ -61,11 +61,6 @@ export function SubrecipesManager({ initialSubrecipes, units }: SubrecipesManage
     return value.toFixed(4);
   };
 
-  const formatFactor = (value: number | null) => {
-    if (value === null || Number.isNaN(value)) return '—';
-    return value.toFixed(3);
-  };
-
   const resetForm = () => {
     setFormState({
       name: '',
@@ -181,6 +176,10 @@ export function SubrecipesManager({ initialSubrecipes, units }: SubrecipesManage
     setIsSubmitting(true);
 
     try {
+      const confirmed = window.confirm('¿Seguro que quieres eliminar esta elaboración?');
+      if (!confirmed) {
+        return;
+      }
       const response = await fetch(`/api/cheffing/subrecipes/${subrecipeId}`, {
         method: 'DELETE',
       });
@@ -276,16 +275,15 @@ export function SubrecipesManager({ initialSubrecipes, units }: SubrecipesManage
               <th className="px-4 py-3">Elaboración</th>
               <th className="px-4 py-3">Producción</th>
               <th className="px-4 py-3">Merma</th>
-              <th className="px-4 py-3">FC</th>
-              <th className="px-4 py-3">Coste base bruto</th>
-              <th className="px-4 py-3">Coste base neto</th>
+              <th className="px-4 py-3">Coste total</th>
+              <th className="px-4 py-3">Coste unitario</th>
               <th className="px-4 py-3">Acciones</th>
             </tr>
           </thead>
           <tbody>
             {initialSubrecipes.length === 0 ? (
               <tr>
-                <td colSpan={7} className="px-4 py-6 text-center text-sm text-slate-500">
+                <td colSpan={6} className="px-4 py-6 text-center text-sm text-slate-500">
                   No hay elaboraciones todavía.
                 </td>
               </tr>
@@ -365,12 +363,9 @@ export function SubrecipesManager({ initialSubrecipes, units }: SubrecipesManage
                       )}
                     </td>
                     <td className="px-4 py-3 text-slate-100">
-                      {formatFactor(subrecipe.waste_factor)}x
+                      {formatCurrency(subrecipe.items_cost_total)} €
                     </td>
                     <td className="px-4 py-3 text-slate-300">
-                      {formatCurrency(subrecipe.cost_gross_per_base)} €/ {baseUnit}
-                    </td>
-                    <td className="px-4 py-3 text-slate-100">
                       {formatCurrency(subrecipe.cost_net_per_base)} €/ {baseUnit}
                     </td>
                     <td className="px-4 py-3">

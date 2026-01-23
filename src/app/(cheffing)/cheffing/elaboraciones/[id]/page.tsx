@@ -22,7 +22,9 @@ type SubrecipeItemWithDetails = {
   subrecipe_component_id: string | null;
   unit_code: string;
   quantity: number;
+  waste_pct: number;
   notes: string | null;
+  line_cost_total: number | null;
   ingredient?: { id: string; name: string } | null;
   subrecipe_component?: { id: string; name: string } | null;
 };
@@ -34,7 +36,7 @@ export default async function CheffingElaboracionDetailPage({ params }: { params
   const { data: subrecipe, error: subrecipeError } = await supabase
     .from('v_cheffing_subrecipe_cost')
     .select(
-      'id, name, output_unit_code, output_qty, waste_pct, created_at, updated_at, output_unit_dimension, output_unit_factor, items_cost_total, cost_gross_per_base, cost_net_per_base, waste_factor',
+      'id, name, output_unit_code, output_qty, waste_pct, notes, created_at, updated_at, output_unit_dimension, output_unit_factor, items_cost_total, cost_gross_per_base, cost_net_per_base, waste_factor',
     )
     .eq('id', params.id)
     .maybeSingle();
@@ -45,9 +47,9 @@ export default async function CheffingElaboracionDetailPage({ params }: { params
   }
 
   const { data: items, error: itemsError } = await supabase
-    .from('cheffing_subrecipe_items')
+    .from('v_cheffing_subrecipe_items_cost')
     .select(
-      'id, subrecipe_id, ingredient_id, subrecipe_component_id, unit_code, quantity, notes, ingredient:cheffing_ingredients(id, name), subrecipe_component:cheffing_subrecipes!cheffing_subrecipe_items_subrecipe_component_id_fkey(id, name)',
+      'id, subrecipe_id, ingredient_id, subrecipe_component_id, unit_code, quantity, waste_pct, notes, line_cost_total, ingredient:cheffing_ingredients(id, name), subrecipe_component:cheffing_subrecipes!cheffing_subrecipe_items_subrecipe_component_id_fkey(id, name)',
     )
     .eq('subrecipe_id', params.id)
     .order('created_at', { ascending: true });
@@ -57,7 +59,7 @@ export default async function CheffingElaboracionDetailPage({ params }: { params
     .order('name', { ascending: true });
   const { data: subrecipes, error: subrecipesError } = await supabase
     .from('cheffing_subrecipes')
-    .select('id, name, output_unit_code, output_qty, waste_pct, created_at, updated_at')
+    .select('id, name, output_unit_code, output_qty, waste_pct, notes, created_at, updated_at')
     .order('name', { ascending: true });
   const { data: units, error: unitsError } = await supabase
     .from('cheffing_units')

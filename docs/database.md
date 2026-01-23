@@ -30,6 +30,7 @@ RLS: habilitado
 | `subrecipe_id` | `uuid` | Sí |  |
 | `unit_code` | `text` | No |  |
 | `quantity` | `numeric` | No |  |
+| `waste_pct` | `numeric` | No | `0` |
 | `notes` | `text` | Sí |  |
 | `created_at` | `timestamp with time zone` | No | `now()` |
 | `updated_at` | `timestamp with time zone` | No | `now()` |
@@ -42,6 +43,8 @@ RLS: habilitado
 | `id` | `uuid` | No | `gen_random_uuid()` |
 | `name` | `text` | No |  |
 | `selling_price` | `numeric` | Sí |  |
+| `servings` | `numeric` | No | `1` |
+| `notes` | `text` | Sí |  |
 | `created_at` | `timestamp with time zone` | No | `now()` |
 | `updated_at` | `timestamp with time zone` | No | `now()` |
 
@@ -70,6 +73,7 @@ RLS: habilitado
 | `subrecipe_component_id` | `uuid` | Sí |  |
 | `unit_code` | `text` | No |  |
 | `quantity` | `numeric` | No |  |
+| `waste_pct` | `numeric` | No | `0` |
 | `notes` | `text` | Sí |  |
 | `created_at` | `timestamp with time zone` | No | `now()` |
 | `updated_at` | `timestamp with time zone` | No | `now()` |

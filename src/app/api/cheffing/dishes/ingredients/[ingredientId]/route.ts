@@ -3,53 +3,23 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createSupabaseAdminClient } from '@/lib/supabaseAdmin';
 import { mergeResponseCookies } from '@/lib/supabase/route';
 import { requireCheffingRouteAccess } from '@/lib/cheffing/requireCheffingRoute';
-import { dishUpdateSchema } from '@/lib/cheffing/schemas';
+import { dishItemSchema } from '@/lib/cheffing/schemas';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 function isUniqueViolation(error: { code?: string; message: string }) {
-  return error.code === '23505' || error.message.includes('cheffing_dishes_name_ci_unique');
+  return error.code === '23505';
 }
 
-export async function GET(_req: NextRequest, { params }: { params: { id: string } }) {
-  const access = await requireCheffingRouteAccess();
-  if (access.response) {
-    return access.response;
-  }
-
-  const supabase = createSupabaseAdminClient();
-  const { data, error } = await supabase
-    .from('v_cheffing_dish_cost')
-    .select('id, name, selling_price, servings, notes, created_at, updated_at, items_cost_total, cost_per_serving')
-    .eq('id', params.id)
-    .maybeSingle();
-
-  if (error) {
-    const serverError = NextResponse.json({ error: error.message }, { status: 500 });
-    mergeResponseCookies(access.supabaseResponse, serverError);
-    return serverError;
-  }
-
-  if (!data) {
-    const notFound = NextResponse.json({ error: 'Not found' }, { status: 404 });
-    mergeResponseCookies(access.supabaseResponse, notFound);
-    return notFound;
-  }
-
-  const response = NextResponse.json({ data });
-  mergeResponseCookies(access.supabaseResponse, response);
-  return response;
-}
-
-export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
+export async function PATCH(req: NextRequest, { params }: { params: { ingredientId: string } }) {
   const access = await requireCheffingRouteAccess();
   if (access.response) {
     return access.response;
   }
 
   const body = await req.json().catch(() => null);
-  const parsed = dishUpdateSchema.safeParse(body);
+  const parsed = dishItemSchema.safeParse(body);
 
   if (!parsed.success) {
     const invalid = NextResponse.json({ error: 'Invalid payload', issues: parsed.error.issues }, { status: 400 });
@@ -58,7 +28,17 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   }
 
   const supabase = createSupabaseAdminClient();
-  const { error } = await supabase.from('cheffing_dishes').update(parsed.data).eq('id', params.id);
+  const { error } = await supabase
+    .from('cheffing_dish_items')
+    .update({
+      ingredient_id: parsed.data.ingredient_id,
+      subrecipe_id: parsed.data.subrecipe_id,
+      unit_code: parsed.data.unit_code,
+      quantity: parsed.data.quantity,
+      waste_pct: parsed.data.waste_pct,
+      notes: parsed.data.notes ?? null,
+    })
+    .eq('id', params.ingredientId);
 
   if (error) {
     const status = isUniqueViolation(error) ? 409 : 500;
@@ -72,14 +52,14 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   return response;
 }
 
-export async function DELETE(_req: NextRequest, { params }: { params: { id: string } }) {
+export async function DELETE(_req: NextRequest, { params }: { params: { ingredientId: string } }) {
   const access = await requireCheffingRouteAccess();
   if (access.response) {
     return access.response;
   }
 
   const supabase = createSupabaseAdminClient();
-  const { error } = await supabase.from('cheffing_dishes').delete().eq('id', params.id);
+  const { error } = await supabase.from('cheffing_dish_items').delete().eq('id', params.ingredientId);
 
   if (error) {
     const serverError = NextResponse.json({ error: error.message }, { status: 500 });

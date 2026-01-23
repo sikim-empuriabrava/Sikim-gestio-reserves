@@ -11,6 +11,10 @@ function isValidNumber(value: unknown): value is number {
   return typeof value === 'number' && Number.isFinite(value);
 }
 
+function isUniqueViolation(error: { code?: string; message: string }) {
+  return error.code === '23505' || error.message.includes('cheffing_ingredients_name_ci_unique');
+}
+
 async function requireCheffingAccess() {
   const supabaseResponse = NextResponse.next();
   const authClient = createSupabaseRouteHandlerClient(supabaseResponse);
@@ -120,7 +124,8 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   const { error } = await supabase.from('cheffing_ingredients').update(updates).eq('id', params.id);
 
   if (error) {
-    const serverError = NextResponse.json({ error: error.message }, { status: 500 });
+    const status = isUniqueViolation(error) ? 409 : 500;
+    const serverError = NextResponse.json({ error: error.message }, { status });
     mergeResponseCookies(access.supabaseResponse, serverError);
     return serverError;
   }

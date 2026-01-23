@@ -32,6 +32,7 @@ export type Subrecipe = {
   output_unit_code: string;
   output_qty: number;
   waste_pct: number;
+  notes: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -43,6 +44,7 @@ export type SubrecipeItem = {
   subrecipe_component_id: string | null;
   unit_code: string;
   quantity: number;
+  waste_pct: number;
   notes: string | null;
 };
 
@@ -50,6 +52,8 @@ export type Dish = {
   id: string;
   name: string;
   selling_price: number | null;
+  servings: number;
+  notes: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -61,5 +65,6 @@ export type DishItem = {
   subrecipe_id: string | null;
   unit_code: string;
   quantity: number;
+  waste_pct: number;
   notes: string | null;
 };

@@ -101,6 +101,9 @@ export function IngredientsManager({ initialIngredients, units }: IngredientsMan
 
       if (!response.ok) {
         const payload = await response.json().catch(() => ({}));
+        if (response.status === 409) {
+          throw new Error('Ya existe un ingrediente con ese nombre.');
+        }
         throw new Error(payload?.error ?? 'Error creando ingrediente');
       }
 
@@ -154,6 +157,9 @@ export function IngredientsManager({ initialIngredients, units }: IngredientsMan
 
       if (!response.ok) {
         const payload = await response.json().catch(() => ({}));
+        if (response.status === 409) {
+          throw new Error('Ya existe un ingrediente con ese nombre.');
+        }
         throw new Error(payload?.error ?? 'Error actualizando ingrediente');
       }
 

@@ -19,6 +19,7 @@ type SubrecipeCost = Subrecipe & {
 type SubrecipeItemWithDetails = SubrecipeItem & {
   ingredient?: { id: string; name: string } | null;
   subrecipe_component?: { id: string; name: string } | null;
+  line_cost_total?: number | null;
 };
 
 type SubrecipeDetailManagerProps = {
@@ -34,6 +35,7 @@ type SubrecipeFormState = {
   output_unit_code: string;
   output_qty: string;
   waste_pct: string;
+  notes: string;
 };
 
 type ItemFormState = {
@@ -42,6 +44,7 @@ type ItemFormState = {
   subrecipe_component_id: string;
   unit_code: string;
   quantity: string;
+  waste_pct: string;
   notes: string;
 };
 
@@ -63,6 +66,7 @@ export function SubrecipeDetailManager({
     output_unit_code: subrecipe.output_unit_code,
     output_qty: String(subrecipe.output_qty),
     waste_pct: String((subrecipe.waste_pct * 100).toFixed(2)),
+    notes: subrecipe.notes ?? '',
   });
   const [itemFormState, setItemFormState] = useState<ItemFormState>({
     itemType: ingredients.length > 0 ? 'ingredient' : 'subrecipe',
@@ -70,6 +74,7 @@ export function SubrecipeDetailManager({
     subrecipe_component_id: subrecipes.find((entry) => entry.id !== subrecipe.id)?.id ?? '',
     unit_code: units[0]?.code ?? 'g',
     quantity: '1',
+    waste_pct: '0',
     notes: '',
   });
 
@@ -109,6 +114,7 @@ export function SubrecipeDetailManager({
           output_unit_code: formState.output_unit_code,
           output_qty: Number(formState.output_qty),
           waste_pct: wastePctValue,
+          notes: formState.notes.trim() ? formState.notes.trim() : null,
         }),
       });
 
@@ -133,6 +139,10 @@ export function SubrecipeDetailManager({
     setIsSubmitting(true);
 
     try {
+      const confirmed = window.confirm('¿Seguro que quieres eliminar esta elaboración?');
+      if (!confirmed) {
+        return;
+      }
       const response = await fetch(`/api/cheffing/subrecipes/${subrecipe.id}`, {
         method: 'DELETE',
       });
@@ -157,6 +167,11 @@ export function SubrecipeDetailManager({
     setIsSubmitting(true);
 
     try {
+      const wastePctValue = parseWastePct(itemFormState.waste_pct);
+      if (wastePctValue === null) {
+        throw new Error('La merma debe estar entre 0 y 99,99%.');
+      }
+
       const ingredientId = itemFormState.itemType === 'ingredient' ? itemFormState.ingredient_id : null;
       const subrecipeComponentId = itemFormState.itemType === 'subrecipe' ? itemFormState.subrecipe_component_id : null;
 
@@ -168,18 +183,23 @@ export function SubrecipeDetailManager({
           subrecipe_component_id: subrecipeComponentId,
           unit_code: itemFormState.unit_code,
           quantity: Number(itemFormState.quantity),
+          waste_pct: wastePctValue,
           notes: itemFormState.notes.trim() ? itemFormState.notes.trim() : null,
         }),
       });
 
       if (!response.ok) {
         const payload = await response.json().catch(() => ({}));
+        if (response.status === 409) {
+          throw new Error('Esta línea ya existe en la elaboración.');
+        }
         throw new Error(payload?.error ?? 'Error creando línea');
       }
 
       setItemFormState((prev) => ({
         ...prev,
         quantity: '1',
+        waste_pct: '0',
         notes: '',
       }));
       router.refresh();
@@ -199,6 +219,7 @@ export function SubrecipeDetailManager({
       subrecipe_component_id: item.subrecipe_component_id ?? subrecipeOptions[0]?.id ?? '',
       unit_code: item.unit_code,
       quantity: String(item.quantity),
+      waste_pct: String((item.waste_pct * 100).toFixed(2)),
       notes: item.notes ?? '',
     });
   };
@@ -214,6 +235,11 @@ export function SubrecipeDetailManager({
     setIsSubmitting(true);
 
     try {
+      const wastePctValue = parseWastePct(editingItemState.waste_pct);
+      if (wastePctValue === null) {
+        throw new Error('La merma debe estar entre 0 y 99,99%.');
+      }
+
       const ingredientId = editingItemState.itemType === 'ingredient' ? editingItemState.ingredient_id : null;
       const subrecipeComponentId =
         editingItemState.itemType === 'subrecipe' ? editingItemState.subrecipe_component_id : null;
@@ -226,12 +252,16 @@ export function SubrecipeDetailManager({
           subrecipe_component_id: subrecipeComponentId,
           unit_code: editingItemState.unit_code,
           quantity: Number(editingItemState.quantity),
+          waste_pct: wastePctValue,
           notes: editingItemState.notes.trim() ? editingItemState.notes.trim() : null,
         }),
       });
 
       if (!response.ok) {
         const payload = await response.json().catch(() => ({}));
+        if (response.status === 409) {
+          throw new Error('Esta línea ya existe en la elaboración.');
+        }
         throw new Error(payload?.error ?? 'Error actualizando línea');
       }
 
@@ -249,6 +279,10 @@ export function SubrecipeDetailManager({
     setIsSubmitting(true);
 
     try {
+      const confirmed = window.confirm('¿Seguro que quieres eliminar esta línea?');
+      if (!confirmed) {
+        return;
+      }
       const response = await fetch(`/api/cheffing/subrecipes/items/${itemId}`, {
         method: 'DELETE',
       });
@@ -331,6 +365,15 @@ export function SubrecipeDetailManager({
               required
             />
           </label>
+          <label className="flex flex-col gap-2 text-sm text-slate-300 md:col-span-4">
+            Notas
+            <textarea
+              rows={3}
+              className="rounded-lg border border-slate-700 bg-slate-950/70 px-3 py-2 text-white"
+              value={formState.notes}
+              onChange={(event) => setFormState((prev) => ({ ...prev, notes: event.target.value }))}
+            />
+          </label>
         </div>
         <div className="flex flex-wrap gap-2">
           <button
@@ -359,7 +402,7 @@ export function SubrecipeDetailManager({
           </div>
           {itemsError ? <p className="text-sm text-rose-400">{itemsError}</p> : null}
         </div>
-        <form onSubmit={submitNewItem} className="grid gap-4 md:grid-cols-5">
+        <form onSubmit={submitNewItem} className="grid gap-4 md:grid-cols-6">
           <label className="flex flex-col gap-2 text-sm text-slate-300">
             Tipo
             <select
@@ -428,6 +471,18 @@ export function SubrecipeDetailManager({
               </select>
             </div>
           </label>
+          <label className="flex flex-col gap-2 text-sm text-slate-300">
+            Merma (%)
+            <input
+              type="number"
+              min="0"
+              max="99.99"
+              step="0.01"
+              className="rounded-lg border border-slate-700 bg-slate-950/70 px-3 py-2 text-white"
+              value={itemFormState.waste_pct}
+              onChange={(event) => setItemFormState((prev) => ({ ...prev, waste_pct: event.target.value }))}
+            />
+          </label>
           <label className="flex flex-col gap-2 text-sm text-slate-300 md:col-span-2">
             Notas
             <input
@@ -454,14 +509,16 @@ export function SubrecipeDetailManager({
                 <th className="px-4 py-3">Tipo</th>
                 <th className="px-4 py-3">Detalle</th>
                 <th className="px-4 py-3">Cantidad</th>
+                <th className="px-4 py-3">Merma</th>
                 <th className="px-4 py-3">Notas</th>
+                <th className="px-4 py-3">Coste</th>
                 <th className="px-4 py-3">Acciones</th>
               </tr>
             </thead>
             <tbody>
               {items.length === 0 ? (
                 <tr>
-                  <td colSpan={5} className="px-4 py-6 text-center text-sm text-slate-500">
+                  <td colSpan={7} className="px-4 py-6 text-center text-sm text-slate-500">
                     Añade ingredientes o elaboraciones para calcular el coste.
                   </td>
                 </tr>
@@ -570,6 +627,25 @@ export function SubrecipeDetailManager({
                           `${item.quantity} ${item.unit_code}`
                         )}
                       </td>
+                      <td className="px-4 py-3">
+                        {isEditing ? (
+                          <input
+                            type="number"
+                            min="0"
+                            max="99.99"
+                            step="0.01"
+                            className="w-20 rounded-md border border-slate-700 bg-slate-950/70 px-2 py-1 text-white"
+                            value={editingValues?.waste_pct ?? ''}
+                            onChange={(event) =>
+                              setEditingItemState((prev) =>
+                                prev ? { ...prev, waste_pct: event.target.value } : prev,
+                              )
+                            }
+                          />
+                        ) : (
+                          `${(item.waste_pct * 100).toFixed(1)}%`
+                        )}
+                      </td>
                       <td className="px-4 py-3 text-slate-300">
                         {isEditing ? (
                           <input
@@ -582,6 +658,9 @@ export function SubrecipeDetailManager({
                         ) : (
                           item.notes ?? '—'
                         )}
+                      </td>
+                      <td className="px-4 py-3 text-slate-100">
+                        {formatCurrency(item.line_cost_total ?? null)} €
                       </td>
                       <td className="px-4 py-3">
                         <div className="flex gap-2">

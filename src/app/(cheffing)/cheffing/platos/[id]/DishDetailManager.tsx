@@ -9,11 +9,13 @@ import type { Dish, DishItem, Ingredient, Subrecipe, Unit } from '@/lib/cheffing
 
 type DishCost = Dish & {
   items_cost_total: number | null;
+  cost_per_serving?: number | null;
 };
 
 type DishItemWithDetails = DishItem & {
   ingredient?: { id: string; name: string } | null;
   subrecipe?: { id: string; name: string } | null;
+  line_cost_total?: number | null;
 };
 
 type DishDetailManagerProps = {
@@ -27,6 +29,8 @@ type DishDetailManagerProps = {
 type DishFormState = {
   name: string;
   selling_price: string;
+  servings: string;
+  notes: string;
 };
 
 type ItemFormState = {
@@ -35,6 +39,7 @@ type ItemFormState = {
   subrecipe_id: string;
   unit_code: string;
   quantity: string;
+  waste_pct: string;
   notes: string;
 };
 
@@ -48,6 +53,8 @@ export function DishDetailManager({ dish, items, ingredients, subrecipes, units 
   const [formState, setFormState] = useState<DishFormState>({
     name: dish.name,
     selling_price: dish.selling_price === null ? '' : String(dish.selling_price),
+    servings: String(dish.servings ?? 1),
+    notes: dish.notes ?? '',
   });
   const [itemFormState, setItemFormState] = useState<ItemFormState>({
     itemType: ingredients.length > 0 ? 'ingredient' : 'subrecipe',
@@ -55,12 +62,21 @@ export function DishDetailManager({ dish, items, ingredients, subrecipes, units 
     subrecipe_id: subrecipes[0]?.id ?? '',
     unit_code: units[0]?.code ?? 'g',
     quantity: '1',
+    waste_pct: '0',
     notes: '',
   });
 
   const formatCurrency = (value: number | null) => {
     if (value === null || Number.isNaN(value)) return '—';
     return `${value.toFixed(2)} €`;
+  };
+
+  const parseWastePct = (value: string) => {
+    const percentValue = Number(value);
+    if (!Number.isFinite(percentValue) || percentValue < 0 || percentValue >= 100) {
+      return null;
+    }
+    return percentValue / 100;
   };
 
   const saveHeader = async (event: FormEvent<HTMLFormElement>) => {
@@ -70,6 +86,11 @@ export function DishDetailManager({ dish, items, ingredients, subrecipes, units 
 
     try {
       const sellingPriceValue = formState.selling_price.trim() === '' ? null : Number(formState.selling_price);
+      const servingsValue = Number(formState.servings);
+
+      if (!Number.isFinite(servingsValue) || servingsValue <= 0) {
+        throw new Error('Las raciones deben ser mayores que 0.');
+      }
 
       const response = await fetch(`/api/cheffing/dishes/${dish.id}`, {
         method: 'PATCH',
@@ -77,6 +98,8 @@ export function DishDetailManager({ dish, items, ingredients, subrecipes, units 
         body: JSON.stringify({
           name: formState.name,
           selling_price: sellingPriceValue,
+          servings: servingsValue,
+          notes: formState.notes.trim() ? formState.notes.trim() : null,
         }),
       });
 
@@ -101,6 +124,10 @@ export function DishDetailManager({ dish, items, ingredients, subrecipes, units 
     setIsSubmitting(true);
 
     try {
+      const confirmed = window.confirm('¿Seguro que quieres eliminar este plato?');
+      if (!confirmed) {
+        return;
+      }
       const response = await fetch(`/api/cheffing/dishes/${dish.id}`, {
         method: 'DELETE',
       });
@@ -125,10 +152,15 @@ export function DishDetailManager({ dish, items, ingredients, subrecipes, units 
     setIsSubmitting(true);
 
     try {
+      const wastePctValue = parseWastePct(itemFormState.waste_pct);
+      if (wastePctValue === null) {
+        throw new Error('La merma debe estar entre 0 y 99,99%.');
+      }
+
       const ingredientId = itemFormState.itemType === 'ingredient' ? itemFormState.ingredient_id : null;
       const subrecipeId = itemFormState.itemType === 'subrecipe' ? itemFormState.subrecipe_id : null;
 
-      const response = await fetch(`/api/cheffing/dishes/${dish.id}/items`, {
+      const response = await fetch(`/api/cheffing/dishes/${dish.id}/ingredients`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -136,18 +168,23 @@ export function DishDetailManager({ dish, items, ingredients, subrecipes, units 
           subrecipe_id: subrecipeId,
           unit_code: itemFormState.unit_code,
           quantity: Number(itemFormState.quantity),
+          waste_pct: wastePctValue,
           notes: itemFormState.notes.trim() ? itemFormState.notes.trim() : null,
         }),
       });
 
       if (!response.ok) {
         const payload = await response.json().catch(() => ({}));
+        if (response.status === 409) {
+          throw new Error('Esta línea ya existe en el plato.');
+        }
         throw new Error(payload?.error ?? 'Error creando línea');
       }
 
       setItemFormState((prev) => ({
         ...prev,
         quantity: '1',
+        waste_pct: '0',
         notes: '',
       }));
       router.refresh();
@@ -167,6 +204,7 @@ export function DishDetailManager({ dish, items, ingredients, subrecipes, units 
       subrecipe_id: item.subrecipe_id ?? subrecipes[0]?.id ?? '',
       unit_code: item.unit_code,
       quantity: String(item.quantity),
+      waste_pct: String((item.waste_pct * 100).toFixed(2)),
       notes: item.notes ?? '',
     });
   };
@@ -182,10 +220,15 @@ export function DishDetailManager({ dish, items, ingredients, subrecipes, units 
     setIsSubmitting(true);
 
     try {
+      const wastePctValue = parseWastePct(editingItemState.waste_pct);
+      if (wastePctValue === null) {
+        throw new Error('La merma debe estar entre 0 y 99,99%.');
+      }
+
       const ingredientId = editingItemState.itemType === 'ingredient' ? editingItemState.ingredient_id : null;
       const subrecipeId = editingItemState.itemType === 'subrecipe' ? editingItemState.subrecipe_id : null;
 
-      const response = await fetch(`/api/cheffing/dishes/items/${itemId}`, {
+      const response = await fetch(`/api/cheffing/dishes/ingredients/${itemId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -193,12 +236,16 @@ export function DishDetailManager({ dish, items, ingredients, subrecipes, units 
           subrecipe_id: subrecipeId,
           unit_code: editingItemState.unit_code,
           quantity: Number(editingItemState.quantity),
+          waste_pct: wastePctValue,
           notes: editingItemState.notes.trim() ? editingItemState.notes.trim() : null,
         }),
       });
 
       if (!response.ok) {
         const payload = await response.json().catch(() => ({}));
+        if (response.status === 409) {
+          throw new Error('Esta línea ya existe en el plato.');
+        }
         throw new Error(payload?.error ?? 'Error actualizando línea');
       }
 
@@ -216,7 +263,11 @@ export function DishDetailManager({ dish, items, ingredients, subrecipes, units 
     setIsSubmitting(true);
 
     try {
-      const response = await fetch(`/api/cheffing/dishes/items/${itemId}`, {
+      const confirmed = window.confirm('¿Seguro que quieres eliminar esta línea?');
+      if (!confirmed) {
+        return;
+      }
+      const response = await fetch(`/api/cheffing/dishes/ingredients/${itemId}`, {
         method: 'DELETE',
       });
 
@@ -246,10 +297,11 @@ export function DishDetailManager({ dish, items, ingredients, subrecipes, units 
           </div>
           <div className="text-right text-sm text-slate-300">
             <p>Coste total: {formatCurrency(dish.items_cost_total)}</p>
+            <p>Coste ración: {formatCurrency(dish.cost_per_serving ?? null)}</p>
           </div>
         </div>
         {headerError ? <p className="text-sm text-rose-400">{headerError}</p> : null}
-        <div className="grid gap-4 md:grid-cols-2">
+        <div className="grid gap-4 md:grid-cols-3">
           <label className="flex flex-col gap-2 text-sm text-slate-300">
             Nombre
             <input
@@ -269,6 +321,27 @@ export function DishDetailManager({ dish, items, ingredients, subrecipes, units 
               value={formState.selling_price}
               onChange={(event) => setFormState((prev) => ({ ...prev, selling_price: event.target.value }))}
               placeholder="Opcional"
+            />
+          </label>
+          <label className="flex flex-col gap-2 text-sm text-slate-300">
+            Raciones
+            <input
+              type="number"
+              min="1"
+              step="1"
+              className="rounded-lg border border-slate-700 bg-slate-950/70 px-3 py-2 text-white"
+              value={formState.servings}
+              onChange={(event) => setFormState((prev) => ({ ...prev, servings: event.target.value }))}
+              required
+            />
+          </label>
+          <label className="flex flex-col gap-2 text-sm text-slate-300 md:col-span-3">
+            Notas
+            <textarea
+              rows={3}
+              className="rounded-lg border border-slate-700 bg-slate-950/70 px-3 py-2 text-white"
+              value={formState.notes}
+              onChange={(event) => setFormState((prev) => ({ ...prev, notes: event.target.value }))}
             />
           </label>
         </div>
@@ -299,7 +372,7 @@ export function DishDetailManager({ dish, items, ingredients, subrecipes, units 
           </div>
           {itemsError ? <p className="text-sm text-rose-400">{itemsError}</p> : null}
         </div>
-        <form onSubmit={submitNewItem} className="grid gap-4 md:grid-cols-5">
+        <form onSubmit={submitNewItem} className="grid gap-4 md:grid-cols-6">
           <label className="flex flex-col gap-2 text-sm text-slate-300">
             Tipo
             <select
@@ -366,6 +439,18 @@ export function DishDetailManager({ dish, items, ingredients, subrecipes, units 
               </select>
             </div>
           </label>
+          <label className="flex flex-col gap-2 text-sm text-slate-300">
+            Merma (%)
+            <input
+              type="number"
+              min="0"
+              max="99.99"
+              step="0.01"
+              className="rounded-lg border border-slate-700 bg-slate-950/70 px-3 py-2 text-white"
+              value={itemFormState.waste_pct}
+              onChange={(event) => setItemFormState((prev) => ({ ...prev, waste_pct: event.target.value }))}
+            />
+          </label>
           <label className="flex flex-col gap-2 text-sm text-slate-300 md:col-span-2">
             Notas
             <input
@@ -392,14 +477,16 @@ export function DishDetailManager({ dish, items, ingredients, subrecipes, units 
                 <th className="px-4 py-3">Tipo</th>
                 <th className="px-4 py-3">Detalle</th>
                 <th className="px-4 py-3">Cantidad</th>
+                <th className="px-4 py-3">Merma</th>
                 <th className="px-4 py-3">Notas</th>
+                <th className="px-4 py-3">Coste</th>
                 <th className="px-4 py-3">Acciones</th>
               </tr>
             </thead>
             <tbody>
               {items.length === 0 ? (
                 <tr>
-                  <td colSpan={5} className="px-4 py-6 text-center text-sm text-slate-500">
+                  <td colSpan={7} className="px-4 py-6 text-center text-sm text-slate-500">
                     Añade ingredientes o elaboraciones para calcular el coste.
                   </td>
                 </tr>
@@ -508,6 +595,25 @@ export function DishDetailManager({ dish, items, ingredients, subrecipes, units 
                           `${item.quantity} ${item.unit_code}`
                         )}
                       </td>
+                      <td className="px-4 py-3">
+                        {isEditing ? (
+                          <input
+                            type="number"
+                            min="0"
+                            max="99.99"
+                            step="0.01"
+                            className="w-20 rounded-md border border-slate-700 bg-slate-950/70 px-2 py-1 text-white"
+                            value={editingValues?.waste_pct ?? ''}
+                            onChange={(event) =>
+                              setEditingItemState((prev) =>
+                                prev ? { ...prev, waste_pct: event.target.value } : prev,
+                              )
+                            }
+                          />
+                        ) : (
+                          `${(item.waste_pct * 100).toFixed(1)}%`
+                        )}
+                      </td>
                       <td className="px-4 py-3 text-slate-300">
                         {isEditing ? (
                           <input
@@ -520,6 +626,9 @@ export function DishDetailManager({ dish, items, ingredients, subrecipes, units 
                         ) : (
                           item.notes ?? '—'
                         )}
+                      </td>
+                      <td className="px-4 py-3 text-slate-100">
+                        {formatCurrency(item.line_cost_total ?? null)}
                       </td>
                       <td className="px-4 py-3">
                         <div className="flex gap-2">

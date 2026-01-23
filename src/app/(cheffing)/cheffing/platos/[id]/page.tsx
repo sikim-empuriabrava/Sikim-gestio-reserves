@@ -17,7 +17,9 @@ type DishItemWithDetails = {
   subrecipe_id: string | null;
   unit_code: string;
   quantity: number;
+  waste_pct: number;
   notes: string | null;
+  line_cost_total: number | null;
   ingredient?: { id: string; name: string } | null;
   subrecipe?: { id: string; name: string } | null;
 };
@@ -28,7 +30,7 @@ export default async function CheffingPlatoDetailPage({ params }: { params: { id
   const supabase = createSupabaseServerClient();
   const { data: dish, error: dishError } = await supabase
     .from('v_cheffing_dish_cost')
-    .select('id, name, selling_price, created_at, updated_at, items_cost_total')
+    .select('id, name, selling_price, servings, notes, created_at, updated_at, items_cost_total, cost_per_serving')
     .eq('id', params.id)
     .maybeSingle();
 
@@ -38,9 +40,9 @@ export default async function CheffingPlatoDetailPage({ params }: { params: { id
   }
 
   const { data: items, error: itemsError } = await supabase
-    .from('cheffing_dish_items')
+    .from('v_cheffing_dish_items_cost')
     .select(
-      'id, dish_id, ingredient_id, subrecipe_id, unit_code, quantity, notes, ingredient:cheffing_ingredients(id, name), subrecipe:cheffing_subrecipes(id, name)',
+      'id, dish_id, ingredient_id, subrecipe_id, unit_code, quantity, waste_pct, notes, line_cost_total, ingredient:cheffing_ingredients(id, name), subrecipe:cheffing_subrecipes(id, name)',
     )
     .eq('dish_id', params.id)
     .order('created_at', { ascending: true });
@@ -50,7 +52,7 @@ export default async function CheffingPlatoDetailPage({ params }: { params: { id
     .order('name', { ascending: true });
   const { data: subrecipes, error: subrecipesError } = await supabase
     .from('cheffing_subrecipes')
-    .select('id, name, output_unit_code, output_qty, waste_pct, created_at, updated_at')
+    .select('id, name, output_unit_code, output_qty, waste_pct, notes, created_at, updated_at')
     .order('name', { ascending: true });
   const { data: units, error: unitsError } = await supabase
     .from('cheffing_units')

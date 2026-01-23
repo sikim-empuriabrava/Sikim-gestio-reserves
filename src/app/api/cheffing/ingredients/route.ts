@@ -11,6 +11,10 @@ function isValidNumber(value: unknown): value is number {
   return typeof value === 'number' && Number.isFinite(value);
 }
 
+function isUniqueViolation(error: { code?: string; message: string }) {
+  return error.code === '23505' || error.message.includes('cheffing_ingredients_name_ci_unique');
+}
+
 export async function POST(req: NextRequest) {
   const supabaseResponse = NextResponse.next();
   const authClient = createSupabaseRouteHandlerClient(supabaseResponse);
@@ -96,7 +100,8 @@ export async function POST(req: NextRequest) {
     .maybeSingle();
 
   if (error) {
-    const serverError = NextResponse.json({ error: error.message }, { status: 500 });
+    const status = isUniqueViolation(error) ? 409 : 500;
+    const serverError = NextResponse.json({ error: error.message }, { status });
     mergeResponseCookies(supabaseResponse, serverError);
     return serverError;
   }
