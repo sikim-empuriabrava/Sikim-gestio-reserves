@@ -1,6 +1,6 @@
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { requireCheffingAccess } from '@/lib/cheffing/requireCheffing';
-import type { Subrecipe, Unit } from '@/lib/cheffing/types';
+import type { Unit } from '@/lib/cheffing/types';
 
 import { SubrecipesManager, type SubrecipeCost } from './SubrecipesManager';
 
