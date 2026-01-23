@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createSupabaseRouteHandlerClient, mergeResponseCookies } from '@/lib/supabase/route';
 import { createSupabaseAdminClient } from '@/lib/supabaseAdmin';
 import { getAllowlistRoleForUserEmail, isAdmin } from '@/lib/auth/requireRole';
+import { mapCheffingPostgresError } from '@/lib/cheffing/postgresErrors';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -76,7 +77,7 @@ export async function POST(req: NextRequest) {
     return invalid;
   }
 
-  if (!isValidNumber(wastePct) || wastePct < 0 || wastePct > 1) {
+  if (!isValidNumber(wastePct) || wastePct < 0 || wastePct >= 1) {
     const invalid = NextResponse.json({ error: 'Invalid waste_pct' }, { status: 400 });
     mergeResponseCookies(supabaseResponse, invalid);
     return invalid;
@@ -96,7 +97,8 @@ export async function POST(req: NextRequest) {
     .maybeSingle();
 
   if (error) {
-    const serverError = NextResponse.json({ error: error.message }, { status: 500 });
+    const mapped = mapCheffingPostgresError(error);
+    const serverError = NextResponse.json({ error: mapped.message }, { status: mapped.status });
     mergeResponseCookies(supabaseResponse, serverError);
     return serverError;
   }

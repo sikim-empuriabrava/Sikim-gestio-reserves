@@ -2,9 +2,10 @@
 
 import { useMemo, useState } from 'react';
 import type { FormEvent } from 'react';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 
-import type { IngredientCost, Unit, UnitDimension } from '@/lib/cheffing/types';
+import type { Subrecipe, Unit, UnitDimension } from '@/lib/cheffing/types';
 
 const baseUnitLabelByDimension: Record<UnitDimension, string> = {
   mass: 'g',
@@ -12,30 +13,37 @@ const baseUnitLabelByDimension: Record<UnitDimension, string> = {
   unit: 'u',
 };
 
-type IngredientsManagerProps = {
-  initialIngredients: IngredientCost[];
+type SubrecipeCost = Subrecipe & {
+  output_unit_dimension: UnitDimension | null;
+  output_unit_factor: number | null;
+  items_cost_total: number | null;
+  cost_gross_per_base: number | null;
+  cost_net_per_base: number | null;
+  waste_factor: number | null;
+};
+
+type SubrecipesManagerProps = {
+  initialSubrecipes: SubrecipeCost[];
   units: Unit[];
 };
 
-type IngredientFormState = {
+type SubrecipeFormState = {
   name: string;
-  purchase_unit_code: string;
-  purchase_pack_qty: string;
-  purchase_price: string;
+  output_unit_code: string;
+  output_qty: string;
   waste_pct: string;
 };
 
-export function IngredientsManager({ initialIngredients, units }: IngredientsManagerProps) {
+export function SubrecipesManager({ initialSubrecipes, units }: SubrecipesManagerProps) {
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [editingState, setEditingState] = useState<IngredientFormState | null>(null);
-  const [formState, setFormState] = useState<IngredientFormState>({
+  const [editingState, setEditingState] = useState<SubrecipeFormState | null>(null);
+  const [formState, setFormState] = useState<SubrecipeFormState>({
     name: '',
-    purchase_unit_code: units[0]?.code ?? 'g',
-    purchase_pack_qty: '1',
-    purchase_price: '0',
+    output_unit_code: units[0]?.code ?? 'g',
+    output_qty: '1',
     waste_pct: '0',
   });
 
@@ -53,17 +61,11 @@ export function IngredientsManager({ initialIngredients, units }: IngredientsMan
     return value.toFixed(4);
   };
 
-  const formatFactor = (value: number | null) => {
-    if (value === null || Number.isNaN(value)) return '—';
-    return value.toFixed(3);
-  };
-
   const resetForm = () => {
     setFormState({
       name: '',
-      purchase_unit_code: units[0]?.code ?? 'g',
-      purchase_pack_qty: '1',
-      purchase_price: '0',
+      output_unit_code: units[0]?.code ?? 'g',
+      output_qty: '1',
       waste_pct: '0',
     });
   };
@@ -76,25 +78,37 @@ export function IngredientsManager({ initialIngredients, units }: IngredientsMan
     return percentValue / 100;
   };
 
-  const submitNewIngredient = async (event: FormEvent<HTMLFormElement>) => {
+  const ensureValidQuantity = (value: string) => {
+    const numericValue = Number(value);
+    if (!Number.isFinite(numericValue) || numericValue <= 0) {
+      return null;
+    }
+    return numericValue;
+  };
+
+  const submitNewSubrecipe = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setError(null);
     setIsSubmitting(true);
 
     try {
+      const outputQtyValue = ensureValidQuantity(formState.output_qty);
+      if (outputQtyValue === null) {
+        throw new Error('La producción debe ser mayor que 0.');
+      }
+
       const wastePctValue = parseWastePct(formState.waste_pct);
       if (wastePctValue === null) {
         throw new Error('La merma debe estar entre 0 y 99,99%.');
       }
 
-      const response = await fetch('/api/cheffing/ingredients', {
+      const response = await fetch('/api/cheffing/subrecipes', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           name: formState.name,
-          purchase_unit_code: formState.purchase_unit_code,
-          purchase_pack_qty: Number(formState.purchase_pack_qty),
-          purchase_price: Number(formState.purchase_price),
+          output_unit_code: formState.output_unit_code,
+          output_qty: outputQtyValue,
           waste_pct: wastePctValue,
         }),
       });
@@ -102,9 +116,9 @@ export function IngredientsManager({ initialIngredients, units }: IngredientsMan
       if (!response.ok) {
         const payload = await response.json().catch(() => ({}));
         if (response.status === 409) {
-          throw new Error('Ya existe un ingrediente con ese nombre.');
+          throw new Error('Ya existe una elaboración con ese nombre.');
         }
-        throw new Error(payload?.error ?? 'Error creando ingrediente');
+        throw new Error(payload?.error ?? 'Error creando elaboración');
       }
 
       resetForm();
@@ -116,14 +130,13 @@ export function IngredientsManager({ initialIngredients, units }: IngredientsMan
     }
   };
 
-  const startEditing = (ingredient: IngredientCost) => {
-    setEditingId(ingredient.id);
+  const startEditing = (subrecipe: SubrecipeCost) => {
+    setEditingId(subrecipe.id);
     setEditingState({
-      name: ingredient.name,
-      purchase_unit_code: ingredient.purchase_unit_code,
-      purchase_pack_qty: String(ingredient.purchase_pack_qty),
-      purchase_price: String(ingredient.purchase_price),
-      waste_pct: String((ingredient.waste_pct * 100).toFixed(2)),
+      name: subrecipe.name,
+      output_unit_code: subrecipe.output_unit_code,
+      output_qty: String(subrecipe.output_qty),
+      waste_pct: String((subrecipe.waste_pct * 100).toFixed(2)),
     });
   };
 
@@ -132,25 +145,29 @@ export function IngredientsManager({ initialIngredients, units }: IngredientsMan
     setEditingState(null);
   };
 
-  const saveEditing = async (ingredientId: string) => {
+  const saveEditing = async (subrecipeId: string) => {
     if (!editingState) return;
     setError(null);
     setIsSubmitting(true);
 
     try {
+      const outputQtyValue = ensureValidQuantity(editingState.output_qty);
+      if (outputQtyValue === null) {
+        throw new Error('La producción debe ser mayor que 0.');
+      }
+
       const wastePctValue = parseWastePct(editingState.waste_pct);
       if (wastePctValue === null) {
         throw new Error('La merma debe estar entre 0 y 99,99%.');
       }
 
-      const response = await fetch(`/api/cheffing/ingredients/${ingredientId}`, {
+      const response = await fetch(`/api/cheffing/subrecipes/${subrecipeId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           name: editingState.name,
-          purchase_unit_code: editingState.purchase_unit_code,
-          purchase_pack_qty: Number(editingState.purchase_pack_qty),
-          purchase_price: Number(editingState.purchase_price),
+          output_unit_code: editingState.output_unit_code,
+          output_qty: outputQtyValue,
           waste_pct: wastePctValue,
         }),
       });
@@ -158,9 +175,9 @@ export function IngredientsManager({ initialIngredients, units }: IngredientsMan
       if (!response.ok) {
         const payload = await response.json().catch(() => ({}));
         if (response.status === 409) {
-          throw new Error('Ya existe un ingrediente con ese nombre.');
+          throw new Error('Ya existe una elaboración con ese nombre.');
         }
-        throw new Error(payload?.error ?? 'Error actualizando ingrediente');
+        throw new Error(payload?.error ?? 'Error actualizando elaboración');
       }
 
       cancelEditing();
@@ -172,18 +189,22 @@ export function IngredientsManager({ initialIngredients, units }: IngredientsMan
     }
   };
 
-  const deleteIngredient = async (ingredientId: string) => {
+  const deleteSubrecipe = async (subrecipeId: string) => {
     setError(null);
     setIsSubmitting(true);
 
     try {
-      const response = await fetch(`/api/cheffing/ingredients/${ingredientId}`, {
+      const confirmed = window.confirm('¿Seguro que quieres eliminar esta elaboración?');
+      if (!confirmed) {
+        return;
+      }
+      const response = await fetch(`/api/cheffing/subrecipes/${subrecipeId}`, {
         method: 'DELETE',
       });
 
       if (!response.ok) {
         const payload = await response.json().catch(() => ({}));
-        throw new Error(payload?.error ?? 'Error eliminando ingrediente');
+        throw new Error(payload?.error ?? 'Error eliminando elaboración');
       }
 
       router.refresh();
@@ -197,63 +218,50 @@ export function IngredientsManager({ initialIngredients, units }: IngredientsMan
   return (
     <div className="space-y-6">
       <form
-        onSubmit={submitNewIngredient}
+        onSubmit={submitNewSubrecipe}
         className="space-y-4 rounded-2xl border border-slate-800/70 bg-slate-950/60 p-5"
       >
         <div className="flex items-center justify-between">
-          <h3 className="text-lg font-semibold text-white">Nuevo ingrediente</h3>
+          <h3 className="text-lg font-semibold text-white">Nueva elaboración</h3>
           {error ? <p className="text-sm text-rose-400">{error}</p> : null}
         </div>
-        <div className="grid gap-4 md:grid-cols-5">
+        <div className="grid gap-4 md:grid-cols-4">
           <label className="flex flex-col gap-2 text-sm text-slate-300">
             Nombre
             <input
               className="rounded-lg border border-slate-700 bg-slate-950/70 px-3 py-2 text-white"
               value={formState.name}
               onChange={(event) => setFormState((prev) => ({ ...prev, name: event.target.value }))}
-              placeholder="Ej. Tomate triturado"
+              placeholder="Ej. Cebolla caramelizada"
               required
             />
           </label>
           <label className="flex flex-col gap-2 text-sm text-slate-300">
-            Unidad compra
-            <select
-              className="rounded-lg border border-slate-700 bg-slate-950/70 px-3 py-2 text-white"
-              value={formState.purchase_unit_code}
-              onChange={(event) =>
-                setFormState((prev) => ({ ...prev, purchase_unit_code: event.target.value }))
-              }
-            >
-              {sortedUnits.map((unit) => (
-                <option key={unit.code} value={unit.code}>
-                  {unit.code} · {unit.name ?? unit.code}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="flex flex-col gap-2 text-sm text-slate-300">
-            Cantidad pack
-            <input
-              type="number"
-              min="0"
-              step="0.01"
-              className="rounded-lg border border-slate-700 bg-slate-950/70 px-3 py-2 text-white"
-              value={formState.purchase_pack_qty}
-              onChange={(event) => setFormState((prev) => ({ ...prev, purchase_pack_qty: event.target.value }))}
-              required
-            />
-          </label>
-          <label className="flex flex-col gap-2 text-sm text-slate-300">
-            Precio pack (€)
-            <input
-              type="number"
-              min="0"
-              step="0.01"
-              className="rounded-lg border border-slate-700 bg-slate-950/70 px-3 py-2 text-white"
-              value={formState.purchase_price}
-              onChange={(event) => setFormState((prev) => ({ ...prev, purchase_price: event.target.value }))}
-              required
-            />
+            Producción
+            <div className="flex gap-2">
+              <input
+                type="number"
+                min="0"
+                step="0.01"
+                className="w-28 rounded-lg border border-slate-700 bg-slate-950/70 px-3 py-2 text-white"
+                value={formState.output_qty}
+                onChange={(event) => setFormState((prev) => ({ ...prev, output_qty: event.target.value }))}
+                required
+              />
+              <select
+                className="flex-1 rounded-lg border border-slate-700 bg-slate-950/70 px-3 py-2 text-white"
+                value={formState.output_unit_code}
+                onChange={(event) =>
+                  setFormState((prev) => ({ ...prev, output_unit_code: event.target.value }))
+                }
+              >
+                {sortedUnits.map((unit) => (
+                  <option key={unit.code} value={unit.code}>
+                    {unit.code} · {unit.name ?? unit.code}
+                  </option>
+                ))}
+              </select>
+            </div>
           </label>
           <label className="flex flex-col gap-2 text-sm text-slate-300">
             Merma (%)
@@ -274,7 +282,7 @@ export function IngredientsManager({ initialIngredients, units }: IngredientsMan
           disabled={isSubmitting}
           className="rounded-full border border-emerald-400/60 bg-emerald-500/10 px-4 py-2 text-sm font-semibold text-emerald-200 transition hover:border-emerald-300 hover:text-emerald-100 disabled:cursor-not-allowed disabled:opacity-60"
         >
-          Guardar ingrediente
+          Guardar elaboración
         </button>
       </form>
 
@@ -282,31 +290,29 @@ export function IngredientsManager({ initialIngredients, units }: IngredientsMan
         <table className="w-full min-w-[960px] text-left text-sm text-slate-200">
           <thead className="bg-slate-950/70 text-xs uppercase text-slate-400">
             <tr>
-              <th className="px-4 py-3">Ingrediente</th>
-              <th className="px-4 py-3">Compra</th>
-              <th className="px-4 py-3">Precio pack</th>
+              <th className="px-4 py-3">Elaboración</th>
+              <th className="px-4 py-3">Producción</th>
               <th className="px-4 py-3">Merma</th>
-              <th className="px-4 py-3">FC</th>
-              <th className="px-4 py-3">Coste base bruto</th>
-              <th className="px-4 py-3">Coste base neto</th>
+              <th className="px-4 py-3">Coste total</th>
+              <th className="px-4 py-3">Coste unitario</th>
               <th className="px-4 py-3">Acciones</th>
             </tr>
           </thead>
           <tbody>
-            {initialIngredients.length === 0 ? (
+            {initialSubrecipes.length === 0 ? (
               <tr>
-                <td colSpan={8} className="px-4 py-6 text-center text-sm text-slate-500">
-                  No hay ingredientes todavía.
+                <td colSpan={6} className="px-4 py-6 text-center text-sm text-slate-500">
+                  No hay elaboraciones todavía.
                 </td>
               </tr>
             ) : (
-              initialIngredients.map((ingredient) => {
-                const isEditing = editingId === ingredient.id;
+              initialSubrecipes.map((subrecipe) => {
+                const isEditing = editingId === subrecipe.id;
                 const editingValues = isEditing ? editingState : null;
-                const baseUnit = baseUnitLabel(ingredient.purchase_unit_dimension);
+                const baseUnit = baseUnitLabel(subrecipe.output_unit_dimension);
 
                 return (
-                  <tr key={ingredient.id} className="border-t border-slate-800/60">
+                  <tr key={subrecipe.id} className="border-t border-slate-800/60">
                     <td className="px-4 py-3">
                       {isEditing ? (
                         <input
@@ -317,7 +323,9 @@ export function IngredientsManager({ initialIngredients, units }: IngredientsMan
                           }
                         />
                       ) : (
-                        <span className="font-semibold text-white">{ingredient.name}</span>
+                        <Link href={`/cheffing/elaboraciones/${subrecipe.id}`} className="font-semibold text-white">
+                          {subrecipe.name}
+                        </Link>
                       )}
                     </td>
                     <td className="px-4 py-3 text-slate-300">
@@ -328,19 +336,19 @@ export function IngredientsManager({ initialIngredients, units }: IngredientsMan
                             min="0"
                             step="0.01"
                             className="w-24 rounded-md border border-slate-700 bg-slate-950/70 px-2 py-1 text-white"
-                            value={editingValues?.purchase_pack_qty ?? ''}
+                            value={editingValues?.output_qty ?? ''}
                             onChange={(event) =>
                               setEditingState((prev) =>
-                                prev ? { ...prev, purchase_pack_qty: event.target.value } : prev,
+                                prev ? { ...prev, output_qty: event.target.value } : prev,
                               )
                             }
                           />
                           <select
                             className="rounded-md border border-slate-700 bg-slate-950/70 px-2 py-1 text-white"
-                            value={editingValues?.purchase_unit_code ?? ''}
+                            value={editingValues?.output_unit_code ?? ''}
                             onChange={(event) =>
                               setEditingState((prev) =>
-                                prev ? { ...prev, purchase_unit_code: event.target.value } : prev,
+                                prev ? { ...prev, output_unit_code: event.target.value } : prev,
                               )
                             }
                           >
@@ -352,25 +360,7 @@ export function IngredientsManager({ initialIngredients, units }: IngredientsMan
                           </select>
                         </div>
                       ) : (
-                        `${ingredient.purchase_pack_qty} ${ingredient.purchase_unit_code}`
-                      )}
-                    </td>
-                    <td className="px-4 py-3">
-                      {isEditing ? (
-                        <input
-                          type="number"
-                          min="0"
-                          step="0.01"
-                          className="w-24 rounded-md border border-slate-700 bg-slate-950/70 px-2 py-1 text-white"
-                          value={editingValues?.purchase_price ?? ''}
-                          onChange={(event) =>
-                            setEditingState((prev) =>
-                              prev ? { ...prev, purchase_price: event.target.value } : prev,
-                            )
-                          }
-                        />
-                      ) : (
-                        `${ingredient.purchase_price.toFixed(2)} €`
+                        `${subrecipe.output_qty} ${subrecipe.output_unit_code}`
                       )}
                     </td>
                     <td className="px-4 py-3">
@@ -387,17 +377,14 @@ export function IngredientsManager({ initialIngredients, units }: IngredientsMan
                           }
                         />
                       ) : (
-                        `${(ingredient.waste_pct * 100).toFixed(1)}%`
+                        `${(subrecipe.waste_pct * 100).toFixed(1)}%`
                       )}
                     </td>
                     <td className="px-4 py-3 text-slate-100">
-                      {formatFactor(ingredient.waste_factor)}x
+                      {formatCurrency(subrecipe.items_cost_total)} €
                     </td>
                     <td className="px-4 py-3 text-slate-300">
-                      {formatCurrency(ingredient.cost_gross_per_base)} €/ {baseUnit}
-                    </td>
-                    <td className="px-4 py-3 text-slate-100">
-                      {formatCurrency(ingredient.cost_net_per_base)} €/ {baseUnit}
+                      {formatCurrency(subrecipe.cost_net_per_base)} €/ {baseUnit}
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex gap-2">
@@ -405,7 +392,7 @@ export function IngredientsManager({ initialIngredients, units }: IngredientsMan
                           <>
                             <button
                               type="button"
-                              onClick={() => saveEditing(ingredient.id)}
+                              onClick={() => saveEditing(subrecipe.id)}
                               disabled={isSubmitting}
                               className="rounded-full border border-emerald-400/60 px-3 py-1 text-xs font-semibold text-emerald-200"
                             >
@@ -421,16 +408,22 @@ export function IngredientsManager({ initialIngredients, units }: IngredientsMan
                           </>
                         ) : (
                           <>
+                            <Link
+                              href={`/cheffing/elaboraciones/${subrecipe.id}`}
+                              className="rounded-full border border-slate-700 px-3 py-1 text-xs font-semibold text-slate-200"
+                            >
+                              Ver
+                            </Link>
                             <button
                               type="button"
-                              onClick={() => startEditing(ingredient)}
+                              onClick={() => startEditing(subrecipe)}
                               className="rounded-full border border-slate-700 px-3 py-1 text-xs font-semibold text-slate-200"
                             >
                               Editar
                             </button>
                             <button
                               type="button"
-                              onClick={() => deleteIngredient(ingredient.id)}
+                              onClick={() => deleteSubrecipe(subrecipe.id)}
                               disabled={isSubmitting}
                               className="rounded-full border border-rose-500/70 px-3 py-1 text-xs font-semibold text-rose-200"
                             >

@@ -54,6 +54,18 @@ export default async function CheffingLayout({ children }: { children: React.Rea
               Ingredientes
             </Link>
             <Link
+              href="/cheffing/elaboraciones"
+              className="rounded-full border border-slate-700 bg-slate-950/60 px-4 py-1 transition hover:border-slate-500 hover:text-white"
+            >
+              Elaboraciones
+            </Link>
+            <Link
+              href="/cheffing/platos"
+              className="rounded-full border border-slate-700 bg-slate-950/60 px-4 py-1 transition hover:border-slate-500 hover:text-white"
+            >
+              Platos
+            </Link>
+            <Link
               href="/cheffing/recetas"
               className="rounded-full border border-slate-700 bg-slate-950/60 px-4 py-1 transition hover:border-slate-500 hover:text-white"
             >
