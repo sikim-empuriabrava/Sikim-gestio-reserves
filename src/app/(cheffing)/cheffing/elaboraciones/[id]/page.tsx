@@ -4,30 +4,11 @@ import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { requireCheffingAccess } from '@/lib/cheffing/requireCheffing';
 import type { Ingredient, Subrecipe, Unit } from '@/lib/cheffing/types';
 
-import { SubrecipeDetailManager } from './SubrecipeDetailManager';
-
-type SubrecipeCost = Subrecipe & {
-  output_unit_dimension: string | null;
-  output_unit_factor: number | null;
-  items_cost_total: number | null;
-  cost_gross_per_base: number | null;
-  cost_net_per_base: number | null;
-  waste_factor: number | null;
-};
-
-type SubrecipeItemWithDetails = {
-  id: string;
-  subrecipe_id: string;
-  ingredient_id: string | null;
-  subrecipe_component_id: string | null;
-  unit_code: string;
-  quantity: number;
-  waste_pct: number;
-  notes: string | null;
-  line_cost_total: number | null;
-  ingredient?: { id: string; name: string } | null;
-  subrecipe_component?: { id: string; name: string } | null;
-};
+import {
+  SubrecipeDetailManager,
+  type SubrecipeCost,
+  type SubrecipeItemWithDetails,
+} from './SubrecipeDetailManager';
 
 export default async function CheffingElaboracionDetailPage({ params }: { params: { id: string } }) {
   await requireCheffingAccess();

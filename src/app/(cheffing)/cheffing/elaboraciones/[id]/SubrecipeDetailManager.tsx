@@ -5,10 +5,10 @@ import type { FormEvent } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 
-import type { Ingredient, Subrecipe, SubrecipeItem, Unit } from '@/lib/cheffing/types';
+import type { Ingredient, Subrecipe, SubrecipeItem, Unit, UnitDimension } from '@/lib/cheffing/types';
 
-type SubrecipeCost = Subrecipe & {
-  output_unit_dimension: string | null;
+export type SubrecipeCost = Subrecipe & {
+  output_unit_dimension: UnitDimension | null;
   output_unit_factor: number | null;
   items_cost_total: number | null;
   cost_gross_per_base: number | null;
@@ -16,7 +16,7 @@ type SubrecipeCost = Subrecipe & {
   waste_factor: number | null;
 };
 
-type SubrecipeItemWithDetails = SubrecipeItem & {
+export type SubrecipeItemWithDetails = SubrecipeItem & {
   ingredient?: { id: string; name: string } | null;
   subrecipe_component?: { id: string; name: string } | null;
   line_cost_total?: number | null;
