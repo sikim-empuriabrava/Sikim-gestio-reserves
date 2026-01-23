@@ -452,10 +452,10 @@ export function SubrecipeDetailManager({
                     ...prev,
                     itemType,
                     ingredient_id:
-                      itemType === 'ingredient' ? prev.ingredient_id || ingredients[0]?.id ?? '' : '',
+                      itemType === 'ingredient' ? (prev.ingredient_id || ingredients[0]?.id) ?? '' : '',
                     subrecipe_component_id:
                       itemType === 'subrecipe'
-                        ? prev.subrecipe_component_id || subrecipeOptions[0]?.id ?? ''
+                        ? (prev.subrecipe_component_id || subrecipeOptions[0]?.id) ?? ''
                         : '',
                   };
                 })
@@ -600,11 +600,11 @@ export function SubrecipeDetailManager({
                                           itemType: event.target.value as ItemFormState['itemType'],
                                           ingredient_id:
                                             event.target.value === 'ingredient'
-                                              ? prev.ingredient_id || ingredients[0]?.id ?? ''
+                                              ? (prev.ingredient_id || ingredients[0]?.id) ?? ''
                                               : '',
                                           subrecipe_component_id:
                                             event.target.value === 'subrecipe'
-                                              ? prev.subrecipe_component_id || subrecipeOptions[0]?.id ?? ''
+                                              ? (prev.subrecipe_component_id || subrecipeOptions[0]?.id) ?? ''
                                               : '',
                                         }
                                       : prev,
