@@ -104,6 +104,8 @@ RLS: habilitado
 | `created_at` | `timestamp with time zone` | No | `now()` |
 | `updated_at` | `timestamp with time zone` | No | `now()` |
 
+> Nota Cheffing: los campos `waste_pct` se guardan como fracción `0..1` (la UI trabaja en %). No se permiten ciclos entre subrecetas (A → B → A).
+
 ### day_status
 RLS: deshabilitado
 

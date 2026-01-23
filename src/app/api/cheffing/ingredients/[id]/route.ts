@@ -3,16 +3,13 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createSupabaseRouteHandlerClient, mergeResponseCookies } from '@/lib/supabase/route';
 import { createSupabaseAdminClient } from '@/lib/supabaseAdmin';
 import { getAllowlistRoleForUserEmail, isAdmin } from '@/lib/auth/requireRole';
+import { mapCheffingPostgresError } from '@/lib/cheffing/postgresErrors';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 function isValidNumber(value: unknown): value is number {
   return typeof value === 'number' && Number.isFinite(value);
-}
-
-function isUniqueViolation(error: { code?: string; message: string }) {
-  return error.code === '23505' || error.message.includes('cheffing_ingredients_name_ci_unique');
 }
 
 async function requireCheffingAccess() {
@@ -124,8 +121,8 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   const { error } = await supabase.from('cheffing_ingredients').update(updates).eq('id', params.id);
 
   if (error) {
-    const status = isUniqueViolation(error) ? 409 : 500;
-    const serverError = NextResponse.json({ error: error.message }, { status });
+    const mapped = mapCheffingPostgresError(error);
+    const serverError = NextResponse.json({ error: mapped.message }, { status: mapped.status });
     mergeResponseCookies(access.supabaseResponse, serverError);
     return serverError;
   }
@@ -145,7 +142,8 @@ export async function DELETE(req: NextRequest, { params }: { params: { id: strin
   const { error } = await supabase.from('cheffing_ingredients').delete().eq('id', params.id);
 
   if (error) {
-    const serverError = NextResponse.json({ error: error.message }, { status: 500 });
+    const mapped = mapCheffingPostgresError(error);
+    const serverError = NextResponse.json({ error: mapped.message }, { status: mapped.status });
     mergeResponseCookies(access.supabaseResponse, serverError);
     return serverError;
   }

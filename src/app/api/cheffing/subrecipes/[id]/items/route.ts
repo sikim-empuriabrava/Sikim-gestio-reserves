@@ -3,14 +3,12 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createSupabaseAdminClient } from '@/lib/supabaseAdmin';
 import { mergeResponseCookies } from '@/lib/supabase/route';
 import { requireCheffingRouteAccess } from '@/lib/cheffing/requireCheffingRoute';
+import { mapCheffingPostgresError } from '@/lib/cheffing/postgresErrors';
 import { subrecipeItemSchema } from '@/lib/cheffing/schemas';
+import { wouldCreateSubrecipeCycle } from '@/lib/cheffing/subrecipeCycles';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
-
-function isUniqueViolation(error: { code?: string; message: string }) {
-  return error.code === '23505';
-}
 
 export async function GET(_req: NextRequest, { params }: { params: { id: string } }) {
   const access = await requireCheffingRouteAccess();
@@ -60,6 +58,27 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   }
 
   const supabase = createSupabaseAdminClient();
+  if (parsed.data.subrecipe_component_id) {
+    const cycleCheck = await wouldCreateSubrecipeCycle(
+      supabase,
+      params.id,
+      parsed.data.subrecipe_component_id,
+    );
+    if ('error' in cycleCheck && cycleCheck.error) {
+      const serverError = NextResponse.json({ error: cycleCheck.error.message }, { status: 500 });
+      mergeResponseCookies(access.supabaseResponse, serverError);
+      return serverError;
+    }
+    if (cycleCheck.hasCycle) {
+      const invalid = NextResponse.json(
+        { error: 'Esta relación crea un ciclo entre elaboraciones.' },
+        { status: 409 },
+      );
+      mergeResponseCookies(access.supabaseResponse, invalid);
+      return invalid;
+    }
+  }
+
   const { data, error } = await supabase
     .from('cheffing_subrecipe_items')
     .insert({
@@ -75,8 +94,8 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     .maybeSingle();
 
   if (error) {
-    const status = isUniqueViolation(error) ? 409 : 500;
-    const serverError = NextResponse.json({ error: error.message }, { status });
+    const mapped = mapCheffingPostgresError(error);
+    const serverError = NextResponse.json({ error: mapped.message }, { status: mapped.status });
     mergeResponseCookies(access.supabaseResponse, serverError);
     return serverError;
   }

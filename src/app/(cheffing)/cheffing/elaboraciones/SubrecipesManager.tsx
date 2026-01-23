@@ -78,12 +78,25 @@ export function SubrecipesManager({ initialSubrecipes, units }: SubrecipesManage
     return percentValue / 100;
   };
 
+  const ensureValidQuantity = (value: string) => {
+    const numericValue = Number(value);
+    if (!Number.isFinite(numericValue) || numericValue <= 0) {
+      return null;
+    }
+    return numericValue;
+  };
+
   const submitNewSubrecipe = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setError(null);
     setIsSubmitting(true);
 
     try {
+      const outputQtyValue = ensureValidQuantity(formState.output_qty);
+      if (outputQtyValue === null) {
+        throw new Error('La producción debe ser mayor que 0.');
+      }
+
       const wastePctValue = parseWastePct(formState.waste_pct);
       if (wastePctValue === null) {
         throw new Error('La merma debe estar entre 0 y 99,99%.');
@@ -95,7 +108,7 @@ export function SubrecipesManager({ initialSubrecipes, units }: SubrecipesManage
         body: JSON.stringify({
           name: formState.name,
           output_unit_code: formState.output_unit_code,
-          output_qty: Number(formState.output_qty),
+          output_qty: outputQtyValue,
           waste_pct: wastePctValue,
         }),
       });
@@ -138,6 +151,11 @@ export function SubrecipesManager({ initialSubrecipes, units }: SubrecipesManage
     setIsSubmitting(true);
 
     try {
+      const outputQtyValue = ensureValidQuantity(editingState.output_qty);
+      if (outputQtyValue === null) {
+        throw new Error('La producción debe ser mayor que 0.');
+      }
+
       const wastePctValue = parseWastePct(editingState.waste_pct);
       if (wastePctValue === null) {
         throw new Error('La merma debe estar entre 0 y 99,99%.');
@@ -149,7 +167,7 @@ export function SubrecipesManager({ initialSubrecipes, units }: SubrecipesManage
         body: JSON.stringify({
           name: editingState.name,
           output_unit_code: editingState.output_unit_code,
-          output_qty: Number(editingState.output_qty),
+          output_qty: outputQtyValue,
           waste_pct: wastePctValue,
         }),
       });

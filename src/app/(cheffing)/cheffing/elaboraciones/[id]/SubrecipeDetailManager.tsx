@@ -90,6 +90,14 @@ export function SubrecipeDetailManager({
     return percentValue / 100;
   };
 
+  const ensureValidQuantity = (value: string) => {
+    const numericValue = Number(value);
+    if (!Number.isFinite(numericValue) || numericValue <= 0) {
+      return null;
+    }
+    return numericValue;
+  };
+
   const formatCurrency = (value: number | null) => {
     if (value === null || Number.isNaN(value)) return '—';
     return value.toFixed(4);
@@ -101,6 +109,11 @@ export function SubrecipeDetailManager({
     setIsSubmitting(true);
 
     try {
+      const outputQtyValue = ensureValidQuantity(formState.output_qty);
+      if (outputQtyValue === null) {
+        throw new Error('La producción debe ser mayor que 0.');
+      }
+
       const wastePctValue = parseWastePct(formState.waste_pct);
       if (wastePctValue === null) {
         throw new Error('La merma debe estar entre 0 y 99,99%.');
@@ -112,7 +125,7 @@ export function SubrecipeDetailManager({
         body: JSON.stringify({
           name: formState.name,
           output_unit_code: formState.output_unit_code,
-          output_qty: Number(formState.output_qty),
+          output_qty: outputQtyValue,
           waste_pct: wastePctValue,
           notes: formState.notes.trim() ? formState.notes.trim() : null,
         }),
@@ -167,6 +180,11 @@ export function SubrecipeDetailManager({
     setIsSubmitting(true);
 
     try {
+      const quantityValue = ensureValidQuantity(itemFormState.quantity);
+      if (quantityValue === null) {
+        throw new Error('La cantidad debe ser mayor que 0.');
+      }
+
       const wastePctValue = parseWastePct(itemFormState.waste_pct);
       if (wastePctValue === null) {
         throw new Error('La merma debe estar entre 0 y 99,99%.');
@@ -175,6 +193,13 @@ export function SubrecipeDetailManager({
       const ingredientId = itemFormState.itemType === 'ingredient' ? itemFormState.ingredient_id : null;
       const subrecipeComponentId = itemFormState.itemType === 'subrecipe' ? itemFormState.subrecipe_component_id : null;
 
+      if (itemFormState.itemType === 'ingredient' && !ingredientId) {
+        throw new Error('Selecciona un ingrediente válido.');
+      }
+      if (itemFormState.itemType === 'subrecipe' && !subrecipeComponentId) {
+        throw new Error('Selecciona una elaboración válida.');
+      }
+
       const response = await fetch(`/api/cheffing/subrecipes/${subrecipe.id}/items`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -182,7 +207,7 @@ export function SubrecipeDetailManager({
           ingredient_id: ingredientId,
           subrecipe_component_id: subrecipeComponentId,
           unit_code: itemFormState.unit_code,
-          quantity: Number(itemFormState.quantity),
+          quantity: quantityValue,
           waste_pct: wastePctValue,
           notes: itemFormState.notes.trim() ? itemFormState.notes.trim() : null,
         }),
@@ -191,7 +216,7 @@ export function SubrecipeDetailManager({
       if (!response.ok) {
         const payload = await response.json().catch(() => ({}));
         if (response.status === 409) {
-          throw new Error('Esta línea ya existe en la elaboración.');
+          throw new Error(payload?.error ?? 'Esta línea ya existe en la elaboración.');
         }
         throw new Error(payload?.error ?? 'Error creando línea');
       }
@@ -235,6 +260,11 @@ export function SubrecipeDetailManager({
     setIsSubmitting(true);
 
     try {
+      const quantityValue = ensureValidQuantity(editingItemState.quantity);
+      if (quantityValue === null) {
+        throw new Error('La cantidad debe ser mayor que 0.');
+      }
+
       const wastePctValue = parseWastePct(editingItemState.waste_pct);
       if (wastePctValue === null) {
         throw new Error('La merma debe estar entre 0 y 99,99%.');
@@ -244,6 +274,13 @@ export function SubrecipeDetailManager({
       const subrecipeComponentId =
         editingItemState.itemType === 'subrecipe' ? editingItemState.subrecipe_component_id : null;
 
+      if (editingItemState.itemType === 'ingredient' && !ingredientId) {
+        throw new Error('Selecciona un ingrediente válido.');
+      }
+      if (editingItemState.itemType === 'subrecipe' && !subrecipeComponentId) {
+        throw new Error('Selecciona una elaboración válida.');
+      }
+
       const response = await fetch(`/api/cheffing/subrecipes/items/${itemId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
@@ -251,7 +288,7 @@ export function SubrecipeDetailManager({
           ingredient_id: ingredientId,
           subrecipe_component_id: subrecipeComponentId,
           unit_code: editingItemState.unit_code,
-          quantity: Number(editingItemState.quantity),
+          quantity: quantityValue,
           waste_pct: wastePctValue,
           notes: editingItemState.notes.trim() ? editingItemState.notes.trim() : null,
         }),
@@ -260,7 +297,7 @@ export function SubrecipeDetailManager({
       if (!response.ok) {
         const payload = await response.json().catch(() => ({}));
         if (response.status === 409) {
-          throw new Error('Esta línea ya existe en la elaboración.');
+          throw new Error(payload?.error ?? 'Esta línea ya existe en la elaboración.');
         }
         throw new Error(payload?.error ?? 'Error actualizando línea');
       }
@@ -409,7 +446,19 @@ export function SubrecipeDetailManager({
               className="rounded-lg border border-slate-700 bg-slate-950/70 px-3 py-2 text-white"
               value={itemFormState.itemType}
               onChange={(event) =>
-                setItemFormState((prev) => ({ ...prev, itemType: event.target.value as ItemFormState['itemType'] }))
+                setItemFormState((prev) => {
+                  const itemType = event.target.value as ItemFormState['itemType'];
+                  return {
+                    ...prev,
+                    itemType,
+                    ingredient_id:
+                      itemType === 'ingredient' ? prev.ingredient_id || ingredients[0]?.id ?? '' : '',
+                    subrecipe_component_id:
+                      itemType === 'subrecipe'
+                        ? prev.subrecipe_component_id || subrecipeOptions[0]?.id ?? ''
+                        : '',
+                  };
+                })
               }
             >
               <option value="ingredient">Ingrediente</option>
@@ -540,15 +589,28 @@ export function SubrecipeDetailManager({
                       <td className="px-4 py-3">
                         {isEditing ? (
                           <div className="flex flex-col gap-2">
-                            <select
-                              className="rounded-md border border-slate-700 bg-slate-950/70 px-2 py-1 text-white"
-                              value={editingValues?.itemType ?? 'ingredient'}
-                              onChange={(event) =>
-                                setEditingItemState((prev) =>
-                                  prev ? { ...prev, itemType: event.target.value as ItemFormState['itemType'] } : prev,
-                                )
-                              }
-                            >
+                              <select
+                                className="rounded-md border border-slate-700 bg-slate-950/70 px-2 py-1 text-white"
+                                value={editingValues?.itemType ?? 'ingredient'}
+                                onChange={(event) =>
+                                  setEditingItemState((prev) =>
+                                    prev
+                                      ? {
+                                          ...prev,
+                                          itemType: event.target.value as ItemFormState['itemType'],
+                                          ingredient_id:
+                                            event.target.value === 'ingredient'
+                                              ? prev.ingredient_id || ingredients[0]?.id ?? ''
+                                              : '',
+                                          subrecipe_component_id:
+                                            event.target.value === 'subrecipe'
+                                              ? prev.subrecipe_component_id || subrecipeOptions[0]?.id ?? ''
+                                              : '',
+                                        }
+                                      : prev,
+                                  )
+                                }
+                              >
                               <option value="ingredient">Ingrediente</option>
                               <option value="subrecipe">Elaboración</option>
                             </select>
@@ -643,7 +705,7 @@ export function SubrecipeDetailManager({
                             }
                           />
                         ) : (
-                          `${(item.waste_pct * 100).toFixed(1)}%`
+                          `${(item.waste_pct * 100).toFixed(2)}%`
                         )}
                       </td>
                       <td className="px-4 py-3 text-slate-300">

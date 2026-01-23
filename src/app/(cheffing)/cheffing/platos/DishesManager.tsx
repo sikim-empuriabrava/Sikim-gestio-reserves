@@ -49,6 +49,10 @@ export function DishesManager({ initialDishes }: DishesManagerProps) {
         formState.selling_price.trim() === '' ? null : Number(formState.selling_price);
       const servingsValue = Number(formState.servings);
 
+      if (sellingPriceValue !== null && (!Number.isFinite(sellingPriceValue) || sellingPriceValue < 0)) {
+        throw new Error('El PVP debe ser un número válido.');
+      }
+
       if (!Number.isFinite(servingsValue) || servingsValue <= 0) {
         throw new Error('Las raciones deben ser mayores que 0.');
       }
@@ -103,6 +107,10 @@ export function DishesManager({ initialDishes }: DishesManagerProps) {
       const sellingPriceValue =
         editingState.selling_price.trim() === '' ? null : Number(editingState.selling_price);
       const servingsValue = Number(editingState.servings);
+
+      if (sellingPriceValue !== null && (!Number.isFinite(sellingPriceValue) || sellingPriceValue < 0)) {
+        throw new Error('El PVP debe ser un número válido.');
+      }
 
       if (!Number.isFinite(servingsValue) || servingsValue <= 0) {
         throw new Error('Las raciones deben ser mayores que 0.');

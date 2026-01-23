@@ -79,6 +79,14 @@ export function DishDetailManager({ dish, items, ingredients, subrecipes, units 
     return percentValue / 100;
   };
 
+  const ensureValidQuantity = (value: string) => {
+    const numericValue = Number(value);
+    if (!Number.isFinite(numericValue) || numericValue <= 0) {
+      return null;
+    }
+    return numericValue;
+  };
+
   const saveHeader = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setHeaderError(null);
@@ -87,6 +95,10 @@ export function DishDetailManager({ dish, items, ingredients, subrecipes, units 
     try {
       const sellingPriceValue = formState.selling_price.trim() === '' ? null : Number(formState.selling_price);
       const servingsValue = Number(formState.servings);
+
+      if (sellingPriceValue !== null && (!Number.isFinite(sellingPriceValue) || sellingPriceValue < 0)) {
+        throw new Error('El PVP debe ser un número válido.');
+      }
 
       if (!Number.isFinite(servingsValue) || servingsValue <= 0) {
         throw new Error('Las raciones deben ser mayores que 0.');
@@ -152,6 +164,11 @@ export function DishDetailManager({ dish, items, ingredients, subrecipes, units 
     setIsSubmitting(true);
 
     try {
+      const quantityValue = ensureValidQuantity(itemFormState.quantity);
+      if (quantityValue === null) {
+        throw new Error('La cantidad debe ser mayor que 0.');
+      }
+
       const wastePctValue = parseWastePct(itemFormState.waste_pct);
       if (wastePctValue === null) {
         throw new Error('La merma debe estar entre 0 y 99,99%.');
@@ -160,14 +177,21 @@ export function DishDetailManager({ dish, items, ingredients, subrecipes, units 
       const ingredientId = itemFormState.itemType === 'ingredient' ? itemFormState.ingredient_id : null;
       const subrecipeId = itemFormState.itemType === 'subrecipe' ? itemFormState.subrecipe_id : null;
 
-      const response = await fetch(`/api/cheffing/dishes/${dish.id}/ingredients`, {
+      if (itemFormState.itemType === 'ingredient' && !ingredientId) {
+        throw new Error('Selecciona un ingrediente válido.');
+      }
+      if (itemFormState.itemType === 'subrecipe' && !subrecipeId) {
+        throw new Error('Selecciona una elaboración válida.');
+      }
+
+      const response = await fetch(`/api/cheffing/dishes/${dish.id}/items`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           ingredient_id: ingredientId,
           subrecipe_id: subrecipeId,
           unit_code: itemFormState.unit_code,
-          quantity: Number(itemFormState.quantity),
+          quantity: quantityValue,
           waste_pct: wastePctValue,
           notes: itemFormState.notes.trim() ? itemFormState.notes.trim() : null,
         }),
@@ -176,7 +200,7 @@ export function DishDetailManager({ dish, items, ingredients, subrecipes, units 
       if (!response.ok) {
         const payload = await response.json().catch(() => ({}));
         if (response.status === 409) {
-          throw new Error('Esta línea ya existe en el plato.');
+          throw new Error(payload?.error ?? 'Esta línea ya existe en el plato.');
         }
         throw new Error(payload?.error ?? 'Error creando línea');
       }
@@ -220,6 +244,11 @@ export function DishDetailManager({ dish, items, ingredients, subrecipes, units 
     setIsSubmitting(true);
 
     try {
+      const quantityValue = ensureValidQuantity(editingItemState.quantity);
+      if (quantityValue === null) {
+        throw new Error('La cantidad debe ser mayor que 0.');
+      }
+
       const wastePctValue = parseWastePct(editingItemState.waste_pct);
       if (wastePctValue === null) {
         throw new Error('La merma debe estar entre 0 y 99,99%.');
@@ -228,14 +257,21 @@ export function DishDetailManager({ dish, items, ingredients, subrecipes, units 
       const ingredientId = editingItemState.itemType === 'ingredient' ? editingItemState.ingredient_id : null;
       const subrecipeId = editingItemState.itemType === 'subrecipe' ? editingItemState.subrecipe_id : null;
 
-      const response = await fetch(`/api/cheffing/dishes/ingredients/${itemId}`, {
+      if (editingItemState.itemType === 'ingredient' && !ingredientId) {
+        throw new Error('Selecciona un ingrediente válido.');
+      }
+      if (editingItemState.itemType === 'subrecipe' && !subrecipeId) {
+        throw new Error('Selecciona una elaboración válida.');
+      }
+
+      const response = await fetch(`/api/cheffing/dishes/items/${itemId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           ingredient_id: ingredientId,
           subrecipe_id: subrecipeId,
           unit_code: editingItemState.unit_code,
-          quantity: Number(editingItemState.quantity),
+          quantity: quantityValue,
           waste_pct: wastePctValue,
           notes: editingItemState.notes.trim() ? editingItemState.notes.trim() : null,
         }),
@@ -244,7 +280,7 @@ export function DishDetailManager({ dish, items, ingredients, subrecipes, units 
       if (!response.ok) {
         const payload = await response.json().catch(() => ({}));
         if (response.status === 409) {
-          throw new Error('Esta línea ya existe en el plato.');
+          throw new Error(payload?.error ?? 'Esta línea ya existe en el plato.');
         }
         throw new Error(payload?.error ?? 'Error actualizando línea');
       }
@@ -267,7 +303,7 @@ export function DishDetailManager({ dish, items, ingredients, subrecipes, units 
       if (!confirmed) {
         return;
       }
-      const response = await fetch(`/api/cheffing/dishes/ingredients/${itemId}`, {
+      const response = await fetch(`/api/cheffing/dishes/items/${itemId}`, {
         method: 'DELETE',
       });
 
@@ -379,7 +415,16 @@ export function DishDetailManager({ dish, items, ingredients, subrecipes, units 
               className="rounded-lg border border-slate-700 bg-slate-950/70 px-3 py-2 text-white"
               value={itemFormState.itemType}
               onChange={(event) =>
-                setItemFormState((prev) => ({ ...prev, itemType: event.target.value as ItemFormState['itemType'] }))
+                setItemFormState((prev) => {
+                  const itemType = event.target.value as ItemFormState['itemType'];
+                  return {
+                    ...prev,
+                    itemType,
+                    ingredient_id:
+                      itemType === 'ingredient' ? prev.ingredient_id || ingredients[0]?.id ?? '' : '',
+                    subrecipe_id: itemType === 'subrecipe' ? prev.subrecipe_id || subrecipes[0]?.id ?? '' : '',
+                  };
+                })
               }
             >
               <option value="ingredient">Ingrediente</option>
@@ -508,15 +553,28 @@ export function DishDetailManager({ dish, items, ingredients, subrecipes, units 
                       <td className="px-4 py-3">
                         {isEditing ? (
                           <div className="flex flex-col gap-2">
-                            <select
-                              className="rounded-md border border-slate-700 bg-slate-950/70 px-2 py-1 text-white"
-                              value={editingValues?.itemType ?? 'ingredient'}
-                              onChange={(event) =>
-                                setEditingItemState((prev) =>
-                                  prev ? { ...prev, itemType: event.target.value as ItemFormState['itemType'] } : prev,
-                                )
-                              }
-                            >
+                              <select
+                                className="rounded-md border border-slate-700 bg-slate-950/70 px-2 py-1 text-white"
+                                value={editingValues?.itemType ?? 'ingredient'}
+                                onChange={(event) =>
+                                  setEditingItemState((prev) =>
+                                    prev
+                                      ? {
+                                          ...prev,
+                                          itemType: event.target.value as ItemFormState['itemType'],
+                                          ingredient_id:
+                                            event.target.value === 'ingredient'
+                                              ? prev.ingredient_id || ingredients[0]?.id ?? ''
+                                              : '',
+                                          subrecipe_id:
+                                            event.target.value === 'subrecipe'
+                                              ? prev.subrecipe_id || subrecipes[0]?.id ?? ''
+                                              : '',
+                                        }
+                                      : prev,
+                                  )
+                                }
+                              >
                               <option value="ingredient">Ingrediente</option>
                               <option value="subrecipe">Elaboración</option>
                             </select>
@@ -611,7 +669,7 @@ export function DishDetailManager({ dish, items, ingredients, subrecipes, units 
                             }
                           />
                         ) : (
-                          `${(item.waste_pct * 100).toFixed(1)}%`
+                          `${(item.waste_pct * 100).toFixed(2)}%`
                         )}
                       </td>
                       <td className="px-4 py-3 text-slate-300">

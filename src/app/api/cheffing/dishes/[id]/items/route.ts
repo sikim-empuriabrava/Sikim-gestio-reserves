@@ -3,14 +3,11 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createSupabaseAdminClient } from '@/lib/supabaseAdmin';
 import { mergeResponseCookies } from '@/lib/supabase/route';
 import { requireCheffingRouteAccess } from '@/lib/cheffing/requireCheffingRoute';
+import { mapCheffingPostgresError } from '@/lib/cheffing/postgresErrors';
 import { dishItemSchema } from '@/lib/cheffing/schemas';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
-
-function isUniqueViolation(error: { code?: string; message: string }) {
-  return error.code === '23505';
-}
 
 export async function GET(_req: NextRequest, { params }: { params: { id: string } }) {
   const access = await requireCheffingRouteAccess();
@@ -26,8 +23,7 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
     .order('created_at', { ascending: true });
 
   if (error) {
-    const status = isUniqueViolation(error) ? 409 : 500;
-    const serverError = NextResponse.json({ error: error.message }, { status });
+    const serverError = NextResponse.json({ error: error.message }, { status: 500 });
     mergeResponseCookies(access.supabaseResponse, serverError);
     return serverError;
   }
@@ -68,7 +64,8 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     .maybeSingle();
 
   if (error) {
-    const serverError = NextResponse.json({ error: error.message }, { status: 500 });
+    const mapped = mapCheffingPostgresError(error);
+    const serverError = NextResponse.json({ error: mapped.message }, { status: mapped.status });
     mergeResponseCookies(access.supabaseResponse, serverError);
     return serverError;
   }

@@ -3,14 +3,11 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createSupabaseAdminClient } from '@/lib/supabaseAdmin';
 import { mergeResponseCookies } from '@/lib/supabase/route';
 import { requireCheffingRouteAccess } from '@/lib/cheffing/requireCheffingRoute';
+import { mapCheffingPostgresError } from '@/lib/cheffing/postgresErrors';
 import { dishCreateSchema } from '@/lib/cheffing/schemas';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
-
-function isUniqueViolation(error: { code?: string; message: string }) {
-  return error.code === '23505' || error.message.includes('cheffing_dishes_name_ci_unique');
-}
 
 export async function GET() {
   const access = await requireCheffingRouteAccess();
@@ -63,8 +60,8 @@ export async function POST(req: NextRequest) {
     .maybeSingle();
 
   if (error) {
-    const status = isUniqueViolation(error) ? 409 : 500;
-    const serverError = NextResponse.json({ error: error.message }, { status });
+    const mapped = mapCheffingPostgresError(error);
+    const serverError = NextResponse.json({ error: mapped.message }, { status: mapped.status });
     mergeResponseCookies(access.supabaseResponse, serverError);
     return serverError;
   }
