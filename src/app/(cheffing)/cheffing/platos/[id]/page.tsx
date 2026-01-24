@@ -57,7 +57,7 @@ export default async function CheffingPlatoDetailPage({ params }: { params: { id
     ...item,
     ingredient: Array.isArray(item.ingredient) ? item.ingredient[0] ?? null : item.ingredient ?? null,
     subrecipe: Array.isArray(item.subrecipe) ? item.subrecipe[0] ?? null : item.subrecipe ?? null,
-  })) as DishItemWithDetails[];
+  }));
 
   return (
     <section className="space-y-6">
@@ -68,7 +68,7 @@ export default async function CheffingPlatoDetailPage({ params }: { params: { id
 
       <DishDetailManager
         dish={dish as DishCost}
-        items={normalizedItems}
+        items={(normalizedItems ?? []) as DishItemWithDetails[]}
         ingredients={(ingredients ?? []) as Ingredient[]}
         subrecipes={(subrecipes ?? []) as Subrecipe[]}
         units={(units ?? []) as Unit[]}
