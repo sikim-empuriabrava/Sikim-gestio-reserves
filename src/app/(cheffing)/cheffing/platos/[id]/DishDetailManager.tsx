@@ -421,8 +421,8 @@ export function DishDetailManager({ dish, items, ingredients, subrecipes, units 
                     ...prev,
                     itemType,
                     ingredient_id:
-                      itemType === 'ingredient' ? prev.ingredient_id || ingredients[0]?.id ?? '' : '',
-                    subrecipe_id: itemType === 'subrecipe' ? prev.subrecipe_id || subrecipes[0]?.id ?? '' : '',
+                      itemType === 'ingredient' ? (prev.ingredient_id || ingredients[0]?.id || '') : '',
+                    subrecipe_id: itemType === 'subrecipe' ? (prev.subrecipe_id || subrecipes[0]?.id || '') : '',
                   };
                 })
               }
@@ -562,13 +562,13 @@ export function DishDetailManager({ dish, items, ingredients, subrecipes, units 
                                       ? {
                                           ...prev,
                                           itemType: event.target.value as ItemFormState['itemType'],
-                                          ingredient_id:
-                                            event.target.value === 'ingredient'
-                                              ? prev.ingredient_id || ingredients[0]?.id ?? ''
+                                        ingredient_id:
+                                          event.target.value === 'ingredient'
+                                              ? (prev.ingredient_id || ingredients[0]?.id || '')
                                               : '',
-                                          subrecipe_id:
-                                            event.target.value === 'subrecipe'
-                                              ? prev.subrecipe_id || subrecipes[0]?.id ?? ''
+                                        subrecipe_id:
+                                          event.target.value === 'subrecipe'
+                                              ? (prev.subrecipe_id || subrecipes[0]?.id || '')
                                               : '',
                                         }
                                       : prev,
