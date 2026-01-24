@@ -1,12 +1,6 @@
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { requireCheffingAccess } from '@/lib/cheffing/requireCheffing';
-import type { Dish } from '@/lib/cheffing/types';
-
-import { DishesManager } from './DishesManager';
-
-type DishCost = Dish & {
-  items_cost_total: number | null;
-};
+import { DishesManager, type DishCost } from './DishesManager';
 
 export default async function CheffingPlatosPage() {
   await requireCheffingAccess();
