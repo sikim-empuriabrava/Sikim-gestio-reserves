@@ -2,27 +2,13 @@ import { notFound } from 'next/navigation';
 
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { requireCheffingAccess } from '@/lib/cheffing/requireCheffing';
-import type { Dish, Ingredient, Subrecipe, Unit } from '@/lib/cheffing/types';
+import type { Ingredient, Subrecipe, Unit } from '@/lib/cheffing/types';
 
-import { DishDetailManager } from './DishDetailManager';
-
-type DishCost = Dish & {
-  items_cost_total: number | null;
-};
-
-type DishItemWithDetails = {
-  id: string;
-  dish_id: string;
-  ingredient_id: string | null;
-  subrecipe_id: string | null;
-  unit_code: string;
-  quantity: number;
-  waste_pct: number;
-  notes: string | null;
-  line_cost_total: number | null;
-  ingredient?: { id: string; name: string } | null;
-  subrecipe?: { id: string; name: string } | null;
-};
+import {
+  DishDetailManager,
+  type DishCost,
+  type DishItemWithDetails,
+} from './DishDetailManager';
 
 export default async function CheffingPlatoDetailPage({ params }: { params: { id: string } }) {
   await requireCheffingAccess();
@@ -67,6 +53,12 @@ export default async function CheffingPlatoDetailPage({ params }: { params: { id
     );
   }
 
+  const normalizedItems = (items ?? []).map((item) => ({
+    ...item,
+    ingredient: Array.isArray(item.ingredient) ? item.ingredient[0] ?? null : item.ingredient ?? null,
+    subrecipe: Array.isArray(item.subrecipe) ? item.subrecipe[0] ?? null : item.subrecipe ?? null,
+  }));
+
   return (
     <section className="space-y-6">
       <div className="text-sm text-slate-400">
@@ -76,7 +68,7 @@ export default async function CheffingPlatoDetailPage({ params }: { params: { id
 
       <DishDetailManager
         dish={dish as DishCost}
-        items={(items ?? []) as DishItemWithDetails[]}
+        items={(normalizedItems ?? []) as DishItemWithDetails[]}
         ingredients={(ingredients ?? []) as Ingredient[]}
         subrecipes={(subrecipes ?? []) as Subrecipe[]}
         units={(units ?? []) as Unit[]}

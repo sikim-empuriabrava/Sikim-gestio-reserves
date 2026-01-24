@@ -13,7 +13,7 @@ const baseUnitLabelByDimension: Record<UnitDimension, string> = {
   unit: 'u',
 };
 
-type SubrecipeCost = Subrecipe & {
+export type SubrecipeCost = Subrecipe & {
   output_unit_dimension: UnitDimension | null;
   output_unit_factor: number | null;
   items_cost_total: number | null;

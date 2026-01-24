@@ -7,7 +7,7 @@ import { useRouter } from 'next/navigation';
 
 import type { Dish } from '@/lib/cheffing/types';
 
-type DishCost = Dish & {
+export type DishCost = Dish & {
   items_cost_total: number | null;
   cost_per_serving?: number | null;
 };

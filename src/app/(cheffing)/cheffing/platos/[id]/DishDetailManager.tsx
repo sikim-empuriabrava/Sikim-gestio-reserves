@@ -7,12 +7,12 @@ import { useRouter } from 'next/navigation';
 
 import type { Dish, DishItem, Ingredient, Subrecipe, Unit } from '@/lib/cheffing/types';
 
-type DishCost = Dish & {
+export type DishCost = Dish & {
   items_cost_total: number | null;
   cost_per_serving?: number | null;
 };
 
-type DishItemWithDetails = DishItem & {
+export type DishItemWithDetails = DishItem & {
   ingredient?: { id: string; name: string } | null;
   subrecipe?: { id: string; name: string } | null;
   line_cost_total?: number | null;
@@ -421,8 +421,8 @@ export function DishDetailManager({ dish, items, ingredients, subrecipes, units 
                     ...prev,
                     itemType,
                     ingredient_id:
-                      itemType === 'ingredient' ? prev.ingredient_id || ingredients[0]?.id ?? '' : '',
-                    subrecipe_id: itemType === 'subrecipe' ? prev.subrecipe_id || subrecipes[0]?.id ?? '' : '',
+                      itemType === 'ingredient' ? (prev.ingredient_id || ingredients[0]?.id || '') : '',
+                    subrecipe_id: itemType === 'subrecipe' ? (prev.subrecipe_id || subrecipes[0]?.id || '') : '',
                   };
                 })
               }
@@ -562,13 +562,13 @@ export function DishDetailManager({ dish, items, ingredients, subrecipes, units 
                                       ? {
                                           ...prev,
                                           itemType: event.target.value as ItemFormState['itemType'],
-                                          ingredient_id:
-                                            event.target.value === 'ingredient'
-                                              ? prev.ingredient_id || ingredients[0]?.id ?? ''
+                                        ingredient_id:
+                                          event.target.value === 'ingredient'
+                                              ? (prev.ingredient_id || ingredients[0]?.id || '')
                                               : '',
-                                          subrecipe_id:
-                                            event.target.value === 'subrecipe'
-                                              ? prev.subrecipe_id || subrecipes[0]?.id ?? ''
+                                        subrecipe_id:
+                                          event.target.value === 'subrecipe'
+                                              ? (prev.subrecipe_id || subrecipes[0]?.id || '')
                                               : '',
                                         }
                                       : prev,

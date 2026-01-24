@@ -1,7 +1,5 @@
 import type { PostgrestError, SupabaseClient } from '@supabase/supabase-js';
 
-import type { Database } from '@/lib/database.types';
-
 type SubrecipeItemEdge = {
   id: string;
   subrecipe_id: string;
@@ -14,7 +12,7 @@ type CycleCheckResult =
   | { hasCycle: false; error: PostgrestError };
 
 export const wouldCreateSubrecipeCycle = async (
-  supabase: SupabaseClient<Database>,
+  supabase: SupabaseClient,
   parentId: string,
   componentId: string,
   ignoreItemId?: string,
