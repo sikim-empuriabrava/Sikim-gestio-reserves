@@ -34,31 +34,56 @@ export function CheffingItemPicker({
   );
   const [searchTerm, setSearchTerm] = useState('');
 
-  const unitByCode = useMemo(() => {
-    return new Map(units.map((unit) => [unit.code.trim().toLowerCase(), unit]));
+  const normalizeUnitCode = (code: string) => code.trim().toLowerCase();
+
+  const unitByCodeNormalized = useMemo(() => {
+    return new Map(units.map((unit) => [normalizeUnitCode(unit.code), unit]));
   }, [units]);
 
-  const unitDimensions = useMemo(() => {
-    return new Map(units.map((unit) => [unit.code.trim().toLowerCase(), unit.dimension]));
-  }, [units]);
-
-  const baseUnitByDimension = useMemo(() => {
-    const baseUnits = new Map<UnitDimension, string>();
+  const unitsByDimension = useMemo(() => {
+    const entries = new Map<UnitDimension, Unit[]>();
     units.forEach((unit) => {
-      if (unit.to_base_factor === 1) {
-        baseUnits.set(unit.dimension, unit.code.trim().toLowerCase());
-      }
+      const list = entries.get(unit.dimension) ?? [];
+      list.push(unit);
+      entries.set(unit.dimension, list);
     });
-    if (!baseUnits.has('mass')) baseUnits.set('mass', 'g');
-    if (!baseUnits.has('volume')) baseUnits.set('volume', 'ml');
-    if (!baseUnits.has('unit')) baseUnits.set('unit', 'u');
-    return baseUnits;
+    entries.forEach((list, dimension) => {
+      entries.set(
+        dimension,
+        [...list].sort((a, b) => a.code.localeCompare(b.code)),
+      );
+    });
+    return entries;
   }, [units]);
+
+  const sortedUnits = useMemo(() => {
+    return [...units].sort((a, b) => a.code.localeCompare(b.code));
+  }, [units]);
+
+  const getUnitFromCode = (code?: string | null): Unit | null => {
+    if (!code) return null;
+    return unitByCodeNormalized.get(normalizeUnitCode(code)) ?? null;
+  };
+
+  const getBaseUnitForDimension = (dimension: UnitDimension): Unit | null => {
+    const unitsInDimension = unitsByDimension.get(dimension) ?? [];
+    const baseUnits = unitsInDimension.filter((unit) => unit.to_base_factor === 1);
+    if (baseUnits.length === 0) return null;
+    return [...baseUnits].sort((a, b) => a.code.localeCompare(b.code))[0] ?? null;
+  };
+
+  const getFallbackUnitForDimension = (dimension: UnitDimension): Unit | null => {
+    const baseUnit = getBaseUnitForDimension(dimension);
+    if (baseUnit) return baseUnit;
+    const unitsInDimension = unitsByDimension.get(dimension) ?? [];
+    if (unitsInDimension.length > 0) {
+      return unitsInDimension[0] ?? null;
+    }
+    return sortedUnits[0] ?? null;
+  };
 
   const resolveDimensionForUnitCode = (code: string | null | undefined): UnitDimension | null => {
-    if (!code) return null;
-    const normalizedCode = code.trim().toLowerCase();
-    return unitDimensions.get(normalizedCode) ?? null;
+    return getUnitFromCode(code)?.dimension ?? null;
   };
 
   const resolveDefaultUnitCode = ({
@@ -68,16 +93,14 @@ export function CheffingItemPicker({
     preferredCode: string | null | undefined;
     dimensionFallback: UnitDimension;
   }) => {
-    const normalizedPreferred = preferredCode?.trim().toLowerCase();
-    const baseCode = baseUnitByDimension.get(dimensionFallback) ?? 'g';
-    if (!normalizedPreferred) {
-      return baseCode;
-    }
-    const preferredUnit = unitByCode.get(normalizedPreferred);
+    const preferredUnit = getUnitFromCode(preferredCode);
+    const resolvedDimension = preferredUnit?.dimension ?? dimensionFallback;
     if (preferredUnit && preferredUnit.to_base_factor === 1) {
-      return normalizedPreferred;
+      return preferredUnit.code.trim();
     }
-    return baseCode;
+    const fallbackUnit =
+      getBaseUnitForDimension(resolvedDimension) ?? getFallbackUnitForDimension(resolvedDimension);
+    return fallbackUnit?.code.trim() ?? (units.length > 0 ? '' : 'g');
   };
 
   const filteredIngredients = useMemo(() => {
@@ -95,7 +118,7 @@ export function CheffingItemPicker({
   const isPendingRef = useRef(false);
 
   const handleAdd = async (type: 'ingredient' | 'subrecipe', id: string, unitCode: string) => {
-    if (isSubmitting || isPendingRef.current) return;
+    if (isSubmitting || isPendingRef.current || !unitCode.trim()) return;
     isPendingRef.current = true;
     try {
       await onAddItem({ type, id, unitCode });
@@ -190,20 +213,25 @@ export function CheffingItemPicker({
                       preferredCode,
                       dimensionFallback: dimension,
                     });
+                    const purchaseUnitLabel = preferredCode?.trim() ? preferredCode.trim() : '—';
+                    const unitCodeLabel = unitCode.trim() ? unitCode.trim() : '—';
+                    const canAdd = Boolean(unitCode.trim());
                     return (
                       <li key={ingredient.id} className="flex items-center justify-between gap-3 px-4 py-3">
                         <div>
                           <p className="text-sm font-semibold text-white">{ingredient.name}</p>
-                          <p className="text-xs text-slate-500">Compra: {ingredient.purchase_unit_code}</p>
-                          <p className="text-xs text-slate-500">Añadirá en: {unitCode}</p>
+                          <p className="text-xs text-slate-500">Compra: {purchaseUnitLabel}</p>
+                          <p className="text-xs text-slate-500">
+                            {canAdd ? `Añadirá en: ${unitCodeLabel}` : 'Configura unidades'}
+                          </p>
                         </div>
                         <button
                           type="button"
                           onClick={() => handleAdd('ingredient', ingredient.id, unitCode)}
-                          disabled={isSubmitting}
+                          disabled={isSubmitting || !canAdd}
                           className="rounded-full border border-slate-600 px-3 py-1 text-xs font-semibold text-slate-200 transition hover:border-slate-400 disabled:cursor-not-allowed disabled:opacity-60"
                         >
-                          Añadir (1 {unitCode}) →
+                          Añadir (1 {unitCodeLabel}) →
                         </button>
                       </li>
                     );
@@ -215,26 +243,31 @@ export function CheffingItemPicker({
             ) : (
               <ul className="divide-y divide-slate-800/70">
                 {filteredSubrecipes.map((subrecipe) => {
-                    const preferredCode = subrecipe.output_unit_code;
-                    const dimension = resolveDimensionForUnitCode(preferredCode) ?? 'mass';
-                    const unitCode = resolveDefaultUnitCode({
-                      preferredCode,
-                      dimensionFallback: dimension,
-                    });
-                    return (
-                      <li key={subrecipe.id} className="flex items-center justify-between gap-3 px-4 py-3">
-                        <div>
-                          <p className="text-sm font-semibold text-white">{subrecipe.name}</p>
-                          <p className="text-xs text-slate-500">Salida: {subrecipe.output_unit_code}</p>
-                          <p className="text-xs text-slate-500">Añadirá en: {unitCode}</p>
-                        </div>
+                  const preferredCode = subrecipe.output_unit_code;
+                  const dimension = resolveDimensionForUnitCode(preferredCode) ?? 'mass';
+                  const unitCode = resolveDefaultUnitCode({
+                    preferredCode,
+                    dimensionFallback: dimension,
+                  });
+                  const outputUnitLabel = preferredCode?.trim() ? preferredCode.trim() : '—';
+                  const unitCodeLabel = unitCode.trim() ? unitCode.trim() : '—';
+                  const canAdd = Boolean(unitCode.trim());
+                  return (
+                    <li key={subrecipe.id} className="flex items-center justify-between gap-3 px-4 py-3">
+                      <div>
+                        <p className="text-sm font-semibold text-white">{subrecipe.name}</p>
+                        <p className="text-xs text-slate-500">Salida: {outputUnitLabel}</p>
+                        <p className="text-xs text-slate-500">
+                          {canAdd ? `Añadirá en: ${unitCodeLabel}` : 'Configura unidades'}
+                        </p>
+                      </div>
                       <button
                         type="button"
                         onClick={() => handleAdd('subrecipe', subrecipe.id, unitCode)}
-                        disabled={isSubmitting}
+                        disabled={isSubmitting || !canAdd}
                         className="rounded-full border border-slate-600 px-3 py-1 text-xs font-semibold text-slate-200 transition hover:border-slate-400 disabled:cursor-not-allowed disabled:opacity-60"
                       >
-                        Añadir (1 {unitCode}) →
+                        Añadir (1 {unitCodeLabel}) →
                       </button>
                     </li>
                   );
