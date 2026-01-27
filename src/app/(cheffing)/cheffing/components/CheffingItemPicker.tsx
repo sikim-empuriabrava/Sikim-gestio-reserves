@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
@@ -34,15 +34,19 @@ export function CheffingItemPicker({
   );
   const [searchTerm, setSearchTerm] = useState('');
 
+  const unitByCode = useMemo(() => {
+    return new Map(units.map((unit) => [unit.code.trim().toLowerCase(), unit]));
+  }, [units]);
+
   const unitDimensions = useMemo(() => {
-    return new Map(units.map((unit) => [unit.code, unit.dimension]));
+    return new Map(units.map((unit) => [unit.code.trim().toLowerCase(), unit.dimension]));
   }, [units]);
 
   const baseUnitByDimension = useMemo(() => {
     const baseUnits = new Map<UnitDimension, string>();
     units.forEach((unit) => {
       if (unit.to_base_factor === 1) {
-        baseUnits.set(unit.dimension, unit.code);
+        baseUnits.set(unit.dimension, unit.code.trim().toLowerCase());
       }
     });
     if (!baseUnits.has('mass')) baseUnits.set('mass', 'g');
@@ -53,7 +57,8 @@ export function CheffingItemPicker({
 
   const resolveDimensionForUnitCode = (code: string | null | undefined): UnitDimension | null => {
     if (!code) return null;
-    return unitDimensions.get(code) ?? null;
+    const normalizedCode = code.trim().toLowerCase();
+    return unitDimensions.get(normalizedCode) ?? null;
   };
 
   const resolveDefaultUnitCode = ({
@@ -63,10 +68,16 @@ export function CheffingItemPicker({
     preferredCode: string | null | undefined;
     dimensionFallback: UnitDimension;
   }) => {
-    if (preferredCode && unitDimensions.has(preferredCode)) {
-      return preferredCode;
+    const normalizedPreferred = preferredCode?.trim().toLowerCase();
+    const baseCode = baseUnitByDimension.get(dimensionFallback) ?? 'g';
+    if (!normalizedPreferred) {
+      return baseCode;
     }
-    return baseUnitByDimension.get(dimensionFallback) ?? 'g';
+    const preferredUnit = unitByCode.get(normalizedPreferred);
+    if (preferredUnit && preferredUnit.to_base_factor === 1) {
+      return normalizedPreferred;
+    }
+    return baseCode;
   };
 
   const filteredIngredients = useMemo(() => {
@@ -81,9 +92,18 @@ export function CheffingItemPicker({
     return subrecipes.filter((subrecipe) => subrecipe.name.toLowerCase().includes(term));
   }, [searchTerm, subrecipes]);
 
+  const isPendingRef = useRef(false);
+
   const handleAdd = async (type: 'ingredient' | 'subrecipe', id: string, unitCode: string) => {
-    if (isSubmitting) return;
-    await onAddItem({ type, id, unitCode });
+    if (isSubmitting || isPendingRef.current) return;
+    isPendingRef.current = true;
+    try {
+      await onAddItem({ type, id, unitCode });
+    } catch {
+      // Parent component already surfaces errors.
+    } finally {
+      isPendingRef.current = false;
+    }
   };
 
   return (
@@ -175,6 +195,7 @@ export function CheffingItemPicker({
                         <div>
                           <p className="text-sm font-semibold text-white">{ingredient.name}</p>
                           <p className="text-xs text-slate-500">Compra: {ingredient.purchase_unit_code}</p>
+                          <p className="text-xs text-slate-500">Añadirá en: {unitCode}</p>
                         </div>
                         <button
                           type="button"
@@ -194,18 +215,19 @@ export function CheffingItemPicker({
             ) : (
               <ul className="divide-y divide-slate-800/70">
                 {filteredSubrecipes.map((subrecipe) => {
-                  const preferredCode = subrecipe.output_unit_code;
-                  const dimension = resolveDimensionForUnitCode(preferredCode) ?? 'mass';
-                  const unitCode = resolveDefaultUnitCode({
-                    preferredCode,
-                    dimensionFallback: dimension,
-                  });
-                  return (
-                    <li key={subrecipe.id} className="flex items-center justify-between gap-3 px-4 py-3">
-                      <div>
-                        <p className="text-sm font-semibold text-white">{subrecipe.name}</p>
-                        <p className="text-xs text-slate-500">Salida: {subrecipe.output_unit_code}</p>
-                      </div>
+                    const preferredCode = subrecipe.output_unit_code;
+                    const dimension = resolveDimensionForUnitCode(preferredCode) ?? 'mass';
+                    const unitCode = resolveDefaultUnitCode({
+                      preferredCode,
+                      dimensionFallback: dimension,
+                    });
+                    return (
+                      <li key={subrecipe.id} className="flex items-center justify-between gap-3 px-4 py-3">
+                        <div>
+                          <p className="text-sm font-semibold text-white">{subrecipe.name}</p>
+                          <p className="text-xs text-slate-500">Salida: {subrecipe.output_unit_code}</p>
+                          <p className="text-xs text-slate-500">Añadirá en: {unitCode}</p>
+                        </div>
                       <button
                         type="button"
                         onClick={() => handleAdd('subrecipe', subrecipe.id, unitCode)}
