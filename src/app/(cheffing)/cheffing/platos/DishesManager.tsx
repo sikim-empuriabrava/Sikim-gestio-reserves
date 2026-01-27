@@ -1,7 +1,6 @@
 'use client';
 
 import { useState } from 'react';
-import type { FormEvent } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 
@@ -28,60 +27,10 @@ export function DishesManager({ initialDishes }: DishesManagerProps) {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingState, setEditingState] = useState<DishFormState | null>(null);
-  const [formState, setFormState] = useState<DishFormState>({
-    name: '',
-    selling_price: '',
-    servings: '1',
-  });
 
   const formatCurrency = (value: number | null) => {
     if (value === null || Number.isNaN(value)) return '—';
     return `${value.toFixed(2)} €`;
-  };
-
-  const submitNewDish = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    setError(null);
-    setIsSubmitting(true);
-
-    try {
-      const sellingPriceValue =
-        formState.selling_price.trim() === '' ? null : Number(formState.selling_price);
-      const servingsValue = Number(formState.servings);
-
-      if (sellingPriceValue !== null && (!Number.isFinite(sellingPriceValue) || sellingPriceValue < 0)) {
-        throw new Error('El PVP debe ser un número válido.');
-      }
-
-      if (!Number.isFinite(servingsValue) || servingsValue <= 0) {
-        throw new Error('Las raciones deben ser mayores que 0.');
-      }
-
-      const response = await fetch('/api/cheffing/dishes', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          name: formState.name,
-          selling_price: sellingPriceValue,
-          servings: servingsValue,
-        }),
-      });
-
-      if (!response.ok) {
-        const payload = await response.json().catch(() => ({}));
-        if (response.status === 409) {
-          throw new Error('Ya existe un plato con ese nombre.');
-        }
-        throw new Error(payload?.error ?? 'Error creando plato');
-      }
-
-      setFormState({ name: '', selling_price: '', servings: '1' });
-      router.refresh();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Error desconocido');
-    } finally {
-      setIsSubmitting(false);
-    }
   };
 
   const startEditing = (dish: DishCost) => {
@@ -171,58 +120,15 @@ export function DishesManager({ initialDishes }: DishesManagerProps) {
 
   return (
     <div className="space-y-6">
-      <form
-        onSubmit={submitNewDish}
-        className="space-y-4 rounded-2xl border border-slate-800/70 bg-slate-950/60 p-5"
-      >
-        <div className="flex items-center justify-between">
-          <h3 className="text-lg font-semibold text-white">Nuevo plato</h3>
-          {error ? <p className="text-sm text-rose-400">{error}</p> : null}
-        </div>
-        <div className="grid gap-4 md:grid-cols-3">
-          <label className="flex flex-col gap-2 text-sm text-slate-300">
-            Nombre
-            <input
-              className="rounded-lg border border-slate-700 bg-slate-950/70 px-3 py-2 text-white"
-              value={formState.name}
-              onChange={(event) => setFormState((prev) => ({ ...prev, name: event.target.value }))}
-              placeholder="Ej. Burger X"
-              required
-            />
-          </label>
-          <label className="flex flex-col gap-2 text-sm text-slate-300">
-            PVP (€)
-            <input
-              type="number"
-              min="0"
-              step="0.01"
-              className="rounded-lg border border-slate-700 bg-slate-950/70 px-3 py-2 text-white"
-              value={formState.selling_price}
-              onChange={(event) => setFormState((prev) => ({ ...prev, selling_price: event.target.value }))}
-              placeholder="Opcional"
-            />
-          </label>
-          <label className="flex flex-col gap-2 text-sm text-slate-300">
-            Raciones
-            <input
-              type="number"
-              min="1"
-              step="1"
-              className="rounded-lg border border-slate-700 bg-slate-950/70 px-3 py-2 text-white"
-              value={formState.servings}
-              onChange={(event) => setFormState((prev) => ({ ...prev, servings: event.target.value }))}
-              required
-            />
-          </label>
-        </div>
-        <button
-          type="submit"
-          disabled={isSubmitting}
-          className="rounded-full border border-emerald-400/60 bg-emerald-500/10 px-4 py-2 text-sm font-semibold text-emerald-200 transition hover:border-emerald-300 hover:text-emerald-100 disabled:cursor-not-allowed disabled:opacity-60"
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <Link
+          href="/cheffing/platos/new"
+          className="rounded-full border border-emerald-400/60 bg-emerald-500/10 px-4 py-2 text-sm font-semibold text-emerald-200 transition hover:border-emerald-300 hover:text-emerald-100"
         >
-          Guardar plato
-        </button>
-      </form>
+          Nuevo plato
+        </Link>
+        {error ? <p className="text-sm text-rose-400">{error}</p> : null}
+      </div>
 
       <div className="overflow-x-auto rounded-2xl border border-slate-800/70">
         <table className="w-full min-w-[960px] text-left text-sm text-slate-200">
