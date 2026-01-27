@@ -38,7 +38,7 @@ export default async function CheffingLayout({ children }: { children: React.Rea
         <div className="flex flex-col gap-5 md:flex-row md:items-center md:justify-between">
           <div className="space-y-2">
             <h1 className="text-2xl font-bold text-white">Cheffing</h1>
-            <p className="text-sm text-slate-400">Gestión de cocina, recetas y escandallos</p>
+            <p className="text-sm text-slate-400">Gestión de cocina y escandallos</p>
           </div>
           <nav className="flex flex-wrap gap-2 text-sm font-semibold text-slate-200">
             <Link

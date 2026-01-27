@@ -127,7 +127,7 @@ export function SubrecipeNewForm({ units }: SubrecipeNewFormProps) {
           <div className="flex gap-2">
             <input
               type="number"
-              min="0"
+              min="0.01"
               step="0.01"
               className="w-28 rounded-lg border border-slate-700 bg-slate-950/70 px-3 py-2 text-white"
               value={formState.output_qty}

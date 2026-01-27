@@ -42,12 +42,33 @@ export function IngredientsNewForm({ units }: IngredientsNewFormProps) {
     return percentValue / 100;
   };
 
+  const ensureValidAmount = (value: string, { allowZero }: { allowZero: boolean }) => {
+    const numericValue = Number(value);
+    if (!Number.isFinite(numericValue)) {
+      return null;
+    }
+    if (allowZero ? numericValue < 0 : numericValue <= 0) {
+      return null;
+    }
+    return numericValue;
+  };
+
   const submitNewIngredient = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setError(null);
     setIsSubmitting(true);
 
     try {
+      const packQtyValue = ensureValidAmount(formState.purchase_pack_qty, { allowZero: false });
+      if (packQtyValue === null) {
+        throw new Error('La cantidad del pack debe ser mayor que 0.');
+      }
+
+      const priceValue = ensureValidAmount(formState.purchase_price, { allowZero: true });
+      if (priceValue === null) {
+        throw new Error('El precio del pack debe ser un número válido.');
+      }
+
       const wastePctValue = parseWastePct(formState.waste_pct);
       if (wastePctValue === null) {
         throw new Error('La merma debe estar entre 0 y 99,99%.');
@@ -59,8 +80,8 @@ export function IngredientsNewForm({ units }: IngredientsNewFormProps) {
         body: JSON.stringify({
           name: formState.name,
           purchase_unit_code: formState.purchase_unit_code,
-          purchase_pack_qty: Number(formState.purchase_pack_qty),
-          purchase_price: Number(formState.purchase_price),
+          purchase_pack_qty: packQtyValue,
+          purchase_price: priceValue,
           waste_pct: wastePctValue,
         }),
       });
@@ -122,7 +143,7 @@ export function IngredientsNewForm({ units }: IngredientsNewFormProps) {
           Cantidad pack
           <input
             type="number"
-            min="0"
+            min="0.01"
             step="0.01"
             className="rounded-lg border border-slate-700 bg-slate-950/70 px-3 py-2 text-white"
             value={formState.purchase_pack_qty}
