@@ -195,7 +195,6 @@ export function SubrecipeDetailManager({
       router.refresh();
     } catch (err) {
       setItemsError(err instanceof Error ? err.message : 'Error desconocido');
-      throw err;
     } finally {
       setIsSubmitting(false);
     }

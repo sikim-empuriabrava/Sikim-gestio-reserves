@@ -3,6 +3,7 @@
 import { useMemo, useState } from 'react';
 import type { ReactNode } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 
 import type { Ingredient, Subrecipe, Unit, UnitDimension } from '@/lib/cheffing/types';
 
@@ -17,12 +18,6 @@ type CheffingItemPickerProps = {
   children: ReactNode;
 };
 
-const baseUnitForDimension = (dimension: UnitDimension) => {
-  if (dimension === 'volume') return 'ml';
-  if (dimension === 'unit') return 'u';
-  return 'g';
-};
-
 export function CheffingItemPicker({
   ingredients,
   subrecipes,
@@ -33,6 +28,7 @@ export function CheffingItemPicker({
   onAddItem,
   children,
 }: CheffingItemPickerProps) {
+  const router = useRouter();
   const [activeTab, setActiveTab] = useState<'ingredient' | 'subrecipe'>(
     ingredients.length > 0 ? 'ingredient' : 'subrecipe',
   );
@@ -41,6 +37,37 @@ export function CheffingItemPicker({
   const unitDimensions = useMemo(() => {
     return new Map(units.map((unit) => [unit.code, unit.dimension]));
   }, [units]);
+
+  const baseUnitByDimension = useMemo(() => {
+    const baseUnits = new Map<UnitDimension, string>();
+    units.forEach((unit) => {
+      if (unit.to_base_factor === 1) {
+        baseUnits.set(unit.dimension, unit.code);
+      }
+    });
+    if (!baseUnits.has('mass')) baseUnits.set('mass', 'g');
+    if (!baseUnits.has('volume')) baseUnits.set('volume', 'ml');
+    if (!baseUnits.has('unit')) baseUnits.set('unit', 'u');
+    return baseUnits;
+  }, [units]);
+
+  const resolveDimensionForUnitCode = (code: string | null | undefined): UnitDimension | null => {
+    if (!code) return null;
+    return unitDimensions.get(code) ?? null;
+  };
+
+  const resolveDefaultUnitCode = ({
+    preferredCode,
+    dimensionFallback,
+  }: {
+    preferredCode: string | null | undefined;
+    dimensionFallback: UnitDimension;
+  }) => {
+    if (preferredCode && unitDimensions.has(preferredCode)) {
+      return preferredCode;
+    }
+    return baseUnitByDimension.get(dimensionFallback) ?? 'g';
+  };
 
   const filteredIngredients = useMemo(() => {
     const term = searchTerm.trim().toLowerCase();
@@ -56,11 +83,7 @@ export function CheffingItemPicker({
 
   const handleAdd = async (type: 'ingredient' | 'subrecipe', id: string, unitCode: string) => {
     if (isSubmitting) return;
-    try {
-      await onAddItem({ type, id, unitCode });
-    } catch {
-      // Errors handled by parent.
-    }
+    await onAddItem({ type, id, unitCode });
   };
 
   return (
@@ -99,6 +122,14 @@ export function CheffingItemPicker({
               >
                 Nueva elaboración
               </Link>
+              <button
+                type="button"
+                onClick={() => router.refresh()}
+                disabled={isSubmitting}
+                className="rounded-full border border-slate-600 px-3 py-1 text-xs font-semibold text-slate-200 transition hover:border-slate-400 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                Actualizar lista
+              </button>
             </div>
             <div className="flex rounded-full border border-slate-700 bg-slate-950/70 p-1 text-xs">
               <button
@@ -133,8 +164,12 @@ export function CheffingItemPicker({
               ) : (
                 <ul className="divide-y divide-slate-800/70">
                   {filteredIngredients.map((ingredient) => {
-                    const dimension = unitDimensions.get(ingredient.purchase_unit_code) ?? 'mass';
-                    const unitCode = baseUnitForDimension(dimension);
+                    const preferredCode = ingredient.purchase_unit_code;
+                    const dimension = resolveDimensionForUnitCode(preferredCode) ?? 'mass';
+                    const unitCode = resolveDefaultUnitCode({
+                      preferredCode,
+                      dimensionFallback: dimension,
+                    });
                     return (
                       <li key={ingredient.id} className="flex items-center justify-between gap-3 px-4 py-3">
                         <div>
@@ -147,7 +182,7 @@ export function CheffingItemPicker({
                           disabled={isSubmitting}
                           className="rounded-full border border-slate-600 px-3 py-1 text-xs font-semibold text-slate-200 transition hover:border-slate-400 disabled:cursor-not-allowed disabled:opacity-60"
                         >
-                          Añadir →
+                          Añadir (1 {unitCode}) →
                         </button>
                       </li>
                     );
@@ -159,8 +194,12 @@ export function CheffingItemPicker({
             ) : (
               <ul className="divide-y divide-slate-800/70">
                 {filteredSubrecipes.map((subrecipe) => {
-                  const dimension = unitDimensions.get(subrecipe.output_unit_code) ?? 'mass';
-                  const unitCode = baseUnitForDimension(dimension);
+                  const preferredCode = subrecipe.output_unit_code;
+                  const dimension = resolveDimensionForUnitCode(preferredCode) ?? 'mass';
+                  const unitCode = resolveDefaultUnitCode({
+                    preferredCode,
+                    dimensionFallback: dimension,
+                  });
                   return (
                     <li key={subrecipe.id} className="flex items-center justify-between gap-3 px-4 py-3">
                       <div>
@@ -173,7 +212,7 @@ export function CheffingItemPicker({
                         disabled={isSubmitting}
                         className="rounded-full border border-slate-600 px-3 py-1 text-xs font-semibold text-slate-200 transition hover:border-slate-400 disabled:cursor-not-allowed disabled:opacity-60"
                       >
-                        Añadir →
+                        Añadir (1 {unitCode}) →
                       </button>
                     </li>
                   );
