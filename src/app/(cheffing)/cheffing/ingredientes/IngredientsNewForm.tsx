@@ -20,11 +20,12 @@ type IngredientsNewFormProps = {
 
 export function IngredientsNewForm({ units }: IngredientsNewFormProps) {
   const router = useRouter();
+  const hasUnits = units.length > 0;
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [formState, setFormState] = useState<IngredientFormState>({
     name: '',
-    purchase_unit_code: units[0]?.code ?? 'g',
+    purchase_unit_code: units[0]?.code ?? '',
     purchase_pack_qty: '1',
     purchase_price: '0',
     waste_pct: '0',
@@ -42,12 +43,37 @@ export function IngredientsNewForm({ units }: IngredientsNewFormProps) {
     return percentValue / 100;
   };
 
+  const ensureValidAmount = (value: string, { allowZero }: { allowZero: boolean }) => {
+    const numericValue = Number(value);
+    if (!Number.isFinite(numericValue)) {
+      return null;
+    }
+    if (allowZero ? numericValue < 0 : numericValue <= 0) {
+      return null;
+    }
+    return numericValue;
+  };
+
   const submitNewIngredient = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setError(null);
     setIsSubmitting(true);
 
     try {
+      if (!hasUnits) {
+        throw new Error('Configura unidades antes de crear ingredientes.');
+      }
+
+      const packQtyValue = ensureValidAmount(formState.purchase_pack_qty, { allowZero: false });
+      if (packQtyValue === null) {
+        throw new Error('La cantidad del pack debe ser mayor que 0.');
+      }
+
+      const priceValue = ensureValidAmount(formState.purchase_price, { allowZero: true });
+      if (priceValue === null) {
+        throw new Error('El precio del pack debe ser un número válido.');
+      }
+
       const wastePctValue = parseWastePct(formState.waste_pct);
       if (wastePctValue === null) {
         throw new Error('La merma debe estar entre 0 y 99,99%.');
@@ -59,8 +85,8 @@ export function IngredientsNewForm({ units }: IngredientsNewFormProps) {
         body: JSON.stringify({
           name: formState.name,
           purchase_unit_code: formState.purchase_unit_code,
-          purchase_pack_qty: Number(formState.purchase_pack_qty),
-          purchase_price: Number(formState.purchase_price),
+          purchase_pack_qty: packQtyValue,
+          purchase_price: priceValue,
           waste_pct: wastePctValue,
         }),
       });
@@ -90,6 +116,9 @@ export function IngredientsNewForm({ units }: IngredientsNewFormProps) {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h3 className="text-lg font-semibold text-white">Nuevo ingrediente</h3>
         {error ? <p className="text-sm text-rose-400">{error}</p> : null}
+        {!hasUnits ? (
+          <p className="text-sm text-amber-300">Configura unidades antes de crear ingredientes.</p>
+        ) : null}
       </div>
       <div className="grid gap-4 md:grid-cols-5">
         <label className="flex flex-col gap-2 text-sm text-slate-300">
@@ -100,6 +129,7 @@ export function IngredientsNewForm({ units }: IngredientsNewFormProps) {
             onChange={(event) => setFormState((prev) => ({ ...prev, name: event.target.value }))}
             placeholder="Ej. Tomate triturado"
             required
+            disabled={!hasUnits}
           />
         </label>
         <label className="flex flex-col gap-2 text-sm text-slate-300">
@@ -110,6 +140,7 @@ export function IngredientsNewForm({ units }: IngredientsNewFormProps) {
             onChange={(event) =>
               setFormState((prev) => ({ ...prev, purchase_unit_code: event.target.value }))
             }
+            disabled={!hasUnits}
           >
             {sortedUnits.map((unit) => (
               <option key={unit.code} value={unit.code}>
@@ -122,12 +153,13 @@ export function IngredientsNewForm({ units }: IngredientsNewFormProps) {
           Cantidad pack
           <input
             type="number"
-            min="0"
+            min="0.01"
             step="0.01"
             className="rounded-lg border border-slate-700 bg-slate-950/70 px-3 py-2 text-white"
             value={formState.purchase_pack_qty}
             onChange={(event) => setFormState((prev) => ({ ...prev, purchase_pack_qty: event.target.value }))}
             required
+            disabled={!hasUnits}
           />
         </label>
         <label className="flex flex-col gap-2 text-sm text-slate-300">
@@ -140,6 +172,7 @@ export function IngredientsNewForm({ units }: IngredientsNewFormProps) {
             value={formState.purchase_price}
             onChange={(event) => setFormState((prev) => ({ ...prev, purchase_price: event.target.value }))}
             required
+            disabled={!hasUnits}
           />
         </label>
         <label className="flex flex-col gap-2 text-sm text-slate-300">
@@ -153,13 +186,14 @@ export function IngredientsNewForm({ units }: IngredientsNewFormProps) {
             value={formState.waste_pct}
             onChange={(event) => setFormState((prev) => ({ ...prev, waste_pct: event.target.value }))}
             required
+            disabled={!hasUnits}
           />
         </label>
       </div>
       <div className="flex flex-wrap items-center gap-3">
         <button
           type="submit"
-          disabled={isSubmitting}
+          disabled={isSubmitting || !hasUnits}
           className="rounded-full border border-emerald-400/60 bg-emerald-500/10 px-4 py-2 text-sm font-semibold text-emerald-200 transition hover:border-emerald-300 hover:text-emerald-100 disabled:cursor-not-allowed disabled:opacity-60"
         >
           Guardar ingrediente

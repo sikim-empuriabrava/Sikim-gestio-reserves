@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 
 import type { Dish, DishItem, Ingredient, Subrecipe, Unit } from '@/lib/cheffing/types';
+import { CheffingItemPicker } from '@/app/(cheffing)/cheffing/components/CheffingItemPicker';
 
 export type DishCost = Dish & {
   items_cost_total: number | null;
@@ -55,15 +56,6 @@ export function DishDetailManager({ dish, items, ingredients, subrecipes, units 
     selling_price: dish.selling_price === null ? '' : String(dish.selling_price),
     servings: String(dish.servings ?? 1),
     notes: dish.notes ?? '',
-  });
-  const [itemFormState, setItemFormState] = useState<ItemFormState>({
-    itemType: ingredients.length > 0 ? 'ingredient' : 'subrecipe',
-    ingredient_id: ingredients[0]?.id ?? '',
-    subrecipe_id: subrecipes[0]?.id ?? '',
-    unit_code: units[0]?.code ?? 'g',
-    quantity: '1',
-    waste_pct: '0',
-    notes: '',
   });
 
   const formatCurrency = (value: number | null) => {
@@ -124,6 +116,7 @@ export function DishDetailManager({ dish, items, ingredients, subrecipes, units 
       }
 
       router.refresh();
+      // TODO: Auto-select the newly added line for editing once we can identify it reliably.
     } catch (err) {
       setHeaderError(err instanceof Error ? err.message : 'Error desconocido');
     } finally {
@@ -158,42 +151,21 @@ export function DishDetailManager({ dish, items, ingredients, subrecipes, units 
     }
   };
 
-  const submitNewItem = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
+  const addItem = async ({ type, id, unitCode }: { type: 'ingredient' | 'subrecipe'; id: string; unitCode: string }) => {
     setItemsError(null);
     setIsSubmitting(true);
 
     try {
-      const quantityValue = ensureValidQuantity(itemFormState.quantity);
-      if (quantityValue === null) {
-        throw new Error('La cantidad debe ser mayor que 0.');
-      }
-
-      const wastePctValue = parseWastePct(itemFormState.waste_pct);
-      if (wastePctValue === null) {
-        throw new Error('La merma debe estar entre 0 y 99,99%.');
-      }
-
-      const ingredientId = itemFormState.itemType === 'ingredient' ? itemFormState.ingredient_id : null;
-      const subrecipeId = itemFormState.itemType === 'subrecipe' ? itemFormState.subrecipe_id : null;
-
-      if (itemFormState.itemType === 'ingredient' && !ingredientId) {
-        throw new Error('Selecciona un ingrediente válido.');
-      }
-      if (itemFormState.itemType === 'subrecipe' && !subrecipeId) {
-        throw new Error('Selecciona una elaboración válida.');
-      }
-
       const response = await fetch(`/api/cheffing/dishes/${dish.id}/items`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          ingredient_id: ingredientId,
-          subrecipe_id: subrecipeId,
-          unit_code: itemFormState.unit_code,
-          quantity: quantityValue,
-          waste_pct: wastePctValue,
-          notes: itemFormState.notes.trim() ? itemFormState.notes.trim() : null,
+          ingredient_id: type === 'ingredient' ? id : null,
+          subrecipe_id: type === 'subrecipe' ? id : null,
+          unit_code: unitCode,
+          quantity: 1,
+          waste_pct: 0,
+          notes: null,
         }),
       });
 
@@ -205,12 +177,6 @@ export function DishDetailManager({ dish, items, ingredients, subrecipes, units 
         throw new Error(payload?.error ?? 'Error creando línea');
       }
 
-      setItemFormState((prev) => ({
-        ...prev,
-        quantity: '1',
-        waste_pct: '0',
-        notes: '',
-      }));
       router.refresh();
     } catch (err) {
       setItemsError(err instanceof Error ? err.message : 'Error desconocido');
@@ -408,115 +374,18 @@ export function DishDetailManager({ dish, items, ingredients, subrecipes, units 
           </div>
           {itemsError ? <p className="text-sm text-rose-400">{itemsError}</p> : null}
         </div>
-        <form onSubmit={submitNewItem} className="grid gap-4 md:grid-cols-6">
-          <label className="flex flex-col gap-2 text-sm text-slate-300">
-            Tipo
-            <select
-              className="rounded-lg border border-slate-700 bg-slate-950/70 px-3 py-2 text-white"
-              value={itemFormState.itemType}
-              onChange={(event) =>
-                setItemFormState((prev) => {
-                  const itemType = event.target.value as ItemFormState['itemType'];
-                  return {
-                    ...prev,
-                    itemType,
-                    ingredient_id:
-                      itemType === 'ingredient' ? (prev.ingredient_id || ingredients[0]?.id || '') : '',
-                    subrecipe_id: itemType === 'subrecipe' ? (prev.subrecipe_id || subrecipes[0]?.id || '') : '',
-                  };
-                })
-              }
-            >
-              <option value="ingredient">Ingrediente</option>
-              <option value="subrecipe">Elaboración</option>
-            </select>
-          </label>
-          <label className="flex flex-col gap-2 text-sm text-slate-300">
-            Selección
-            {itemFormState.itemType === 'ingredient' ? (
-              <select
-                className="rounded-lg border border-slate-700 bg-slate-950/70 px-3 py-2 text-white"
-                value={itemFormState.ingredient_id}
-                onChange={(event) => setItemFormState((prev) => ({ ...prev, ingredient_id: event.target.value }))}
-              >
-                {ingredients.map((ingredient) => (
-                  <option key={ingredient.id} value={ingredient.id}>
-                    {ingredient.name}
-                  </option>
-                ))}
-              </select>
-            ) : (
-              <select
-                className="rounded-lg border border-slate-700 bg-slate-950/70 px-3 py-2 text-white"
-                value={itemFormState.subrecipe_id}
-                onChange={(event) => setItemFormState((prev) => ({ ...prev, subrecipe_id: event.target.value }))}
-              >
-                {subrecipes.map((entry) => (
-                  <option key={entry.id} value={entry.id}>
-                    {entry.name}
-                  </option>
-                ))}
-              </select>
-            )}
-          </label>
-          <label className="flex flex-col gap-2 text-sm text-slate-300">
-            Cantidad
-            <div className="flex gap-2">
-              <input
-                type="number"
-                min="0"
-                step="0.01"
-                className="w-28 rounded-lg border border-slate-700 bg-slate-950/70 px-3 py-2 text-white"
-                value={itemFormState.quantity}
-                onChange={(event) => setItemFormState((prev) => ({ ...prev, quantity: event.target.value }))}
-                required
-              />
-              <select
-                className="flex-1 rounded-lg border border-slate-700 bg-slate-950/70 px-3 py-2 text-white"
-                value={itemFormState.unit_code}
-                onChange={(event) => setItemFormState((prev) => ({ ...prev, unit_code: event.target.value }))}
-              >
-                {units.map((unit) => (
-                  <option key={unit.code} value={unit.code}>
-                    {unit.code}
-                  </option>
-                ))}
-              </select>
-            </div>
-          </label>
-          <label className="flex flex-col gap-2 text-sm text-slate-300">
-            Merma (%)
-            <input
-              type="number"
-              min="0"
-              max="99.99"
-              step="0.01"
-              className="rounded-lg border border-slate-700 bg-slate-950/70 px-3 py-2 text-white"
-              value={itemFormState.waste_pct}
-              onChange={(event) => setItemFormState((prev) => ({ ...prev, waste_pct: event.target.value }))}
-            />
-          </label>
-          <label className="flex flex-col gap-2 text-sm text-slate-300 md:col-span-2">
-            Notas
-            <input
-              className="rounded-lg border border-slate-700 bg-slate-950/70 px-3 py-2 text-white"
-              value={itemFormState.notes}
-              onChange={(event) => setItemFormState((prev) => ({ ...prev, notes: event.target.value }))}
-            />
-          </label>
-          <div className="md:col-span-5">
-            <button
-              type="submit"
-              disabled={isSubmitting}
-              className="rounded-full border border-emerald-400/60 bg-emerald-500/10 px-4 py-2 text-sm font-semibold text-emerald-200 transition hover:border-emerald-300 hover:text-emerald-100 disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              Añadir línea
-            </button>
-          </div>
-        </form>
-
-        <div className="overflow-x-auto rounded-2xl border border-slate-800/70">
-          <table className="w-full min-w-[960px] text-left text-sm text-slate-200">
+        <CheffingItemPicker
+          ingredients={ingredients}
+          subrecipes={subrecipes}
+          units={units}
+          ingredientNewHref="/cheffing/ingredientes/new"
+          subrecipeNewHref="/cheffing/elaboraciones/new"
+          mode="recipe"
+          isSubmitting={isSubmitting}
+          onAddItem={addItem}
+        >
+          <div className="overflow-x-auto rounded-2xl border border-slate-800/70">
+            <table className="w-full min-w-[960px] text-left text-sm text-slate-200">
             <thead className="bg-slate-950/70 text-xs uppercase text-slate-400">
               <tr>
                 <th className="px-4 py-3">Tipo</th>
@@ -735,7 +604,8 @@ export function DishDetailManager({ dish, items, ingredients, subrecipes, units 
               )}
             </tbody>
           </table>
-        </div>
+          </div>
+        </CheffingItemPicker>
       </div>
     </div>
   );

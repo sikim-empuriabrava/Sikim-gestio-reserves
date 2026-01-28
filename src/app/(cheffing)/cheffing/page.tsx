@@ -21,11 +21,6 @@ const modules = [
     description: 'Planifica menús y servicios semanales.',
     href: '/cheffing/menus',
   },
-  {
-    title: 'Recetas',
-    description: 'Gestiona recetas, escandallos y costes.',
-    href: '/cheffing/recetas',
-  },
 ];
 
 export default function CheffingPage() {
@@ -33,8 +28,7 @@ export default function CheffingPage() {
     <section className="space-y-6">
       <div className="rounded-2xl border border-slate-800/80 bg-slate-900/70 p-6 text-sm text-slate-200">
         <p>
-          Este módulo centraliza toda la gestión de cocina: ingredientes, recetas, escandallos y
-          menús.
+          Este módulo centraliza toda la gestión de cocina: ingredientes, escandallos y menús.
         </p>
       </div>
 

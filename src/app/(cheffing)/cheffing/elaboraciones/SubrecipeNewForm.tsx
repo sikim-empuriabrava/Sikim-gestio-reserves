@@ -20,11 +20,12 @@ type SubrecipeNewFormProps = {
 
 export function SubrecipeNewForm({ units }: SubrecipeNewFormProps) {
   const router = useRouter();
+  const hasUnits = units.length > 0;
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [formState, setFormState] = useState<SubrecipeFormState>({
     name: '',
-    output_unit_code: units[0]?.code ?? 'g',
+    output_unit_code: units[0]?.code ?? '',
     output_qty: '1',
     waste_pct: '0',
     notes: '',
@@ -56,6 +57,10 @@ export function SubrecipeNewForm({ units }: SubrecipeNewFormProps) {
     setIsSubmitting(true);
 
     try {
+      if (!hasUnits) {
+        throw new Error('Configura unidades antes de crear elaboraciones.');
+      }
+
       const outputQtyValue = ensureValidQuantity(formState.output_qty);
       if (outputQtyValue === null) {
         throw new Error('La producción debe ser mayor que 0.');
@@ -110,6 +115,9 @@ export function SubrecipeNewForm({ units }: SubrecipeNewFormProps) {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h3 className="text-lg font-semibold text-white">Nueva elaboración</h3>
         {error ? <p className="text-sm text-rose-400">{error}</p> : null}
+        {!hasUnits ? (
+          <p className="text-sm text-amber-300">Configura unidades antes de crear elaboraciones.</p>
+        ) : null}
       </div>
       <div className="grid gap-4 md:grid-cols-4">
         <label className="flex flex-col gap-2 text-sm text-slate-300">
@@ -120,6 +128,7 @@ export function SubrecipeNewForm({ units }: SubrecipeNewFormProps) {
             onChange={(event) => setFormState((prev) => ({ ...prev, name: event.target.value }))}
             placeholder="Ej. Cebolla caramelizada"
             required
+            disabled={!hasUnits}
           />
         </label>
         <label className="flex flex-col gap-2 text-sm text-slate-300">
@@ -127,12 +136,13 @@ export function SubrecipeNewForm({ units }: SubrecipeNewFormProps) {
           <div className="flex gap-2">
             <input
               type="number"
-              min="0"
+              min="0.01"
               step="0.01"
               className="w-28 rounded-lg border border-slate-700 bg-slate-950/70 px-3 py-2 text-white"
               value={formState.output_qty}
               onChange={(event) => setFormState((prev) => ({ ...prev, output_qty: event.target.value }))}
               required
+              disabled={!hasUnits}
             />
             <select
               className="flex-1 rounded-lg border border-slate-700 bg-slate-950/70 px-3 py-2 text-white"
@@ -140,6 +150,7 @@ export function SubrecipeNewForm({ units }: SubrecipeNewFormProps) {
               onChange={(event) =>
                 setFormState((prev) => ({ ...prev, output_unit_code: event.target.value }))
               }
+              disabled={!hasUnits}
             >
               {sortedUnits.map((unit) => (
                 <option key={unit.code} value={unit.code}>
@@ -160,6 +171,7 @@ export function SubrecipeNewForm({ units }: SubrecipeNewFormProps) {
             value={formState.waste_pct}
             onChange={(event) => setFormState((prev) => ({ ...prev, waste_pct: event.target.value }))}
             required
+            disabled={!hasUnits}
           />
         </label>
         <label className="flex flex-col gap-2 text-sm text-slate-300 md:col-span-4">
@@ -169,13 +181,14 @@ export function SubrecipeNewForm({ units }: SubrecipeNewFormProps) {
             value={formState.notes}
             onChange={(event) => setFormState((prev) => ({ ...prev, notes: event.target.value }))}
             placeholder="Opcional"
+            disabled={!hasUnits}
           />
         </label>
       </div>
       <div className="flex flex-wrap items-center gap-3">
         <button
           type="submit"
-          disabled={isSubmitting}
+          disabled={isSubmitting || !hasUnits}
           className="rounded-full border border-emerald-400/60 bg-emerald-500/10 px-4 py-2 text-sm font-semibold text-emerald-200 transition hover:border-emerald-300 hover:text-emerald-100 disabled:cursor-not-allowed disabled:opacity-60"
         >
           Guardar elaboración
