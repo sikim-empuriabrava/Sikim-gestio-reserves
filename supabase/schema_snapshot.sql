@@ -1120,19 +1120,43 @@ CREATE VIEW public.v_cheffing_ingredients_cost WITH (security_invoker='true') AS
 -- Name: v_cheffing_subrecipe_cost; Type: VIEW; Schema: public; Owner: -
 --
 
-CREATE VIEW public.v_cheffing_subrecipe_cost WITH (security_invoker='true') AS
- WITH item_costs AS (
-         SELECT s_1.id AS subrecipe_id,
+CREATE VIEW public.v_cheffing_subrecipe_cost AS
+ WITH RECURSIVE expanded_items AS (
+         SELECT si.subrecipe_id AS root_subrecipe_id,
+            si.ingredient_id,
+            si.subrecipe_component_id,
+            si.quantity,
+            si.unit_code,
+            (1)::numeric AS scale_factor,
+            ARRAY[si.subrecipe_id] AS path,
+            1 AS depth
+           FROM public.cheffing_subrecipe_items si
+        UNION ALL
+         SELECT ei.root_subrecipe_id,
+            si_child.ingredient_id,
+            si_child.subrecipe_component_id,
+            si_child.quantity,
+            si_child.unit_code,
+            (((ei.scale_factor * (ei.quantity * u_parent.to_base_factor)) / NULLIF((sr_child.output_qty * u_child_out.to_base_factor), (0)::numeric)) / NULLIF(((1)::numeric - COALESCE(sr_child.waste_pct, (0)::numeric)), (0)::numeric)) AS scale_factor,
+            (ei.path || sr_child.id) AS path,
+            (ei.depth + 1) AS depth
+           FROM ((((expanded_items ei
+             JOIN public.cheffing_subrecipes sr_child ON ((sr_child.id = ei.subrecipe_component_id)))
+             JOIN public.cheffing_subrecipe_items si_child ON ((si_child.subrecipe_id = sr_child.id)))
+             JOIN public.cheffing_units u_parent ON ((u_parent.code = ei.unit_code)))
+             JOIN public.cheffing_units u_child_out ON ((u_child_out.code = sr_child.output_unit_code)))
+          WHERE ((ei.subrecipe_component_id IS NOT NULL) AND (u_parent.dimension = u_child_out.dimension) AND (ei.depth < 25) AND (NOT (sr_child.id = ANY (ei.path))))
+        ), item_costs AS (
+         SELECT ei.root_subrecipe_id AS subrecipe_id,
             sum(
                 CASE
-                    WHEN ((si.ingredient_id IS NOT NULL) AND (u_item.dimension = vic.purchase_unit_dimension)) THEN (vic.cost_net_per_base * (si.quantity * u_item.to_base_factor))
+                    WHEN ((ei.ingredient_id IS NOT NULL) AND (u_item.dimension = vic.purchase_unit_dimension)) THEN ((vic.cost_net_per_base * (ei.quantity * u_item.to_base_factor)) * ei.scale_factor)
                     ELSE NULL::numeric
                 END) AS items_cost_total
-           FROM (((public.cheffing_subrecipes s_1
-             LEFT JOIN public.cheffing_subrecipe_items si ON ((si.subrecipe_id = s_1.id)))
-             LEFT JOIN public.v_cheffing_ingredients_cost vic ON ((vic.id = si.ingredient_id)))
-             LEFT JOIN public.cheffing_units u_item ON ((u_item.code = si.unit_code)))
-          GROUP BY s_1.id
+           FROM ((expanded_items ei
+             LEFT JOIN public.v_cheffing_ingredients_cost vic ON ((vic.id = ei.ingredient_id)))
+             LEFT JOIN public.cheffing_units u_item ON ((u_item.code = ei.unit_code)))
+          GROUP BY ei.root_subrecipe_id
         )
  SELECT s.id,
     s.name,
@@ -1146,7 +1170,8 @@ CREATE VIEW public.v_cheffing_subrecipe_cost WITH (security_invoker='true') AS
     ic.items_cost_total,
     (ic.items_cost_total / NULLIF((s.output_qty * u.to_base_factor), (0)::numeric)) AS cost_gross_per_base,
     ((ic.items_cost_total / NULLIF((s.output_qty * u.to_base_factor), (0)::numeric)) / NULLIF(((1)::numeric - s.waste_pct), (0)::numeric)) AS cost_net_per_base,
-    ((1)::numeric / NULLIF(((1)::numeric - s.waste_pct), (0)::numeric)) AS waste_factor
+    ((1)::numeric / NULLIF(((1)::numeric - s.waste_pct), (0)::numeric)) AS waste_factor,
+    s.notes
    FROM ((public.cheffing_subrecipes s
      JOIN public.cheffing_units u ON ((u.code = s.output_unit_code)))
      LEFT JOIN item_costs ic ON ((ic.subrecipe_id = s.id)));
@@ -2325,5 +2350,5 @@ CREATE POLICY "read own allowlist row" ON public.app_allowed_users FOR SELECT TO
 -- PostgreSQL database dump complete
 --
 
-\unrestrict Q23vrdvctRd2fTLcr7avvJNyr68GhYHQThSZycjSKblQpsSwrq7NvovQfZytVM1
+\unrestrict eUV8jetgi9GEbRUOEGAopfZyjyQxX7eDelMbYVxBc7Gtwo59X3tnGVBZpJnWErG
 
