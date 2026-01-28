@@ -116,6 +116,7 @@ export function DishDetailManager({ dish, items, ingredients, subrecipes, units 
       }
 
       router.refresh();
+      // TODO: Auto-select the newly added line for editing once we can identify it reliably.
     } catch (err) {
       setHeaderError(err instanceof Error ? err.message : 'Error desconocido');
     } finally {
@@ -379,6 +380,7 @@ export function DishDetailManager({ dish, items, ingredients, subrecipes, units 
           units={units}
           ingredientNewHref="/cheffing/ingredientes/new"
           subrecipeNewHref="/cheffing/elaboraciones/new"
+          mode="recipe"
           isSubmitting={isSubmitting}
           onAddItem={addItem}
         >

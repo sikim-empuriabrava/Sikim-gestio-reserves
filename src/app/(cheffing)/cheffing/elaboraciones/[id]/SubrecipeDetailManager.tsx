@@ -132,6 +132,7 @@ export function SubrecipeDetailManager({
       }
 
       router.refresh();
+      // TODO: Auto-select the newly added line for editing once we can identify it reliably.
     } catch (err) {
       setHeaderError(err instanceof Error ? err.message : 'Error desconocido');
     } finally {
@@ -410,6 +411,7 @@ export function SubrecipeDetailManager({
           units={units}
           ingredientNewHref="/cheffing/ingredientes/new"
           subrecipeNewHref="/cheffing/elaboraciones/new"
+          mode="recipe"
           isSubmitting={isSubmitting}
           onAddItem={addItem}
         >

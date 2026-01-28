@@ -13,6 +13,7 @@ type CheffingItemPickerProps = {
   units: Unit[];
   ingredientNewHref: string;
   subrecipeNewHref: string;
+  mode?: 'recipe' | 'stock';
   isSubmitting?: boolean;
   onAddItem: (payload: { type: 'ingredient' | 'subrecipe'; id: string; unitCode: string }) => Promise<void>;
   children: ReactNode;
@@ -24,6 +25,7 @@ export function CheffingItemPicker({
   units,
   ingredientNewHref,
   subrecipeNewHref,
+  mode = 'recipe',
   isSubmitting,
   onAddItem,
   children,
@@ -34,6 +36,7 @@ export function CheffingItemPicker({
   );
   const [searchTerm, setSearchTerm] = useState('');
   const hasUnits = units.length > 0;
+  const [selectedUnitCodeById, setSelectedUnitCodeById] = useState<Record<string, string>>({});
 
   const normalizeUnitCode = (code: string) => code.trim().toLowerCase();
 
@@ -57,10 +60,6 @@ export function CheffingItemPicker({
     return entries;
   }, [units]);
 
-  const sortedUnits = useMemo(() => {
-    return [...units].sort((a, b) => a.code.localeCompare(b.code));
-  }, [units]);
-
   const getUnitFromCode = (code?: string | null): Unit | null => {
     if (!code) return null;
     return unitByCodeNormalized.get(normalizeUnitCode(code)) ?? null;
@@ -71,16 +70,6 @@ export function CheffingItemPicker({
     const baseUnits = unitsInDimension.filter((unit) => unit.to_base_factor === 1);
     if (baseUnits.length === 0) return null;
     return [...baseUnits].sort((a, b) => a.code.localeCompare(b.code))[0] ?? null;
-  };
-
-  const getFallbackUnitForDimension = (dimension: UnitDimension): Unit | null => {
-    const baseUnit = getBaseUnitForDimension(dimension);
-    if (baseUnit) return baseUnit;
-    const unitsInDimension = unitsByDimension.get(dimension) ?? [];
-    if (unitsInDimension.length > 0) {
-      return unitsInDimension[0] ?? null;
-    }
-    return sortedUnits[0] ?? null;
   };
 
   const resolveDimensionForUnitCode = (code: string | null | undefined): UnitDimension | null => {
@@ -97,12 +86,15 @@ export function CheffingItemPicker({
     if (!hasUnits) return '';
     const preferredUnit = getUnitFromCode(preferredCode);
     const resolvedDimension = preferredUnit?.dimension ?? dimensionFallback;
-    if (preferredUnit && preferredUnit.to_base_factor === 1) {
+    const unitsInDimension = unitsByDimension.get(resolvedDimension) ?? [];
+    if (mode === 'stock' && preferredUnit) {
       return preferredUnit.code.trim();
     }
-    const fallbackUnit =
-      getBaseUnitForDimension(resolvedDimension) ?? getFallbackUnitForDimension(resolvedDimension);
-    return fallbackUnit?.code.trim() ?? '';
+    const baseUnit = getBaseUnitForDimension(resolvedDimension);
+    if (baseUnit) {
+      return baseUnit.code.trim();
+    }
+    return unitsInDimension[0]?.code.trim() ?? '';
   };
 
   const filteredIngredients = useMemo(() => {
@@ -211,12 +203,15 @@ export function CheffingItemPicker({
                   {filteredIngredients.map((ingredient) => {
                     const preferredCode = ingredient.purchase_unit_code;
                     const dimension = resolveDimensionForUnitCode(preferredCode) ?? 'mass';
-                    const unitCode = resolveDefaultUnitCode({
-                      preferredCode,
-                      dimensionFallback: dimension,
-                    });
+                    const unitCode =
+                      selectedUnitCodeById[ingredient.id] ??
+                      resolveDefaultUnitCode({
+                        preferredCode: mode === 'stock' ? preferredCode : null,
+                        dimensionFallback: dimension,
+                      });
                     const purchaseUnitLabel = preferredCode?.trim() ? preferredCode.trim() : '—';
-                    const canAdd = hasUnits && Boolean(unitCode.trim());
+                    const unitsInDimension = unitsByDimension.get(dimension) ?? [];
+                    const canAdd = hasUnits && unitsInDimension.length > 0 && Boolean(unitCode.trim());
                     const unitCodeLabel = canAdd ? unitCode.trim() : '—';
                     return (
                       <li key={ingredient.id} className="flex items-center justify-between gap-3 px-4 py-3">
@@ -227,14 +222,37 @@ export function CheffingItemPicker({
                             {canAdd ? `Añadirá en: ${unitCodeLabel}` : 'Configura unidades'}
                           </p>
                         </div>
-                        <button
-                          type="button"
-                          onClick={() => handleAdd('ingredient', ingredient.id, unitCode)}
-                          disabled={isSubmitting || !canAdd}
-                          className="rounded-full border border-slate-600 px-3 py-1 text-xs font-semibold text-slate-200 transition hover:border-slate-400 disabled:cursor-not-allowed disabled:opacity-60"
-                        >
-                          Añadir (1 {unitCodeLabel}) →
-                        </button>
+                        <div className="flex flex-col items-end gap-2">
+                          <select
+                            className="rounded-md border border-slate-700 bg-slate-950/70 px-2 py-1 text-xs text-white"
+                            value={unitCode}
+                            onChange={(event) =>
+                              setSelectedUnitCodeById((prev) => ({
+                                ...prev,
+                                [ingredient.id]: event.target.value,
+                              }))
+                            }
+                            disabled={!hasUnits || unitsInDimension.length === 0}
+                          >
+                            {unitsInDimension.length === 0 ? (
+                              <option value="">Sin unidades</option>
+                            ) : (
+                              unitsInDimension.map((unit) => (
+                                <option key={unit.code} value={unit.code}>
+                                  {unit.code}
+                                </option>
+                              ))
+                            )}
+                          </select>
+                          <button
+                            type="button"
+                            onClick={() => handleAdd('ingredient', ingredient.id, unitCode)}
+                            disabled={isSubmitting || !canAdd}
+                            className="rounded-full border border-slate-600 px-3 py-1 text-xs font-semibold text-slate-200 transition hover:border-slate-400 disabled:cursor-not-allowed disabled:opacity-60"
+                          >
+                            Añadir (1 {unitCodeLabel}) →
+                          </button>
+                        </div>
                       </li>
                     );
                   })}
@@ -247,12 +265,15 @@ export function CheffingItemPicker({
                 {filteredSubrecipes.map((subrecipe) => {
                   const preferredCode = subrecipe.output_unit_code;
                   const dimension = resolveDimensionForUnitCode(preferredCode) ?? 'mass';
-                  const unitCode = resolveDefaultUnitCode({
-                    preferredCode,
-                    dimensionFallback: dimension,
-                  });
+                  const unitCode =
+                    selectedUnitCodeById[subrecipe.id] ??
+                    resolveDefaultUnitCode({
+                      preferredCode: mode === 'stock' ? preferredCode : null,
+                      dimensionFallback: dimension,
+                    });
                   const outputUnitLabel = preferredCode?.trim() ? preferredCode.trim() : '—';
-                  const canAdd = hasUnits && Boolean(unitCode.trim());
+                  const unitsInDimension = unitsByDimension.get(dimension) ?? [];
+                  const canAdd = hasUnits && unitsInDimension.length > 0 && Boolean(unitCode.trim());
                   const unitCodeLabel = canAdd ? unitCode.trim() : '—';
                   return (
                     <li key={subrecipe.id} className="flex items-center justify-between gap-3 px-4 py-3">
@@ -263,14 +284,37 @@ export function CheffingItemPicker({
                           {canAdd ? `Añadirá en: ${unitCodeLabel}` : 'Configura unidades'}
                         </p>
                       </div>
-                      <button
-                        type="button"
-                        onClick={() => handleAdd('subrecipe', subrecipe.id, unitCode)}
-                        disabled={isSubmitting || !canAdd}
-                        className="rounded-full border border-slate-600 px-3 py-1 text-xs font-semibold text-slate-200 transition hover:border-slate-400 disabled:cursor-not-allowed disabled:opacity-60"
-                      >
-                        Añadir (1 {unitCodeLabel}) →
-                      </button>
+                      <div className="flex flex-col items-end gap-2">
+                        <select
+                          className="rounded-md border border-slate-700 bg-slate-950/70 px-2 py-1 text-xs text-white"
+                          value={unitCode}
+                          onChange={(event) =>
+                            setSelectedUnitCodeById((prev) => ({
+                              ...prev,
+                              [subrecipe.id]: event.target.value,
+                            }))
+                          }
+                          disabled={!hasUnits || unitsInDimension.length === 0}
+                        >
+                          {unitsInDimension.length === 0 ? (
+                            <option value="">Sin unidades</option>
+                          ) : (
+                            unitsInDimension.map((unit) => (
+                              <option key={unit.code} value={unit.code}>
+                                {unit.code}
+                              </option>
+                            ))
+                          )}
+                        </select>
+                        <button
+                          type="button"
+                          onClick={() => handleAdd('subrecipe', subrecipe.id, unitCode)}
+                          disabled={isSubmitting || !canAdd}
+                          className="rounded-full border border-slate-600 px-3 py-1 text-xs font-semibold text-slate-200 transition hover:border-slate-400 disabled:cursor-not-allowed disabled:opacity-60"
+                        >
+                          Añadir (1 {unitCodeLabel}) →
+                        </button>
+                      </div>
                     </li>
                   );
                 })}
