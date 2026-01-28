@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createSupabaseRouteHandlerClient, mergeResponseCookies } from '@/lib/supabase/route';
 import { createSupabaseAdminClient } from '@/lib/supabaseAdmin';
 import { getAllowlistRoleForUserEmail, isAdmin } from '@/lib/auth/requireRole';
+import { isValidGroupEventStatus } from '@/lib/groupEvents/status';
 
 export const runtime = 'nodejs';
 
@@ -59,6 +60,12 @@ export async function POST(req: NextRequest) {
 
     // Mantenemos updated_at siempre coherente
     updateData.updated_at = new Date().toISOString();
+
+    if (updateData.status !== undefined && !isValidGroupEventStatus(updateData.status)) {
+      const invalidStatus = NextResponse.json({ error: 'Invalid status' }, { status: 400 });
+      mergeResponseCookies(supabaseResponse, invalidStatus);
+      return invalidStatus;
+    }
 
     const supabase = createSupabaseAdminClient();
 

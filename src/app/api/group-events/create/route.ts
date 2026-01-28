@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createSupabaseAdminClient } from '@/lib/supabaseAdmin';
 import { createSupabaseRouteHandlerClient, mergeResponseCookies } from '@/lib/supabase/route';
 import { getAllowlistRoleForUserEmail, isAdmin } from '@/lib/auth/requireRole';
+import { isValidGroupEventStatus } from '@/lib/groupEvents/status';
 
 export const runtime = 'nodejs';
 
@@ -64,6 +65,10 @@ export async function POST(req: NextRequest) {
 
     if (!payload) {
       return respond({ error: 'Missing payload' }, { status: 400, headers: noStoreHeaders });
+    }
+
+    if (payload.status !== undefined && payload.status !== null && !isValidGroupEventStatus(payload.status)) {
+      return respond({ error: 'Invalid status' }, { status: 400, headers: noStoreHeaders });
     }
 
     const {
