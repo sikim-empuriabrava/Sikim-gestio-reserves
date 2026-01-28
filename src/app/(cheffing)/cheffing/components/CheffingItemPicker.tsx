@@ -33,6 +33,7 @@ export function CheffingItemPicker({
     ingredients.length > 0 ? 'ingredient' : 'subrecipe',
   );
   const [searchTerm, setSearchTerm] = useState('');
+  const hasUnits = units.length > 0;
 
   const normalizeUnitCode = (code: string) => code.trim().toLowerCase();
 
@@ -93,6 +94,7 @@ export function CheffingItemPicker({
     preferredCode: string | null | undefined;
     dimensionFallback: UnitDimension;
   }) => {
+    if (!hasUnits) return '';
     const preferredUnit = getUnitFromCode(preferredCode);
     const resolvedDimension = preferredUnit?.dimension ?? dimensionFallback;
     if (preferredUnit && preferredUnit.to_base_factor === 1) {
@@ -100,7 +102,7 @@ export function CheffingItemPicker({
     }
     const fallbackUnit =
       getBaseUnitForDimension(resolvedDimension) ?? getFallbackUnitForDimension(resolvedDimension);
-    return fallbackUnit?.code.trim() ?? (units.length > 0 ? '' : 'g');
+    return fallbackUnit?.code.trim() ?? '';
   };
 
   const filteredIngredients = useMemo(() => {
@@ -118,7 +120,7 @@ export function CheffingItemPicker({
   const isPendingRef = useRef(false);
 
   const handleAdd = async (type: 'ingredient' | 'subrecipe', id: string, unitCode: string) => {
-    if (isSubmitting || isPendingRef.current || !unitCode.trim()) return;
+    if (!hasUnits || isSubmitting || isPendingRef.current || !unitCode.trim()) return;
     isPendingRef.current = true;
     try {
       await onAddItem({ type, id, unitCode });
@@ -214,8 +216,8 @@ export function CheffingItemPicker({
                       dimensionFallback: dimension,
                     });
                     const purchaseUnitLabel = preferredCode?.trim() ? preferredCode.trim() : '—';
-                    const unitCodeLabel = unitCode.trim() ? unitCode.trim() : '—';
-                    const canAdd = Boolean(unitCode.trim());
+                    const canAdd = hasUnits && Boolean(unitCode.trim());
+                    const unitCodeLabel = canAdd ? unitCode.trim() : '—';
                     return (
                       <li key={ingredient.id} className="flex items-center justify-between gap-3 px-4 py-3">
                         <div>
@@ -250,8 +252,8 @@ export function CheffingItemPicker({
                     dimensionFallback: dimension,
                   });
                   const outputUnitLabel = preferredCode?.trim() ? preferredCode.trim() : '—';
-                  const unitCodeLabel = unitCode.trim() ? unitCode.trim() : '—';
-                  const canAdd = Boolean(unitCode.trim());
+                  const canAdd = hasUnits && Boolean(unitCode.trim());
+                  const unitCodeLabel = canAdd ? unitCode.trim() : '—';
                   return (
                     <li key={subrecipe.id} className="flex items-center justify-between gap-3 px-4 py-3">
                       <div>
