@@ -907,7 +907,6 @@ CREATE TABLE public.group_events (
     CONSTRAINT group_events_children_check CHECK ((children >= 0)),
     CONSTRAINT group_events_deposit_amount_check CHECK ((deposit_amount >= (0)::numeric)),
     CONSTRAINT group_events_deposit_status_check CHECK ((deposit_status = ANY (ARRAY['pending'::text, 'paid'::text, 'refunded'::text, 'not_required'::text]))),
-    CONSTRAINT group_events_status_check CHECK ((status = ANY (ARRAY['draft'::text, 'confirmed'::text, 'cancelled'::text]))),
     CONSTRAINT group_events_status_chk CHECK ((status = ANY (ARRAY['draft'::text, 'pending'::text, 'confirmed'::text, 'completed'::text, 'cancelled'::text, 'no_show'::text])))
 );
 
@@ -2351,4 +2350,3 @@ CREATE POLICY "read own allowlist row" ON public.app_allowed_users FOR SELECT TO
 --
 
 \unrestrict eUV8jetgi9GEbRUOEGAopfZyjyQxX7eDelMbYVxBc7Gtwo59X3tnGVBZpJnWErG
-
