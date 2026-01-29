@@ -226,11 +226,10 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
       resolvedMaxStockQty = resolvedMaxStockQty ?? current.max_stock_qty ?? null;
     }
 
-    if (
-      resolvedMinStockQty !== null &&
-      resolvedMaxStockQty !== null &&
-      resolvedMaxStockQty < resolvedMinStockQty
-    ) {
+    const minQty = resolvedMinStockQty ?? null;
+    const maxQty = resolvedMaxStockQty ?? null;
+
+    if (minQty !== null && maxQty !== null && maxQty < minQty) {
       const invalid = NextResponse.json({ error: 'Invalid stock range' }, { status: 400 });
       mergeResponseCookies(access.supabaseResponse, invalid);
       return invalid;
