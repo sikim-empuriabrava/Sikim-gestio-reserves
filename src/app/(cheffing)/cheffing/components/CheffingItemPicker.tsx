@@ -128,7 +128,7 @@ export function CheffingItemPicker({
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <p className="text-xs uppercase text-slate-500">Selector</p>
-          <h4 className="text-base font-semibold text-white">Añadir ingredientes o elaboraciones</h4>
+          <h4 className="text-base font-semibold text-white">Añadir productos o elaboraciones</h4>
         </div>
         <input
           type="search"
@@ -149,7 +149,7 @@ export function CheffingItemPicker({
                 target="_blank"
                 rel="noreferrer"
               >
-                Nuevo ingrediente
+                Nuevo producto
               </Link>
               <Link
                 href={subrecipeNewHref}
@@ -178,7 +178,7 @@ export function CheffingItemPicker({
                     : 'text-slate-400 hover:text-slate-200'
                 }`}
               >
-                Ingredientes
+                Productos
               </button>
               <button
                 type="button"
@@ -197,7 +197,7 @@ export function CheffingItemPicker({
           <div className="max-h-[420px] overflow-y-auto rounded-xl border border-slate-800/70">
             {activeTab === 'ingredient' ? (
               filteredIngredients.length === 0 ? (
-                <p className="px-4 py-6 text-sm text-slate-500">No se encontraron ingredientes.</p>
+                <p className="px-4 py-6 text-sm text-slate-500">No se encontraron productos.</p>
               ) : (
                 <ul className="divide-y divide-slate-800/70">
                   {filteredIngredients.map((ingredient) => {

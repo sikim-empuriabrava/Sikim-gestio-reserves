@@ -2,13 +2,13 @@ import Link from 'next/link';
 
 const modules = [
   {
-    title: 'Ingredientes',
-    description: 'Controla materias primas y fichas técnicas.',
-    href: '/cheffing/ingredientes',
+    title: 'Productos',
+    description: 'Controla materias primas, proveedores y fichas técnicas.',
+    href: '/cheffing/productos',
   },
   {
     title: 'Elaboraciones',
-    description: 'Crea elaboraciones internas con ingredientes y merma.',
+    description: 'Crea elaboraciones internas con productos y merma.',
     href: '/cheffing/elaboraciones',
   },
   {
@@ -28,7 +28,7 @@ export default function CheffingPage() {
     <section className="space-y-6">
       <div className="rounded-2xl border border-slate-800/80 bg-slate-900/70 p-6 text-sm text-slate-200">
         <p>
-          Este módulo centraliza toda la gestión de cocina: ingredientes, escandallos y menús.
+          Este módulo centraliza toda la gestión de cocina: productos, escandallos y menús.
         </p>
       </div>
 

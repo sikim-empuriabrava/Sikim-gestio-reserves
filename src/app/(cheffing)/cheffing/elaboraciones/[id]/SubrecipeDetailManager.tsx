@@ -400,7 +400,7 @@ export function SubrecipeDetailManager({
       <div className="space-y-4 rounded-2xl border border-slate-800/70 bg-slate-950/60 p-5">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
-            <h3 className="text-lg font-semibold text-white">Ingredientes y elaboraciones</h3>
+            <h3 className="text-lg font-semibold text-white">Productos y elaboraciones</h3>
             <p className="text-sm text-slate-400">Añade líneas de coste para esta elaboración.</p>
           </div>
           {itemsError ? <p className="text-sm text-rose-400">{itemsError}</p> : null}
@@ -409,7 +409,7 @@ export function SubrecipeDetailManager({
           ingredients={ingredients}
           subrecipes={subrecipeOptions}
           units={units}
-          ingredientNewHref="/cheffing/ingredientes/new"
+          ingredientNewHref="/cheffing/productos/new"
           subrecipeNewHref="/cheffing/elaboraciones/new"
           mode="recipe"
           isSubmitting={isSubmitting}
@@ -432,17 +432,17 @@ export function SubrecipeDetailManager({
               {items.length === 0 ? (
                 <tr>
                   <td colSpan={7} className="px-4 py-6 text-center text-sm text-slate-500">
-                    Añade ingredientes o elaboraciones para calcular el coste.
+                    Añade productos o elaboraciones para calcular el coste.
                   </td>
                 </tr>
               ) : (
                 items.map((item) => {
                   const isEditing = editingItemId === item.id;
                   const editingValues = isEditing ? editingItemState : null;
-                  const itemType = item.ingredient_id ? 'Ingrediente' : 'Elaboración';
+                  const itemType = item.ingredient_id ? 'Producto' : 'Elaboración';
                   const itemName = item.ingredient?.name ?? item.subrecipe_component?.name ?? '—';
                   const itemLink = item.ingredient_id
-                    ? '/cheffing/ingredientes'
+                    ? `/cheffing/productos/${item.ingredient_id}`
                     : item.subrecipe_component_id
                       ? `/cheffing/elaboraciones/${item.subrecipe_component_id}`
                       : '#';
@@ -475,7 +475,7 @@ export function SubrecipeDetailManager({
                                   )
                                 }
                               >
-                              <option value="ingredient">Ingrediente</option>
+                              <option value="ingredient">Producto</option>
                               <option value="subrecipe">Elaboración</option>
                             </select>
                             {editingValues?.itemType === 'ingredient' ? (

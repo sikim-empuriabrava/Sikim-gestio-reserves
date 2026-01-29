@@ -784,10 +784,19 @@ CREATE TABLE public.cheffing_ingredients (
     purchase_pack_qty numeric NOT NULL,
     purchase_price numeric NOT NULL,
     waste_pct numeric DEFAULT 0 NOT NULL,
+    categories text[] DEFAULT '{}'::text[] NOT NULL,
+    reference text,
+    stock_unit_code text,
+    stock_qty numeric DEFAULT 0 NOT NULL,
+    min_stock_qty numeric,
+    max_stock_qty numeric,
+    allergen_codes text[] DEFAULT '{}'::text[] NOT NULL,
+    indicator_codes text[] DEFAULT '{}'::text[] NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     updated_at timestamp with time zone DEFAULT now() NOT NULL,
     CONSTRAINT cheffing_ingredients_purchase_pack_qty_check CHECK ((purchase_pack_qty > (0)::numeric)),
     CONSTRAINT cheffing_ingredients_purchase_price_check CHECK ((purchase_price >= (0)::numeric)),
+    CONSTRAINT cheffing_ingredients_stock_qty_check CHECK ((stock_qty >= (0)::numeric)),
     CONSTRAINT cheffing_ingredients_waste_lt_one CHECK (((waste_pct >= (0)::numeric) AND (waste_pct < (1)::numeric))),
     CONSTRAINT cheffing_ingredients_waste_pct_check CHECK (((waste_pct >= (0)::numeric) AND (waste_pct < (1)::numeric)))
 );
@@ -1605,6 +1614,26 @@ CREATE UNIQUE INDEX cheffing_ingredients_name_ci_unique ON public.cheffing_ingre
 
 CREATE INDEX cheffing_ingredients_purchase_unit_code_idx ON public.cheffing_ingredients USING btree (purchase_unit_code);
 
+--
+-- Name: cheffing_ingredients_categories_gin_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX cheffing_ingredients_categories_gin_idx ON public.cheffing_ingredients USING gin (categories);
+
+
+--
+-- Name: cheffing_ingredients_allergen_codes_gin_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX cheffing_ingredients_allergen_codes_gin_idx ON public.cheffing_ingredients USING gin (allergen_codes);
+
+
+--
+-- Name: cheffing_ingredients_indicator_codes_gin_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX cheffing_ingredients_indicator_codes_gin_idx ON public.cheffing_ingredients USING gin (indicator_codes);
+
 
 --
 -- Name: cheffing_subrecipe_items_ingredient_id_idx; Type: INDEX; Schema: public; Owner: -
@@ -2022,6 +2051,14 @@ ALTER TABLE ONLY public.cheffing_dish_items
 
 ALTER TABLE ONLY public.cheffing_ingredients
     ADD CONSTRAINT cheffing_ingredients_purchase_unit_code_fkey FOREIGN KEY (purchase_unit_code) REFERENCES public.cheffing_units(code);
+
+
+--
+-- Name: cheffing_ingredients cheffing_ingredients_stock_unit_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.cheffing_ingredients
+    ADD CONSTRAINT cheffing_ingredients_stock_unit_fk FOREIGN KEY (stock_unit_code) REFERENCES public.cheffing_units(code);
 
 
 --
