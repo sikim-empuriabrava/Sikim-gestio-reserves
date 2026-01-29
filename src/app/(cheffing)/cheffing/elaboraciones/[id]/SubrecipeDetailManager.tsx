@@ -409,8 +409,6 @@ export function SubrecipeDetailManager({
           ingredients={ingredients}
           subrecipes={subrecipeOptions}
           units={units}
-          ingredientNewHref="/cheffing/productos/new"
-          subrecipeNewHref="/cheffing/elaboraciones/new"
           mode="recipe"
           isSubmitting={isSubmitting}
           onAddItem={addItem}

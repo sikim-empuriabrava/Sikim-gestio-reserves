@@ -2,17 +2,12 @@
 
 import { useMemo, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
-import Link from 'next/link';
-import { useRouter } from 'next/navigation';
-
 import type { Ingredient, Subrecipe, Unit, UnitDimension } from '@/lib/cheffing/types';
 
 type CheffingItemPickerProps = {
   ingredients: Ingredient[];
   subrecipes: Subrecipe[];
   units: Unit[];
-  ingredientNewHref: string;
-  subrecipeNewHref: string;
   mode?: 'recipe' | 'stock';
   isSubmitting?: boolean;
   onAddItem: (payload: { type: 'ingredient' | 'subrecipe'; id: string; unitCode: string }) => Promise<void>;
@@ -23,14 +18,11 @@ export function CheffingItemPicker({
   ingredients,
   subrecipes,
   units,
-  ingredientNewHref,
-  subrecipeNewHref,
   mode = 'recipe',
   isSubmitting,
   onAddItem,
   children,
 }: CheffingItemPickerProps) {
-  const router = useRouter();
   const [activeTab, setActiveTab] = useState<'ingredient' | 'subrecipe'>(
     ingredients.length > 0 ? 'ingredient' : 'subrecipe',
   );
@@ -139,35 +131,9 @@ export function CheffingItemPicker({
         />
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.3fr)]">
+      <div className="space-y-6">
         <div className="space-y-4 rounded-2xl border border-slate-800/70 bg-slate-950/60 p-4">
           <div className="flex flex-wrap items-center justify-between gap-3">
-            <div className="flex flex-wrap gap-2">
-              <Link
-                href={ingredientNewHref}
-                className="rounded-full border border-emerald-400/60 bg-emerald-500/10 px-3 py-1 text-xs font-semibold text-emerald-100 transition hover:border-emerald-300"
-                target="_blank"
-                rel="noreferrer"
-              >
-                Nuevo producto
-              </Link>
-              <Link
-                href={subrecipeNewHref}
-                className="rounded-full border border-sky-400/60 bg-sky-500/10 px-3 py-1 text-xs font-semibold text-sky-100 transition hover:border-sky-300"
-                target="_blank"
-                rel="noreferrer"
-              >
-                Nueva elaboración
-              </Link>
-              <button
-                type="button"
-                onClick={() => router.refresh()}
-                disabled={isSubmitting}
-                className="rounded-full border border-slate-600 px-3 py-1 text-xs font-semibold text-slate-200 transition hover:border-slate-400 disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                Actualizar lista
-              </button>
-            </div>
             <div className="flex rounded-full border border-slate-700 bg-slate-950/70 p-1 text-xs">
               <button
                 type="button"
@@ -323,12 +289,12 @@ export function CheffingItemPicker({
           </div>
         </div>
 
-        <div className="space-y-3">
+        <div className="space-y-3 rounded-2xl border border-slate-800/70 bg-slate-950/60 p-4">
           <div>
             <p className="text-xs uppercase text-slate-500">Elementos seleccionados</p>
             <p className="text-sm text-slate-400">Revisa y ajusta cantidades o mermas.</p>
           </div>
-          {children}
+          <div className="w-full overflow-x-auto">{children}</div>
         </div>
       </div>
     </div>

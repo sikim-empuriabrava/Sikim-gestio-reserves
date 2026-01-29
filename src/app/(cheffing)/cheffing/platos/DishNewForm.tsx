@@ -268,8 +268,6 @@ export function DishNewForm({ ingredients, subrecipes, units }: DishNewFormProps
           ingredients={ingredients}
           subrecipes={subrecipes}
           units={units}
-          ingredientNewHref="/cheffing/productos/new"
-          subrecipeNewHref="/cheffing/elaboraciones/new"
           mode="recipe"
           isSubmitting={isSubmitting}
           onAddItem={addDraftItem}

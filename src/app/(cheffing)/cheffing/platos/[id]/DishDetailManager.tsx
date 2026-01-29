@@ -378,8 +378,6 @@ export function DishDetailManager({ dish, items, ingredients, subrecipes, units 
           ingredients={ingredients}
           subrecipes={subrecipes}
           units={units}
-          ingredientNewHref="/cheffing/productos/new"
-          subrecipeNewHref="/cheffing/elaboraciones/new"
           mode="recipe"
           isSubmitting={isSubmitting}
           onAddItem={addItem}
