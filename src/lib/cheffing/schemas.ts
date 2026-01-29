@@ -42,6 +42,20 @@ export const subrecipeItemSchema = z
     { message: 'Invalid component selection' },
   );
 
+export const subrecipeItemCreateSchema = z
+  .object({
+    ingredient_id: z.string().uuid().nullable(),
+    subrecipe_component_id: z.string().uuid().nullable(),
+    unit_code: trimmedString.min(1),
+    quantity: z.number().positive(),
+    waste_pct: wastePctSchema.optional(),
+    notes: notesSchema.optional(),
+  })
+  .refine(
+    (data) => (data.ingredient_id ? 1 : 0) + (data.subrecipe_component_id ? 1 : 0) === 1,
+    { message: 'Invalid component selection' },
+  );
+
 export const dishCreateSchema = z.object({
   name: trimmedString.min(1),
   selling_price: z.number().min(0).nullable().optional(),
@@ -66,9 +80,36 @@ export const dishItemSchema = z
     message: 'Invalid component selection',
   });
 
+export const dishItemCreateSchema = z
+  .object({
+    ingredient_id: z.string().uuid().nullable(),
+    subrecipe_id: z.string().uuid().nullable(),
+    unit_code: trimmedString.min(1),
+    quantity: z.number().positive(),
+    waste_pct: wastePctSchema.optional(),
+    notes: notesSchema.optional(),
+  })
+  .refine((data) => (data.ingredient_id ? 1 : 0) + (data.subrecipe_id ? 1 : 0) === 1, {
+    message: 'Invalid component selection',
+  });
+
+export const subrecipeCreateWithItemsSchema = z.object({
+  subrecipe: subrecipeCreateSchema,
+  items: z.array(subrecipeItemCreateSchema).optional().default([]),
+});
+
+export const dishCreateWithItemsSchema = z.object({
+  dish: dishCreateSchema,
+  items: z.array(dishItemCreateSchema).optional().default([]),
+});
+
 export type SubrecipeCreateInput = z.infer<typeof subrecipeCreateSchema>;
 export type SubrecipeUpdateInput = z.infer<typeof subrecipeUpdateSchema>;
 export type SubrecipeItemInput = z.infer<typeof subrecipeItemSchema>;
+export type SubrecipeItemCreateInput = z.infer<typeof subrecipeItemCreateSchema>;
+export type SubrecipeCreateWithItemsInput = z.infer<typeof subrecipeCreateWithItemsSchema>;
 export type DishCreateInput = z.infer<typeof dishCreateSchema>;
 export type DishUpdateInput = z.infer<typeof dishUpdateSchema>;
 export type DishItemInput = z.infer<typeof dishItemSchema>;
+export type DishItemCreateInput = z.infer<typeof dishItemCreateSchema>;
+export type DishCreateWithItemsInput = z.infer<typeof dishCreateWithItemsSchema>;

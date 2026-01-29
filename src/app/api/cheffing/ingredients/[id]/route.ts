@@ -206,10 +206,12 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   const supabase = createSupabaseAdminClient();
 
   if (updates.min_stock_qty !== undefined || updates.max_stock_qty !== undefined) {
-    let resolvedMinStockQty = updates.min_stock_qty as number | null | undefined;
-    let resolvedMaxStockQty = updates.max_stock_qty as number | null | undefined;
+    const updatedMinStockQty = updates.min_stock_qty as number | null | undefined;
+    const updatedMaxStockQty = updates.max_stock_qty as number | null | undefined;
+    let resolvedMinStockQty: number | null = updatedMinStockQty ?? null;
+    let resolvedMaxStockQty: number | null = updatedMaxStockQty ?? null;
 
-    if (resolvedMinStockQty === undefined || resolvedMaxStockQty === undefined) {
+    if (updatedMinStockQty === undefined || updatedMaxStockQty === undefined) {
       const { data: current, error: currentError } = await supabase
         .from('cheffing_ingredients')
         .select('min_stock_qty, max_stock_qty')
@@ -222,14 +224,10 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
         return invalid;
       }
 
-      resolvedMinStockQty = resolvedMinStockQty ?? current.min_stock_qty ?? null;
-      resolvedMaxStockQty = resolvedMaxStockQty ?? current.max_stock_qty ?? null;
+      resolvedMinStockQty = updatedMinStockQty ?? current.min_stock_qty ?? null;
+      resolvedMaxStockQty = updatedMaxStockQty ?? current.max_stock_qty ?? null;
     }
-
-    const minQty = resolvedMinStockQty ?? null;
-    const maxQty = resolvedMaxStockQty ?? null;
-
-    if (minQty !== null && maxQty !== null && maxQty < minQty) {
+    if (resolvedMinStockQty != null && resolvedMaxStockQty != null && resolvedMaxStockQty < resolvedMinStockQty) {
       const invalid = NextResponse.json({ error: 'Invalid stock range' }, { status: 400 });
       mergeResponseCookies(access.supabaseResponse, invalid);
       return invalid;

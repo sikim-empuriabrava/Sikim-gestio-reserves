@@ -1,6 +1,6 @@
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { requireCheffingAccess } from '@/lib/cheffing/requireCheffing';
-import type { Unit } from '@/lib/cheffing/types';
+import type { Ingredient, Subrecipe, Unit } from '@/lib/cheffing/types';
 
 import { SubrecipeNewForm } from '../SubrecipeNewForm';
 
@@ -8,14 +8,25 @@ export default async function CheffingElaboracionesNewPage() {
   await requireCheffingAccess();
 
   const supabase = createSupabaseServerClient();
+  const { data: ingredients, error: ingredientsError } = await supabase
+    .from('cheffing_ingredients')
+    .select('id, name, purchase_unit_code, purchase_pack_qty, purchase_price, waste_pct, created_at, updated_at')
+    .order('name', { ascending: true });
+  const { data: subrecipes, error: subrecipesError } = await supabase
+    .from('cheffing_subrecipes')
+    .select('id, name, output_unit_code, output_qty, waste_pct, notes, created_at, updated_at')
+    .order('name', { ascending: true });
   const { data: units, error: unitsError } = await supabase
     .from('cheffing_units')
     .select('code, name, dimension, to_base_factor')
     .order('dimension', { ascending: true })
     .order('to_base_factor', { ascending: true });
 
-  if (unitsError) {
-    console.error('[cheffing/elaboraciones/new] Failed to load units', unitsError);
+  if (ingredientsError || subrecipesError || unitsError) {
+    console.error(
+      '[cheffing/elaboraciones/new] Failed to load data',
+      ingredientsError ?? subrecipesError ?? unitsError,
+    );
   }
 
   return (
@@ -27,7 +38,11 @@ export default async function CheffingElaboracionesNewPage() {
         </p>
       </header>
 
-      <SubrecipeNewForm units={(units ?? []) as Unit[]} />
+      <SubrecipeNewForm
+        ingredients={(ingredients ?? []) as Ingredient[]}
+        subrecipes={(subrecipes ?? []) as Subrecipe[]}
+        units={(units ?? []) as Unit[]}
+      />
     </section>
   );
 }
