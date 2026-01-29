@@ -299,8 +299,6 @@ export function SubrecipeNewForm({ ingredients, subrecipes, units }: SubrecipeNe
           ingredients={ingredients}
           subrecipes={subrecipes}
           units={units}
-          ingredientNewHref="/cheffing/productos/new"
-          subrecipeNewHref="/cheffing/elaboraciones/new"
           mode="recipe"
           isSubmitting={isSubmitting}
           onAddItem={addDraftItem}
