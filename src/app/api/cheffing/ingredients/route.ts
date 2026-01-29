@@ -12,6 +12,16 @@ function isValidNumber(value: unknown): value is number {
   return typeof value === 'number' && Number.isFinite(value);
 }
 
+function sanitizeStringArray(value: unknown): string[] | null {
+  if (!Array.isArray(value)) {
+    return null;
+  }
+  const cleaned = value
+    .map((entry) => (typeof entry === 'string' ? entry.trim().toLowerCase() : ''))
+    .filter(Boolean);
+  return Array.from(new Set(cleaned));
+}
+
 export async function POST(req: NextRequest) {
   const supabaseResponse = NextResponse.next();
   const authClient = createSupabaseRouteHandlerClient(supabaseResponse);
@@ -58,6 +68,14 @@ export async function POST(req: NextRequest) {
   const packQty = body?.purchase_pack_qty;
   const price = body?.purchase_price;
   const wastePct = body?.waste_pct;
+  const categoriesInput = body?.categories;
+  const referenceInput = body?.reference;
+  const stockUnitInput = body?.stock_unit_code;
+  const stockQty = body?.stock_qty;
+  const minStockQty = body?.min_stock_qty;
+  const maxStockQty = body?.max_stock_qty;
+  const allergenInput = body?.allergen_codes;
+  const indicatorInput = body?.indicator_codes;
 
   if (!name || !purchaseUnit) {
     const missing = NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
@@ -83,6 +101,61 @@ export async function POST(req: NextRequest) {
     return invalid;
   }
 
+  const categories = categoriesInput === undefined ? [] : sanitizeStringArray(categoriesInput);
+  if (categories === null) {
+    const invalid = NextResponse.json({ error: 'Invalid categories' }, { status: 400 });
+    mergeResponseCookies(supabaseResponse, invalid);
+    return invalid;
+  }
+
+  const allergenCodes = allergenInput === undefined ? [] : sanitizeStringArray(allergenInput);
+  if (allergenCodes === null) {
+    const invalid = NextResponse.json({ error: 'Invalid allergen_codes' }, { status: 400 });
+    mergeResponseCookies(supabaseResponse, invalid);
+    return invalid;
+  }
+
+  const indicatorCodes = indicatorInput === undefined ? [] : sanitizeStringArray(indicatorInput);
+  if (indicatorCodes === null) {
+    const invalid = NextResponse.json({ error: 'Invalid indicator_codes' }, { status: 400 });
+    mergeResponseCookies(supabaseResponse, invalid);
+    return invalid;
+  }
+
+  const reference = typeof referenceInput === 'string' ? referenceInput.trim() : '';
+  const stockUnitCode = typeof stockUnitInput === 'string' ? stockUnitInput.trim() : '';
+
+  const resolvedStockQty = stockQty === undefined ? 0 : stockQty;
+  if (!isValidNumber(resolvedStockQty) || resolvedStockQty < 0) {
+    const invalid = NextResponse.json({ error: 'Invalid stock_qty' }, { status: 400 });
+    mergeResponseCookies(supabaseResponse, invalid);
+    return invalid;
+  }
+
+  const resolvedMinStockQty = minStockQty === undefined || minStockQty === null ? null : minStockQty;
+  if (resolvedMinStockQty !== null && (!isValidNumber(resolvedMinStockQty) || resolvedMinStockQty < 0)) {
+    const invalid = NextResponse.json({ error: 'Invalid min_stock_qty' }, { status: 400 });
+    mergeResponseCookies(supabaseResponse, invalid);
+    return invalid;
+  }
+
+  const resolvedMaxStockQty = maxStockQty === undefined || maxStockQty === null ? null : maxStockQty;
+  if (resolvedMaxStockQty !== null && (!isValidNumber(resolvedMaxStockQty) || resolvedMaxStockQty < 0)) {
+    const invalid = NextResponse.json({ error: 'Invalid max_stock_qty' }, { status: 400 });
+    mergeResponseCookies(supabaseResponse, invalid);
+    return invalid;
+  }
+
+  if (
+    resolvedMinStockQty !== null &&
+    resolvedMaxStockQty !== null &&
+    resolvedMaxStockQty < resolvedMinStockQty
+  ) {
+    const invalid = NextResponse.json({ error: 'Invalid stock range' }, { status: 400 });
+    mergeResponseCookies(supabaseResponse, invalid);
+    return invalid;
+  }
+
   const supabase = createSupabaseAdminClient();
   const { data, error } = await supabase
     .from('cheffing_ingredients')
@@ -92,6 +165,14 @@ export async function POST(req: NextRequest) {
       purchase_pack_qty: packQty,
       purchase_price: price,
       waste_pct: wastePct,
+      categories,
+      reference: reference || null,
+      stock_unit_code: stockUnitCode || null,
+      stock_qty: resolvedStockQty,
+      min_stock_qty: resolvedMinStockQty,
+      max_stock_qty: resolvedMaxStockQty,
+      allergen_codes: allergenCodes,
+      indicator_codes: indicatorCodes,
     })
     .select('id')
     .maybeSingle();

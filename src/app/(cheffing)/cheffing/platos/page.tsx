@@ -20,7 +20,7 @@ export default async function CheffingPlatosPage() {
       <header className="space-y-2">
         <h2 className="text-xl font-semibold text-white">Platos</h2>
         <p className="text-sm text-slate-400">
-          Organiza los platos finales y calcula el coste total a partir de ingredientes y elaboraciones.
+          Organiza los platos finales y calcula el coste total a partir de productos y elaboraciones.
         </p>
       </header>
 
