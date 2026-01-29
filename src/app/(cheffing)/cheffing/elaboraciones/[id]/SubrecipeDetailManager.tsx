@@ -442,7 +442,7 @@ export function SubrecipeDetailManager({
                   const itemType = item.ingredient_id ? 'Producto' : 'Elaboración';
                   const itemName = item.ingredient?.name ?? item.subrecipe_component?.name ?? '—';
                   const itemLink = item.ingredient_id
-                    ? '/cheffing/productos'
+                    ? `/cheffing/productos/${item.ingredient_id}`
                     : item.subrecipe_component_id
                       ? `/cheffing/elaboraciones/${item.subrecipe_component_id}`
                       : '#';

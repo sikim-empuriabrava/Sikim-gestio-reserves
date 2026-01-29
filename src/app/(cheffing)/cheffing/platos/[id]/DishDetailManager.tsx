@@ -411,7 +411,7 @@ export function DishDetailManager({ dish, items, ingredients, subrecipes, units 
                   const itemType = item.ingredient_id ? 'Producto' : 'Elaboración';
                   const itemName = item.ingredient?.name ?? item.subrecipe?.name ?? '—';
                   const itemLink = item.ingredient_id
-                    ? '/cheffing/productos'
+                    ? `/cheffing/productos/${item.ingredient_id}`
                     : item.subrecipe_id
                       ? `/cheffing/elaboraciones/${item.subrecipe_id}`
                       : '#';
