@@ -3,6 +3,8 @@ import { notFound } from 'next/navigation';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { requireCheffingAccess } from '@/lib/cheffing/requireCheffing';
 import type { Ingredient, Subrecipe, Unit } from '@/lib/cheffing/types';
+import type { AllergenKey, IndicatorKey } from '@/lib/cheffing/allergensIndicators';
+import { isAllergenKey, isIndicatorKey } from '@/lib/cheffing/allergensHelpers';
 
 import {
   SubrecipeDetailManager,
@@ -92,10 +94,10 @@ export default async function CheffingElaboracionDetailPage({ params }: { params
     if (cached) return cached;
 
     const current = subrecipeLookup.get(subrecipeId);
-    const manualAddAllergens = current?.allergens_manual_add ?? [];
-    const manualExcludeAllergens = current?.allergens_manual_exclude ?? [];
-    const manualAddIndicators = current?.indicators_manual_add ?? [];
-    const manualExcludeIndicators = current?.indicators_manual_exclude ?? [];
+    const manualAddAllergens = (current?.allergens_manual_add ?? []).filter(isAllergenKey) as AllergenKey[];
+    const manualExcludeAllergens = (current?.allergens_manual_exclude ?? []).filter(isAllergenKey) as AllergenKey[];
+    const manualAddIndicators = (current?.indicators_manual_add ?? []).filter(isIndicatorKey) as IndicatorKey[];
+    const manualExcludeIndicators = (current?.indicators_manual_exclude ?? []).filter(isIndicatorKey) as IndicatorKey[];
 
     if (inProgress.has(subrecipeId)) {
       const fallbackAllergens = new Set(manualAddAllergens);
