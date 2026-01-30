@@ -10,7 +10,9 @@ import { CheffingItemPicker } from '@/app/(cheffing)/cheffing/components/Cheffin
 import { AllergensIndicatorsPicker } from '@/app/(cheffing)/cheffing/components/AllergensIndicatorsPicker';
 import { ImageUploader } from '@/app/(cheffing)/cheffing/components/ImageUploader';
 import { createSupabaseBrowserClient } from '@/lib/supabase/browser';
+import type { AllergenKey, IndicatorKey } from '@/lib/cheffing/allergensIndicators';
 import { toAllergenKeys, toIndicatorKeys } from '@/lib/cheffing/allergensHelpers';
+import { addAllergens, addIndicators } from '@/lib/cheffing/allergensIndicatorsOps';
 
 export type DishCost = Dish & {
   items_cost_total: number | null;
@@ -78,36 +80,36 @@ export function DishDetailManager({ dish, items, ingredients, subrecipes, units 
   const supabase = useMemo(() => createSupabaseBrowserClient(), []);
 
   const ingredientsById = useMemo(() => {
-    return new Map(ingredients.map((ingredient) => [ingredient.id, ingredient]));
+    return new Map<string, Ingredient>(ingredients.map((ingredient) => [ingredient.id, ingredient] as const));
   }, [ingredients]);
 
   const subrecipesById = useMemo(() => {
-    return new Map(subrecipes.map((entry) => [entry.id, entry]));
+    return new Map<string, Subrecipe>(subrecipes.map((entry) => [entry.id, entry] as const));
   }, [subrecipes]);
 
   const inheritedAllergens = useMemo(() => {
-    const inherited = new Set<string>();
+    const inherited = new Set<AllergenKey>();
     items.forEach((item) => {
       if (item.ingredient_id) {
         const ingredient = ingredientsById.get(item.ingredient_id);
-        ingredient?.allergens?.forEach((key) => inherited.add(key));
+        addAllergens(inherited, ingredient?.allergens);
       } else if (item.subrecipe_id) {
         const subrecipe = subrecipesById.get(item.subrecipe_id);
-        subrecipe?.effective_allergens?.forEach((key) => inherited.add(key));
+        addAllergens(inherited, subrecipe?.effective_allergens);
       }
     });
     return Array.from(inherited);
   }, [items, ingredientsById, subrecipesById]);
 
   const inheritedIndicators = useMemo(() => {
-    const inherited = new Set<string>();
+    const inherited = new Set<IndicatorKey>();
     items.forEach((item) => {
       if (item.ingredient_id) {
         const ingredient = ingredientsById.get(item.ingredient_id);
-        ingredient?.indicators?.forEach((key) => inherited.add(key));
+        addIndicators(inherited, ingredient?.indicators);
       } else if (item.subrecipe_id) {
         const subrecipe = subrecipesById.get(item.subrecipe_id);
-        subrecipe?.effective_indicators?.forEach((key) => inherited.add(key));
+        addIndicators(inherited, subrecipe?.effective_indicators);
       }
     });
     return Array.from(inherited);

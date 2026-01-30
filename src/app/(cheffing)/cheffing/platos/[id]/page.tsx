@@ -2,7 +2,16 @@ import { notFound } from 'next/navigation';
 
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { requireCheffingAccess } from '@/lib/cheffing/requireCheffing';
+import type { AllergenKey, IndicatorKey } from '@/lib/cheffing/allergensIndicators';
+import { sanitizeAllergens, sanitizeIndicators } from '@/lib/cheffing/allergensHelpers';
 import type { Ingredient, Subrecipe, Unit } from '@/lib/cheffing/types';
+import {
+  addAllergens,
+  addIndicators,
+  removeAllergens,
+  removeIndicators,
+  type EffectiveAI,
+} from '@/lib/cheffing/allergensIndicatorsOps';
 
 import {
   DishDetailManager,
@@ -68,14 +77,25 @@ export default async function CheffingPlatoDetailPage({ params }: { params: { id
     );
   }
 
-  const normalizedItems = (items ?? []).map((item) => ({
+  const dishTyped = dish as typeof dish;
+  const dishItemsTyped = (items ?? []) as Array<{
+    ingredient?: unknown;
+    subrecipe?: unknown;
+    [key: string]: unknown;
+  }>;
+  const ingredientsTyped = (ingredients ?? []) as Ingredient[];
+  const subrecipesTyped = (subrecipes ?? []) as Subrecipe[];
+
+  const normalizedItems = dishItemsTyped.map((item) => ({
     ...item,
     ingredient: Array.isArray(item.ingredient) ? item.ingredient[0] ?? null : item.ingredient ?? null,
     subrecipe: Array.isArray(item.subrecipe) ? item.subrecipe[0] ?? null : item.subrecipe ?? null,
   }));
 
-  const ingredientLookup = new Map((ingredients ?? []).map((entry) => [entry.id, entry]));
-  const subrecipeLookup = new Map((subrecipes ?? []).map((entry) => [entry.id, entry]));
+  const ingredientLookup = new Map<string, Ingredient>(
+    ingredientsTyped.map((entry) => [entry.id, entry] as const),
+  );
+  const subrecipeLookup = new Map<string, Subrecipe>(subrecipesTyped.map((entry) => [entry.id, entry] as const));
   const itemsBySubrecipe = new Map<string, { ingredient_id: string | null; subrecipe_component_id: string | null }[]>();
 
   (subrecipeItems ?? []).forEach((item) => {
@@ -84,66 +104,66 @@ export default async function CheffingPlatoDetailPage({ params }: { params: { id
     itemsBySubrecipe.set(item.subrecipe_id, list);
   });
 
-  const effectiveCache = new Map<string, { allergens: string[]; indicators: string[] }>();
+  const effectiveCache = new Map<string, EffectiveAI>();
   const inProgress = new Set<string>();
 
-  const resolveEffective = (subrecipeId: string) => {
-    const cached = effectiveCache.get(subrecipeId);
+  const resolveEffective = (dishId: string): EffectiveAI => {
+    const cached = effectiveCache.get(dishId);
     if (cached) return cached;
 
-    const current = subrecipeLookup.get(subrecipeId);
-    const manualAddAllergens = current?.allergens_manual_add ?? [];
-    const manualExcludeAllergens = current?.allergens_manual_exclude ?? [];
-    const manualAddIndicators = current?.indicators_manual_add ?? [];
-    const manualExcludeIndicators = current?.indicators_manual_exclude ?? [];
+    const current = dishId === dishTyped?.id ? dishTyped : subrecipeLookup.get(dishId);
+    const manualAddAllergens = sanitizeAllergens(current?.allergens_manual_add);
+    const manualExcludeAllergens = sanitizeAllergens(current?.allergens_manual_exclude);
+    const manualAddIndicators = sanitizeIndicators(current?.indicators_manual_add);
+    const manualExcludeIndicators = sanitizeIndicators(current?.indicators_manual_exclude);
 
-    if (inProgress.has(subrecipeId)) {
-      const fallbackAllergens = new Set(manualAddAllergens);
-      manualExcludeAllergens.forEach((key) => fallbackAllergens.delete(key));
-      const fallbackIndicators = new Set(manualAddIndicators);
-      manualExcludeIndicators.forEach((key) => fallbackIndicators.delete(key));
+    if (inProgress.has(dishId)) {
+      const fallbackAllergens = new Set<AllergenKey>(manualAddAllergens);
+      removeAllergens(fallbackAllergens, manualExcludeAllergens);
+      const fallbackIndicators = new Set<IndicatorKey>(manualAddIndicators);
+      removeIndicators(fallbackIndicators, manualExcludeIndicators);
       const fallback = {
         allergens: Array.from(fallbackAllergens),
         indicators: Array.from(fallbackIndicators),
       };
-      effectiveCache.set(subrecipeId, fallback);
+      effectiveCache.set(dishId, fallback);
       return fallback;
     }
 
-    inProgress.add(subrecipeId);
+    inProgress.add(dishId);
 
-    const inheritedAllergens = new Set<string>();
-    const inheritedIndicators = new Set<string>();
-    const relatedItems = itemsBySubrecipe.get(subrecipeId) ?? [];
+    const inheritedAllergens = new Set<AllergenKey>();
+    const inheritedIndicators = new Set<IndicatorKey>();
+    const relatedItems = itemsBySubrecipe.get(dishId) ?? [];
 
-    relatedItems.forEach((item) => {
+    for (const item of relatedItems) {
       if (item.ingredient_id) {
         const ingredient = ingredientLookup.get(item.ingredient_id);
-        ingredient?.allergens?.forEach((key) => inheritedAllergens.add(key));
-        ingredient?.indicators?.forEach((key) => inheritedIndicators.add(key));
+        addAllergens(inheritedAllergens, ingredient?.allergens);
+        addIndicators(inheritedIndicators, ingredient?.indicators);
       } else if (item.subrecipe_component_id) {
         const nested = resolveEffective(item.subrecipe_component_id);
-        nested.allergens.forEach((key) => inheritedAllergens.add(key));
-        nested.indicators.forEach((key) => inheritedIndicators.add(key));
+        addAllergens(inheritedAllergens, nested.allergens);
+        addIndicators(inheritedIndicators, nested.indicators);
       }
-    });
+    }
 
-    const effectiveAllergens = new Set([...inheritedAllergens, ...manualAddAllergens]);
-    manualExcludeAllergens.forEach((key) => effectiveAllergens.delete(key));
-    const effectiveIndicators = new Set([...inheritedIndicators, ...manualAddIndicators]);
-    manualExcludeIndicators.forEach((key) => effectiveIndicators.delete(key));
+    const effectiveAllergens = new Set<AllergenKey>([...inheritedAllergens, ...manualAddAllergens]);
+    removeAllergens(effectiveAllergens, manualExcludeAllergens);
+    const effectiveIndicators = new Set<IndicatorKey>([...inheritedIndicators, ...manualAddIndicators]);
+    removeIndicators(effectiveIndicators, manualExcludeIndicators);
 
     const resolved = {
       allergens: Array.from(effectiveAllergens),
       indicators: Array.from(effectiveIndicators),
     };
 
-    effectiveCache.set(subrecipeId, resolved);
-    inProgress.delete(subrecipeId);
+    effectiveCache.set(dishId, resolved);
+    inProgress.delete(dishId);
     return resolved;
   };
 
-  const enrichedSubrecipes = (subrecipes ?? []).map((entry) => {
+  const enrichedSubrecipes = subrecipesTyped.map((entry) => {
     const effective = resolveEffective(entry.id);
     return {
       ...entry,
@@ -167,7 +187,7 @@ export default async function CheffingPlatoDetailPage({ params }: { params: { id
       <DishDetailManager
         dish={mergedDish as DishCost}
         items={(normalizedItems ?? []) as DishItemWithDetails[]}
-        ingredients={(ingredients ?? []) as Ingredient[]}
+        ingredients={ingredientsTyped}
         subrecipes={enrichedSubrecipes as Subrecipe[]}
         units={(units ?? []) as Unit[]}
       />

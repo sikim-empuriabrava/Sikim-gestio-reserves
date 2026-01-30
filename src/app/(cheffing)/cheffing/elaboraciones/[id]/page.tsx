@@ -4,7 +4,14 @@ import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { requireCheffingAccess } from '@/lib/cheffing/requireCheffing';
 import type { Ingredient, Subrecipe, Unit } from '@/lib/cheffing/types';
 import type { AllergenKey, IndicatorKey } from '@/lib/cheffing/allergensIndicators';
-import { isAllergenKey, isIndicatorKey } from '@/lib/cheffing/allergensHelpers';
+import { sanitizeAllergens, sanitizeIndicators } from '@/lib/cheffing/allergensHelpers';
+import {
+  addAllergens,
+  addIndicators,
+  removeAllergens,
+  removeIndicators,
+  type EffectiveAI,
+} from '@/lib/cheffing/allergensIndicatorsOps';
 
 import {
   SubrecipeDetailManager,
@@ -76,8 +83,13 @@ export default async function CheffingElaboracionDetailPage({ params }: { params
     };
   });
 
-  const subrecipeLookup = new Map((subrecipes ?? []).map((entry) => [entry.id, entry]));
-  const ingredientLookup = new Map((ingredients ?? []).map((entry) => [entry.id, entry]));
+  const subrecipesTyped = (subrecipes ?? []) as Subrecipe[];
+  const ingredientsTyped = (ingredients ?? []) as Ingredient[];
+
+  const subrecipeLookup = new Map<string, Subrecipe>(subrecipesTyped.map((entry) => [entry.id, entry] as const));
+  const ingredientLookup = new Map<string, Ingredient>(
+    ingredientsTyped.map((entry) => [entry.id, entry] as const),
+  );
   const itemsBySubrecipe = new Map<string, { ingredient_id: string | null; subrecipe_component_id: string | null }[]>();
 
   (subrecipeItems ?? []).forEach((item) => {
@@ -86,24 +98,24 @@ export default async function CheffingElaboracionDetailPage({ params }: { params
     itemsBySubrecipe.set(item.subrecipe_id, list);
   });
 
-  const effectiveCache = new Map<string, { allergens: string[]; indicators: string[] }>();
+  const effectiveCache = new Map<string, EffectiveAI>();
   const inProgress = new Set<string>();
 
-  const resolveEffective = (subrecipeId: string) => {
+  const resolveEffective = (subrecipeId: string): EffectiveAI => {
     const cached = effectiveCache.get(subrecipeId);
     if (cached) return cached;
 
     const current = subrecipeLookup.get(subrecipeId);
-    const manualAddAllergens = (current?.allergens_manual_add ?? []).filter(isAllergenKey) as AllergenKey[];
-    const manualExcludeAllergens = (current?.allergens_manual_exclude ?? []).filter(isAllergenKey) as AllergenKey[];
-    const manualAddIndicators = (current?.indicators_manual_add ?? []).filter(isIndicatorKey) as IndicatorKey[];
-    const manualExcludeIndicators = (current?.indicators_manual_exclude ?? []).filter(isIndicatorKey) as IndicatorKey[];
+    const manualAddAllergens = sanitizeAllergens(current?.allergens_manual_add);
+    const manualExcludeAllergens = sanitizeAllergens(current?.allergens_manual_exclude);
+    const manualAddIndicators = sanitizeIndicators(current?.indicators_manual_add);
+    const manualExcludeIndicators = sanitizeIndicators(current?.indicators_manual_exclude);
 
     if (inProgress.has(subrecipeId)) {
-      const fallbackAllergens = new Set(manualAddAllergens);
-      manualExcludeAllergens.forEach((key) => fallbackAllergens.delete(key));
-      const fallbackIndicators = new Set(manualAddIndicators);
-      manualExcludeIndicators.forEach((key) => fallbackIndicators.delete(key));
+      const fallbackAllergens = new Set<AllergenKey>(manualAddAllergens);
+      removeAllergens(fallbackAllergens, manualExcludeAllergens);
+      const fallbackIndicators = new Set<IndicatorKey>(manualAddIndicators);
+      removeIndicators(fallbackIndicators, manualExcludeIndicators);
       const fallback = {
         allergens: Array.from(fallbackAllergens),
         indicators: Array.from(fallbackIndicators),
@@ -114,28 +126,26 @@ export default async function CheffingElaboracionDetailPage({ params }: { params
 
     inProgress.add(subrecipeId);
 
-    const inheritedAllergens = new Set<string>();
-    const inheritedIndicators = new Set<string>();
+    const inheritedAllergens = new Set<AllergenKey>();
+    const inheritedIndicators = new Set<IndicatorKey>();
     const relatedItems = itemsBySubrecipe.get(subrecipeId) ?? [];
 
-    relatedItems.forEach((item) => {
+    for (const item of relatedItems) {
       if (item.ingredient_id) {
         const ingredient = ingredientLookup.get(item.ingredient_id);
-        const ingredientAllergens = (ingredient?.allergens ?? []).filter(isAllergenKey) as AllergenKey[];
-        const ingredientIndicators = (ingredient?.indicators ?? []).filter(isIndicatorKey) as IndicatorKey[];
-        ingredientAllergens.forEach((key) => inheritedAllergens.add(key));
-        ingredientIndicators.forEach((key) => inheritedIndicators.add(key));
+        addAllergens(inheritedAllergens, ingredient?.allergens);
+        addIndicators(inheritedIndicators, ingredient?.indicators);
       } else if (item.subrecipe_component_id) {
         const nested = resolveEffective(item.subrecipe_component_id);
-        nested.allergens.forEach((key) => inheritedAllergens.add(key));
-        nested.indicators.forEach((key) => inheritedIndicators.add(key));
+        addAllergens(inheritedAllergens, nested.allergens);
+        addIndicators(inheritedIndicators, nested.indicators);
       }
-    });
+    }
 
-    const effectiveAllergens = new Set([...inheritedAllergens, ...manualAddAllergens]);
-    manualExcludeAllergens.forEach((key) => effectiveAllergens.delete(key));
-    const effectiveIndicators = new Set([...inheritedIndicators, ...manualAddIndicators]);
-    manualExcludeIndicators.forEach((key) => effectiveIndicators.delete(key));
+    const effectiveAllergens = new Set<AllergenKey>([...inheritedAllergens, ...manualAddAllergens]);
+    removeAllergens(effectiveAllergens, manualExcludeAllergens);
+    const effectiveIndicators = new Set<IndicatorKey>([...inheritedIndicators, ...manualAddIndicators]);
+    removeIndicators(effectiveIndicators, manualExcludeIndicators);
 
     const resolved = {
       allergens: Array.from(effectiveAllergens),
@@ -147,7 +157,7 @@ export default async function CheffingElaboracionDetailPage({ params }: { params
     return resolved;
   };
 
-  const enrichedSubrecipes = (subrecipes ?? []).map((entry) => {
+  const enrichedSubrecipes = subrecipesTyped.map((entry) => {
     const effective = resolveEffective(entry.id);
     return {
       ...entry,
@@ -172,8 +182,8 @@ export default async function CheffingElaboracionDetailPage({ params }: { params
       <SubrecipeDetailManager
         subrecipe={mergedSubrecipe as SubrecipeCost}
         items={normalizedItems as SubrecipeItemWithDetails[]}
-        ingredients={(ingredients ?? []) as Ingredient[]}
-        subrecipes={enrichedSubrecipes as Subrecipe[]}
+        ingredients={ingredientsTyped}
+        subrecipes={enrichedSubrecipes}
         units={(units ?? []) as Unit[]}
       />
     </section>
