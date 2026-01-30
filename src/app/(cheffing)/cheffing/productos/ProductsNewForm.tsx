@@ -5,12 +5,8 @@ import type { FormEvent, KeyboardEvent } from 'react';
 import { useRouter } from 'next/navigation';
 
 import type { Ingredient, Unit, UnitDimension } from '@/lib/cheffing/types';
-import {
-  ALLERGENS,
-  ALLERGEN_KEYS,
-  INDICATORS,
-  INDICATOR_KEYS,
-} from '@/lib/cheffing/allergensIndicators';
+import { ALLERGENS, INDICATORS } from '@/lib/cheffing/allergensIndicators';
+import { toAllergenKeys, toIndicatorKeys } from '@/lib/cheffing/allergensHelpers';
 
 type ProductFormState = {
   name: string;
@@ -233,12 +229,8 @@ export function ProductsNewForm({ units, initialProduct, productId }: ProductsNe
       }
 
       const categories = sanitizeStringArray(formState.categories);
-      const allergenCodes = sanitizeStringArray(formState.allergens).filter((code) =>
-        ALLERGEN_KEYS.has(code),
-      );
-      const indicatorCodes = sanitizeStringArray(formState.indicators).filter((code) =>
-        INDICATOR_KEYS.has(code),
-      );
+      const allergenCodes = toAllergenKeys(sanitizeStringArray(formState.allergens));
+      const indicatorCodes = toIndicatorKeys(sanitizeStringArray(formState.indicators));
       const reference = formState.reference.trim();
       const stockUnitCode = formState.stock_unit_code.trim();
 

@@ -10,7 +10,7 @@ import { CheffingItemPicker } from '@/app/(cheffing)/cheffing/components/Cheffin
 import { AllergensIndicatorsPicker } from '@/app/(cheffing)/cheffing/components/AllergensIndicatorsPicker';
 import { ImageUploader } from '@/app/(cheffing)/cheffing/components/ImageUploader';
 import { createSupabaseBrowserClient } from '@/lib/supabase/browser';
-import { ALLERGEN_KEYS, INDICATOR_KEYS } from '@/lib/cheffing/allergensIndicators';
+import { toAllergenKeys, toIndicatorKeys } from '@/lib/cheffing/allergensHelpers';
 
 export type DishCost = Dish & {
   items_cost_total: number | null;
@@ -185,18 +185,10 @@ export function DishDetailManager({ dish, items, ingredients, subrecipes, units 
           selling_price: sellingPriceValue,
           servings: servingsValue,
           notes: formState.notes.trim() ? formState.notes.trim() : null,
-          allergens_manual_add: Array.from(
-            new Set(manualAddAllergens.filter((key) => ALLERGEN_KEYS.has(key))),
-          ),
-          allergens_manual_exclude: Array.from(
-            new Set(manualExcludeAllergens.filter((key) => ALLERGEN_KEYS.has(key))),
-          ),
-          indicators_manual_add: Array.from(
-            new Set(manualAddIndicators.filter((key) => INDICATOR_KEYS.has(key))),
-          ),
-          indicators_manual_exclude: Array.from(
-            new Set(manualExcludeIndicators.filter((key) => INDICATOR_KEYS.has(key))),
-          ),
+          allergens_manual_add: Array.from(new Set(toAllergenKeys(manualAddAllergens))),
+          allergens_manual_exclude: Array.from(new Set(toAllergenKeys(manualExcludeAllergens))),
+          indicators_manual_add: Array.from(new Set(toIndicatorKeys(manualAddIndicators))),
+          indicators_manual_exclude: Array.from(new Set(toIndicatorKeys(manualExcludeIndicators))),
           image_path: newImagePath,
         }),
       });

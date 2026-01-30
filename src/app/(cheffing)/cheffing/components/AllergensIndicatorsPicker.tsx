@@ -4,12 +4,9 @@ import { useMemo } from 'react';
 
 import {
   ALLERGENS,
-  ALLERGEN_KEYS,
   INDICATORS,
-  INDICATOR_KEYS,
-  type AllergenKey,
-  type IndicatorKey,
 } from '@/lib/cheffing/allergensIndicators';
+import { isAllergenKey, isIndicatorKey } from '@/lib/cheffing/allergensHelpers';
 
 type AllergensIndicatorsPickerProps = {
   inheritedAllergens: string[];
@@ -28,12 +25,6 @@ type KeyConfig = {
   key: string;
   label: string;
 };
-
-const isAllergenKey = (value: string): value is AllergenKey =>
-  (ALLERGEN_KEYS as ReadonlySet<string>).has(value);
-
-const isIndicatorKey = (value: string): value is IndicatorKey =>
-  (INDICATOR_KEYS as ReadonlySet<string>).has(value);
 
 function buildLabelMap(items: readonly KeyConfig[]) {
   return new Map(items.map((item) => [item.key, item.label]));

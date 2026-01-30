@@ -8,7 +8,7 @@ import { useRouter } from 'next/navigation';
 import type { Ingredient, Subrecipe, SubrecipeItem, Unit, UnitDimension } from '@/lib/cheffing/types';
 import { CheffingItemPicker } from '@/app/(cheffing)/cheffing/components/CheffingItemPicker';
 import { AllergensIndicatorsPicker } from '@/app/(cheffing)/cheffing/components/AllergensIndicatorsPicker';
-import { ALLERGEN_KEYS, INDICATOR_KEYS } from '@/lib/cheffing/allergensIndicators';
+import { toAllergenKeys, toIndicatorKeys } from '@/lib/cheffing/allergensHelpers';
 
 export type SubrecipeCost = Subrecipe & {
   output_unit_dimension: UnitDimension | null;
@@ -170,18 +170,10 @@ export function SubrecipeDetailManager({
           output_qty: outputQtyValue,
           waste_pct: wastePctValue,
           notes: formState.notes.trim() ? formState.notes.trim() : null,
-          allergens_manual_add: Array.from(
-            new Set(manualAddAllergens.filter((key) => ALLERGEN_KEYS.has(key))),
-          ),
-          allergens_manual_exclude: Array.from(
-            new Set(manualExcludeAllergens.filter((key) => ALLERGEN_KEYS.has(key))),
-          ),
-          indicators_manual_add: Array.from(
-            new Set(manualAddIndicators.filter((key) => INDICATOR_KEYS.has(key))),
-          ),
-          indicators_manual_exclude: Array.from(
-            new Set(manualExcludeIndicators.filter((key) => INDICATOR_KEYS.has(key))),
-          ),
+          allergens_manual_add: Array.from(new Set(toAllergenKeys(manualAddAllergens))),
+          allergens_manual_exclude: Array.from(new Set(toAllergenKeys(manualExcludeAllergens))),
+          indicators_manual_add: Array.from(new Set(toIndicatorKeys(manualAddIndicators))),
+          indicators_manual_exclude: Array.from(new Set(toIndicatorKeys(manualExcludeIndicators))),
         }),
       });
 
