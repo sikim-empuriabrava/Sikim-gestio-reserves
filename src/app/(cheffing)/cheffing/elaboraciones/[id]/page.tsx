@@ -121,8 +121,10 @@ export default async function CheffingElaboracionDetailPage({ params }: { params
     relatedItems.forEach((item) => {
       if (item.ingredient_id) {
         const ingredient = ingredientLookup.get(item.ingredient_id);
-        ingredient?.allergens?.forEach((key) => inheritedAllergens.add(key));
-        ingredient?.indicators?.forEach((key) => inheritedIndicators.add(key));
+        const ingredientAllergens = (ingredient?.allergens ?? []).filter(isAllergenKey) as AllergenKey[];
+        const ingredientIndicators = (ingredient?.indicators ?? []).filter(isIndicatorKey) as IndicatorKey[];
+        ingredientAllergens.forEach((key) => inheritedAllergens.add(key));
+        ingredientIndicators.forEach((key) => inheritedIndicators.add(key));
       } else if (item.subrecipe_component_id) {
         const nested = resolveEffective(item.subrecipe_component_id);
         nested.allergens.forEach((key) => inheritedAllergens.add(key));
