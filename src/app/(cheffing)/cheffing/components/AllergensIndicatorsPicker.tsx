@@ -29,6 +29,12 @@ type KeyConfig = {
   label: string;
 };
 
+const isAllergenKey = (value: string): value is AllergenKey =>
+  (ALLERGEN_KEYS as ReadonlySet<string>).has(value);
+
+const isIndicatorKey = (value: string): value is IndicatorKey =>
+  (INDICATOR_KEYS as ReadonlySet<string>).has(value);
+
 function buildLabelMap(items: readonly KeyConfig[]) {
   return new Map(items.map((item) => [item.key, item.label]));
 }
@@ -91,29 +97,27 @@ export function AllergensIndicatorsPicker({
   const indicatorLabelMap = useMemo(() => buildLabelMap(INDICATORS), []);
 
   const inheritedAllergenSet = useMemo(() => {
-    const allowed = ALLERGEN_KEYS as ReadonlySet<string>;
-    return new Set(inheritedAllergens.filter((key): key is AllergenKey => allowed.has(key)));
+    return new Set(inheritedAllergens.filter(isAllergenKey));
   }, [inheritedAllergens]);
 
   const inheritedIndicatorSet = useMemo(() => {
-    const allowed = INDICATOR_KEYS as ReadonlySet<string>;
-    return new Set(inheritedIndicators.filter((key): key is IndicatorKey => allowed.has(key)));
+    return new Set(inheritedIndicators.filter(isIndicatorKey));
   }, [inheritedIndicators]);
 
   const manualAddAllergenSet = useMemo(() => {
-    return new Set(manualAddAllergens.filter((key) => ALLERGEN_KEYS.has(key)));
+    return new Set(manualAddAllergens.filter(isAllergenKey));
   }, [manualAddAllergens]);
 
   const manualAddIndicatorSet = useMemo(() => {
-    return new Set(manualAddIndicators.filter((key) => INDICATOR_KEYS.has(key)));
+    return new Set(manualAddIndicators.filter(isIndicatorKey));
   }, [manualAddIndicators]);
 
   const manualExcludeAllergenSet = useMemo(() => {
-    return new Set(manualExcludeAllergens.filter((key) => ALLERGEN_KEYS.has(key)));
+    return new Set(manualExcludeAllergens.filter(isAllergenKey));
   }, [manualExcludeAllergens]);
 
   const manualExcludeIndicatorSet = useMemo(() => {
-    return new Set(manualExcludeIndicators.filter((key) => INDICATOR_KEYS.has(key)));
+    return new Set(manualExcludeIndicators.filter(isIndicatorKey));
   }, [manualExcludeIndicators]);
 
   const effectiveAllergenSet = useMemo(() => {
