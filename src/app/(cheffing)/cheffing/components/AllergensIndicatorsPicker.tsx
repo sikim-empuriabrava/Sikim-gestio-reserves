@@ -27,7 +27,7 @@ type KeyConfig = {
 };
 
 function buildLabelMap(items: readonly KeyConfig[]) {
-  return new Map(items.map((item) => [item.key, item.label]));
+  return new Map<string, string>(items.map((item) => [item.key, item.label] as const));
 }
 
 function resolveOrdered(keys: Set<string>, orderedList: readonly KeyConfig[]) {
