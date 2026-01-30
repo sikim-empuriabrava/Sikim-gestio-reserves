@@ -5,7 +5,12 @@ import type { FormEvent, KeyboardEvent } from 'react';
 import { useRouter } from 'next/navigation';
 
 import type { Ingredient, Unit, UnitDimension } from '@/lib/cheffing/types';
-import { allergenCatalog, indicatorCatalog } from '@/lib/cheffing/catalogs';
+import {
+  ALLERGENS,
+  ALLERGEN_KEYS,
+  INDICATORS,
+  INDICATOR_KEYS,
+} from '@/lib/cheffing/allergensIndicators';
 
 type ProductFormState = {
   name: string;
@@ -19,8 +24,8 @@ type ProductFormState = {
   purchase_pack_qty: string;
   purchase_price: string;
   waste_pct: string;
-  allergen_codes: string[];
-  indicator_codes: string[];
+  allergens: string[];
+  indicators: string[];
 };
 
 type ProductsNewFormProps = {
@@ -101,8 +106,8 @@ export function ProductsNewForm({ units, initialProduct, productId }: ProductsNe
     purchase_pack_qty: initialProduct ? String(initialProduct.purchase_pack_qty) : '1',
     purchase_price: initialProduct ? String(initialProduct.purchase_price) : '0',
     waste_pct: initialProduct ? String((initialProduct.waste_pct * 100).toFixed(2)) : '0',
-    allergen_codes: initialProduct?.allergen_codes ?? [],
-    indicator_codes: initialProduct?.indicator_codes ?? [],
+    allergens: initialProduct?.allergens ?? [],
+    indicators: initialProduct?.indicators ?? [],
   });
 
   const parseWastePct = (value: string) => {
@@ -158,7 +163,7 @@ export function ProductsNewForm({ units, initialProduct, productId }: ProductsNe
     }));
   };
 
-  const toggleCode = (field: 'allergen_codes' | 'indicator_codes', code: string) => {
+  const toggleCode = (field: 'allergens' | 'indicators', code: string) => {
     setFormState((prev) => {
       const next = new Set(prev[field]);
       if (next.has(code)) {
@@ -228,8 +233,12 @@ export function ProductsNewForm({ units, initialProduct, productId }: ProductsNe
       }
 
       const categories = sanitizeStringArray(formState.categories);
-      const allergenCodes = sanitizeStringArray(formState.allergen_codes);
-      const indicatorCodes = sanitizeStringArray(formState.indicator_codes);
+      const allergenCodes = sanitizeStringArray(formState.allergens).filter((code) =>
+        ALLERGEN_KEYS.has(code),
+      );
+      const indicatorCodes = sanitizeStringArray(formState.indicators).filter((code) =>
+        INDICATOR_KEYS.has(code),
+      );
       const reference = formState.reference.trim();
       const stockUnitCode = formState.stock_unit_code.trim();
 
@@ -245,8 +254,8 @@ export function ProductsNewForm({ units, initialProduct, productId }: ProductsNe
         stock_qty: stockQtyValue,
         min_stock_qty: minStockValue,
         max_stock_qty: maxStockValue,
-        allergen_codes: allergenCodes,
-        indicator_codes: indicatorCodes,
+        allergens: allergenCodes,
+        indicators: indicatorCodes,
       };
 
       const response = await fetch(
@@ -505,13 +514,13 @@ export function ProductsNewForm({ units, initialProduct, productId }: ProductsNe
           <p className="text-xs text-slate-400">Selecciona los alérgenos asociados.</p>
         </header>
         <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-          {allergenCatalog.map((allergen) => {
-            const isActive = formState.allergen_codes.includes(allergen.code);
+          {ALLERGENS.map((allergen) => {
+            const isActive = formState.allergens.includes(allergen.key);
             return (
               <button
-                key={allergen.code}
+                key={allergen.key}
                 type="button"
-                onClick={() => toggleCode('allergen_codes', allergen.code)}
+                onClick={() => toggleCode('allergens', allergen.key)}
                 className={`rounded-full border px-3 py-1 text-xs font-semibold transition ${
                   isActive
                     ? 'border-emerald-400/70 bg-emerald-500/10 text-emerald-100'
@@ -531,13 +540,13 @@ export function ProductsNewForm({ units, initialProduct, productId }: ProductsNe
           <p className="text-xs text-slate-400">Destaca características del producto.</p>
         </header>
         <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-          {indicatorCatalog.map((indicator) => {
-            const isActive = formState.indicator_codes.includes(indicator.code);
+          {INDICATORS.map((indicator) => {
+            const isActive = formState.indicators.includes(indicator.key);
             return (
               <button
-                key={indicator.code}
+                key={indicator.key}
                 type="button"
-                onClick={() => toggleCode('indicator_codes', indicator.code)}
+                onClick={() => toggleCode('indicators', indicator.key)}
                 className={`rounded-full border px-3 py-1 text-xs font-semibold transition ${
                   isActive
                     ? 'border-sky-400/70 bg-sky-500/10 text-sky-100'

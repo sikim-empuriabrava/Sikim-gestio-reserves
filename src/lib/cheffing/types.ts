@@ -20,8 +20,8 @@ export type Ingredient = {
   stock_qty?: number;
   min_stock_qty?: number | null;
   max_stock_qty?: number | null;
-  allergen_codes?: string[];
-  indicator_codes?: string[];
+  allergens?: string[];
+  indicators?: string[];
   created_at: string;
   updated_at: string;
 };
@@ -43,6 +43,12 @@ export type Subrecipe = {
   output_qty: number;
   waste_pct: number;
   notes: string | null;
+  allergens_manual_add?: string[];
+  allergens_manual_exclude?: string[];
+  indicators_manual_add?: string[];
+  indicators_manual_exclude?: string[];
+  effective_allergens?: string[];
+  effective_indicators?: string[];
   created_at: string;
   updated_at: string;
 };
@@ -64,6 +70,12 @@ export type Dish = {
   selling_price: number | null;
   servings: number;
   notes: string | null;
+  allergens_manual_add?: string[];
+  allergens_manual_exclude?: string[];
+  indicators_manual_add?: string[];
+  indicators_manual_exclude?: string[];
+  image_path?: string | null;
+  venue_id?: string | null;
   created_at: string;
   updated_at: string;
 };

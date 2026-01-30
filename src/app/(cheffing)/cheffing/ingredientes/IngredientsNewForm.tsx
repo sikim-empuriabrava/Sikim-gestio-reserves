@@ -5,6 +5,7 @@ import type { FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
 
 import type { Unit } from '@/lib/cheffing/types';
+import { ALLERGENS, INDICATORS } from '@/lib/cheffing/allergensIndicators';
 
 type IngredientFormState = {
   name: string;
@@ -12,6 +13,8 @@ type IngredientFormState = {
   purchase_pack_qty: string;
   purchase_price: string;
   waste_pct: string;
+  allergens: string[];
+  indicators: string[];
 };
 
 type IngredientsNewFormProps = {
@@ -29,6 +32,8 @@ export function IngredientsNewForm({ units }: IngredientsNewFormProps) {
     purchase_pack_qty: '1',
     purchase_price: '0',
     waste_pct: '0',
+    allergens: [],
+    indicators: [],
   });
 
   const sortedUnits = useMemo(() => {
@@ -52,6 +57,18 @@ export function IngredientsNewForm({ units }: IngredientsNewFormProps) {
       return null;
     }
     return numericValue;
+  };
+
+  const toggleSelection = (field: 'allergens' | 'indicators', code: string) => {
+    setFormState((prev) => {
+      const next = new Set(prev[field]);
+      if (next.has(code)) {
+        next.delete(code);
+      } else {
+        next.add(code);
+      }
+      return { ...prev, [field]: Array.from(next) };
+    });
   };
 
   const submitNewIngredient = async (event: FormEvent<HTMLFormElement>) => {
@@ -88,6 +105,8 @@ export function IngredientsNewForm({ units }: IngredientsNewFormProps) {
           purchase_pack_qty: packQtyValue,
           purchase_price: priceValue,
           waste_pct: wastePctValue,
+          allergens: formState.allergens,
+          indicators: formState.indicators,
         }),
       });
 
@@ -119,6 +138,58 @@ export function IngredientsNewForm({ units }: IngredientsNewFormProps) {
         {!hasUnits ? (
           <p className="text-sm text-amber-300">Configura unidades antes de crear ingredientes.</p>
         ) : null}
+      </div>
+      <div className="grid gap-4 md:grid-cols-2">
+        <div className="space-y-3 rounded-xl border border-slate-800/70 bg-slate-950/60 p-4">
+          <div>
+            <p className="text-xs uppercase text-slate-500">Alérgenos</p>
+            <p className="text-sm text-slate-400">Selecciona los alérgenos del producto.</p>
+          </div>
+          <div className="grid gap-2 sm:grid-cols-2">
+            {ALLERGENS.map((allergen) => {
+              const isActive = formState.allergens.includes(allergen.key);
+              return (
+                <button
+                  key={allergen.key}
+                  type="button"
+                  onClick={() => toggleSelection('allergens', allergen.key)}
+                  className={`rounded-full border px-3 py-1 text-xs font-semibold transition ${
+                    isActive
+                      ? 'border-emerald-400/70 bg-emerald-500/10 text-emerald-100'
+                      : 'border-slate-700 text-slate-200 hover:border-slate-500'
+                  }`}
+                >
+                  {allergen.label}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+        <div className="space-y-3 rounded-xl border border-slate-800/70 bg-slate-950/60 p-4">
+          <div>
+            <p className="text-xs uppercase text-slate-500">Indicadores</p>
+            <p className="text-sm text-slate-400">Destaca características del producto.</p>
+          </div>
+          <div className="grid gap-2 sm:grid-cols-2">
+            {INDICATORS.map((indicator) => {
+              const isActive = formState.indicators.includes(indicator.key);
+              return (
+                <button
+                  key={indicator.key}
+                  type="button"
+                  onClick={() => toggleSelection('indicators', indicator.key)}
+                  className={`rounded-full border px-3 py-1 text-xs font-semibold transition ${
+                    isActive
+                      ? 'border-sky-400/70 bg-sky-500/10 text-sky-100'
+                      : 'border-slate-700 text-slate-200 hover:border-slate-500'
+                  }`}
+                >
+                  {indicator.label}
+                </button>
+              );
+            })}
+          </div>
+        </div>
       </div>
       <div className="grid gap-4 md:grid-cols-5">
         <label className="flex flex-col gap-2 text-sm text-slate-300">

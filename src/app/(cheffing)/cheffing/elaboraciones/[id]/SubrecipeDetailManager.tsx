@@ -7,6 +7,8 @@ import { useRouter } from 'next/navigation';
 
 import type { Ingredient, Subrecipe, SubrecipeItem, Unit, UnitDimension } from '@/lib/cheffing/types';
 import { CheffingItemPicker } from '@/app/(cheffing)/cheffing/components/CheffingItemPicker';
+import { AllergensIndicatorsPicker } from '@/app/(cheffing)/cheffing/components/AllergensIndicatorsPicker';
+import { ALLERGEN_KEYS, INDICATOR_KEYS } from '@/lib/cheffing/allergensIndicators';
 
 export type SubrecipeCost = Subrecipe & {
   output_unit_dimension: UnitDimension | null;
@@ -62,6 +64,18 @@ export function SubrecipeDetailManager({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [editingItemId, setEditingItemId] = useState<string | null>(null);
   const [editingItemState, setEditingItemState] = useState<ItemFormState | null>(null);
+  const [manualAddAllergens, setManualAddAllergens] = useState<string[]>(
+    subrecipe.allergens_manual_add ?? [],
+  );
+  const [manualExcludeAllergens, setManualExcludeAllergens] = useState<string[]>(
+    subrecipe.allergens_manual_exclude ?? [],
+  );
+  const [manualAddIndicators, setManualAddIndicators] = useState<string[]>(
+    subrecipe.indicators_manual_add ?? [],
+  );
+  const [manualExcludeIndicators, setManualExcludeIndicators] = useState<string[]>(
+    subrecipe.indicators_manual_exclude ?? [],
+  );
   const [formState, setFormState] = useState<SubrecipeFormState>({
     name: subrecipe.name,
     output_unit_code: subrecipe.output_unit_code,
@@ -73,6 +87,42 @@ export function SubrecipeDetailManager({
   const subrecipeOptions = useMemo(() => {
     return subrecipes.filter((entry) => entry.id !== subrecipe.id);
   }, [subrecipe.id, subrecipes]);
+
+  const ingredientsById = useMemo(() => {
+    return new Map(ingredients.map((ingredient) => [ingredient.id, ingredient]));
+  }, [ingredients]);
+
+  const subrecipesById = useMemo(() => {
+    return new Map(subrecipes.map((entry) => [entry.id, entry]));
+  }, [subrecipes]);
+
+  const inheritedAllergens = useMemo(() => {
+    const inherited = new Set<string>();
+    items.forEach((item) => {
+      if (item.ingredient_id) {
+        const ingredient = ingredientsById.get(item.ingredient_id);
+        ingredient?.allergens?.forEach((key) => inherited.add(key));
+      } else if (item.subrecipe_component_id) {
+        const subrecipeComponent = subrecipesById.get(item.subrecipe_component_id);
+        subrecipeComponent?.effective_allergens?.forEach((key) => inherited.add(key));
+      }
+    });
+    return Array.from(inherited);
+  }, [items, ingredientsById, subrecipesById]);
+
+  const inheritedIndicators = useMemo(() => {
+    const inherited = new Set<string>();
+    items.forEach((item) => {
+      if (item.ingredient_id) {
+        const ingredient = ingredientsById.get(item.ingredient_id);
+        ingredient?.indicators?.forEach((key) => inherited.add(key));
+      } else if (item.subrecipe_component_id) {
+        const subrecipeComponent = subrecipesById.get(item.subrecipe_component_id);
+        subrecipeComponent?.effective_indicators?.forEach((key) => inherited.add(key));
+      }
+    });
+    return Array.from(inherited);
+  }, [items, ingredientsById, subrecipesById]);
 
   const parseWastePct = (value: string) => {
     const percentValue = Number(value);
@@ -120,6 +170,18 @@ export function SubrecipeDetailManager({
           output_qty: outputQtyValue,
           waste_pct: wastePctValue,
           notes: formState.notes.trim() ? formState.notes.trim() : null,
+          allergens_manual_add: Array.from(
+            new Set(manualAddAllergens.filter((key) => ALLERGEN_KEYS.has(key))),
+          ),
+          allergens_manual_exclude: Array.from(
+            new Set(manualExcludeAllergens.filter((key) => ALLERGEN_KEYS.has(key))),
+          ),
+          indicators_manual_add: Array.from(
+            new Set(manualAddIndicators.filter((key) => INDICATOR_KEYS.has(key))),
+          ),
+          indicators_manual_exclude: Array.from(
+            new Set(manualExcludeIndicators.filter((key) => INDICATOR_KEYS.has(key))),
+          ),
         }),
       });
 
@@ -378,6 +440,18 @@ export function SubrecipeDetailManager({
             />
           </label>
         </div>
+        <AllergensIndicatorsPicker
+          inheritedAllergens={inheritedAllergens}
+          inheritedIndicators={inheritedIndicators}
+          manualAddAllergens={manualAddAllergens}
+          setManualAddAllergens={setManualAddAllergens}
+          manualExcludeAllergens={manualExcludeAllergens}
+          setManualExcludeAllergens={setManualExcludeAllergens}
+          manualAddIndicators={manualAddIndicators}
+          setManualAddIndicators={setManualAddIndicators}
+          manualExcludeIndicators={manualExcludeIndicators}
+          setManualExcludeIndicators={setManualExcludeIndicators}
+        />
         <div className="flex flex-wrap gap-2">
           <button
             type="submit"
