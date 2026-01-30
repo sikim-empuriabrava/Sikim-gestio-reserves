@@ -15,6 +15,8 @@ export const ALLERGENS = [
   { key: 'molluscs', label: 'Moluscos' },
 ] as const;
 
+export type AllergenKey = (typeof ALLERGENS)[number]['key'];
+
 export const INDICATORS = [
   { key: 'vegan', label: 'Vegano' },
   { key: 'vegetarian', label: 'Vegetariano' },
@@ -24,6 +26,8 @@ export const INDICATORS = [
   { key: 'halal', label: 'Halal' },
   { key: 'kosher', label: 'Kosher' },
 ] as const;
+
+export type IndicatorKey = (typeof INDICATORS)[number]['key'];
 
 export const ALLERGEN_KEYS = new Set(ALLERGENS.map((allergen) => allergen.key));
 export const INDICATOR_KEYS = new Set(INDICATORS.map((indicator) => indicator.key));

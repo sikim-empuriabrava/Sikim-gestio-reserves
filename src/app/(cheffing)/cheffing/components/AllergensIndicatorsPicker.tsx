@@ -7,6 +7,8 @@ import {
   ALLERGEN_KEYS,
   INDICATORS,
   INDICATOR_KEYS,
+  type AllergenKey,
+  type IndicatorKey,
 } from '@/lib/cheffing/allergensIndicators';
 
 type AllergensIndicatorsPickerProps = {
@@ -89,11 +91,13 @@ export function AllergensIndicatorsPicker({
   const indicatorLabelMap = useMemo(() => buildLabelMap(INDICATORS), []);
 
   const inheritedAllergenSet = useMemo(() => {
-    return new Set(inheritedAllergens.filter((key) => ALLERGEN_KEYS.has(key)));
+    const allowed = ALLERGEN_KEYS as ReadonlySet<string>;
+    return new Set(inheritedAllergens.filter((key): key is AllergenKey => allowed.has(key)));
   }, [inheritedAllergens]);
 
   const inheritedIndicatorSet = useMemo(() => {
-    return new Set(inheritedIndicators.filter((key) => INDICATOR_KEYS.has(key)));
+    const allowed = INDICATOR_KEYS as ReadonlySet<string>;
+    return new Set(inheritedIndicators.filter((key): key is IndicatorKey => allowed.has(key)));
   }, [inheritedIndicators]);
 
   const manualAddAllergenSet = useMemo(() => {
