@@ -52,7 +52,7 @@ export function ProductsNewForm({ units, initialProduct, productId }: ProductsNe
   const [categoryInput, setCategoryInput] = useState('');
 
   const unitByCode = useMemo(() => {
-    return new Map(units.map((unit) => [unit.code.toLowerCase(), unit]));
+    return new Map<string, Unit>(units.map((unit) => [unit.code.toLowerCase(), unit] as const));
   }, [units]);
 
   const unitsByDimension = useMemo(() => {

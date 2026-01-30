@@ -48,8 +48,14 @@ export function DishNewForm({ ingredients, subrecipes, units }: DishNewFormProps
     return [...units].sort((a, b) => a.code.localeCompare(b.code));
   }, [units]);
 
-  const ingredientById = useMemo(() => new Map(ingredients.map((item) => [item.id, item])), [ingredients]);
-  const subrecipeById = useMemo(() => new Map(subrecipes.map((item) => [item.id, item])), [subrecipes]);
+  const ingredientById = useMemo(
+    () => new Map<string, Ingredient>(ingredients.map((item) => [item.id, item] as const)),
+    [ingredients],
+  );
+  const subrecipeById = useMemo(
+    () => new Map<string, Subrecipe>(subrecipes.map((item) => [item.id, item] as const)),
+    [subrecipes],
+  );
 
   const parseWastePct = (value: string) => {
     const percentValue = Number(value);
