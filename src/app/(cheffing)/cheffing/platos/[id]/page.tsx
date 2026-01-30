@@ -77,7 +77,6 @@ export default async function CheffingPlatoDetailPage({ params }: { params: { id
     );
   }
 
-  const dishTyped = dish as typeof dish;
   const dishItemsTyped = (items ?? []) as Array<{
     ingredient?: unknown;
     subrecipe?: unknown;
@@ -107,17 +106,17 @@ export default async function CheffingPlatoDetailPage({ params }: { params: { id
   const effectiveCache = new Map<string, EffectiveAI>();
   const inProgress = new Set<string>();
 
-  const resolveEffective = (dishId: string): EffectiveAI => {
-    const cached = effectiveCache.get(dishId);
+  const resolveEffective = (subrecipeId: string): EffectiveAI => {
+    const cached = effectiveCache.get(subrecipeId);
     if (cached) return cached;
 
-    const current = dishId === dishTyped?.id ? dishTyped : subrecipeLookup.get(dishId);
+    const current = subrecipeLookup.get(subrecipeId);
     const manualAddAllergens = sanitizeAllergens(current?.allergens_manual_add);
     const manualExcludeAllergens = sanitizeAllergens(current?.allergens_manual_exclude);
     const manualAddIndicators = sanitizeIndicators(current?.indicators_manual_add);
     const manualExcludeIndicators = sanitizeIndicators(current?.indicators_manual_exclude);
 
-    if (inProgress.has(dishId)) {
+    if (inProgress.has(subrecipeId)) {
       const fallbackAllergens = new Set<AllergenKey>(manualAddAllergens);
       removeAllergens(fallbackAllergens, manualExcludeAllergens);
       const fallbackIndicators = new Set<IndicatorKey>(manualAddIndicators);
@@ -126,15 +125,15 @@ export default async function CheffingPlatoDetailPage({ params }: { params: { id
         allergens: Array.from(fallbackAllergens),
         indicators: Array.from(fallbackIndicators),
       };
-      effectiveCache.set(dishId, fallback);
+      effectiveCache.set(subrecipeId, fallback);
       return fallback;
     }
 
-    inProgress.add(dishId);
+    inProgress.add(subrecipeId);
 
     const inheritedAllergens = new Set<AllergenKey>();
     const inheritedIndicators = new Set<IndicatorKey>();
-    const relatedItems = itemsBySubrecipe.get(dishId) ?? [];
+    const relatedItems = itemsBySubrecipe.get(subrecipeId) ?? [];
 
     for (const item of relatedItems) {
       if (item.ingredient_id) {
@@ -158,8 +157,8 @@ export default async function CheffingPlatoDetailPage({ params }: { params: { id
       indicators: Array.from(effectiveIndicators),
     };
 
-    effectiveCache.set(dishId, resolved);
-    inProgress.delete(dishId);
+    effectiveCache.set(subrecipeId, resolved);
+    inProgress.delete(subrecipeId);
     return resolved;
   };
 
