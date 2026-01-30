@@ -4,6 +4,11 @@ import { createSupabaseRouteHandlerClient, mergeResponseCookies } from '@/lib/su
 import { createSupabaseAdminClient } from '@/lib/supabaseAdmin';
 import { getAllowlistRoleForUserEmail, isAdmin } from '@/lib/auth/requireRole';
 import { mapCheffingPostgresError } from '@/lib/cheffing/postgresErrors';
+import {
+  ALLERGEN_KEYS,
+  INDICATOR_KEYS,
+  sanitizeAllergenIndicatorArray,
+} from '@/lib/cheffing/allergensIndicators';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -131,24 +136,24 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     updates.categories = categories;
   }
 
-  if (body?.allergen_codes !== undefined) {
-    const allergenCodes = sanitizeStringArray(body.allergen_codes);
+  if (body?.allergens !== undefined) {
+    const allergenCodes = sanitizeAllergenIndicatorArray(body.allergens, ALLERGEN_KEYS);
     if (!allergenCodes) {
-      const invalid = NextResponse.json({ error: 'Invalid allergen_codes' }, { status: 400 });
+      const invalid = NextResponse.json({ error: 'Invalid allergens' }, { status: 400 });
       mergeResponseCookies(access.supabaseResponse, invalid);
       return invalid;
     }
-    updates.allergen_codes = allergenCodes;
+    updates.allergens = allergenCodes;
   }
 
-  if (body?.indicator_codes !== undefined) {
-    const indicatorCodes = sanitizeStringArray(body.indicator_codes);
+  if (body?.indicators !== undefined) {
+    const indicatorCodes = sanitizeAllergenIndicatorArray(body.indicators, INDICATOR_KEYS);
     if (!indicatorCodes) {
-      const invalid = NextResponse.json({ error: 'Invalid indicator_codes' }, { status: 400 });
+      const invalid = NextResponse.json({ error: 'Invalid indicators' }, { status: 400 });
       mergeResponseCookies(access.supabaseResponse, invalid);
       return invalid;
     }
-    updates.indicator_codes = indicatorCodes;
+    updates.indicators = indicatorCodes;
   }
 
   if (body?.reference !== undefined) {

@@ -5,6 +5,11 @@ import { mergeResponseCookies } from '@/lib/supabase/route';
 import { requireCheffingRouteAccess } from '@/lib/cheffing/requireCheffingRoute';
 import { mapCheffingPostgresError } from '@/lib/cheffing/postgresErrors';
 import { subrecipeUpdateSchema } from '@/lib/cheffing/schemas';
+import {
+  ALLERGEN_KEYS,
+  INDICATOR_KEYS,
+  sanitizeAllergenIndicatorArray,
+} from '@/lib/cheffing/allergensIndicators';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -48,7 +53,52 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   }
 
   const body = await req.json().catch(() => null);
-  const parsed = subrecipeUpdateSchema.safeParse(body);
+  const sanitizedBody = { ...(typeof body === 'object' && body !== null ? body : {}) } as Record<
+    string,
+    unknown
+  >;
+
+  if (body?.allergens_manual_add !== undefined) {
+    const value = sanitizeAllergenIndicatorArray(body.allergens_manual_add, ALLERGEN_KEYS);
+    if (!value) {
+      const invalid = NextResponse.json({ error: 'Invalid allergens_manual_add' }, { status: 400 });
+      mergeResponseCookies(access.supabaseResponse, invalid);
+      return invalid;
+    }
+    sanitizedBody.allergens_manual_add = value;
+  }
+
+  if (body?.allergens_manual_exclude !== undefined) {
+    const value = sanitizeAllergenIndicatorArray(body.allergens_manual_exclude, ALLERGEN_KEYS);
+    if (!value) {
+      const invalid = NextResponse.json({ error: 'Invalid allergens_manual_exclude' }, { status: 400 });
+      mergeResponseCookies(access.supabaseResponse, invalid);
+      return invalid;
+    }
+    sanitizedBody.allergens_manual_exclude = value;
+  }
+
+  if (body?.indicators_manual_add !== undefined) {
+    const value = sanitizeAllergenIndicatorArray(body.indicators_manual_add, INDICATOR_KEYS);
+    if (!value) {
+      const invalid = NextResponse.json({ error: 'Invalid indicators_manual_add' }, { status: 400 });
+      mergeResponseCookies(access.supabaseResponse, invalid);
+      return invalid;
+    }
+    sanitizedBody.indicators_manual_add = value;
+  }
+
+  if (body?.indicators_manual_exclude !== undefined) {
+    const value = sanitizeAllergenIndicatorArray(body.indicators_manual_exclude, INDICATOR_KEYS);
+    if (!value) {
+      const invalid = NextResponse.json({ error: 'Invalid indicators_manual_exclude' }, { status: 400 });
+      mergeResponseCookies(access.supabaseResponse, invalid);
+      return invalid;
+    }
+    sanitizedBody.indicators_manual_exclude = value;
+  }
+
+  const parsed = subrecipeUpdateSchema.safeParse(sanitizedBody);
 
   if (!parsed.success) {
     const invalid = NextResponse.json({ error: 'Invalid payload', issues: parsed.error.issues }, { status: 400 });

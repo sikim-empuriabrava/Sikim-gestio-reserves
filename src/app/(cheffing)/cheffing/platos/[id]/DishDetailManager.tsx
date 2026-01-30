@@ -1,12 +1,18 @@
 'use client';
 
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import type { FormEvent } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 
 import type { Dish, DishItem, Ingredient, Subrecipe, Unit } from '@/lib/cheffing/types';
 import { CheffingItemPicker } from '@/app/(cheffing)/cheffing/components/CheffingItemPicker';
+import { AllergensIndicatorsPicker } from '@/app/(cheffing)/cheffing/components/AllergensIndicatorsPicker';
+import { ImageUploader } from '@/app/(cheffing)/cheffing/components/ImageUploader';
+import { createSupabaseBrowserClient } from '@/lib/supabase/browser';
+import type { AllergenKey, IndicatorKey } from '@/lib/cheffing/allergensIndicators';
+import { toAllergenKeys, toIndicatorKeys } from '@/lib/cheffing/allergensHelpers';
+import { addAllergens, addIndicators } from '@/lib/cheffing/allergensIndicatorsOps';
 
 export type DishCost = Dish & {
   items_cost_total: number | null;
@@ -51,12 +57,69 @@ export function DishDetailManager({ dish, items, ingredients, subrecipes, units 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [editingItemId, setEditingItemId] = useState<string | null>(null);
   const [editingItemState, setEditingItemState] = useState<ItemFormState | null>(null);
+  const [manualAddAllergens, setManualAddAllergens] = useState<string[]>(
+    dish.allergens_manual_add ?? [],
+  );
+  const [manualExcludeAllergens, setManualExcludeAllergens] = useState<string[]>(
+    dish.allergens_manual_exclude ?? [],
+  );
+  const [manualAddIndicators, setManualAddIndicators] = useState<string[]>(
+    dish.indicators_manual_add ?? [],
+  );
+  const [manualExcludeIndicators, setManualExcludeIndicators] = useState<string[]>(
+    dish.indicators_manual_exclude ?? [],
+  );
+  const [imageFile, setImageFile] = useState<File | null>(null);
   const [formState, setFormState] = useState<DishFormState>({
     name: dish.name,
     selling_price: dish.selling_price === null ? '' : String(dish.selling_price),
     servings: String(dish.servings ?? 1),
     notes: dish.notes ?? '',
   });
+
+  const supabase = useMemo(() => createSupabaseBrowserClient(), []);
+
+  const ingredientsById = useMemo(() => {
+    return new Map<string, Ingredient>(ingredients.map((ingredient) => [ingredient.id, ingredient] as const));
+  }, [ingredients]);
+
+  const subrecipesById = useMemo(() => {
+    return new Map<string, Subrecipe>(subrecipes.map((entry) => [entry.id, entry] as const));
+  }, [subrecipes]);
+
+  const inheritedAllergens = useMemo(() => {
+    const inherited = new Set<AllergenKey>();
+    items.forEach((item) => {
+      if (item.ingredient_id) {
+        const ingredient = ingredientsById.get(item.ingredient_id);
+        addAllergens(inherited, ingredient?.allergens);
+      } else if (item.subrecipe_id) {
+        const subrecipe = subrecipesById.get(item.subrecipe_id);
+        addAllergens(inherited, subrecipe?.effective_allergens);
+      }
+    });
+    return Array.from(inherited);
+  }, [items, ingredientsById, subrecipesById]);
+
+  const inheritedIndicators = useMemo(() => {
+    const inherited = new Set<IndicatorKey>();
+    items.forEach((item) => {
+      if (item.ingredient_id) {
+        const ingredient = ingredientsById.get(item.ingredient_id);
+        addIndicators(inherited, ingredient?.indicators);
+      } else if (item.subrecipe_id) {
+        const subrecipe = subrecipesById.get(item.subrecipe_id);
+        addIndicators(inherited, subrecipe?.effective_indicators);
+      }
+    });
+    return Array.from(inherited);
+  }, [items, ingredientsById, subrecipesById]);
+
+  const existingImageUrl = useMemo(() => {
+    if (!dish.image_path) return null;
+    const { data } = supabase.storage.from('cheffing-images').getPublicUrl(dish.image_path);
+    return data.publicUrl;
+  }, [dish.image_path, supabase]);
 
   const formatCurrency = (value: number | null) => {
     if (value === null || Number.isNaN(value)) return '—';
@@ -96,6 +159,26 @@ export function DishDetailManager({ dish, items, ingredients, subrecipes, units 
         throw new Error('Las raciones deben ser mayores que 0.');
       }
 
+      let newImagePath: string | null = dish.image_path ?? null;
+      let uploadedPath: string | null = null;
+
+      if (imageFile) {
+        const extension = imageFile.type === 'image/webp' ? 'webp' : 'jpg';
+        const filename = `${crypto.randomUUID()}.${extension}`;
+        const prefix = dish.venue_id ? `${dish.venue_id}/` : '';
+        const path = `${prefix}dishes/${dish.id}/${filename}`;
+        const { error: uploadError } = await supabase.storage
+          .from('cheffing-images')
+          .upload(path, imageFile, { upsert: true, contentType: imageFile.type });
+
+        if (uploadError) {
+          throw new Error('Error subiendo la imagen del plato.');
+        }
+
+        newImagePath = path;
+        uploadedPath = path;
+      }
+
       const response = await fetch(`/api/cheffing/dishes/${dish.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
@@ -104,6 +187,11 @@ export function DishDetailManager({ dish, items, ingredients, subrecipes, units 
           selling_price: sellingPriceValue,
           servings: servingsValue,
           notes: formState.notes.trim() ? formState.notes.trim() : null,
+          allergens_manual_add: Array.from(new Set(toAllergenKeys(manualAddAllergens))),
+          allergens_manual_exclude: Array.from(new Set(toAllergenKeys(manualExcludeAllergens))),
+          indicators_manual_add: Array.from(new Set(toIndicatorKeys(manualAddIndicators))),
+          indicators_manual_exclude: Array.from(new Set(toIndicatorKeys(manualExcludeIndicators))),
+          image_path: newImagePath,
         }),
       });
 
@@ -112,9 +200,17 @@ export function DishDetailManager({ dish, items, ingredients, subrecipes, units 
         if (response.status === 409) {
           throw new Error('Ya existe un plato con ese nombre.');
         }
+        if (uploadedPath) {
+          await supabase.storage.from('cheffing-images').remove([uploadedPath]);
+        }
         throw new Error(payload?.error ?? 'Error actualizando plato');
       }
 
+      if (uploadedPath && dish.image_path && dish.image_path !== uploadedPath) {
+        await supabase.storage.from('cheffing-images').remove([dish.image_path]);
+      }
+
+      setImageFile(null);
       router.refresh();
       // TODO: Auto-select the newly added line for editing once we can identify it reliably.
     } catch (err) {
@@ -347,6 +443,25 @@ export function DishDetailManager({ dish, items, ingredients, subrecipes, units 
             />
           </label>
         </div>
+        <div className="rounded-2xl border border-slate-800/70 bg-slate-950/60 p-4">
+          <ImageUploader
+            initialUrl={existingImageUrl}
+            onFileReady={setImageFile}
+            disabled={isSubmitting}
+          />
+        </div>
+        <AllergensIndicatorsPicker
+          inheritedAllergens={inheritedAllergens}
+          inheritedIndicators={inheritedIndicators}
+          manualAddAllergens={manualAddAllergens}
+          setManualAddAllergens={setManualAddAllergens}
+          manualExcludeAllergens={manualExcludeAllergens}
+          setManualExcludeAllergens={setManualExcludeAllergens}
+          manualAddIndicators={manualAddIndicators}
+          setManualAddIndicators={setManualAddIndicators}
+          manualExcludeIndicators={manualExcludeIndicators}
+          setManualExcludeIndicators={setManualExcludeIndicators}
+        />
         <div className="flex flex-wrap gap-2">
           <button
             type="submit"

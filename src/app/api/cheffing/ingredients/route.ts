@@ -4,6 +4,11 @@ import { createSupabaseRouteHandlerClient, mergeResponseCookies } from '@/lib/su
 import { createSupabaseAdminClient } from '@/lib/supabaseAdmin';
 import { getAllowlistRoleForUserEmail, isAdmin } from '@/lib/auth/requireRole';
 import { mapCheffingPostgresError } from '@/lib/cheffing/postgresErrors';
+import {
+  ALLERGEN_KEYS,
+  INDICATOR_KEYS,
+  sanitizeAllergenIndicatorArray,
+} from '@/lib/cheffing/allergensIndicators';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -74,8 +79,8 @@ export async function POST(req: NextRequest) {
   const stockQty = body?.stock_qty;
   const minStockQty = body?.min_stock_qty;
   const maxStockQty = body?.max_stock_qty;
-  const allergenInput = body?.allergen_codes;
-  const indicatorInput = body?.indicator_codes;
+  const allergenInput = body?.allergens;
+  const indicatorInput = body?.indicators;
 
   if (!name || !purchaseUnit) {
     const missing = NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
@@ -108,16 +113,18 @@ export async function POST(req: NextRequest) {
     return invalid;
   }
 
-  const allergenCodes = allergenInput === undefined ? [] : sanitizeStringArray(allergenInput);
+  const allergenCodes =
+    allergenInput === undefined ? [] : sanitizeAllergenIndicatorArray(allergenInput, ALLERGEN_KEYS);
   if (allergenCodes === null) {
-    const invalid = NextResponse.json({ error: 'Invalid allergen_codes' }, { status: 400 });
+    const invalid = NextResponse.json({ error: 'Invalid allergens' }, { status: 400 });
     mergeResponseCookies(supabaseResponse, invalid);
     return invalid;
   }
 
-  const indicatorCodes = indicatorInput === undefined ? [] : sanitizeStringArray(indicatorInput);
+  const indicatorCodes =
+    indicatorInput === undefined ? [] : sanitizeAllergenIndicatorArray(indicatorInput, INDICATOR_KEYS);
   if (indicatorCodes === null) {
-    const invalid = NextResponse.json({ error: 'Invalid indicator_codes' }, { status: 400 });
+    const invalid = NextResponse.json({ error: 'Invalid indicators' }, { status: 400 });
     mergeResponseCookies(supabaseResponse, invalid);
     return invalid;
   }
@@ -171,8 +178,8 @@ export async function POST(req: NextRequest) {
       stock_qty: resolvedStockQty,
       min_stock_qty: resolvedMinStockQty,
       max_stock_qty: resolvedMaxStockQty,
-      allergen_codes: allergenCodes,
-      indicator_codes: indicatorCodes,
+      allergens: allergenCodes,
+      indicators: indicatorCodes,
     })
     .select('id')
     .maybeSingle();

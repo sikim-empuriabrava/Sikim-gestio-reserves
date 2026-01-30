@@ -33,7 +33,7 @@ export function CheffingItemPicker({
   const normalizeUnitCode = (code: string) => code.trim().toLowerCase();
 
   const unitByCodeNormalized = useMemo(() => {
-    return new Map(units.map((unit) => [normalizeUnitCode(unit.code), unit]));
+    return new Map<string, Unit>(units.map((unit) => [normalizeUnitCode(unit.code), unit] as const));
   }, [units]);
 
   const unitsByDimension = useMemo(() => {
