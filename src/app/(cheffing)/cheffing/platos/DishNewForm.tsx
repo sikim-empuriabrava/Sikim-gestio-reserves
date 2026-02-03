@@ -6,7 +6,9 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 
 import { CheffingItemPicker } from '@/app/(cheffing)/cheffing/components/CheffingItemPicker';
+import { ImageUploader } from '@/app/(cheffing)/cheffing/components/ImageUploader';
 import type { Ingredient, Subrecipe, Unit } from '@/lib/cheffing/types';
+import { createSupabaseBrowserClient } from '@/lib/supabase/browser';
 
 type DishFormState = {
   name: string;
@@ -35,14 +37,18 @@ type DraftDishItem = {
 export function DishNewForm({ ingredients, subrecipes, units }: DishNewFormProps) {
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
+  const [imageWarning, setImageWarning] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [draftItems, setDraftItems] = useState<DraftDishItem[]>([]);
+  const [imageFile, setImageFile] = useState<File | null>(null);
   const [formState, setFormState] = useState<DishFormState>({
     name: '',
     selling_price: '',
     servings: '1',
     notes: '',
   });
+
+  const supabase = useMemo(() => createSupabaseBrowserClient(), []);
 
   const sortedUnits = useMemo(() => {
     return [...units].sort((a, b) => a.code.localeCompare(b.code));
@@ -115,6 +121,7 @@ export function DishNewForm({ ingredients, subrecipes, units }: DishNewFormProps
   const submitNewDish = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setError(null);
+    setImageWarning(null);
     setIsSubmitting(true);
 
     try {
@@ -177,8 +184,43 @@ export function DishNewForm({ ingredients, subrecipes, units }: DishNewFormProps
         throw new Error(payload?.error ?? 'Error creando plato');
       }
 
-      if (payload?.id) {
-        router.push(`/cheffing/platos/${payload.id}`);
+      const createdId = typeof payload?.id === 'string' ? payload.id : null;
+      if (createdId && imageFile) {
+        let uploadedPath: string | null = null;
+        try {
+          const extension = imageFile.type === 'image/webp' ? 'webp' : 'jpg';
+          const filename = `${crypto.randomUUID()}.${extension}`;
+          const path = `dishes/${createdId}/${filename}`;
+          const { error: uploadError } = await supabase.storage
+            .from('cheffing-images')
+            .upload(path, imageFile, { upsert: true, contentType: imageFile.type });
+
+          if (uploadError) {
+            throw new Error('Error subiendo la imagen del plato.');
+          }
+
+          uploadedPath = path;
+          const patchResponse = await fetch(`/api/cheffing/dishes/${createdId}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ image_path: path }),
+          });
+
+          if (!patchResponse.ok) {
+            throw new Error('Error guardando la imagen del plato.');
+          }
+        } catch (imageError) {
+          if (uploadedPath) {
+            await supabase.storage.from('cheffing-images').remove([uploadedPath]);
+          }
+          setImageWarning(
+            imageError instanceof Error ? imageError.message : 'No se pudo guardar la imagen del plato.',
+          );
+        }
+      }
+
+      if (createdId) {
+        router.push(`/cheffing/platos/${createdId}`);
       } else {
         router.push('/cheffing/platos');
       }
@@ -199,6 +241,7 @@ export function DishNewForm({ ingredients, subrecipes, units }: DishNewFormProps
         <div className="flex flex-wrap items-center justify-between gap-3">
           <h3 className="text-lg font-semibold text-white">Nuevo plato</h3>
           {error ? <p className="text-sm text-rose-400">{error}</p> : null}
+          {imageWarning ? <p className="text-sm text-amber-300">{imageWarning}</p> : null}
         </div>
         <div className="grid gap-4 md:grid-cols-3">
           <label className="flex flex-col gap-2 text-sm text-slate-300">
@@ -244,6 +287,14 @@ export function DishNewForm({ ingredients, subrecipes, units }: DishNewFormProps
               placeholder="Opcional"
             />
           </label>
+          <div className="md:col-span-3">
+            <ImageUploader
+              label="Imagen del plato"
+              initialUrl={null}
+              onFileReady={setImageFile}
+              disabled={isSubmitting}
+            />
+          </div>
         </div>
         <div className="flex flex-wrap items-center gap-3">
           <button

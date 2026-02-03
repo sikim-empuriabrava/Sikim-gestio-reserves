@@ -22,6 +22,7 @@ export type Ingredient = {
   max_stock_qty?: number | null;
   allergens?: string[];
   indicators?: string[];
+  image_path?: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -49,6 +50,7 @@ export type Subrecipe = {
   indicators_manual_exclude?: string[];
   effective_allergens?: string[];
   effective_indicators?: string[];
+  image_path?: string | null;
   created_at: string;
   updated_at: string;
 };

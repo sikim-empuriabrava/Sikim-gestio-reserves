@@ -7,6 +7,7 @@ const IMAGE_QUALITY = 0.8;
 
 type ImageUploaderProps = {
   initialUrl?: string | null;
+  label?: string;
   onFileReady: (file: File | null) => void;
   disabled?: boolean;
 };
@@ -65,7 +66,7 @@ async function compressImage(file: File) {
   }
 }
 
-export function ImageUploader({ initialUrl = null, onFileReady, disabled }: ImageUploaderProps) {
+export function ImageUploader({ initialUrl = null, label = 'Imagen', onFileReady, disabled }: ImageUploaderProps) {
   const [previewUrl, setPreviewUrl] = useState<string | null>(initialUrl);
   const [localError, setLocalError] = useState<string | null>(null);
   const [isCompressing, setIsCompressing] = useState(false);
@@ -114,7 +115,7 @@ export function ImageUploader({ initialUrl = null, onFileReady, disabled }: Imag
   return (
     <div className="space-y-3">
       <label className="flex flex-col gap-2 text-sm text-slate-300">
-        Imagen del plato
+        {label}
         <input
           type="file"
           accept="image/*"
@@ -129,7 +130,7 @@ export function ImageUploader({ initialUrl = null, onFileReady, disabled }: Imag
         <div className="overflow-hidden rounded-xl border border-slate-800/70">
           <img
             src={previewUrl}
-            alt="Previsualización del plato"
+            alt="Previsualización de imagen"
             className="h-40 w-full object-cover"
           />
         </div>

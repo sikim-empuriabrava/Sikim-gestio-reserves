@@ -13,7 +13,7 @@ export default async function CheffingProductoDetailPage({ params }: { params: {
   const { data: product, error: productError } = await supabase
     .from('cheffing_ingredients')
     .select(
-      'id, name, purchase_unit_code, purchase_pack_qty, purchase_price, waste_pct, categories, reference, stock_unit_code, stock_qty, min_stock_qty, max_stock_qty, allergens, indicators, created_at, updated_at',
+      'id, name, purchase_unit_code, purchase_pack_qty, purchase_price, waste_pct, categories, reference, stock_unit_code, stock_qty, min_stock_qty, max_stock_qty, allergens, indicators, image_path, created_at, updated_at',
     )
     .eq('id', params.id)
     .maybeSingle();
