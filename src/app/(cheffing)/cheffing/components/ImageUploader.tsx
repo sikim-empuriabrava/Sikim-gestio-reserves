@@ -6,6 +6,8 @@ import type { Area } from 'react-easy-crop';
 import { ImageCropModal } from '@/app/(cheffing)/cheffing/components/ImageCropModal';
 
 const IMAGE_QUALITY = 0.8;
+const MAX_IMAGE_SIZE_BYTES = 5 * 1024 * 1024;
+const ALLOWED_IMAGE_TYPES = ['image/png', 'image/jpeg', 'image/webp'] as const;
 
 type ImageUploaderProps = {
   initialUrl?: string | null;
@@ -87,6 +89,17 @@ async function cropAndCompressImage({
   }
 }
 
+function sanitizeBaseName(name: string) {
+  const cleaned = name
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9-_]+/g, '-')
+    .replace(/-+/g, '-')
+    .replace(/^[-_]+|[-_]+$/g, '');
+
+  return cleaned || 'imagen';
+}
+
 export function ImageUploader({
   initialUrl = null,
   label = 'Imagen',
@@ -128,13 +141,25 @@ export function ImageUploader({
       return;
     }
 
+    if (!ALLOWED_IMAGE_TYPES.includes(file.type as (typeof ALLOWED_IMAGE_TYPES)[number])) {
+      setLocalError('Formato no permitido. Usa PNG, JPG o WebP.');
+      event.target.value = '';
+      return;
+    }
+
+    if (file.size > MAX_IMAGE_SIZE_BYTES) {
+      setLocalError('La imagen supera el tamaño máximo permitido (5 MB).');
+      event.target.value = '';
+      return;
+    }
+
     event.target.value = '';
     setIsProcessing(true);
 
     try {
       const dataUrl = await loadDataUrlFromFile(file);
       setPendingImageSrc(dataUrl);
-      setPendingFileName(file.name.replace(/\.[^/.]+$/, '') || 'imagen');
+      setPendingFileName(sanitizeBaseName(file.name.replace(/\.[^/.]+$/, '')));
     } catch (error) {
       setLocalError(error instanceof Error ? error.message : 'No se pudo procesar la imagen.');
       onFileReady(null);
@@ -186,7 +211,7 @@ export function ImageUploader({
           {label}
           <input
             type="file"
-            accept="image/*"
+            accept="image/png,image/jpeg,image/webp"
             onChange={handleFileChange}
             disabled={disabled || isProcessing}
             className="block w-full rounded-lg border border-slate-700 bg-slate-950/70 px-3 py-2 text-white file:mr-3 file:rounded-full file:border-0 file:bg-slate-800 file:px-3 file:py-1 file:text-xs file:font-semibold file:text-slate-200"
