@@ -97,6 +97,9 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   if (body?.can_cheffing !== undefined) {
     updates.can_cheffing = Boolean(body.can_cheffing);
   }
+  if (body?.cheffing_images_manage !== undefined) {
+    updates.cheffing_images_manage = Boolean(body.cheffing_images_manage);
+  }
 
   if (Object.keys(updates).length === 0) {
     const missing = NextResponse.json({ error: 'No fields to update' }, { status: 400 });

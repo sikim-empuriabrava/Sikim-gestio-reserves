@@ -1,11 +1,14 @@
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { requireCheffingAccess } from '@/lib/cheffing/requireCheffing';
+import { isAdmin } from '@/lib/auth/requireRole';
 import type { Unit } from '@/lib/cheffing/types';
 
 import { ProductsNewForm } from '../ProductsNewForm';
 
 export default async function CheffingProductosNewPage() {
-  await requireCheffingAccess();
+  const { allowlistInfo } = await requireCheffingAccess();
+  const canManageImages =
+    isAdmin(allowlistInfo.role) || Boolean(allowlistInfo.allowedUser?.cheffing_images_manage);
 
   const supabase = createSupabaseServerClient();
   const { data: units, error: unitsError } = await supabase
@@ -27,7 +30,7 @@ export default async function CheffingProductosNewPage() {
         </p>
       </header>
 
-      <ProductsNewForm units={(units ?? []) as Unit[]} />
+      <ProductsNewForm units={(units ?? []) as Unit[]} canManageImages={canManageImages} />
     </section>
   );
 }

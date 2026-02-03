@@ -34,7 +34,7 @@ export default async function AdminUsuariosPage() {
   const { data: rows, error } = await supabaseAdmin
     .from('app_allowed_users')
     .select(
-      'id,email,display_name,role,is_active,can_reservas,can_mantenimiento,can_cocina,can_cheffing',
+      'id,email,display_name,role,is_active,can_reservas,can_mantenimiento,can_cocina,can_cheffing,cheffing_images_manage',
     )
     .order('email', { ascending: true });
   if (error) {

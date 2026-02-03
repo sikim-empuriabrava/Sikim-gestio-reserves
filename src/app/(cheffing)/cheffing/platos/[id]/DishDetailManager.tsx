@@ -31,6 +31,7 @@ type DishDetailManagerProps = {
   ingredients: Ingredient[];
   subrecipes: Subrecipe[];
   units: Unit[];
+  canManageImages: boolean;
 };
 
 type DishFormState = {
@@ -50,7 +51,14 @@ type ItemFormState = {
   notes: string;
 };
 
-export function DishDetailManager({ dish, items, ingredients, subrecipes, units }: DishDetailManagerProps) {
+export function DishDetailManager({
+  dish,
+  items,
+  ingredients,
+  subrecipes,
+  units,
+  canManageImages,
+}: DishDetailManagerProps) {
   const router = useRouter();
   const [headerError, setHeaderError] = useState<string | null>(null);
   const [itemsError, setItemsError] = useState<string | null>(null);
@@ -118,8 +126,9 @@ export function DishDetailManager({ dish, items, ingredients, subrecipes, units 
   const existingImageUrl = useMemo(() => {
     if (!dish.image_path) return null;
     const { data } = supabase.storage.from('cheffing-images').getPublicUrl(dish.image_path);
-    return data.publicUrl;
-  }, [dish.image_path, supabase]);
+    const cacheKey = dish.updated_at ?? Date.now().toString();
+    return `${data.publicUrl}?v=${encodeURIComponent(cacheKey)}`;
+  }, [dish.image_path, dish.updated_at, supabase]);
 
   const formatCurrency = (value: number | null) => {
     if (value === null || Number.isNaN(value)) return '—';
@@ -161,12 +170,11 @@ export function DishDetailManager({ dish, items, ingredients, subrecipes, units 
 
       let newImagePath: string | null = dish.image_path ?? null;
       let uploadedPath: string | null = null;
+      const previousPath = dish.image_path ?? null;
 
-      if (imageFile) {
+      if (imageFile && canManageImages) {
         const extension = imageFile.type === 'image/webp' ? 'webp' : 'jpg';
-        const filename = `${crypto.randomUUID()}.${extension}`;
-        const prefix = dish.venue_id ? `${dish.venue_id}/` : '';
-        const path = `${prefix}dishes/${dish.id}/${filename}`;
+        const path = `dishes/${dish.id}/main.${extension}`;
         const { error: uploadError } = await supabase.storage
           .from('cheffing-images')
           .upload(path, imageFile, { upsert: true, contentType: imageFile.type });
@@ -206,8 +214,8 @@ export function DishDetailManager({ dish, items, ingredients, subrecipes, units 
         throw new Error(payload?.error ?? 'Error actualizando plato');
       }
 
-      if (uploadedPath && dish.image_path && dish.image_path !== uploadedPath) {
-        await supabase.storage.from('cheffing-images').remove([dish.image_path]);
+      if (previousPath && uploadedPath && previousPath !== uploadedPath) {
+        await supabase.storage.from('cheffing-images').remove([previousPath]);
       }
 
       setImageFile(null);
@@ -242,6 +250,36 @@ export function DishDetailManager({ dish, items, ingredients, subrecipes, units 
       router.refresh();
     } catch (err) {
       setHeaderError(err instanceof Error ? err.message : 'Error desconocido');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const deleteImage = async () => {
+    if (!dish.image_path || !canManageImages) return;
+    setHeaderError(null);
+    setIsSubmitting(true);
+
+    try {
+      const confirmed = window.confirm('¿Seguro que quieres eliminar la imagen?');
+      if (!confirmed) {
+        return;
+      }
+      const { error: removeError } = await supabase.storage.from('cheffing-images').remove([dish.image_path]);
+      if (removeError) {
+        throw new Error('Error eliminando la imagen del plato.');
+      }
+      const response = await fetch(`/api/cheffing/dishes/${dish.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ image_path: null }),
+      });
+      if (!response.ok) {
+        throw new Error('Error guardando la eliminación de la imagen.');
+      }
+      router.refresh();
+    } catch (err) {
+      setHeaderError(err instanceof Error ? err.message : 'No se pudo eliminar la imagen.');
     } finally {
       setIsSubmitting(false);
     }
@@ -443,13 +481,26 @@ export function DishDetailManager({ dish, items, ingredients, subrecipes, units 
             />
           </label>
         </div>
-        <div className="rounded-2xl border border-slate-800/70 bg-slate-950/60 p-4">
-          <ImageUploader
-            initialUrl={existingImageUrl}
-            onFileReady={setImageFile}
-            disabled={isSubmitting}
-          />
-        </div>
+        {canManageImages || existingImageUrl ? (
+          <div className="space-y-3 rounded-2xl border border-slate-800/70 bg-slate-950/60 p-4">
+            <ImageUploader
+              initialUrl={existingImageUrl}
+              onFileReady={setImageFile}
+              disabled={isSubmitting}
+              readOnly={!canManageImages}
+            />
+            {canManageImages && dish.image_path ? (
+              <button
+                type="button"
+                onClick={deleteImage}
+                disabled={isSubmitting}
+                className="rounded-full border border-rose-500/70 px-4 py-2 text-xs font-semibold text-rose-200"
+              >
+                Eliminar imagen
+              </button>
+            ) : null}
+          </div>
+        ) : null}
         <AllergensIndicatorsPicker
           inheritedAllergens={inheritedAllergens}
           inheritedIndicators={inheritedIndicators}

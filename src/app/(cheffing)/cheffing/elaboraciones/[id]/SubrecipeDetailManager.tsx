@@ -35,6 +35,7 @@ type SubrecipeDetailManagerProps = {
   ingredients: Ingredient[];
   subrecipes: Subrecipe[];
   units: Unit[];
+  canManageImages: boolean;
 };
 
 type SubrecipeFormState = {
@@ -61,6 +62,7 @@ export function SubrecipeDetailManager({
   ingredients,
   subrecipes,
   units,
+  canManageImages,
 }: SubrecipeDetailManagerProps) {
   const router = useRouter();
   const [headerError, setHeaderError] = useState<string | null>(null);
@@ -156,8 +158,9 @@ export function SubrecipeDetailManager({
   const existingImageUrl = useMemo(() => {
     if (!subrecipe.image_path) return null;
     const { data } = supabase.storage.from('cheffing-images').getPublicUrl(subrecipe.image_path);
-    return data.publicUrl;
-  }, [subrecipe.image_path, supabase]);
+    const cacheKey = subrecipe.updated_at ?? Date.now().toString();
+    return `${data.publicUrl}?v=${encodeURIComponent(cacheKey)}`;
+  }, [subrecipe.image_path, subrecipe.updated_at, supabase]);
 
   const saveHeader = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -200,12 +203,12 @@ export function SubrecipeDetailManager({
         throw new Error(payload?.error ?? 'Error actualizando elaboración');
       }
 
-      if (imageFile) {
+      if (imageFile && canManageImages) {
         let uploadedPath: string | null = null;
+        const previousPath = subrecipe.image_path ?? null;
         try {
           const extension = imageFile.type === 'image/webp' ? 'webp' : 'jpg';
-          const filename = `${crypto.randomUUID()}.${extension}`;
-          const path = `subrecipes/${subrecipe.id}/${filename}`;
+          const path = `subrecipes/${subrecipe.id}/main.${extension}`;
           const { error: uploadError } = await supabase.storage
             .from('cheffing-images')
             .upload(path, imageFile, { upsert: true, contentType: imageFile.type });
@@ -225,6 +228,9 @@ export function SubrecipeDetailManager({
             throw new Error('Error guardando la imagen de la elaboración.');
           }
 
+          if (previousPath && previousPath !== path) {
+            await supabase.storage.from('cheffing-images').remove([previousPath]);
+          }
           setImageFile(null);
         } catch (imageError) {
           if (uploadedPath) {
@@ -267,6 +273,38 @@ export function SubrecipeDetailManager({
       router.refresh();
     } catch (err) {
       setHeaderError(err instanceof Error ? err.message : 'Error desconocido');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const deleteImage = async () => {
+    if (!subrecipe.image_path || !canManageImages) return;
+    setImageWarning(null);
+    setIsSubmitting(true);
+
+    try {
+      const confirmed = window.confirm('¿Seguro que quieres eliminar la imagen?');
+      if (!confirmed) {
+        return;
+      }
+      const { error: removeError } = await supabase.storage
+        .from('cheffing-images')
+        .remove([subrecipe.image_path]);
+      if (removeError) {
+        throw new Error('Error eliminando la imagen de la elaboración.');
+      }
+      const response = await fetch(`/api/cheffing/subrecipes/${subrecipe.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ image_path: null }),
+      });
+      if (!response.ok) {
+        throw new Error('Error guardando la eliminación de la imagen.');
+      }
+      router.refresh();
+    } catch (err) {
+      setImageWarning(err instanceof Error ? err.message : 'No se pudo eliminar la imagen.');
     } finally {
       setIsSubmitting(false);
     }
@@ -483,14 +521,27 @@ export function SubrecipeDetailManager({
               onChange={(event) => setFormState((prev) => ({ ...prev, notes: event.target.value }))}
             />
           </label>
-          <div className="md:col-span-4">
-            <ImageUploader
-              label="Imagen de la elaboración"
-              initialUrl={existingImageUrl}
-              onFileReady={setImageFile}
-              disabled={isSubmitting}
-            />
-          </div>
+          {canManageImages || existingImageUrl ? (
+            <div className="space-y-3 md:col-span-4">
+              <ImageUploader
+                label="Imagen de la elaboración"
+                initialUrl={existingImageUrl}
+                onFileReady={setImageFile}
+                disabled={isSubmitting}
+                readOnly={!canManageImages}
+              />
+              {canManageImages && subrecipe.image_path ? (
+                <button
+                  type="button"
+                  onClick={deleteImage}
+                  disabled={isSubmitting}
+                  className="rounded-full border border-rose-500/70 px-4 py-2 text-xs font-semibold text-rose-200"
+                >
+                  Eliminar imagen
+                </button>
+              ) : null}
+            </div>
+          ) : null}
         </div>
         <AllergensIndicatorsPicker
           inheritedAllergens={inheritedAllergens}

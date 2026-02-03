@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 
 import type { IngredientCost, Unit, UnitDimension } from '@/lib/cheffing/types';
+import { createSupabaseBrowserClient } from '@/lib/supabase/browser';
 
 const baseUnitLabelByDimension: Record<UnitDimension, string> = {
   mass: 'g',
@@ -32,6 +33,8 @@ export function ProductsManager({ initialIngredients, units }: ProductsManagerPr
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingState, setEditingState] = useState<IngredientFormState | null>(null);
 
+  const supabase = useMemo(() => createSupabaseBrowserClient(), []);
+
   const sortedUnits = useMemo(() => {
     return [...units].sort((a, b) => a.code.localeCompare(b.code));
   }, [units]);
@@ -49,6 +52,13 @@ export function ProductsManager({ initialIngredients, units }: ProductsManagerPr
   const formatFactor = (value: number | null) => {
     if (value === null || Number.isNaN(value)) return '—';
     return value.toFixed(3);
+  };
+
+  const resolveImageUrl = (ingredient: IngredientCost) => {
+    if (!ingredient.image_path) return null;
+    const { data } = supabase.storage.from('cheffing-images').getPublicUrl(ingredient.image_path);
+    const cacheKey = ingredient.updated_at ?? Date.now().toString();
+    return `${data.publicUrl}?v=${encodeURIComponent(cacheKey)}`;
   };
 
   const parseWastePct = (value: string) => {
@@ -150,10 +160,11 @@ export function ProductsManager({ initialIngredients, units }: ProductsManagerPr
       </div>
 
       <div className="overflow-x-auto rounded-2xl border border-slate-800/70">
-        <table className="w-full min-w-[980px] text-left text-sm text-slate-200">
+        <table className="w-full min-w-[1020px] text-left text-sm text-slate-200">
           <thead className="bg-slate-950/70 text-xs uppercase text-slate-400">
             <tr>
               <th className="px-4 py-3">Producto</th>
+              <th className="px-4 py-3">Imagen</th>
               <th className="px-4 py-3">Compra</th>
               <th className="px-4 py-3">Precio pack</th>
               <th className="px-4 py-3">Merma</th>
@@ -166,7 +177,7 @@ export function ProductsManager({ initialIngredients, units }: ProductsManagerPr
           <tbody>
             {initialIngredients.length === 0 ? (
               <tr>
-                <td colSpan={8} className="px-4 py-6 text-center text-sm text-slate-500">
+                <td colSpan={9} className="px-4 py-6 text-center text-sm text-slate-500">
                   No hay productos todavía.
                 </td>
               </tr>
@@ -175,6 +186,7 @@ export function ProductsManager({ initialIngredients, units }: ProductsManagerPr
                 const isEditing = editingId === ingredient.id;
                 const editingValues = isEditing ? editingState : null;
                 const baseUnit = baseUnitLabel(ingredient.purchase_unit_dimension);
+                const imageUrl = resolveImageUrl(ingredient);
 
                 return (
                   <tr key={ingredient.id} className="border-t border-slate-800/60">
@@ -199,6 +211,17 @@ export function ProductsManager({ initialIngredients, units }: ProductsManagerPr
                             </Link>
                           </div>
                         </div>
+                      )}
+                    </td>
+                    <td className="px-4 py-3">
+                      {imageUrl ? (
+                        <img
+                          src={imageUrl}
+                          alt={`Imagen de ${ingredient.name}`}
+                          className="h-12 w-12 rounded-lg object-cover"
+                        />
+                      ) : (
+                        <span className="text-xs text-slate-500">—</span>
                       )}
                     </td>
                     <td className="px-4 py-3 text-slate-300">

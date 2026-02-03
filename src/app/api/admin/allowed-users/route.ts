@@ -54,7 +54,7 @@ export async function GET() {
   const { data, error } = await supabase
     .from('app_allowed_users')
     .select(
-      'id,email,display_name,role,is_active,can_reservas,can_mantenimiento,can_cocina,can_cheffing',
+      'id,email,display_name,role,is_active,can_reservas,can_mantenimiento,can_cocina,can_cheffing,cheffing_images_manage',
     )
     .order('email', { ascending: true });
 
@@ -112,6 +112,7 @@ export async function POST(req: NextRequest) {
   const canMantenimiento = body?.can_mantenimiento ?? false;
   const canCocina = body?.can_cocina ?? false;
   const canCheffing = body?.can_cheffing ?? false;
+  const cheffingImagesManage = body?.cheffing_images_manage ?? false;
 
   if (!targetEmail) {
     const invalidEmail = NextResponse.json({ error: 'Missing email' }, { status: 400 });
@@ -137,6 +138,7 @@ export async function POST(req: NextRequest) {
       can_mantenimiento: Boolean(canMantenimiento),
       can_cocina: Boolean(canCocina),
       can_cheffing: Boolean(canCheffing),
+      cheffing_images_manage: Boolean(cheffingImagesManage),
     })
     .select()
     .maybeSingle();

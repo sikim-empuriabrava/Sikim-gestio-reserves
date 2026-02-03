@@ -30,6 +30,7 @@ type ProductsNewFormProps = {
   units: Unit[];
   initialProduct?: Ingredient | null;
   productId?: string;
+  canManageImages: boolean;
 };
 
 const dimensionLabels: Record<UnitDimension, string> = {
@@ -45,7 +46,7 @@ const sanitizeStringArray = (values: string[]) => {
   return Array.from(new Set(cleaned));
 };
 
-export function ProductsNewForm({ units, initialProduct, productId }: ProductsNewFormProps) {
+export function ProductsNewForm({ units, initialProduct, productId, canManageImages }: ProductsNewFormProps) {
   const router = useRouter();
   const hasUnits = units.length > 0;
   const isEditing = Boolean(productId);
@@ -84,8 +85,9 @@ export function ProductsNewForm({ units, initialProduct, productId }: ProductsNe
   const existingImageUrl = useMemo(() => {
     if (!initialProduct?.image_path) return null;
     const { data } = supabase.storage.from('cheffing-images').getPublicUrl(initialProduct.image_path);
-    return data.publicUrl;
-  }, [initialProduct?.image_path, supabase]);
+    const cacheKey = initialProduct.updated_at ?? Date.now().toString();
+    return `${data.publicUrl}?v=${encodeURIComponent(cacheKey)}`;
+  }, [initialProduct?.image_path, initialProduct?.updated_at, supabase]);
 
   const initialStockUnitCode = initialProduct?.stock_unit_code ?? '';
   const initialStockDimension =
@@ -284,12 +286,12 @@ export function ProductsNewForm({ units, initialProduct, productId }: ProductsNe
         !isEditing && responsePayload?.id && typeof responsePayload.id === 'string' ? responsePayload.id : null;
       const targetId = isEditing ? productId : createdId;
 
-      if (targetId && imageFile) {
+      if (targetId && imageFile && canManageImages) {
         let uploadedPath: string | null = null;
+        const previousPath = initialProduct?.image_path ?? null;
         try {
           const extension = imageFile.type === 'image/webp' ? 'webp' : 'jpg';
-          const filename = `${crypto.randomUUID()}.${extension}`;
-          const path = `ingredients/${targetId}/${filename}`;
+          const path = `ingredients/${targetId}/main.${extension}`;
           const { error: uploadError } = await supabase.storage
             .from('cheffing-images')
             .upload(path, imageFile, { upsert: true, contentType: imageFile.type });
@@ -308,6 +310,11 @@ export function ProductsNewForm({ units, initialProduct, productId }: ProductsNe
           if (!patchResponse.ok) {
             throw new Error('Error guardando la imagen del producto.');
           }
+
+          if (previousPath && previousPath !== path) {
+            await supabase.storage.from('cheffing-images').remove([previousPath]);
+          }
+          setImageFile(null);
         } catch (imageError) {
           if (uploadedPath) {
             await supabase.storage.from('cheffing-images').remove([uploadedPath]);
@@ -328,6 +335,37 @@ export function ProductsNewForm({ units, initialProduct, productId }: ProductsNe
   };
 
   const unitsForStockDimension = unitsByDimension.get(stockUnitDimension) ?? [];
+
+  const handleDeleteImage = async () => {
+    if (!initialProduct?.image_path) return;
+    setImageWarning(null);
+    setIsSubmitting(true);
+    try {
+      const confirmed = window.confirm('¿Seguro que quieres eliminar la imagen?');
+      if (!confirmed) {
+        return;
+      }
+      const { error: removeError } = await supabase.storage
+        .from('cheffing-images')
+        .remove([initialProduct.image_path]);
+      if (removeError) {
+        throw new Error('Error eliminando la imagen del producto.');
+      }
+      const patchResponse = await fetch(`/api/cheffing/ingredients/${initialProduct.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ image_path: null }),
+      });
+      if (!patchResponse.ok) {
+        throw new Error('Error guardando la eliminación de la imagen.');
+      }
+      router.refresh();
+    } catch (err) {
+      setImageWarning(err instanceof Error ? err.message : 'No se pudo eliminar la imagen.');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
 
   return (
     <form onSubmit={submitProduct} className="space-y-6">
@@ -364,12 +402,27 @@ export function ProductsNewForm({ units, initialProduct, productId }: ProductsNe
           <h4 className="text-sm font-semibold text-white">Imagen</h4>
           <p className="text-xs text-slate-400">Opcional. Puedes actualizarla cuando quieras.</p>
         </header>
-        <ImageUploader
-          label="Imagen del producto"
-          initialUrl={existingImageUrl}
-          onFileReady={setImageFile}
-          disabled={isSubmitting}
-        />
+        {canManageImages || existingImageUrl ? (
+          <div className="space-y-3">
+            <ImageUploader
+              label="Imagen del producto"
+              initialUrl={existingImageUrl}
+              onFileReady={setImageFile}
+              disabled={isSubmitting}
+              readOnly={!canManageImages}
+            />
+            {canManageImages && initialProduct?.image_path ? (
+              <button
+                type="button"
+                onClick={handleDeleteImage}
+                disabled={isSubmitting}
+                className="rounded-full border border-rose-500/70 px-4 py-2 text-xs font-semibold text-rose-200"
+              >
+                Eliminar imagen
+              </button>
+            ) : null}
+          </div>
+        ) : null}
       </section>
 
       <section className="space-y-4 rounded-2xl border border-slate-800/70 bg-slate-950/60 p-5">

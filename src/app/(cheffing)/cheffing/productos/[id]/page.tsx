@@ -2,12 +2,15 @@ import { notFound } from 'next/navigation';
 
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { requireCheffingAccess } from '@/lib/cheffing/requireCheffing';
+import { isAdmin } from '@/lib/auth/requireRole';
 import type { Ingredient, Unit } from '@/lib/cheffing/types';
 
 import { ProductsNewForm } from '../ProductsNewForm';
 
 export default async function CheffingProductoDetailPage({ params }: { params: { id: string } }) {
-  await requireCheffingAccess();
+  const { allowlistInfo } = await requireCheffingAccess();
+  const canManageImages =
+    isAdmin(allowlistInfo.role) || Boolean(allowlistInfo.allowedUser?.cheffing_images_manage);
 
   const supabase = createSupabaseServerClient();
   const { data: product, error: productError } = await supabase
@@ -45,6 +48,7 @@ export default async function CheffingProductoDetailPage({ params }: { params: {
           units={(units ?? []) as Unit[]}
           initialProduct={product as Ingredient}
           productId={params.id}
+          canManageImages={canManageImages}
         />
       </div>
     </section>

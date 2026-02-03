@@ -22,6 +22,7 @@ type SubrecipeNewFormProps = {
   ingredients: Ingredient[];
   subrecipes: Subrecipe[];
   units: Unit[];
+  canManageImages: boolean;
 };
 
 type DraftSubrecipeItem = {
@@ -35,7 +36,7 @@ type DraftSubrecipeItem = {
   notes: string;
 };
 
-export function SubrecipeNewForm({ ingredients, subrecipes, units }: SubrecipeNewFormProps) {
+export function SubrecipeNewForm({ ingredients, subrecipes, units, canManageImages }: SubrecipeNewFormProps) {
   const router = useRouter();
   const hasUnits = units.length > 0;
   const [error, setError] = useState<string | null>(null);
@@ -192,12 +193,11 @@ export function SubrecipeNewForm({ ingredients, subrecipes, units }: SubrecipeNe
       }
 
       const createdId = typeof payload?.id === 'string' ? payload.id : null;
-      if (createdId && imageFile) {
+      if (createdId && imageFile && canManageImages) {
         let uploadedPath: string | null = null;
         try {
           const extension = imageFile.type === 'image/webp' ? 'webp' : 'jpg';
-          const filename = `${crypto.randomUUID()}.${extension}`;
-          const path = `subrecipes/${createdId}/${filename}`;
+          const path = `subrecipes/${createdId}/main.${extension}`;
           const { error: uploadError } = await supabase.storage
             .from('cheffing-images')
             .upload(path, imageFile, { upsert: true, contentType: imageFile.type });
@@ -216,6 +216,7 @@ export function SubrecipeNewForm({ ingredients, subrecipes, units }: SubrecipeNe
           if (!patchResponse.ok) {
             throw new Error('Error guardando la imagen de la elaboración.');
           }
+          setImageFile(null);
         } catch (imageError) {
           if (uploadedPath) {
             await supabase.storage.from('cheffing-images').remove([uploadedPath]);
@@ -318,14 +319,17 @@ export function SubrecipeNewForm({ ingredients, subrecipes, units }: SubrecipeNe
               disabled={!hasUnits}
             />
           </label>
-          <div className="md:col-span-4">
-            <ImageUploader
-              label="Imagen de la elaboración"
-              initialUrl={null}
-              onFileReady={setImageFile}
-              disabled={!hasUnits || isSubmitting}
-            />
-          </div>
+          {canManageImages ? (
+            <div className="md:col-span-4">
+              <ImageUploader
+                label="Imagen de la elaboración"
+                initialUrl={null}
+                onFileReady={setImageFile}
+                disabled={!hasUnits || isSubmitting}
+                readOnly={!canManageImages}
+              />
+            </div>
+          ) : null}
         </div>
         <div className="flex flex-wrap items-center gap-3">
           <button
