@@ -12,6 +12,7 @@ export type AllowedUser = {
   can_mantenimiento: boolean;
   can_cocina: boolean;
   can_cheffing: boolean;
+  cheffing_images_manage: boolean;
 };
 
 export type AllowlistInfo = {
@@ -31,7 +32,7 @@ export async function getAllowlistRoleForUserEmail(email: string | null | undefi
   const { data, error } = await supabaseAdmin
     .from('app_allowed_users')
     .select(
-      'id, email, display_name, role, is_active, can_reservas, can_mantenimiento, can_cocina, can_cheffing',
+      'id, email, display_name, role, is_active, can_reservas, can_mantenimiento, can_cocina, can_cheffing, cheffing_images_manage',
     )
     .eq('email', normalizedEmail)
     .limit(1)
@@ -58,6 +59,7 @@ export async function getAllowlistRoleForUserEmail(email: string | null | undefi
       can_mantenimiento: Boolean(data.can_mantenimiento),
       can_cocina: Boolean(data.can_cocina),
       can_cheffing: Boolean(data.can_cheffing),
+      cheffing_images_manage: Boolean(data.cheffing_images_manage),
     },
     error: null,
   };

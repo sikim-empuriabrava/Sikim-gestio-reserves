@@ -1,10 +1,11 @@
 'use client';
 
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 
 import type { Dish } from '@/lib/cheffing/types';
+import { createSupabaseBrowserClient } from '@/lib/supabase/browser';
 
 export type DishCost = Dish & {
   items_cost_total: number | null;
@@ -28,9 +29,18 @@ export function DishesManager({ initialDishes }: DishesManagerProps) {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingState, setEditingState] = useState<DishFormState | null>(null);
 
+  const supabase = useMemo(() => createSupabaseBrowserClient(), []);
+
   const formatCurrency = (value: number | null) => {
     if (value === null || Number.isNaN(value)) return '—';
     return `${value.toFixed(2)} €`;
+  };
+
+  const resolveImageUrl = (dish: DishCost) => {
+    if (!dish.image_path) return null;
+    const { data } = supabase.storage.from('cheffing-images').getPublicUrl(dish.image_path);
+    const cacheKey = dish.updated_at ?? Date.now().toString();
+    return `${data.publicUrl}?v=${encodeURIComponent(cacheKey)}`;
   };
 
   const startEditing = (dish: DishCost) => {
@@ -131,10 +141,11 @@ export function DishesManager({ initialDishes }: DishesManagerProps) {
       </div>
 
       <div className="overflow-x-auto rounded-2xl border border-slate-800/70">
-        <table className="w-full min-w-[960px] text-left text-sm text-slate-200">
+        <table className="w-full min-w-[1000px] text-left text-sm text-slate-200">
           <thead className="bg-slate-950/70 text-xs uppercase text-slate-400">
             <tr>
               <th className="px-4 py-3">Plato</th>
+              <th className="px-4 py-3">Imagen</th>
               <th className="px-4 py-3">PVP</th>
               <th className="px-4 py-3">Raciones</th>
               <th className="px-4 py-3">Coste total</th>
@@ -145,7 +156,7 @@ export function DishesManager({ initialDishes }: DishesManagerProps) {
           <tbody>
             {initialDishes.length === 0 ? (
               <tr>
-                <td colSpan={6} className="px-4 py-6 text-center text-sm text-slate-500">
+                <td colSpan={7} className="px-4 py-6 text-center text-sm text-slate-500">
                   No hay platos todavía.
                 </td>
               </tr>
@@ -153,6 +164,7 @@ export function DishesManager({ initialDishes }: DishesManagerProps) {
               initialDishes.map((dish) => {
                 const isEditing = editingId === dish.id;
                 const editingValues = isEditing ? editingState : null;
+                const imageUrl = resolveImageUrl(dish);
 
                 return (
                   <tr key={dish.id} className="border-t border-slate-800/60">
@@ -169,6 +181,17 @@ export function DishesManager({ initialDishes }: DishesManagerProps) {
                         <Link href={`/cheffing/platos/${dish.id}`} className="font-semibold text-white">
                           {dish.name}
                         </Link>
+                      )}
+                    </td>
+                    <td className="px-4 py-3">
+                      {imageUrl ? (
+                        <img
+                          src={imageUrl}
+                          alt={`Imagen de ${dish.name}`}
+                          className="h-12 w-12 rounded-lg object-cover"
+                        />
+                      ) : (
+                        <span className="text-xs text-slate-500">—</span>
                       )}
                     </td>
                     <td className="px-4 py-3 text-slate-300">

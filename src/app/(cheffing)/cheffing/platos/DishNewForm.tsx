@@ -21,6 +21,7 @@ type DishNewFormProps = {
   ingredients: Ingredient[];
   subrecipes: Subrecipe[];
   units: Unit[];
+  canManageImages: boolean;
 };
 
 type DraftDishItem = {
@@ -34,7 +35,7 @@ type DraftDishItem = {
   notes: string;
 };
 
-export function DishNewForm({ ingredients, subrecipes, units }: DishNewFormProps) {
+export function DishNewForm({ ingredients, subrecipes, units, canManageImages }: DishNewFormProps) {
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
   const [imageWarning, setImageWarning] = useState<string | null>(null);
@@ -185,12 +186,11 @@ export function DishNewForm({ ingredients, subrecipes, units }: DishNewFormProps
       }
 
       const createdId = typeof payload?.id === 'string' ? payload.id : null;
-      if (createdId && imageFile) {
+      if (createdId && imageFile && canManageImages) {
         let uploadedPath: string | null = null;
         try {
           const extension = imageFile.type === 'image/webp' ? 'webp' : 'jpg';
-          const filename = `${crypto.randomUUID()}.${extension}`;
-          const path = `dishes/${createdId}/${filename}`;
+          const path = `dishes/${createdId}/main.${extension}`;
           const { error: uploadError } = await supabase.storage
             .from('cheffing-images')
             .upload(path, imageFile, { upsert: true, contentType: imageFile.type });
@@ -209,6 +209,7 @@ export function DishNewForm({ ingredients, subrecipes, units }: DishNewFormProps
           if (!patchResponse.ok) {
             throw new Error('Error guardando la imagen del plato.');
           }
+          setImageFile(null);
         } catch (imageError) {
           if (uploadedPath) {
             await supabase.storage.from('cheffing-images').remove([uploadedPath]);
@@ -287,14 +288,17 @@ export function DishNewForm({ ingredients, subrecipes, units }: DishNewFormProps
               placeholder="Opcional"
             />
           </label>
-          <div className="md:col-span-3">
-            <ImageUploader
-              label="Imagen del plato"
-              initialUrl={null}
-              onFileReady={setImageFile}
-              disabled={isSubmitting}
-            />
-          </div>
+          {canManageImages ? (
+            <div className="md:col-span-3">
+              <ImageUploader
+                label="Imagen del plato"
+                initialUrl={null}
+                onFileReady={setImageFile}
+                disabled={isSubmitting}
+                readOnly={!canManageImages}
+              />
+            </div>
+          ) : null}
         </div>
         <div className="flex flex-wrap items-center gap-3">
           <button

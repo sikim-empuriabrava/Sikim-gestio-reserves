@@ -2,6 +2,7 @@ import { notFound } from 'next/navigation';
 
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { requireCheffingAccess } from '@/lib/cheffing/requireCheffing';
+import { isAdmin } from '@/lib/auth/requireRole';
 import type { Ingredient, Subrecipe, Unit } from '@/lib/cheffing/types';
 import type { AllergenKey, IndicatorKey } from '@/lib/cheffing/allergensIndicators';
 import { sanitizeAllergens, sanitizeIndicators } from '@/lib/cheffing/allergensHelpers';
@@ -20,7 +21,9 @@ import {
 } from './SubrecipeDetailManager';
 
 export default async function CheffingElaboracionDetailPage({ params }: { params: { id: string } }) {
-  await requireCheffingAccess();
+  const { allowlistInfo } = await requireCheffingAccess();
+  const canManageImages =
+    isAdmin(allowlistInfo.role) || Boolean(allowlistInfo.allowedUser?.cheffing_images_manage);
 
   const supabase = createSupabaseServerClient();
   const { data: subrecipe, error: subrecipeError } = await supabase
@@ -185,6 +188,7 @@ export default async function CheffingElaboracionDetailPage({ params }: { params
         ingredients={ingredientsTyped}
         subrecipes={enrichedSubrecipes}
         units={(units ?? []) as Unit[]}
+        canManageImages={canManageImages}
       />
     </section>
   );

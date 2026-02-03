@@ -88,7 +88,9 @@ export async function middleware(req: NextRequest) {
   // Filter by email and active status to avoid mismatches or multi-row errors.
   const { data: allowedUser, error: allowlistError } = await supabase
     .from('app_allowed_users')
-    .select('email, role, is_active, can_reservas, can_mantenimiento, can_cocina, can_cheffing')
+    .select(
+      'email, role, is_active, can_reservas, can_mantenimiento, can_cocina, can_cheffing, cheffing_images_manage',
+    )
     .eq('email', requesterEmail)
     .eq('is_active', true)
     .maybeSingle();

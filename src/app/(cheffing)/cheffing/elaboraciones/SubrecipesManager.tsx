@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 
 import type { Subrecipe, Unit, UnitDimension } from '@/lib/cheffing/types';
+import { createSupabaseBrowserClient } from '@/lib/supabase/browser';
 
 const baseUnitLabelByDimension: Record<UnitDimension, string> = {
   mass: 'g',
@@ -40,6 +41,8 @@ export function SubrecipesManager({ initialSubrecipes, units }: SubrecipesManage
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingState, setEditingState] = useState<SubrecipeFormState | null>(null);
 
+  const supabase = useMemo(() => createSupabaseBrowserClient(), []);
+
   const sortedUnits = useMemo(() => {
     return [...units].sort((a, b) => a.code.localeCompare(b.code));
   }, [units]);
@@ -52,6 +55,13 @@ export function SubrecipesManager({ initialSubrecipes, units }: SubrecipesManage
   const formatCurrency = (value: number | null) => {
     if (value === null || Number.isNaN(value)) return '—';
     return value.toFixed(4);
+  };
+
+  const resolveImageUrl = (subrecipe: SubrecipeCost) => {
+    if (!subrecipe.image_path) return null;
+    const { data } = supabase.storage.from('cheffing-images').getPublicUrl(subrecipe.image_path);
+    const cacheKey = subrecipe.updated_at ?? Date.now().toString();
+    return `${data.publicUrl}?v=${encodeURIComponent(cacheKey)}`;
   };
 
   const parseWastePct = (value: string) => {
@@ -168,10 +178,11 @@ export function SubrecipesManager({ initialSubrecipes, units }: SubrecipesManage
       </div>
 
       <div className="overflow-x-auto rounded-2xl border border-slate-800/70">
-        <table className="w-full min-w-[960px] text-left text-sm text-slate-200">
+        <table className="w-full min-w-[1000px] text-left text-sm text-slate-200">
           <thead className="bg-slate-950/70 text-xs uppercase text-slate-400">
             <tr>
               <th className="px-4 py-3">Elaboración</th>
+              <th className="px-4 py-3">Imagen</th>
               <th className="px-4 py-3">Producción</th>
               <th className="px-4 py-3">Merma</th>
               <th className="px-4 py-3">Coste total</th>
@@ -182,7 +193,7 @@ export function SubrecipesManager({ initialSubrecipes, units }: SubrecipesManage
           <tbody>
             {initialSubrecipes.length === 0 ? (
               <tr>
-                <td colSpan={6} className="px-4 py-6 text-center text-sm text-slate-500">
+                <td colSpan={7} className="px-4 py-6 text-center text-sm text-slate-500">
                   No hay elaboraciones todavía.
                 </td>
               </tr>
@@ -191,6 +202,7 @@ export function SubrecipesManager({ initialSubrecipes, units }: SubrecipesManage
                 const isEditing = editingId === subrecipe.id;
                 const editingValues = isEditing ? editingState : null;
                 const baseUnit = baseUnitLabel(subrecipe.output_unit_dimension);
+                const imageUrl = resolveImageUrl(subrecipe);
 
                 return (
                   <tr key={subrecipe.id} className="border-t border-slate-800/60">
@@ -207,6 +219,17 @@ export function SubrecipesManager({ initialSubrecipes, units }: SubrecipesManage
                         <Link href={`/cheffing/elaboraciones/${subrecipe.id}`} className="font-semibold text-white">
                           {subrecipe.name}
                         </Link>
+                      )}
+                    </td>
+                    <td className="px-4 py-3">
+                      {imageUrl ? (
+                        <img
+                          src={imageUrl}
+                          alt={`Imagen de ${subrecipe.name}`}
+                          className="h-12 w-12 rounded-lg object-cover"
+                        />
+                      ) : (
+                        <span className="text-xs text-slate-500">—</span>
                       )}
                     </td>
                     <td className="px-4 py-3 text-slate-300">

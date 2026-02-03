@@ -10,10 +10,27 @@ export default async function CheffingPlatosPage() {
     .from('v_cheffing_dish_cost')
     .select('id, name, selling_price, servings, notes, created_at, updated_at, items_cost_total, cost_per_serving')
     .order('name', { ascending: true });
+  const { data: dishImages, error: dishImagesError } = await supabase
+    .from('cheffing_dishes')
+    .select('id, image_path, updated_at');
 
-  if (dishesError) {
-    console.error('[cheffing/platos] Failed to load dishes', dishesError);
+  if (dishesError || dishImagesError) {
+    console.error('[cheffing/platos] Failed to load dishes', dishesError ?? dishImagesError);
   }
+
+  const imageById = new Map<string, { image_path: string | null; updated_at: string }>(
+    (dishImages ?? []).map((item) => [item.id, { image_path: item.image_path ?? null, updated_at: item.updated_at }]),
+  );
+
+  const enrichedDishes =
+    dishes?.map((dish) => {
+      const imageData = imageById.get(dish.id);
+      return {
+        ...dish,
+        image_path: imageData?.image_path ?? null,
+        updated_at: imageData?.updated_at ?? dish.updated_at,
+      };
+    }) ?? [];
 
   return (
     <section className="space-y-6 rounded-2xl border border-slate-800/80 bg-slate-900/70 p-6">
@@ -24,7 +41,7 @@ export default async function CheffingPlatosPage() {
         </p>
       </header>
 
-      <DishesManager initialDishes={(dishes ?? []) as DishCost[]} />
+      <DishesManager initialDishes={enrichedDishes as DishCost[]} />
     </section>
   );
 }

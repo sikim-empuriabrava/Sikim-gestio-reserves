@@ -14,15 +14,38 @@ export default async function CheffingProductosPage() {
       'id, name, purchase_unit_code, purchase_pack_qty, purchase_price, waste_pct, created_at, updated_at, purchase_unit_dimension, purchase_unit_factor, cost_gross_per_base, cost_net_per_base, waste_factor',
     )
     .order('name', { ascending: true });
+  const { data: ingredientImages, error: ingredientImagesError } = await supabase
+    .from('cheffing_ingredients')
+    .select('id, image_path, updated_at');
   const { data: units, error: unitsError } = await supabase
     .from('cheffing_units')
     .select('code, name, dimension, to_base_factor')
     .order('dimension', { ascending: true })
     .order('to_base_factor', { ascending: true });
 
-  if (ingredientsError || unitsError) {
-    console.error('[cheffing/productos] Failed to load products', ingredientsError ?? unitsError);
+  if (ingredientsError || unitsError || ingredientImagesError) {
+    console.error(
+      '[cheffing/productos] Failed to load products',
+      ingredientsError ?? unitsError ?? ingredientImagesError,
+    );
   }
+
+  const imageById = new Map<string, { image_path: string | null; updated_at: string }>(
+    (ingredientImages ?? []).map((item) => [
+      item.id,
+      { image_path: item.image_path ?? null, updated_at: item.updated_at },
+    ]),
+  );
+
+  const enrichedIngredients =
+    ingredients?.map((ingredient) => {
+      const imageData = imageById.get(ingredient.id);
+      return {
+        ...ingredient,
+        image_path: imageData?.image_path ?? null,
+        updated_at: imageData?.updated_at ?? ingredient.updated_at,
+      };
+    }) ?? [];
 
   return (
     <section className="space-y-6 rounded-2xl border border-slate-800/80 bg-slate-900/70 p-6">
@@ -34,7 +57,7 @@ export default async function CheffingProductosPage() {
       </header>
 
       <ProductsManager
-        initialIngredients={(ingredients ?? []) as IngredientCost[]}
+        initialIngredients={enrichedIngredients as IngredientCost[]}
         units={(units ?? []) as Unit[]}
       />
     </section>
