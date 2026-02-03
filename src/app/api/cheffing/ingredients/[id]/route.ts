@@ -202,6 +202,15 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     updates.max_stock_qty = body.max_stock_qty;
   }
 
+  if (body?.image_path !== undefined) {
+    if (body.image_path !== null && typeof body.image_path !== 'string') {
+      const invalid = NextResponse.json({ error: 'Invalid image_path' }, { status: 400 });
+      mergeResponseCookies(access.supabaseResponse, invalid);
+      return invalid;
+    }
+    updates.image_path = typeof body.image_path === 'string' ? body.image_path.trim() || null : null;
+  }
+
   if (Object.keys(updates).length === 0) {
     const invalid = NextResponse.json({ error: 'No fields to update' }, { status: 400 });
     mergeResponseCookies(access.supabaseResponse, invalid);

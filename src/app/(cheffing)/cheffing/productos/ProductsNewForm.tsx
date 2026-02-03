@@ -7,6 +7,8 @@ import { useRouter } from 'next/navigation';
 import type { Ingredient, Unit, UnitDimension } from '@/lib/cheffing/types';
 import { ALLERGENS, INDICATORS } from '@/lib/cheffing/allergensIndicators';
 import { toAllergenKeys, toIndicatorKeys } from '@/lib/cheffing/allergensHelpers';
+import { ImageUploader } from '@/app/(cheffing)/cheffing/components/ImageUploader';
+import { createSupabaseBrowserClient } from '@/lib/supabase/browser';
 
 type ProductFormState = {
   name: string;
@@ -48,8 +50,12 @@ export function ProductsNewForm({ units, initialProduct, productId }: ProductsNe
   const hasUnits = units.length > 0;
   const isEditing = Boolean(productId);
   const [error, setError] = useState<string | null>(null);
+  const [imageWarning, setImageWarning] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [categoryInput, setCategoryInput] = useState('');
+  const [imageFile, setImageFile] = useState<File | null>(null);
+
+  const supabase = useMemo(() => createSupabaseBrowserClient(), []);
 
   const unitByCode = useMemo(() => {
     return new Map<string, Unit>(units.map((unit) => [unit.code.toLowerCase(), unit] as const));
@@ -74,6 +80,12 @@ export function ProductsNewForm({ units, initialProduct, productId }: ProductsNe
   const sortedUnits = useMemo(() => {
     return [...units].sort((a, b) => a.code.localeCompare(b.code));
   }, [units]);
+
+  const existingImageUrl = useMemo(() => {
+    if (!initialProduct?.image_path) return null;
+    const { data } = supabase.storage.from('cheffing-images').getPublicUrl(initialProduct.image_path);
+    return data.publicUrl;
+  }, [initialProduct?.image_path, supabase]);
 
   const initialStockUnitCode = initialProduct?.stock_unit_code ?? '';
   const initialStockDimension =
@@ -183,6 +195,7 @@ export function ProductsNewForm({ units, initialProduct, productId }: ProductsNe
   const submitProduct = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setError(null);
+    setImageWarning(null);
     setIsSubmitting(true);
 
     try {
@@ -258,13 +271,51 @@ export function ProductsNewForm({ units, initialProduct, productId }: ProductsNe
           body: JSON.stringify(payload),
         },
       );
+      const responsePayload = await response.json().catch(() => ({}));
 
       if (!response.ok) {
-        const payload = await response.json().catch(() => ({}));
         if (response.status === 409) {
           throw new Error('Ya existe un producto con ese nombre.');
         }
-        throw new Error(payload?.error ?? 'Error guardando producto');
+        throw new Error(responsePayload?.error ?? 'Error guardando producto');
+      }
+
+      const createdId =
+        !isEditing && responsePayload?.id && typeof responsePayload.id === 'string' ? responsePayload.id : null;
+      const targetId = isEditing ? productId : createdId;
+
+      if (targetId && imageFile) {
+        let uploadedPath: string | null = null;
+        try {
+          const extension = imageFile.type === 'image/webp' ? 'webp' : 'jpg';
+          const filename = `${crypto.randomUUID()}.${extension}`;
+          const path = `ingredients/${targetId}/${filename}`;
+          const { error: uploadError } = await supabase.storage
+            .from('cheffing-images')
+            .upload(path, imageFile, { upsert: true, contentType: imageFile.type });
+
+          if (uploadError) {
+            throw new Error('Error subiendo la imagen del producto.');
+          }
+
+          uploadedPath = path;
+          const patchResponse = await fetch(`/api/cheffing/ingredients/${targetId}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ image_path: path }),
+          });
+
+          if (!patchResponse.ok) {
+            throw new Error('Error guardando la imagen del producto.');
+          }
+        } catch (imageError) {
+          if (uploadedPath) {
+            await supabase.storage.from('cheffing-images').remove([uploadedPath]);
+          }
+          setImageWarning(
+            imageError instanceof Error ? imageError.message : 'No se pudo guardar la imagen del producto.',
+          );
+        }
       }
 
       router.push('/cheffing/productos');
@@ -285,6 +336,7 @@ export function ProductsNewForm({ units, initialProduct, productId }: ProductsNe
           {isEditing ? 'Editar ficha de producto' : 'Nuevo producto'}
         </h3>
         {error ? <p className="text-sm text-rose-400">{error}</p> : null}
+        {imageWarning ? <p className="text-sm text-amber-300">{imageWarning}</p> : null}
         {!hasUnits ? (
           <p className="text-sm text-amber-300">Configura unidades antes de crear productos.</p>
         ) : null}
@@ -305,6 +357,19 @@ export function ProductsNewForm({ units, initialProduct, productId }: ProductsNe
             required
           />
         </label>
+      </section>
+
+      <section className="space-y-4 rounded-2xl border border-slate-800/70 bg-slate-950/60 p-5">
+        <header>
+          <h4 className="text-sm font-semibold text-white">Imagen</h4>
+          <p className="text-xs text-slate-400">Opcional. Puedes actualizarla cuando quieras.</p>
+        </header>
+        <ImageUploader
+          label="Imagen del producto"
+          initialUrl={existingImageUrl}
+          onFileReady={setImageFile}
+          disabled={isSubmitting}
+        />
       </section>
 
       <section className="space-y-4 rounded-2xl border border-slate-800/70 bg-slate-950/60 p-5">

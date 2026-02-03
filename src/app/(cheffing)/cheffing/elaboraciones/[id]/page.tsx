@@ -52,7 +52,7 @@ export default async function CheffingElaboracionDetailPage({ params }: { params
   const { data: subrecipes, error: subrecipesError } = await supabase
     .from('cheffing_subrecipes')
     .select(
-      'id, name, output_unit_code, output_qty, waste_pct, notes, allergens_manual_add, allergens_manual_exclude, indicators_manual_add, indicators_manual_exclude, created_at, updated_at',
+      'id, name, output_unit_code, output_qty, waste_pct, notes, allergens_manual_add, allergens_manual_exclude, indicators_manual_add, indicators_manual_exclude, image_path, created_at, updated_at',
     )
     .order('name', { ascending: true });
   const { data: subrecipeItems, error: subrecipeItemsError } = await supabase

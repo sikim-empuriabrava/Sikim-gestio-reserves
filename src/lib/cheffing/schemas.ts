@@ -32,6 +32,7 @@ export const subrecipeUpdateSchema = subrecipeCreateSchema
     allergens_manual_exclude: allergenIndicatorArraySchema.optional(),
     indicators_manual_add: allergenIndicatorArraySchema.optional(),
     indicators_manual_exclude: allergenIndicatorArraySchema.optional(),
+    image_path: trimmedString.nullable().optional(),
   })
   .refine((data) => Object.keys(data).length > 0, {
     message: 'No fields to update',

@@ -8,9 +8,11 @@ import { useRouter } from 'next/navigation';
 import type { Ingredient, Subrecipe, SubrecipeItem, Unit, UnitDimension } from '@/lib/cheffing/types';
 import { CheffingItemPicker } from '@/app/(cheffing)/cheffing/components/CheffingItemPicker';
 import { AllergensIndicatorsPicker } from '@/app/(cheffing)/cheffing/components/AllergensIndicatorsPicker';
+import { ImageUploader } from '@/app/(cheffing)/cheffing/components/ImageUploader';
 import type { AllergenKey, IndicatorKey } from '@/lib/cheffing/allergensIndicators';
 import { toAllergenKeys, toIndicatorKeys } from '@/lib/cheffing/allergensHelpers';
 import { addAllergens, addIndicators } from '@/lib/cheffing/allergensIndicatorsOps';
+import { createSupabaseBrowserClient } from '@/lib/supabase/browser';
 
 export type SubrecipeCost = Subrecipe & {
   output_unit_dimension: UnitDimension | null;
@@ -62,10 +64,12 @@ export function SubrecipeDetailManager({
 }: SubrecipeDetailManagerProps) {
   const router = useRouter();
   const [headerError, setHeaderError] = useState<string | null>(null);
+  const [imageWarning, setImageWarning] = useState<string | null>(null);
   const [itemsError, setItemsError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [editingItemId, setEditingItemId] = useState<string | null>(null);
   const [editingItemState, setEditingItemState] = useState<ItemFormState | null>(null);
+  const [imageFile, setImageFile] = useState<File | null>(null);
   const [manualAddAllergens, setManualAddAllergens] = useState<string[]>(
     subrecipe.allergens_manual_add ?? [],
   );
@@ -85,6 +89,8 @@ export function SubrecipeDetailManager({
     waste_pct: String((subrecipe.waste_pct * 100).toFixed(2)),
     notes: subrecipe.notes ?? '',
   });
+
+  const supabase = useMemo(() => createSupabaseBrowserClient(), []);
 
   const subrecipeOptions = useMemo(() => {
     return subrecipes.filter((entry) => entry.id !== subrecipe.id);
@@ -147,9 +153,16 @@ export function SubrecipeDetailManager({
     return value.toFixed(4);
   };
 
+  const existingImageUrl = useMemo(() => {
+    if (!subrecipe.image_path) return null;
+    const { data } = supabase.storage.from('cheffing-images').getPublicUrl(subrecipe.image_path);
+    return data.publicUrl;
+  }, [subrecipe.image_path, supabase]);
+
   const saveHeader = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setHeaderError(null);
+    setImageWarning(null);
     setIsSubmitting(true);
 
     try {
@@ -185,6 +198,42 @@ export function SubrecipeDetailManager({
           throw new Error('Ya existe una elaboración con ese nombre.');
         }
         throw new Error(payload?.error ?? 'Error actualizando elaboración');
+      }
+
+      if (imageFile) {
+        let uploadedPath: string | null = null;
+        try {
+          const extension = imageFile.type === 'image/webp' ? 'webp' : 'jpg';
+          const filename = `${crypto.randomUUID()}.${extension}`;
+          const path = `subrecipes/${subrecipe.id}/${filename}`;
+          const { error: uploadError } = await supabase.storage
+            .from('cheffing-images')
+            .upload(path, imageFile, { upsert: true, contentType: imageFile.type });
+
+          if (uploadError) {
+            throw new Error('Error subiendo la imagen de la elaboración.');
+          }
+
+          uploadedPath = path;
+          const patchResponse = await fetch(`/api/cheffing/subrecipes/${subrecipe.id}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ image_path: path }),
+          });
+
+          if (!patchResponse.ok) {
+            throw new Error('Error guardando la imagen de la elaboración.');
+          }
+
+          setImageFile(null);
+        } catch (imageError) {
+          if (uploadedPath) {
+            await supabase.storage.from('cheffing-images').remove([uploadedPath]);
+          }
+          setImageWarning(
+            imageError instanceof Error ? imageError.message : 'No se pudo guardar la imagen de la elaboración.',
+          );
+        }
       }
 
       router.refresh();
@@ -376,6 +425,7 @@ export function SubrecipeDetailManager({
           </div>
         </div>
         {headerError ? <p className="text-sm text-rose-400">{headerError}</p> : null}
+        {imageWarning ? <p className="text-sm text-amber-300">{imageWarning}</p> : null}
         <div className="grid gap-4 md:grid-cols-4">
           <label className="flex flex-col gap-2 text-sm text-slate-300">
             Nombre
@@ -433,6 +483,14 @@ export function SubrecipeDetailManager({
               onChange={(event) => setFormState((prev) => ({ ...prev, notes: event.target.value }))}
             />
           </label>
+          <div className="md:col-span-4">
+            <ImageUploader
+              label="Imagen de la elaboración"
+              initialUrl={existingImageUrl}
+              onFileReady={setImageFile}
+              disabled={isSubmitting}
+            />
+          </div>
         </div>
         <AllergensIndicatorsPicker
           inheritedAllergens={inheritedAllergens}

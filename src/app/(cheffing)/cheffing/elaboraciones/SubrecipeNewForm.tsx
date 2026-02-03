@@ -6,7 +6,9 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 
 import { CheffingItemPicker } from '@/app/(cheffing)/cheffing/components/CheffingItemPicker';
+import { ImageUploader } from '@/app/(cheffing)/cheffing/components/ImageUploader';
 import type { Ingredient, Subrecipe, Unit } from '@/lib/cheffing/types';
+import { createSupabaseBrowserClient } from '@/lib/supabase/browser';
 
 type SubrecipeFormState = {
   name: string;
@@ -37,8 +39,10 @@ export function SubrecipeNewForm({ ingredients, subrecipes, units }: SubrecipeNe
   const router = useRouter();
   const hasUnits = units.length > 0;
   const [error, setError] = useState<string | null>(null);
+  const [imageWarning, setImageWarning] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [draftItems, setDraftItems] = useState<DraftSubrecipeItem[]>([]);
+  const [imageFile, setImageFile] = useState<File | null>(null);
   const [formState, setFormState] = useState<SubrecipeFormState>({
     name: '',
     output_unit_code: units[0]?.code ?? '',
@@ -46,6 +50,8 @@ export function SubrecipeNewForm({ ingredients, subrecipes, units }: SubrecipeNe
     waste_pct: '0',
     notes: '',
   });
+
+  const supabase = useMemo(() => createSupabaseBrowserClient(), []);
 
   const sortedUnits = useMemo(() => {
     return [...units].sort((a, b) => a.code.localeCompare(b.code));
@@ -118,6 +124,7 @@ export function SubrecipeNewForm({ ingredients, subrecipes, units }: SubrecipeNe
   const submitNewSubrecipe = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setError(null);
+    setImageWarning(null);
     setIsSubmitting(true);
 
     try {
@@ -184,8 +191,43 @@ export function SubrecipeNewForm({ ingredients, subrecipes, units }: SubrecipeNe
         throw new Error(payload?.error ?? 'Error creando elaboración');
       }
 
-      if (payload?.id) {
-        router.push(`/cheffing/elaboraciones/${payload.id}`);
+      const createdId = typeof payload?.id === 'string' ? payload.id : null;
+      if (createdId && imageFile) {
+        let uploadedPath: string | null = null;
+        try {
+          const extension = imageFile.type === 'image/webp' ? 'webp' : 'jpg';
+          const filename = `${crypto.randomUUID()}.${extension}`;
+          const path = `subrecipes/${createdId}/${filename}`;
+          const { error: uploadError } = await supabase.storage
+            .from('cheffing-images')
+            .upload(path, imageFile, { upsert: true, contentType: imageFile.type });
+
+          if (uploadError) {
+            throw new Error('Error subiendo la imagen de la elaboración.');
+          }
+
+          uploadedPath = path;
+          const patchResponse = await fetch(`/api/cheffing/subrecipes/${createdId}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ image_path: path }),
+          });
+
+          if (!patchResponse.ok) {
+            throw new Error('Error guardando la imagen de la elaboración.');
+          }
+        } catch (imageError) {
+          if (uploadedPath) {
+            await supabase.storage.from('cheffing-images').remove([uploadedPath]);
+          }
+          setImageWarning(
+            imageError instanceof Error ? imageError.message : 'No se pudo guardar la imagen de la elaboración.',
+          );
+        }
+      }
+
+      if (createdId) {
+        router.push(`/cheffing/elaboraciones/${createdId}`);
       } else {
         router.push('/cheffing/elaboraciones');
       }
@@ -206,6 +248,7 @@ export function SubrecipeNewForm({ ingredients, subrecipes, units }: SubrecipeNe
         <div className="flex flex-wrap items-center justify-between gap-3">
           <h3 className="text-lg font-semibold text-white">Nueva elaboración</h3>
           {error ? <p className="text-sm text-rose-400">{error}</p> : null}
+          {imageWarning ? <p className="text-sm text-amber-300">{imageWarning}</p> : null}
           {!hasUnits ? (
             <p className="text-sm text-amber-300">Configura unidades antes de crear elaboraciones.</p>
           ) : null}
@@ -275,6 +318,14 @@ export function SubrecipeNewForm({ ingredients, subrecipes, units }: SubrecipeNe
               disabled={!hasUnits}
             />
           </label>
+          <div className="md:col-span-4">
+            <ImageUploader
+              label="Imagen de la elaboración"
+              initialUrl={null}
+              onFileReady={setImageFile}
+              disabled={!hasUnits || isSubmitting}
+            />
+          </div>
         </div>
         <div className="flex flex-wrap items-center gap-3">
           <button
