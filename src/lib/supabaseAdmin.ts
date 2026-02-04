@@ -3,13 +3,13 @@ import 'server-only';
 import { createClient } from '@supabase/supabase-js';
 
 function getSupabaseUrl() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL ?? process.env.SUPABASE_URL;
 
-  if (!url) {
-    throw new Error('Missing NEXT_PUBLIC_SUPABASE_URL for Supabase admin client');
+  if (!url?.trim()) {
+    throw new Error('Missing NEXT_PUBLIC_SUPABASE_URL or SUPABASE_URL for Supabase admin client');
   }
 
-  return url;
+  return url.trim();
 }
 
 function getServiceRoleKey() {
