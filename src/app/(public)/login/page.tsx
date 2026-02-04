@@ -10,19 +10,35 @@ export default function LoginPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [isLoading, setIsLoading] = useState(false);
-  const supabase = useMemo(() => createSupabaseBrowserClient(), []);
+  const browserMissingEnv = useMemo(() => {
+    const missing: string[] = [];
+    if (!process.env.NEXT_PUBLIC_SUPABASE_URL?.trim()) {
+      missing.push('NEXT_PUBLIC_SUPABASE_URL');
+    }
+    if (!process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY?.trim()) {
+      missing.push('NEXT_PUBLIC_SUPABASE_ANON_KEY');
+    }
+    return missing;
+  }, []);
+  const supabase = useMemo(
+    () => (browserMissingEnv.length > 0 ? null : createSupabaseBrowserClient()),
+    [browserMissingEnv.length],
+  );
   const error = searchParams.get('error');
   const nextRaw = searchParams.get('next');
   const nextPath = nextRaw ?? DEFAULT_NEXT;
   const isPreparing = !nextRaw;
   const missingEnv = useMemo(() => {
     const missingRaw = searchParams.get('missing');
-    if (!missingRaw) return [];
-    return missingRaw
-      .split(',')
-      .map((item) => item.trim())
-      .filter(Boolean);
-  }, [searchParams]);
+    const queryMissing = missingRaw
+      ? missingRaw
+          .split(',')
+          .map((item) => item.trim())
+          .filter(Boolean)
+      : [];
+    const combined = [...queryMissing, ...browserMissingEnv];
+    return Array.from(new Set(combined)).filter(Boolean);
+  }, [searchParams, browserMissingEnv]);
 
   useEffect(() => {
     if (!nextRaw) {
@@ -32,6 +48,7 @@ export default function LoginPage() {
 
   useEffect(() => {
     if (error === 'not_allowed') return;
+    if (!supabase) return;
 
     let cancelled = false;
 
@@ -57,7 +74,7 @@ export default function LoginPage() {
   }, [supabase, nextPath, error]);
 
   const handleLogin = async () => {
-    if (isPreparing) return;
+    if (isPreparing || !supabase) return;
 
     setIsLoading(true);
     const redirectTo = `${window.location.origin}/auth/callback?next=${encodeURIComponent(nextPath)}`;
@@ -77,7 +94,7 @@ export default function LoginPage() {
   };
 
   const handleLoginSelectAccount = async () => {
-    if (isPreparing) return;
+    if (isPreparing || !supabase) return;
 
     setIsLoading(true);
     const redirectTo = `${window.location.origin}/auth/callback?next=${encodeURIComponent(nextPath)}`;
@@ -110,7 +127,7 @@ export default function LoginPage() {
             No tienes acceso habilitado. Contacta con un administrador para darte permisos.
           </p>
         ) : null}
-        {error === 'config' ? (
+        {error === 'config' || missingEnv.length > 0 ? (
           <p className="rounded-lg bg-red-900/40 px-3 py-2 text-sm text-red-100">
             {missingEnv.length > 0 ? (
               <>
@@ -128,7 +145,7 @@ export default function LoginPage() {
       <button
         type="button"
         onClick={handleLogin}
-        disabled={isLoading || isPreparing}
+        disabled={isLoading || isPreparing || !supabase}
         className="inline-flex items-center gap-2 rounded-xl bg-white px-4 py-3 text-sm font-semibold text-slate-900 shadow-lg transition hover:bg-slate-100 disabled:cursor-not-allowed"
       >
         <svg
@@ -149,7 +166,7 @@ export default function LoginPage() {
       <button
         type="button"
         onClick={handleLoginSelectAccount}
-        disabled={isLoading || isPreparing}
+        disabled={isLoading || isPreparing || !supabase}
         className="inline-flex items-center gap-2 rounded-xl bg-slate-100 px-4 py-3 text-sm font-semibold text-slate-900 shadow-lg transition hover:bg-slate-200 disabled:cursor-not-allowed"
       >
         Elegir otra cuenta de Google
