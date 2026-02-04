@@ -784,6 +784,8 @@ CREATE TABLE public.cheffing_ingredients (
     purchase_pack_qty numeric NOT NULL,
     purchase_price numeric NOT NULL,
     waste_pct numeric DEFAULT 0 NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
     categories text[] DEFAULT '{}'::text[] NOT NULL,
     reference text,
     stock_unit_code text,
@@ -792,8 +794,6 @@ CREATE TABLE public.cheffing_ingredients (
     max_stock_qty numeric,
     allergen_codes text[] DEFAULT '{}'::text[] NOT NULL,
     indicator_codes text[] DEFAULT '{}'::text[] NOT NULL,
-    created_at timestamp with time zone DEFAULT now() NOT NULL,
-    updated_at timestamp with time zone DEFAULT now() NOT NULL,
     CONSTRAINT cheffing_ingredients_purchase_pack_qty_check CHECK ((purchase_pack_qty > (0)::numeric)),
     CONSTRAINT cheffing_ingredients_purchase_price_check CHECK ((purchase_price >= (0)::numeric)),
     CONSTRAINT cheffing_ingredients_stock_qty_check CHECK ((stock_qty >= (0)::numeric)),
@@ -1602,6 +1602,27 @@ CREATE UNIQUE INDEX cheffing_dishes_name_ci_unique ON public.cheffing_dishes USI
 
 
 --
+-- Name: cheffing_ingredients_allergen_codes_gin_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX cheffing_ingredients_allergen_codes_gin_idx ON public.cheffing_ingredients USING gin (allergen_codes);
+
+
+--
+-- Name: cheffing_ingredients_categories_gin_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX cheffing_ingredients_categories_gin_idx ON public.cheffing_ingredients USING gin (categories);
+
+
+--
+-- Name: cheffing_ingredients_indicator_codes_gin_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX cheffing_ingredients_indicator_codes_gin_idx ON public.cheffing_ingredients USING gin (indicator_codes);
+
+
+--
 -- Name: cheffing_ingredients_name_ci_unique; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -1613,26 +1634,6 @@ CREATE UNIQUE INDEX cheffing_ingredients_name_ci_unique ON public.cheffing_ingre
 --
 
 CREATE INDEX cheffing_ingredients_purchase_unit_code_idx ON public.cheffing_ingredients USING btree (purchase_unit_code);
-
---
--- Name: cheffing_ingredients_categories_gin_idx; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX cheffing_ingredients_categories_gin_idx ON public.cheffing_ingredients USING gin (categories);
-
-
---
--- Name: cheffing_ingredients_allergen_codes_gin_idx; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX cheffing_ingredients_allergen_codes_gin_idx ON public.cheffing_ingredients USING gin (allergen_codes);
-
-
---
--- Name: cheffing_ingredients_indicator_codes_gin_idx; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX cheffing_ingredients_indicator_codes_gin_idx ON public.cheffing_ingredients USING gin (indicator_codes);
 
 
 --
@@ -2386,4 +2387,5 @@ CREATE POLICY "read own allowlist row" ON public.app_allowed_users FOR SELECT TO
 -- PostgreSQL database dump complete
 --
 
-\unrestrict eUV8jetgi9GEbRUOEGAopfZyjyQxX7eDelMbYVxBc7Gtwo59X3tnGVBZpJnWErG
+\unrestrict u76S5N7u8zSYl5aRUbpTKo6h2hx0aS93wHqPcY6xnkpecP6W5IkwA1I0skQfC16
+
