@@ -19,10 +19,11 @@ export async function GET() {
 
   if (url) {
     try {
+      const headers: HeadersInit | undefined = anonKey ? { apikey: anonKey } : undefined;
       const healthUrl = new URL(HEALTH_ENDPOINT, url);
       const response = await fetch(healthUrl.toString(), {
         method: 'GET',
-        headers: hasAnonKey ? { apikey: anonKey } : undefined,
+        headers,
         cache: 'no-store',
       });
       pingStatus = response.status;
