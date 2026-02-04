@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createSupabaseMiddlewareClient } from './lib/supabase/middleware';
-import { getSupabaseUrl } from './lib/supabase/env';
+import { getMissingSupabaseEnv, getSupabaseUrl } from './lib/supabase/env';
 
 const PUBLIC_PATHS = [
   /^\/login$/,
@@ -19,16 +19,28 @@ export async function middleware(req: NextRequest) {
     return setDebugHeader(NextResponse.next());
   }
 
-  const supabaseResponse = setDebugHeader(NextResponse.next({ request: { headers: req.headers } }));
-  const supabase = createSupabaseMiddlewareClient(req, supabaseResponse);
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
   const redirectUrl = new URL('/login', req.url);
   if (!isApiRoute && pathname !== '/') {
     redirectUrl.searchParams.set('next', `${pathname}${search}`);
   }
+
+  const supabaseResponse = setDebugHeader(NextResponse.next({ request: { headers: req.headers } }));
+  const missingSupabaseEnv = getMissingSupabaseEnv();
+
+  if (missingSupabaseEnv.length > 0) {
+    return handleConfigErrorResponse(
+      isApiRoute,
+      supabaseResponse,
+      redirectUrl,
+      req,
+      missingSupabaseEnv,
+    );
+  }
+
+  const supabase = createSupabaseMiddlewareClient(req, supabaseResponse);
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
 
   const handleUnauthorized = () => {
     if (isApiRoute) {
@@ -215,9 +227,10 @@ function handleConfigErrorResponse(
   supabaseResponse: NextResponse,
   redirectUrl: URL,
   req: NextRequest,
+  missingEnv: string[] = [],
 ) {
   if (isApiRoute) {
-    const misconfigured = NextResponse.json({ error: 'config' }, { status: 500 });
+    const misconfigured = NextResponse.json({ error: 'config', missing: missingEnv }, { status: 500 });
     mergeCookies(supabaseResponse, misconfigured);
     clearAuthCookies(req, misconfigured);
     return setDebugHeader(misconfigured);
@@ -225,6 +238,9 @@ function handleConfigErrorResponse(
 
   const url = new URL(redirectUrl);
   url.searchParams.set('error', 'config');
+  if (missingEnv.length > 0) {
+    url.searchParams.set('missing', missingEnv.join(','));
+  }
   const response = NextResponse.redirect(url);
   mergeCookies(supabaseResponse, response);
   clearAuthCookies(req, response);
