@@ -15,6 +15,14 @@ export default function LoginPage() {
   const nextRaw = searchParams.get('next');
   const nextPath = nextRaw ?? DEFAULT_NEXT;
   const isPreparing = !nextRaw;
+  const missingEnv = useMemo(() => {
+    const missingRaw = searchParams.get('missing');
+    if (!missingRaw) return [];
+    return missingRaw
+      .split(',')
+      .map((item) => item.trim())
+      .filter(Boolean);
+  }, [searchParams]);
 
   useEffect(() => {
     if (!nextRaw) {
@@ -104,8 +112,15 @@ export default function LoginPage() {
         ) : null}
         {error === 'config' ? (
           <p className="rounded-lg bg-red-900/40 px-3 py-2 text-sm text-red-100">
-            Configuración incompleta en servidor (NEXT_PUBLIC_SUPABASE_URL / NEXT_PUBLIC_SUPABASE_ANON_KEY).
-            Contacta con administración.
+            {missingEnv.length > 0 ? (
+              <>
+                Configuración incompleta en servidor. Faltan:{' '}
+                <span className="font-semibold">{missingEnv.join(', ')}</span>. Revisa las variables de entorno en
+                Vercel (Project Settings → Environment Variables) o contacta con administración.
+              </>
+            ) : (
+              <>No se pudo validar la configuración de Supabase. Revisa la configuración o contacta con administración.</>
+            )}
           </p>
         ) : null}
       </div>
