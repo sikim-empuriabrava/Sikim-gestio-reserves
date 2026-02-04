@@ -58,6 +58,14 @@ RLS: habilitado
 | `waste_pct` | `numeric` | No | `0` |
 | `created_at` | `timestamp with time zone` | No | `now()` |
 | `updated_at` | `timestamp with time zone` | No | `now()` |
+| `categories` | `text[]` | No | `'{}'::text[]` |
+| `reference` | `text` | Sí |  |
+| `stock_unit_code` | `text` | Sí |  |
+| `stock_qty` | `numeric` | No | `0` |
+| `min_stock_qty` | `numeric` | Sí |  |
+| `max_stock_qty` | `numeric` | Sí |  |
+| `allergen_codes` | `text[]` | No | `'{}'::text[]` |
+| `indicator_codes` | `text[]` | No | `'{}'::text[]` |
 
 ### cheffing_subrecipe_items
 RLS: habilitado
