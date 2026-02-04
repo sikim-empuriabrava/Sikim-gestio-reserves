@@ -43,6 +43,6 @@ export async function GET() {
     pingStatus,
     error,
     urlHost: url ? new URL(url).host : null,
-    anonKeyLength: hasAnonKey ? anonKey.length : null,
+    anonKeyLength: anonKey ? anonKey.length : null,
   });
 }
