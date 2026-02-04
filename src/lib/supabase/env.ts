@@ -45,17 +45,5 @@ export function getSupabaseEnvStatus() {
 }
 
 export function getMissingSupabaseEnv() {
-  const missing: string[] = [];
-  const publicUrl = process.env.NEXT_PUBLIC_SUPABASE_URL?.trim();
-  const publicAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY?.trim();
-
-  if (!publicUrl) {
-    missing.push('NEXT_PUBLIC_SUPABASE_URL');
-  }
-
-  if (!publicAnonKey) {
-    missing.push('NEXT_PUBLIC_SUPABASE_ANON_KEY');
-  }
-
-  return missing;
+  return getSupabaseEnvStatus().missing;
 }
