@@ -4,15 +4,20 @@ import { getSupabaseEnvStatus } from '@/lib/supabase/env';
 
 const HEALTH_ENDPOINT = '/auth/v1/health';
 
+export const runtime = 'nodejs';
+
 export async function GET() {
-  const { url, anonKey, missing } = getSupabaseEnvStatus();
+  const status = getSupabaseEnvStatus();
+  const url = status.url ?? undefined;
+  const anonKey = status.anonKey ?? undefined;
+  const missing = status.missing;
   const hasUrl = Boolean(url);
   const hasAnonKey = Boolean(anonKey);
 
   let pingStatus: number | undefined;
   let error: string | undefined;
 
-  if (hasUrl) {
+  if (url) {
     try {
       const healthUrl = new URL(HEALTH_ENDPOINT, url);
       const response = await fetch(healthUrl.toString(), {
@@ -36,7 +41,7 @@ export async function GET() {
     missing,
     pingStatus,
     error,
-    urlHost: hasUrl ? new URL(url).host : null,
+    urlHost: url ? new URL(url).host : null,
     anonKeyLength: hasAnonKey ? anonKey.length : null,
   });
 }
