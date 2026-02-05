@@ -114,7 +114,7 @@ export default async function MenuEngineeringPage({
       </form>
       <p className="text-sm text-slate-400">
         Nota: el rango de fechas se aplicará cuando integremos ventas (SumUp). Por ahora solo afecta al reporte de
-        costes/márgenes. PVP se interpreta como precio final con IVA. 'Precio sin IVA' se calcula dividiendo por (1 +
+        costes/márgenes. PVP se interpreta como precio final con IVA. “Precio sin IVA” se calcula dividiendo por (1 +
         IVA seleccionado).
       </p>
 
