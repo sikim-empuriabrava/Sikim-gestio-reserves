@@ -735,6 +735,7 @@ CREATE TABLE public.app_allowed_users (
     can_cocina boolean DEFAULT true NOT NULL,
     display_name text,
     can_cheffing boolean DEFAULT false NOT NULL,
+    cheffing_images_manage boolean DEFAULT false NOT NULL,
     CONSTRAINT app_allowed_users_email_lower_chk CHECK ((email = lower(email))),
     CONSTRAINT app_allowed_users_role_check CHECK ((role = ANY (ARRAY['admin'::text, 'staff'::text, 'viewer'::text])))
 );
@@ -799,6 +800,36 @@ CREATE TABLE public.cheffing_ingredients (
     CONSTRAINT cheffing_ingredients_stock_qty_check CHECK ((stock_qty >= (0)::numeric)),
     CONSTRAINT cheffing_ingredients_waste_lt_one CHECK (((waste_pct >= (0)::numeric) AND (waste_pct < (1)::numeric))),
     CONSTRAINT cheffing_ingredients_waste_pct_check CHECK (((waste_pct >= (0)::numeric) AND (waste_pct < (1)::numeric)))
+);
+
+
+--
+-- Name: cheffing_pos_product_links; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.cheffing_pos_product_links (
+    pos_product_id text NOT NULL,
+    dish_id uuid NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+--
+-- Name: cheffing_pos_sales_daily; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.cheffing_pos_sales_daily (
+    sale_day date NOT NULL,
+    outlet_id text DEFAULT 'default'::text NOT NULL,
+    pos_product_id text NOT NULL,
+    pos_product_name text,
+    units numeric DEFAULT 0 NOT NULL,
+    revenue numeric,
+    currency text DEFAULT 'EUR'::text NOT NULL,
+    source text DEFAULT 'pos'::text NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL
 );
 
 
@@ -1407,6 +1438,22 @@ ALTER TABLE ONLY public.cheffing_ingredients
 
 
 --
+-- Name: cheffing_pos_product_links cheffing_pos_product_links_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.cheffing_pos_product_links
+    ADD CONSTRAINT cheffing_pos_product_links_pkey PRIMARY KEY (pos_product_id);
+
+
+--
+-- Name: cheffing_pos_sales_daily cheffing_pos_sales_daily_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.cheffing_pos_sales_daily
+    ADD CONSTRAINT cheffing_pos_sales_daily_pkey PRIMARY KEY (sale_day, outlet_id, pos_product_id);
+
+
+--
 -- Name: cheffing_subrecipe_items cheffing_subrecipe_items_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -1634,6 +1681,13 @@ CREATE UNIQUE INDEX cheffing_ingredients_name_ci_unique ON public.cheffing_ingre
 --
 
 CREATE INDEX cheffing_ingredients_purchase_unit_code_idx ON public.cheffing_ingredients USING btree (purchase_unit_code);
+
+
+--
+-- Name: cheffing_pos_product_links_dish_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX cheffing_pos_product_links_dish_id_idx ON public.cheffing_pos_product_links USING btree (dish_id);
 
 
 --
@@ -1910,6 +1964,20 @@ CREATE TRIGGER set_updated_at_cheffing_ingredients BEFORE UPDATE ON public.cheff
 
 
 --
+-- Name: cheffing_pos_product_links set_updated_at_cheffing_pos_product_links; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER set_updated_at_cheffing_pos_product_links BEFORE UPDATE ON public.cheffing_pos_product_links FOR EACH ROW EXECUTE FUNCTION public.tg_set_updated_at();
+
+
+--
+-- Name: cheffing_pos_sales_daily set_updated_at_cheffing_pos_sales_daily; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER set_updated_at_cheffing_pos_sales_daily BEFORE UPDATE ON public.cheffing_pos_sales_daily FOR EACH ROW EXECUTE FUNCTION public.tg_set_updated_at();
+
+
+--
 -- Name: cheffing_subrecipe_items set_updated_at_cheffing_subrecipe_items; Type: TRIGGER; Schema: public; Owner: -
 --
 
@@ -1970,6 +2038,13 @@ CREATE TRIGGER trg_cheffing_dishes_updated_at BEFORE UPDATE ON public.cheffing_d
 --
 
 CREATE TRIGGER trg_cheffing_ingredients_updated_at BEFORE UPDATE ON public.cheffing_ingredients FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
+
+
+--
+-- Name: cheffing_pos_sales_daily trg_cheffing_pos_sales_daily_updated_at; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER trg_cheffing_pos_sales_daily_updated_at BEFORE UPDATE ON public.cheffing_pos_sales_daily FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
 
 
 --
@@ -2060,6 +2135,14 @@ ALTER TABLE ONLY public.cheffing_ingredients
 
 ALTER TABLE ONLY public.cheffing_ingredients
     ADD CONSTRAINT cheffing_ingredients_stock_unit_fk FOREIGN KEY (stock_unit_code) REFERENCES public.cheffing_units(code);
+
+
+--
+-- Name: cheffing_pos_product_links cheffing_pos_product_links_dish_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.cheffing_pos_product_links
+    ADD CONSTRAINT cheffing_pos_product_links_dish_id_fkey FOREIGN KEY (dish_id) REFERENCES public.cheffing_dishes(id) ON DELETE CASCADE;
 
 
 --
@@ -2275,6 +2358,46 @@ CREATE POLICY cheffing_ingredients_update ON public.cheffing_ingredients FOR UPD
 
 
 --
+-- Name: cheffing_pos_product_links; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.cheffing_pos_product_links ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: cheffing_pos_product_links cheffing_pos_product_links_select; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY cheffing_pos_product_links_select ON public.cheffing_pos_product_links FOR SELECT USING (public.cheffing_is_allowed());
+
+
+--
+-- Name: cheffing_pos_product_links cheffing_pos_product_links_write; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY cheffing_pos_product_links_write ON public.cheffing_pos_product_links USING (public.cheffing_is_admin()) WITH CHECK (public.cheffing_is_admin());
+
+
+--
+-- Name: cheffing_pos_sales_daily; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.cheffing_pos_sales_daily ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: cheffing_pos_sales_daily cheffing_pos_sales_daily_select; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY cheffing_pos_sales_daily_select ON public.cheffing_pos_sales_daily FOR SELECT USING (public.cheffing_is_allowed());
+
+
+--
+-- Name: cheffing_pos_sales_daily cheffing_pos_sales_daily_write; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY cheffing_pos_sales_daily_write ON public.cheffing_pos_sales_daily USING (public.cheffing_is_admin()) WITH CHECK (public.cheffing_is_admin());
+
+
+--
 -- Name: cheffing_subrecipe_items; Type: ROW SECURITY; Schema: public; Owner: -
 --
 
@@ -2387,5 +2510,5 @@ CREATE POLICY "read own allowlist row" ON public.app_allowed_users FOR SELECT TO
 -- PostgreSQL database dump complete
 --
 
-\unrestrict u76S5N7u8zSYl5aRUbpTKo6h2hx0aS93wHqPcY6xnkpecP6W5IkwA1I0skQfC16
+\unrestrict 4HIdLiNSzyZdPkTis6DGSqd7cNcM4Ylrhf4MlFqUxse1BTapwbvJDc82Qxm6ix9
 
