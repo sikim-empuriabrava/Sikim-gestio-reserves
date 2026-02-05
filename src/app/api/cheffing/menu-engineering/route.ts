@@ -3,10 +3,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireCheffingRouteAccess } from '@/lib/cheffing/requireCheffingRoute';
 import { mergeResponseCookies } from '@/lib/supabase/route';
 import { getMenuEngineeringRows } from '@/lib/cheffing/menuEngineering';
-import {
-  normalizeMenuEngineeringVatMode,
-  normalizeMenuEngineeringVatRate,
-} from '@/lib/cheffing/menuEngineeringVat';
+import { normalizeMenuEngineeringVatRate } from '@/lib/cheffing/menuEngineeringVat';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -34,11 +31,10 @@ export async function GET(req: NextRequest) {
 
   const { from, to } = parseDateRange(req.nextUrl.searchParams);
   const vatRate = normalizeMenuEngineeringVatRate(req.nextUrl.searchParams.get('iva'));
-  const vatMode = normalizeMenuEngineeringVatMode(req.nextUrl.searchParams.get('iva_mode'));
 
   let rows = [];
   try {
-    const result = await getMenuEngineeringRows(vatRate, vatMode);
+    const result = await getMenuEngineeringRows(vatRate);
     rows = result.rows;
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Failed to load menu engineering data';
@@ -47,7 +43,7 @@ export async function GET(req: NextRequest) {
     return serverError;
   }
 
-  const response = NextResponse.json({ meta: { from, to, iva: vatRate, iva_mode: vatMode }, rows });
+  const response = NextResponse.json({ meta: { from, to, iva: vatRate }, rows });
   mergeResponseCookies(access.supabaseResponse, response);
   return response;
 }
