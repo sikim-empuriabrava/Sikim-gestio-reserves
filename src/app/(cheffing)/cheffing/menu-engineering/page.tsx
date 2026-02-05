@@ -127,49 +127,49 @@ export default async function MenuEngineeringPage({
         <div className="rounded-2xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-100">
           No se pudo cargar el reporte: {loadError}
         </div>
-      ) : null}
-
-      <div className="overflow-hidden rounded-2xl border border-slate-800/70">
-        <table className="min-w-full divide-y divide-slate-800 text-left text-sm text-slate-200">
-          <thead className="bg-slate-950/60 text-xs uppercase tracking-wide text-slate-400">
-            <tr>
-              <th className="px-4 py-3">Plato</th>
-              <th className="px-4 py-3">PVP</th>
-              <th className="px-4 py-3">Coste/ración</th>
-              <th className="px-4 py-3">Precio sin IVA</th>
-              <th className="px-4 py-3">Margen/ración</th>
-              <th className="px-4 py-3">Food cost %</th>
-              <th className="px-4 py-3">PVP objetivo 25%</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-slate-800 bg-slate-900/40">
-            {rows.length === 0 ? (
+      ) : (
+        <div className="overflow-hidden rounded-2xl border border-slate-800/70">
+          <table className="min-w-full divide-y divide-slate-800 text-left text-sm text-slate-200">
+            <thead className="bg-slate-950/60 text-xs uppercase tracking-wide text-slate-400">
               <tr>
-                <td colSpan={7} className="px-4 py-6 text-center text-sm text-slate-400">
-                  No hay platos disponibles para analizar.
-                </td>
+                <th className="px-4 py-3">Plato</th>
+                <th className="px-4 py-3">PVP</th>
+                <th className="px-4 py-3">Coste/ración</th>
+                <th className="px-4 py-3">Precio sin IVA</th>
+                <th className="px-4 py-3">Margen/ración</th>
+                <th className="px-4 py-3">Food cost %</th>
+                <th className="px-4 py-3">PVP objetivo 25%</th>
               </tr>
-            ) : (
-              rows.map((row) => (
-                <tr key={row.id}>
-                  <td className="px-4 py-3 font-medium text-slate-100">{row.name}</td>
-                  <td className="px-4 py-3">{formatCurrency(row.selling_price)}</td>
-                  <td className="px-4 py-3">{formatCurrency(row.cost_per_serving)}</td>
-                  <td className="px-4 py-3">{formatCurrency(row.net_price)}</td>
-                  <td className="px-4 py-3">{formatCurrency(row.margin_unit)}</td>
-                  <td className="px-4 py-3">{formatPercent(row.food_cost_pct)}</td>
-                  <td className="px-4 py-3">
-                    <div className="flex flex-col text-xs text-slate-400">
-                      <span>Neto: {formatCurrency(row.target_pvp_net_25)}</span>
-                      <span>Con IVA: {formatCurrency(row.target_pvp_gross_25)}</span>
-                    </div>
+            </thead>
+            <tbody className="divide-y divide-slate-800 bg-slate-900/40">
+              {rows.length === 0 ? (
+                <tr>
+                  <td colSpan={7} className="px-4 py-6 text-center text-sm text-slate-400">
+                    No hay platos disponibles para analizar.
                   </td>
                 </tr>
-              ))
-            )}
-          </tbody>
-        </table>
-      </div>
+              ) : (
+                rows.map((row) => (
+                  <tr key={row.id}>
+                    <td className="px-4 py-3 font-medium text-slate-100">{row.name}</td>
+                    <td className="px-4 py-3">{formatCurrency(row.selling_price)}</td>
+                    <td className="px-4 py-3">{formatCurrency(row.cost_per_serving)}</td>
+                    <td className="px-4 py-3">{formatCurrency(row.net_price)}</td>
+                    <td className="px-4 py-3">{formatCurrency(row.margin_unit)}</td>
+                    <td className="px-4 py-3">{formatPercent(row.food_cost_pct)}</td>
+                    <td className="px-4 py-3">
+                      <div className="flex flex-col text-xs text-slate-400">
+                        <span>Neto: {formatCurrency(row.target_pvp_net_25)}</span>
+                        <span>Con IVA: {formatCurrency(row.target_pvp_gross_25)}</span>
+                      </div>
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+      )}
 
       <div className="rounded-2xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-100">
         Clasificación BCM (Estrella/Vaca/Puzzle/Perro) pendiente de integrar ventas (SumUp).

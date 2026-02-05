@@ -1,3 +1,5 @@
+import 'server-only';
+
 export type SumupGoodtillConfig = {
   clientId: string;
   clientSecret: string;
