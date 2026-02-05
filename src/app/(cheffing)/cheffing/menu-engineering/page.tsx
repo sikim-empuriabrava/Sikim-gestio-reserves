@@ -1,5 +1,9 @@
 import { requireCheffingAccess } from '@/lib/cheffing/requireCheffing';
 import { getMenuEngineeringRows, type MenuEngineeringRow } from '@/lib/cheffing/menuEngineering';
+import {
+  normalizeMenuEngineeringVatMode,
+  normalizeMenuEngineeringVatRate,
+} from '@/lib/cheffing/menuEngineeringVat';
 
 const currencyFormatter = new Intl.NumberFormat('es-ES', {
   style: 'currency',
@@ -30,18 +34,10 @@ const formatPercent = (value: number | null) => {
   return percentFormatter.format(value);
 };
 
-const toNumberOrNull = (value?: string) => {
-  if (!value) {
-    return null;
-  }
-  const parsed = Number.parseFloat(value);
-  return Number.isFinite(parsed) ? parsed : null;
-};
-
 export default async function MenuEngineeringPage({
   searchParams,
 }: {
-  searchParams?: { from?: string; to?: string; iva?: string };
+  searchParams?: { from?: string; to?: string; iva?: string; iva_mode?: string };
 }) {
   await requireCheffingAccess();
 
@@ -53,13 +49,14 @@ export default async function MenuEngineeringPage({
 
   const selectedFrom = searchParams?.from ?? defaultFrom;
   const selectedTo = searchParams?.to ?? defaultTo;
-  const selectedIva = toNumberOrNull(searchParams?.iva) ?? 0.1;
+  const selectedVatRate = normalizeMenuEngineeringVatRate(searchParams?.iva);
+  const selectedVatMode = normalizeMenuEngineeringVatMode(searchParams?.iva_mode);
 
   let rows: MenuEngineeringRow[] = [];
   let loadError: string | null = null;
 
   try {
-    const result = await getMenuEngineeringRows(selectedIva);
+    const result = await getMenuEngineeringRows(selectedVatRate, selectedVatMode);
     rows = result.rows;
   } catch (error) {
     loadError = error instanceof Error ? error.message : 'Error desconocido al cargar el reporte.';
@@ -77,7 +74,7 @@ export default async function MenuEngineeringPage({
 
       <form
         method="get"
-        className="grid gap-4 rounded-2xl border border-slate-800/70 bg-slate-950/50 p-4 md:grid-cols-4"
+        className="grid gap-4 rounded-2xl border border-slate-800/70 bg-slate-950/50 p-4 md:grid-cols-5"
       >
         <label className="space-y-1 text-sm text-slate-300">
           Desde
@@ -101,12 +98,24 @@ export default async function MenuEngineeringPage({
           IVA aplicado al análisis
           <select
             name="iva"
-            defaultValue={selectedIva.toString()}
+            defaultValue={selectedVatRate.toString()}
             className="w-full rounded-lg border border-slate-800 bg-slate-950/60 px-3 py-2 text-sm text-slate-100"
           >
+            <option value="0">0%</option>
             <option value="0.04">4%</option>
             <option value="0.1">10%</option>
             <option value="0.21">21%</option>
+          </select>
+        </label>
+        <label className="space-y-1 text-sm text-slate-300">
+          Modo IVA
+          <select
+            name="iva_mode"
+            defaultValue={selectedVatMode}
+            className="w-full rounded-lg border border-slate-800 bg-slate-950/60 px-3 py-2 text-sm text-slate-100"
+          >
+            <option value="included">Incluido en el PVP</option>
+            <option value="on_top">Se añade encima (PVP sin IVA)</option>
           </select>
         </label>
         <div className="flex items-end">
@@ -120,7 +129,7 @@ export default async function MenuEngineeringPage({
       </form>
       <p className="text-sm text-slate-400">
         Nota: el rango de fechas se aplicará cuando integremos ventas (SumUp). Por ahora solo afecta al reporte de
-        costes/márgenes.
+        costes/márgenes. El modo IVA define si el PVP se interpreta con IVA incluido o sin IVA.
       </p>
 
       {loadError ? (

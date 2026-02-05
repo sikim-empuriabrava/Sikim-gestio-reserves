@@ -3,11 +3,13 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireCheffingRouteAccess } from '@/lib/cheffing/requireCheffingRoute';
 import { mergeResponseCookies } from '@/lib/supabase/route';
 import { getMenuEngineeringRows } from '@/lib/cheffing/menuEngineering';
+import {
+  normalizeMenuEngineeringVatMode,
+  normalizeMenuEngineeringVatRate,
+} from '@/lib/cheffing/menuEngineeringVat';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
-
-const DEFAULT_IVA = 0.1;
 
 const formatDate = (date: Date) => date.toISOString().slice(0, 10);
 
@@ -24,18 +26,6 @@ const parseDateRange = (searchParams: URLSearchParams) => {
   };
 };
 
-const parseIva = (searchParams: URLSearchParams) => {
-  const raw = searchParams.get('iva');
-  if (!raw) {
-    return DEFAULT_IVA;
-  }
-  const parsed = Number.parseFloat(raw);
-  if (!Number.isFinite(parsed)) {
-    return DEFAULT_IVA;
-  }
-  return parsed;
-};
-
 export async function GET(req: NextRequest) {
   const access = await requireCheffingRouteAccess();
   if (access.response) {
@@ -43,11 +33,12 @@ export async function GET(req: NextRequest) {
   }
 
   const { from, to } = parseDateRange(req.nextUrl.searchParams);
-  const iva = parseIva(req.nextUrl.searchParams);
+  const vatRate = normalizeMenuEngineeringVatRate(req.nextUrl.searchParams.get('iva'));
+  const vatMode = normalizeMenuEngineeringVatMode(req.nextUrl.searchParams.get('iva_mode'));
 
   let rows = [];
   try {
-    const result = await getMenuEngineeringRows(iva);
+    const result = await getMenuEngineeringRows(vatRate, vatMode);
     rows = result.rows;
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Failed to load menu engineering data';
@@ -56,7 +47,7 @@ export async function GET(req: NextRequest) {
     return serverError;
   }
 
-  const response = NextResponse.json({ meta: { from, to, iva }, rows });
+  const response = NextResponse.json({ meta: { from, to, iva: vatRate, iva_mode: vatMode }, rows });
   mergeResponseCookies(access.supabaseResponse, response);
   return response;
 }
