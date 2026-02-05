@@ -1,6 +1,7 @@
 import 'server-only';
 
 import { createSupabaseAdminClient } from '@/lib/supabaseAdmin';
+import { type MenuEngineeringVatRate } from '@/lib/cheffing/menuEngineeringVat';
 
 export type MenuEngineeringRow = {
   id: string;
@@ -16,7 +17,7 @@ export type MenuEngineeringRow = {
 
 const toNumber = (value: number | null) => (value === null || Number.isNaN(value) ? null : value);
 
-export async function getMenuEngineeringRows(iva: number) {
+export async function getMenuEngineeringRows(vatRate: MenuEngineeringVatRate) {
   const supabase = createSupabaseAdminClient();
   const { data, error } = await supabase
     .from('v_cheffing_dish_cost')
@@ -31,11 +32,12 @@ export async function getMenuEngineeringRows(iva: number) {
     data?.map((row) => {
       const sellingPrice = toNumber(row.selling_price);
       const costPerServing = toNumber(row.cost_per_serving);
-      const netPrice = sellingPrice !== null ? sellingPrice / (1 + iva) : null;
+      const netPrice =
+        sellingPrice !== null ? (vatRate === 0 ? sellingPrice : sellingPrice / (1 + vatRate)) : null;
       const marginUnit = netPrice !== null && costPerServing !== null ? netPrice - costPerServing : null;
       const foodCostPct = netPrice !== null && netPrice > 0 && costPerServing !== null ? costPerServing / netPrice : null;
       const targetPvpNet25 = costPerServing !== null ? costPerServing / 0.25 : null;
-      const targetPvpGross25 = targetPvpNet25 !== null ? targetPvpNet25 * (1 + iva) : null;
+      const targetPvpGross25 = targetPvpNet25 !== null ? targetPvpNet25 * (1 + vatRate) : null;
 
       return {
         id: row.id,
