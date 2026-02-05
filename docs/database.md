@@ -18,6 +18,7 @@ RLS: habilitado
 | `can_cocina` | `boolean` | No | `true` |
 | `display_name` | `text` | Sí |  |
 | `can_cheffing` | `boolean` | No | `false` |
+| `cheffing_images_manage` | `boolean` | No | `false` |
 
 ### cheffing_dish_items
 RLS: habilitado
@@ -66,6 +67,32 @@ RLS: habilitado
 | `max_stock_qty` | `numeric` | Sí |  |
 | `allergen_codes` | `text[]` | No | `'{}'::text[]` |
 | `indicator_codes` | `text[]` | No | `'{}'::text[]` |
+
+### cheffing_pos_product_links
+RLS: habilitado
+
+| Columna | Tipo | Nullable | Default |
+| --- | --- | --- | --- |
+| `pos_product_id` | `text` | No |  |
+| `dish_id` | `uuid` | No |  |
+| `created_at` | `timestamp with time zone` | No | `now()` |
+| `updated_at` | `timestamp with time zone` | No | `now()` |
+
+### cheffing_pos_sales_daily
+RLS: habilitado
+
+| Columna | Tipo | Nullable | Default |
+| --- | --- | --- | --- |
+| `sale_day` | `date` | No |  |
+| `outlet_id` | `text` | No | `'default'::text` |
+| `pos_product_id` | `text` | No |  |
+| `pos_product_name` | `text` | Sí |  |
+| `units` | `numeric` | No | `0` |
+| `revenue` | `numeric` | Sí |  |
+| `currency` | `text` | No | `'EUR'::text` |
+| `source` | `text` | No | `'pos'::text` |
+| `created_at` | `timestamp with time zone` | No | `now()` |
+| `updated_at` | `timestamp with time zone` | No | `now()` |
 
 ### cheffing_subrecipe_items
 RLS: habilitado
@@ -338,6 +365,10 @@ RLS: deshabilitado
 | `cheffing_ingredients` | `cheffing_ingredients_insert` | INSERT | public | `` | `cheffing_is_allowed()` |
 | `cheffing_ingredients` | `cheffing_ingredients_select` | SELECT | public | `cheffing_is_allowed()` | `` |
 | `cheffing_ingredients` | `cheffing_ingredients_update` | UPDATE | public | `cheffing_is_allowed()` | `cheffing_is_allowed()` |
+| `cheffing_pos_product_links` | `cheffing_pos_product_links_select` | SELECT | public | `cheffing_is_allowed()` | `` |
+| `cheffing_pos_product_links` | `cheffing_pos_product_links_write` | ALL | public | `cheffing_is_admin()` | `cheffing_is_admin()` |
+| `cheffing_pos_sales_daily` | `cheffing_pos_sales_daily_select` | SELECT | public | `cheffing_is_allowed()` | `` |
+| `cheffing_pos_sales_daily` | `cheffing_pos_sales_daily_write` | ALL | public | `cheffing_is_admin()` | `cheffing_is_admin()` |
 | `cheffing_subrecipe_items` | `cheffing_subrecipe_items_delete` | DELETE | public | `cheffing_is_allowed()` | `` |
 | `cheffing_subrecipe_items` | `cheffing_subrecipe_items_insert` | INSERT | public | `` | `cheffing_is_allowed()` |
 | `cheffing_subrecipe_items` | `cheffing_subrecipe_items_select` | SELECT | public | `cheffing_is_allowed()` | `` |
@@ -362,6 +393,9 @@ RLS: deshabilitado
 | `cheffing_dishes` | `trg_cheffing_dishes_updated_at` | BEFORE | UPDATE |
 | `cheffing_ingredients` | `set_updated_at_cheffing_ingredients` | BEFORE | UPDATE |
 | `cheffing_ingredients` | `trg_cheffing_ingredients_updated_at` | BEFORE | UPDATE |
+| `cheffing_pos_product_links` | `set_updated_at_cheffing_pos_product_links` | BEFORE | UPDATE |
+| `cheffing_pos_sales_daily` | `set_updated_at_cheffing_pos_sales_daily` | BEFORE | UPDATE |
+| `cheffing_pos_sales_daily` | `trg_cheffing_pos_sales_daily_updated_at` | BEFORE | UPDATE |
 | `cheffing_subrecipe_items` | `set_updated_at_cheffing_subrecipe_items` | BEFORE | UPDATE |
 | `cheffing_subrecipe_items` | `trg_cheffing_subrecipe_items_updated_at` | BEFORE | UPDATE |
 | `cheffing_subrecipes` | `set_updated_at_cheffing_subrecipes` | BEFORE | UPDATE |
