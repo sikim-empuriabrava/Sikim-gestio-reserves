@@ -1,23 +1,5 @@
-import { cookies } from 'next/headers';
-
 import { requireCheffingAccess } from '@/lib/cheffing/requireCheffing';
-
-type MenuEngineeringRow = {
-  id: string;
-  name: string;
-  selling_price: number | null;
-  cost_per_serving: number | null;
-  net_price: number | null;
-  margin_unit: number | null;
-  food_cost_pct: number | null;
-  target_pvp_net_25: number | null;
-  target_pvp_gross_25: number | null;
-};
-
-type MenuEngineeringResponse = {
-  meta: { from: string; to: string; iva: number };
-  rows: MenuEngineeringRow[];
-};
+import { getMenuEngineeringRows, type MenuEngineeringRow } from '@/lib/cheffing/menuEngineering';
 
 const currencyFormatter = new Intl.NumberFormat('es-ES', {
   style: 'currency',
@@ -73,25 +55,15 @@ export default async function MenuEngineeringPage({
   const selectedTo = searchParams?.to ?? defaultTo;
   const selectedIva = toNumberOrNull(searchParams?.iva) ?? 0.1;
 
-  const params = new URLSearchParams({
-    from: selectedFrom,
-    to: selectedTo,
-    iva: selectedIva.toString(),
-  });
+  let rows: MenuEngineeringRow[] = [];
+  let loadError: string | null = null;
 
-  const response = await fetch(`/api/cheffing/menu-engineering?${params.toString()}`, {
-    cache: 'no-store',
-    headers: {
-      cookie: cookies().toString(),
-    },
-  });
-
-  let data: MenuEngineeringResponse | null = null;
-  if (response.ok) {
-    data = (await response.json()) as MenuEngineeringResponse;
+  try {
+    const result = await getMenuEngineeringRows(selectedIva);
+    rows = result.rows;
+  } catch (error) {
+    loadError = error instanceof Error ? error.message : 'Error desconocido al cargar el reporte.';
   }
-
-  const rows = data?.rows ?? [];
 
   return (
     <section className="space-y-6 rounded-2xl border border-slate-800/80 bg-slate-900/70 p-6">
@@ -146,6 +118,16 @@ export default async function MenuEngineeringPage({
           </button>
         </div>
       </form>
+      <p className="text-sm text-slate-400">
+        Nota: el rango de fechas se aplicará cuando integremos ventas (SumUp). Por ahora solo afecta al reporte de
+        costes/márgenes.
+      </p>
+
+      {loadError ? (
+        <div className="rounded-2xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-100">
+          No se pudo cargar el reporte: {loadError}
+        </div>
+      ) : null}
 
       <div className="overflow-hidden rounded-2xl border border-slate-800/70">
         <table className="min-w-full divide-y divide-slate-800 text-left text-sm text-slate-200">

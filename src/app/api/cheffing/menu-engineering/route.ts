@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 
 import { requireCheffingRouteAccess } from '@/lib/cheffing/requireCheffingRoute';
-import { createSupabaseAdminClient } from '@/lib/supabaseAdmin';
 import { mergeResponseCookies } from '@/lib/supabase/route';
+import { getMenuEngineeringRows } from '@/lib/cheffing/menuEngineering';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -36,8 +36,6 @@ const parseIva = (searchParams: URLSearchParams) => {
   return parsed;
 };
 
-const toNumber = (value: number | null) => (value === null || Number.isNaN(value) ? null : value);
-
 export async function GET(req: NextRequest) {
   const access = await requireCheffingRouteAccess();
   if (access.response) {
@@ -47,40 +45,16 @@ export async function GET(req: NextRequest) {
   const { from, to } = parseDateRange(req.nextUrl.searchParams);
   const iva = parseIva(req.nextUrl.searchParams);
 
-  const supabase = createSupabaseAdminClient();
-  const { data, error } = await supabase
-    .from('v_cheffing_dish_cost')
-    .select('id, name, selling_price, servings, items_cost_total, cost_per_serving')
-    .order('name', { ascending: true });
-
-  if (error) {
-    const serverError = NextResponse.json({ error: error.message }, { status: 500 });
+  let rows = [];
+  try {
+    const result = await getMenuEngineeringRows(iva);
+    rows = result.rows;
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Failed to load menu engineering data';
+    const serverError = NextResponse.json({ error: message }, { status: 500 });
     mergeResponseCookies(access.supabaseResponse, serverError);
     return serverError;
   }
-
-  const rows =
-    data?.map((row) => {
-      const sellingPrice = toNumber(row.selling_price);
-      const costPerServing = toNumber(row.cost_per_serving);
-      const netPrice = sellingPrice !== null ? sellingPrice / (1 + iva) : null;
-      const marginUnit = netPrice !== null && costPerServing !== null ? netPrice - costPerServing : null;
-      const foodCostPct = netPrice !== null && netPrice > 0 && costPerServing !== null ? costPerServing / netPrice : null;
-      const targetPvpNet25 = costPerServing !== null ? costPerServing / 0.25 : null;
-      const targetPvpGross25 = targetPvpNet25 !== null ? targetPvpNet25 * (1 + iva) : null;
-
-      return {
-        id: row.id,
-        name: row.name,
-        selling_price: sellingPrice,
-        cost_per_serving: costPerServing,
-        net_price: netPrice,
-        margin_unit: marginUnit,
-        food_cost_pct: foodCostPct,
-        target_pvp_net_25: targetPvpNet25,
-        target_pvp_gross_25: targetPvpGross25,
-      };
-    }) ?? [];
 
   const response = NextResponse.json({ meta: { from, to, iva }, rows });
   mergeResponseCookies(access.supabaseResponse, response);
