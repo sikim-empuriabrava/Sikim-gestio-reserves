@@ -71,6 +71,12 @@ export default async function CheffingLayout({ children }: { children: React.Rea
             >
               Menús
             </Link>
+            <Link
+              href="/cheffing/menu-engineering"
+              className="rounded-full border border-slate-700 bg-slate-950/60 px-4 py-1 transition hover:border-slate-500 hover:text-white"
+            >
+              Menu Engineering
+            </Link>
           </nav>
         </div>
       </header>
