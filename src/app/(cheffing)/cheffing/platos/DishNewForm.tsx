@@ -31,7 +31,7 @@ type DraftDishItem = {
   subrecipe_id: string;
   unit_code: string;
   quantity: string;
-  waste_pct: string;
+  waste_pct_override: string;
   notes: string;
 };
 
@@ -65,9 +65,11 @@ export function DishNewForm({ ingredients, subrecipes, units, canManageImages }:
   );
 
   const parseWastePct = (value: string) => {
-    const percentValue = Number(value);
+    const trimmed = value.trim();
+    if (trimmed === '') return null;
+    const percentValue = Number(trimmed);
     if (!Number.isFinite(percentValue) || percentValue < 0 || percentValue >= 100) {
-      return null;
+      return undefined;
     }
     return percentValue / 100;
   };
@@ -105,7 +107,7 @@ export function DishNewForm({ ingredients, subrecipes, units, canManageImages }:
         subrecipe_id: type === 'subrecipe' ? id : '',
         unit_code: unitCode,
         quantity: '1',
-        waste_pct: '0',
+        waste_pct_override: '',
         notes: '',
       },
     ]);
@@ -145,8 +147,8 @@ export function DishNewForm({ ingredients, subrecipes, units, canManageImages }:
           throw new Error('La cantidad debe ser mayor que 0.');
         }
 
-        const itemWastePctValue = parseWastePct(item.waste_pct);
-        if (itemWastePctValue === null) {
+        const itemWastePctValue = parseWastePct(item.waste_pct_override);
+        if (itemWastePctValue === undefined) {
           throw new Error('La merma debe estar entre 0 y 99,99%.');
         }
 
@@ -157,7 +159,7 @@ export function DishNewForm({ ingredients, subrecipes, units, canManageImages }:
           subrecipe_id: item.itemType === 'subrecipe' ? item.subrecipe_id : null,
           unit_code: item.unit_code,
           quantity: quantityValue,
-          waste_pct: itemWastePctValue,
+          waste_pct_override: itemWastePctValue,
           notes: itemNotes.length > 0 ? itemNotes : null,
         };
       });
@@ -340,7 +342,7 @@ export function DishNewForm({ ingredients, subrecipes, units, canManageImages }:
                   <th className="px-4 py-3">Tipo</th>
                   <th className="px-4 py-3">Detalle</th>
                   <th className="px-4 py-3">Cantidad</th>
-                  <th className="px-4 py-3">Merma</th>
+                  <th className="px-4 py-3">Merma (%)</th>
                   <th className="px-4 py-3">Notas</th>
                   <th className="px-4 py-3">Acciones</th>
                 </tr>
@@ -404,8 +406,10 @@ export function DishNewForm({ ingredients, subrecipes, units, canManageImages }:
                             max="99.99"
                             step="0.01"
                             className="w-20 rounded-md border border-slate-700 bg-slate-950/70 px-2 py-1 text-white"
-                            value={item.waste_pct}
-                            onChange={(event) => updateDraftItem(item.id, { waste_pct: event.target.value })}
+                            value={item.waste_pct_override}
+                            onChange={(event) =>
+                              updateDraftItem(item.id, { waste_pct_override: event.target.value })
+                            }
                           />
                         </td>
                         <td className="px-4 py-3 text-slate-300">

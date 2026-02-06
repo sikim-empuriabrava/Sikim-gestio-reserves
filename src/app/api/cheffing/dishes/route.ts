@@ -102,6 +102,7 @@ export async function POST(req: NextRequest) {
         unit_code: item.unit_code,
         quantity: item.quantity,
         waste_pct: item.waste_pct ?? 0,
+        waste_pct_override: item.waste_pct_override ?? null,
         notes: item.notes ?? null,
       })),
     );

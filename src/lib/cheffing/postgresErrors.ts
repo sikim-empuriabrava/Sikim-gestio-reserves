@@ -13,6 +13,7 @@ const constraintMessageMap: Record<string, string> = {
   cheffing_dish_items_unique_subrecipe: 'Esta línea ya existe en el plato.',
   cheffing_subrecipe_items_waste_pct_check: 'La merma debe estar entre 0 y 1.',
   cheffing_dish_items_waste_pct_check: 'La merma debe estar entre 0 y 1.',
+  cheffing_dish_items_waste_pct_override_check: 'La merma debe estar entre 0 y 1.',
   cheffing_ingredients_waste_pct_check: 'La merma debe estar entre 0 y 1.',
   cheffing_dishes_servings_check: 'Las raciones deben ser mayores que 0.',
 };

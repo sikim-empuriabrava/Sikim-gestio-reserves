@@ -4,6 +4,7 @@ const trimmedString = z.string().trim();
 const allergenIndicatorArraySchema = z.array(trimmedString);
 
 export const wastePctSchema = z.number().min(0).lt(1);
+export const wastePctOverrideSchema = wastePctSchema.nullable();
 
 export const notesSchema = z.preprocess(
   (value) => {
@@ -92,7 +93,8 @@ export const dishItemSchema = z
     subrecipe_id: z.string().uuid().nullable(),
     unit_code: trimmedString.min(1),
     quantity: z.number().positive(),
-    waste_pct: wastePctSchema,
+    waste_pct: wastePctSchema.optional(),
+    waste_pct_override: wastePctOverrideSchema.optional(),
     notes: notesSchema.optional(),
   })
   .refine((data) => (data.ingredient_id ? 1 : 0) + (data.subrecipe_id ? 1 : 0) === 1, {
@@ -106,6 +108,7 @@ export const dishItemCreateSchema = z
     unit_code: trimmedString.min(1),
     quantity: z.number().positive(),
     waste_pct: wastePctSchema.optional(),
+    waste_pct_override: wastePctOverrideSchema.optional(),
     notes: notesSchema.optional(),
   })
   .refine((data) => (data.ingredient_id ? 1 : 0) + (data.subrecipe_id ? 1 : 0) === 1, {
