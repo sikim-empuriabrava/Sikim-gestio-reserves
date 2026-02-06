@@ -768,8 +768,10 @@ CREATE TABLE public.cheffing_dishes (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     name text NOT NULL,
     selling_price numeric,
+    servings integer DEFAULT 1 NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT cheffing_dishes_servings_check CHECK ((servings > 0)),
     CONSTRAINT cheffing_dishes_selling_price_check CHECK (((selling_price IS NULL) OR (selling_price >= (0)::numeric)))
 );
 
@@ -2511,4 +2513,3 @@ CREATE POLICY "read own allowlist row" ON public.app_allowed_users FOR SELECT TO
 --
 
 \unrestrict 4HIdLiNSzyZdPkTis6DGSqd7cNcM4Ylrhf4MlFqUxse1BTapwbvJDc82Qxm6ix9
-

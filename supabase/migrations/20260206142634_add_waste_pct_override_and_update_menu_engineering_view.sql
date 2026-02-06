@@ -64,7 +64,7 @@ select
   d.id,
   d.name,
   d.selling_price,
-  ic.items_cost_total::numeric as cost_per_serving,
+  (ic.items_cost_total / nullif(coalesce(d.servings, 1), 0))::numeric as cost_per_serving,
   d.created_at,
   d.updated_at
 from public.cheffing_dishes d
