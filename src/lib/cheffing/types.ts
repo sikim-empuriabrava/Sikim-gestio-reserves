@@ -90,5 +90,6 @@ export type DishItem = {
   unit_code: string;
   quantity: number;
   waste_pct: number;
+  waste_pct_override: number | null;
   notes: string | null;
 };

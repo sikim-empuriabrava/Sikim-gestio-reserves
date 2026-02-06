@@ -32,7 +32,8 @@ export async function PATCH(req: NextRequest, { params }: { params: { itemId: st
       subrecipe_id: parsed.data.subrecipe_id,
       unit_code: parsed.data.unit_code,
       quantity: parsed.data.quantity,
-      waste_pct: parsed.data.waste_pct,
+      waste_pct: parsed.data.waste_pct ?? 0,
+      waste_pct_override: parsed.data.waste_pct_override ?? null,
       notes: parsed.data.notes ?? null,
     })
     .eq('id', params.itemId);

@@ -47,7 +47,7 @@ type ItemFormState = {
   subrecipe_id: string;
   unit_code: string;
   quantity: string;
-  waste_pct: string;
+  waste_pct_override: string;
   notes: string;
 };
 
@@ -136,9 +136,11 @@ export function DishDetailManager({
   };
 
   const parseWastePct = (value: string) => {
-    const percentValue = Number(value);
+    const trimmed = value.trim();
+    if (trimmed === '') return null;
+    const percentValue = Number(trimmed);
     if (!Number.isFinite(percentValue) || percentValue < 0 || percentValue >= 100) {
-      return null;
+      return undefined;
     }
     return percentValue / 100;
   };
@@ -149,6 +151,16 @@ export function DishDetailManager({
       return null;
     }
     return numericValue;
+  };
+
+  const resolveEffectiveWastePct = (item: DishItemWithDetails) => {
+    if (item.waste_pct_override !== null && item.waste_pct_override !== undefined) {
+      return item.waste_pct_override;
+    }
+    if (item.ingredient_id) {
+      return ingredientsById.get(item.ingredient_id)?.waste_pct ?? 0;
+    }
+    return 0;
   };
 
   const saveHeader = async (event: FormEvent<HTMLFormElement>) => {
@@ -298,7 +310,7 @@ export function DishDetailManager({
           subrecipe_id: type === 'subrecipe' ? id : null,
           unit_code: unitCode,
           quantity: 1,
-          waste_pct: 0,
+          waste_pct_override: null,
           notes: null,
         }),
       });
@@ -328,7 +340,10 @@ export function DishDetailManager({
       subrecipe_id: item.subrecipe_id ?? subrecipes[0]?.id ?? '',
       unit_code: item.unit_code,
       quantity: String(item.quantity),
-      waste_pct: String((item.waste_pct * 100).toFixed(2)),
+      waste_pct_override:
+        item.waste_pct_override === null || item.waste_pct_override === undefined
+          ? ''
+          : String((item.waste_pct_override * 100).toFixed(2)),
       notes: item.notes ?? '',
     });
   };
@@ -349,8 +364,8 @@ export function DishDetailManager({
         throw new Error('La cantidad debe ser mayor que 0.');
       }
 
-      const wastePctValue = parseWastePct(editingItemState.waste_pct);
-      if (wastePctValue === null) {
+      const wastePctValue = parseWastePct(editingItemState.waste_pct_override);
+      if (wastePctValue === undefined) {
         throw new Error('La merma debe estar entre 0 y 99,99%.');
       }
 
@@ -372,7 +387,7 @@ export function DishDetailManager({
           subrecipe_id: subrecipeId,
           unit_code: editingItemState.unit_code,
           quantity: quantityValue,
-          waste_pct: wastePctValue,
+          waste_pct_override: wastePctValue,
           notes: editingItemState.notes.trim() ? editingItemState.notes.trim() : null,
         }),
       });
@@ -555,7 +570,7 @@ export function DishDetailManager({
                 <th className="px-4 py-3">Tipo</th>
                 <th className="px-4 py-3">Detalle</th>
                 <th className="px-4 py-3">Cantidad</th>
-                <th className="px-4 py-3">Merma</th>
+                <th className="px-4 py-3">Merma (%)</th>
                 <th className="px-4 py-3">Notas</th>
                 <th className="px-4 py-3">Coste</th>
                 <th className="px-4 py-3">Acciones</th>
@@ -694,15 +709,15 @@ export function DishDetailManager({
                             max="99.99"
                             step="0.01"
                             className="w-20 rounded-md border border-slate-700 bg-slate-950/70 px-2 py-1 text-white"
-                            value={editingValues?.waste_pct ?? ''}
+                            value={editingValues?.waste_pct_override ?? ''}
                             onChange={(event) =>
                               setEditingItemState((prev) =>
-                                prev ? { ...prev, waste_pct: event.target.value } : prev,
+                                prev ? { ...prev, waste_pct_override: event.target.value } : prev,
                               )
                             }
                           />
                         ) : (
-                          `${(item.waste_pct * 100).toFixed(2)}%`
+                          `${(resolveEffectiveWastePct(item) * 100).toFixed(2)}%`
                         )}
                       </td>
                       <td className="px-4 py-3 text-slate-300">

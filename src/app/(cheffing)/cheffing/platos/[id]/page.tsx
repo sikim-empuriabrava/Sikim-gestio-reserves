@@ -48,7 +48,7 @@ export default async function CheffingPlatoDetailPage({ params }: { params: { id
   const { data: items, error: itemsError } = await supabase
     .from('v_cheffing_dish_items_cost')
     .select(
-      'id, dish_id, ingredient_id, subrecipe_id, unit_code, quantity, waste_pct, notes, line_cost_total, ingredient:cheffing_ingredients(id, name), subrecipe:cheffing_subrecipes(id, name)',
+      'id, dish_id, ingredient_id, subrecipe_id, unit_code, quantity, waste_pct, waste_pct_override, notes, line_cost_total, ingredient:cheffing_ingredients(id, name), subrecipe:cheffing_subrecipes(id, name)',
     )
     .eq('dish_id', params.id)
     .order('created_at', { ascending: true });

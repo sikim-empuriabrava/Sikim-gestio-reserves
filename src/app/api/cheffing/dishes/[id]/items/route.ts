@@ -18,7 +18,9 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
   const supabase = createSupabaseAdminClient();
   const { data, error } = await supabase
     .from('v_cheffing_dish_items_cost')
-    .select('id, dish_id, ingredient_id, subrecipe_id, unit_code, quantity, waste_pct, notes, line_cost_total')
+    .select(
+      'id, dish_id, ingredient_id, subrecipe_id, unit_code, quantity, waste_pct, waste_pct_override, notes, line_cost_total',
+    )
     .eq('dish_id', params.id)
     .order('created_at', { ascending: true });
 
@@ -57,7 +59,8 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       subrecipe_id: parsed.data.subrecipe_id,
       unit_code: parsed.data.unit_code,
       quantity: parsed.data.quantity,
-      waste_pct: parsed.data.waste_pct,
+      waste_pct: parsed.data.waste_pct ?? 0,
+      waste_pct_override: parsed.data.waste_pct_override ?? null,
       notes: parsed.data.notes ?? null,
     })
     .select('id')
