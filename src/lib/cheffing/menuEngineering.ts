@@ -20,7 +20,7 @@ const toNumber = (value: number | null) => (value === null || Number.isNaN(value
 export async function getMenuEngineeringRows(vatRate: MenuEngineeringVatRate) {
   const supabase = createSupabaseAdminClient();
   const { data, error } = await supabase
-    .from('v_cheffing_dish_cost')
+    .from('v_cheffing_menu_engineering_dish_cost')
     .select('id, name, selling_price, cost_per_serving')
     .order('name', { ascending: true });
 
