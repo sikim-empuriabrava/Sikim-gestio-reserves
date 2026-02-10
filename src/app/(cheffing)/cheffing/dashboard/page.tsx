@@ -5,8 +5,9 @@ import {
   MAX_FOOD_COST_PCT,
   MIN_MARGIN_PCT,
 } from '@/lib/cheffing/cheffingDashboard';
-import { requireCheffingAccess } from '@/lib/cheffing/requireCheffing';
 import { normalizeMenuEngineeringVatRate } from '@/lib/cheffing/menuEngineeringVat';
+import { requireCheffingAccess } from '@/lib/cheffing/requireCheffing';
+import { mergeQueryString } from '@/lib/cheffing/url';
 
 const currencyFormatter = new Intl.NumberFormat('es-ES', {
   style: 'currency',
@@ -37,16 +38,6 @@ const formatPercent = (value: number | null) => {
   return percentFormatter.format(value);
 };
 
-const withIva = (href: string, iva: string | undefined) => {
-  if (!iva) {
-    return href;
-  }
-
-  const params = new URLSearchParams();
-  params.set('iva', iva);
-  return `${href}?${params.toString()}`;
-};
-
 const badgeByCode = {
   MISSING_PVP: 'border-rose-500/50 bg-rose-500/15 text-rose-100',
   MISSING_COST: 'border-rose-500/50 bg-rose-500/15 text-rose-100',
@@ -55,15 +46,44 @@ const badgeByCode = {
   MARGIN_LOW: 'border-yellow-500/50 bg-yellow-500/15 text-yellow-100',
 } as const;
 
+function toPropagatedParams(
+  searchParams: Record<string, string | string[] | undefined> | undefined,
+  vatRate: number,
+): URLSearchParams {
+  const params = new URLSearchParams();
+
+  for (const [key, value] of Object.entries(searchParams ?? {})) {
+    if (typeof value === 'string') {
+      params.append(key, value);
+      continue;
+    }
+
+    if (Array.isArray(value)) {
+      for (const entry of value) {
+        params.append(key, entry);
+      }
+    }
+  }
+
+  if (searchParams && Object.prototype.hasOwnProperty.call(searchParams, 'iva')) {
+    params.set('iva', String(vatRate));
+  } else {
+    params.delete('iva');
+  }
+
+  return params;
+}
+
 export default async function CheffingDashboardPage({
   searchParams,
 }: {
-  searchParams?: { iva?: string };
+  searchParams?: Record<string, string | string[] | undefined>;
 }) {
   await requireCheffingAccess();
 
-  const ivaParam = searchParams?.iva;
-  const vatRate = normalizeMenuEngineeringVatRate(ivaParam);
+  const rawIva = typeof searchParams?.iva === 'string' ? searchParams.iva : searchParams?.iva?.[0];
+  const vatRate = normalizeMenuEngineeringVatRate(rawIva);
+  const propagatedParams = toPropagatedParams(searchParams, vatRate);
   let loadError: string | null = null;
 
   const dashboard = await getCheffingDashboardData(vatRate).catch((error) => {
@@ -134,7 +154,10 @@ export default async function CheffingDashboardPage({
                   dashboard.alertRows.map((row) => (
                     <tr key={row.id}>
                       <td className="px-4 py-3 font-medium text-slate-100">
-                        <Link className="hover:text-white hover:underline" href={withIva(`/cheffing/platos/${row.id}`, ivaParam)}>
+                        <Link
+                          className="hover:text-white hover:underline"
+                          href={mergeQueryString(`/cheffing/platos/${row.id}`, propagatedParams.toString())}
+                        >
                           {row.name}
                         </Link>
                       </td>
