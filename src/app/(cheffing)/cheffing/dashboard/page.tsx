@@ -4,9 +4,9 @@ import {
   getCheffingDashboardData,
   MAX_FOOD_COST_PCT,
   MIN_MARGIN_PCT,
-  DEFAULT_VAT_RATE,
 } from '@/lib/cheffing/cheffingDashboard';
 import { requireCheffingAccess } from '@/lib/cheffing/requireCheffing';
+import { normalizeMenuEngineeringVatRate } from '@/lib/cheffing/menuEngineeringVat';
 
 const currencyFormatter = new Intl.NumberFormat('es-ES', {
   style: 'currency',
@@ -45,12 +45,17 @@ const badgeByCode = {
   MARGIN_LOW: 'border-yellow-500/50 bg-yellow-500/15 text-yellow-100',
 } as const;
 
-export default async function CheffingDashboardPage() {
+export default async function CheffingDashboardPage({
+  searchParams,
+}: {
+  searchParams?: { iva?: string };
+}) {
   await requireCheffingAccess();
 
+  const vatRate = normalizeMenuEngineeringVatRate(searchParams?.iva);
   let loadError: string | null = null;
 
-  const dashboard = await getCheffingDashboardData(DEFAULT_VAT_RATE).catch((error) => {
+  const dashboard = await getCheffingDashboardData(vatRate).catch((error) => {
     loadError = error instanceof Error ? error.message : 'Error desconocido al cargar el dashboard.';
     return null;
   });
