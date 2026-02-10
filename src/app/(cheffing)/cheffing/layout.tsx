@@ -1,8 +1,8 @@
-import Link from 'next/link';
 import { redirect } from 'next/navigation';
 
 import { getAllowlistRoleForUserEmail, getDefaultModulePath, isAdmin } from '@/lib/auth/requireRole';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
+import { CheffingNav } from '@/app/(cheffing)/cheffing/components/CheffingNav';
 
 export default async function CheffingLayout({ children }: { children: React.ReactNode }) {
   const supabase = createSupabaseServerClient();
@@ -40,44 +40,7 @@ export default async function CheffingLayout({ children }: { children: React.Rea
             <h1 className="text-2xl font-bold text-white">Cheffing</h1>
             <p className="text-sm text-slate-400">Gestión de cocina y escandallos</p>
           </div>
-          <nav className="flex flex-wrap gap-2 text-sm font-semibold text-slate-200">
-            <Link
-              href="/cheffing"
-              className="rounded-full border border-slate-700 bg-slate-950/60 px-4 py-1 transition hover:border-slate-500 hover:text-white"
-            >
-              Cheffing
-            </Link>
-            <Link
-              href="/cheffing/productos"
-              className="rounded-full border border-slate-700 bg-slate-950/60 px-4 py-1 transition hover:border-slate-500 hover:text-white"
-            >
-              Productos
-            </Link>
-            <Link
-              href="/cheffing/elaboraciones"
-              className="rounded-full border border-slate-700 bg-slate-950/60 px-4 py-1 transition hover:border-slate-500 hover:text-white"
-            >
-              Elaboraciones
-            </Link>
-            <Link
-              href="/cheffing/platos"
-              className="rounded-full border border-slate-700 bg-slate-950/60 px-4 py-1 transition hover:border-slate-500 hover:text-white"
-            >
-              Platos
-            </Link>
-            <Link
-              href="/cheffing/menus"
-              className="rounded-full border border-slate-700 bg-slate-950/60 px-4 py-1 transition hover:border-slate-500 hover:text-white"
-            >
-              Menús
-            </Link>
-            <Link
-              href="/cheffing/menu-engineering"
-              className="rounded-full border border-slate-700 bg-slate-950/60 px-4 py-1 transition hover:border-slate-500 hover:text-white"
-            >
-              Menu Engineering
-            </Link>
-          </nav>
+          <CheffingNav />
         </div>
       </header>
 
