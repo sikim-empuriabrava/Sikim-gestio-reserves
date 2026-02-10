@@ -37,6 +37,16 @@ const formatPercent = (value: number | null) => {
   return percentFormatter.format(value);
 };
 
+const withIva = (href: string, iva: string | undefined) => {
+  if (!iva) {
+    return href;
+  }
+
+  const params = new URLSearchParams();
+  params.set('iva', iva);
+  return `${href}?${params.toString()}`;
+};
+
 const badgeByCode = {
   MISSING_PVP: 'border-rose-500/50 bg-rose-500/15 text-rose-100',
   MISSING_COST: 'border-rose-500/50 bg-rose-500/15 text-rose-100',
@@ -52,7 +62,8 @@ export default async function CheffingDashboardPage({
 }) {
   await requireCheffingAccess();
 
-  const vatRate = normalizeMenuEngineeringVatRate(searchParams?.iva);
+  const ivaParam = searchParams?.iva;
+  const vatRate = normalizeMenuEngineeringVatRate(ivaParam);
   let loadError: string | null = null;
 
   const dashboard = await getCheffingDashboardData(vatRate).catch((error) => {
@@ -123,7 +134,7 @@ export default async function CheffingDashboardPage({
                   dashboard.alertRows.map((row) => (
                     <tr key={row.id}>
                       <td className="px-4 py-3 font-medium text-slate-100">
-                        <Link className="hover:text-white hover:underline" href={`/cheffing/platos/${row.id}`}>
+                        <Link className="hover:text-white hover:underline" href={withIva(`/cheffing/platos/${row.id}`, ivaParam)}>
                           {row.name}
                         </Link>
                       </td>
