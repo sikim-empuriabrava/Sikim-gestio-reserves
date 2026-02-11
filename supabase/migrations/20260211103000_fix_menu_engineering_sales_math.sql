@@ -35,6 +35,21 @@ begin
       rename constraint cheffing_dishes_servings_check to cheffing_dishes_servings_positive;
   end if;
 
+  if exists (
+    select 1
+    from pg_constraint
+    where conname = 'cheffing_dishes_servings_check'
+      and conrelid = 'public.cheffing_dishes'::regclass
+  ) and exists (
+    select 1
+    from pg_constraint
+    where conname = 'cheffing_dishes_servings_positive'
+      and conrelid = 'public.cheffing_dishes'::regclass
+  ) then
+    alter table public.cheffing_dishes
+      drop constraint cheffing_dishes_servings_check;
+  end if;
+
   if not exists (
     select 1
     from pg_constraint
@@ -68,7 +83,16 @@ create or replace view public.v_cheffing_menu_engineering_dish_cost as
 with item_costs as (
   select
     d.id as dish_id,
-    sum(
+    case
+      when count(item_lines.id) = 0 then 0::numeric
+      when count(item_lines.compatible_cost) = 0 then null
+      else sum(item_lines.compatible_cost)
+    end as items_cost_total
+  from public.cheffing_dishes d
+  left join (
+    select
+      di.id,
+      di.dish_id,
       case
         when di.ingredient_id is not null
           and u_item.dimension = vic.purchase_unit_dimension
@@ -79,13 +103,12 @@ with item_costs as (
           then (vsc.cost_net_per_base * (di.quantity * u_item.to_base_factor))
             / nullif(1 - coalesce(di.waste_pct_override, 0), 0)
         else null
-      end
-    ) as items_cost_total
-  from public.cheffing_dishes d
-  left join public.cheffing_dish_items di on di.dish_id = d.id
-  left join public.v_cheffing_ingredients_cost vic on vic.id = di.ingredient_id
-  left join public.v_cheffing_subrecipe_cost vsc on vsc.id = di.subrecipe_id
-  left join public.cheffing_units u_item on u_item.code = di.unit_code
+      end as compatible_cost
+    from public.cheffing_dish_items di
+    left join public.v_cheffing_ingredients_cost vic on vic.id = di.ingredient_id
+    left join public.v_cheffing_subrecipe_cost vsc on vsc.id = di.subrecipe_id
+    left join public.cheffing_units u_item on u_item.code = di.unit_code
+  ) item_lines on item_lines.dish_id = d.id
   group by d.id
 ), sold_units as (
   select
