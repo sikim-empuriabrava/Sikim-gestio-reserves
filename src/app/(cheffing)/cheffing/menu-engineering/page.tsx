@@ -113,8 +113,9 @@ export default async function MenuEngineeringPage({
       </form>
       <p className="text-sm text-slate-400">
         Nota: servings = raciones producidas por receta (yield, para coste/ración), no ventas. Unidades vendidas =
-        ventas (POS/SumUp o placeholder). PVP se interpreta como precio final con IVA; “Precio sin IVA” se calcula
-        dividiendo por (1 + IVA seleccionado).
+        ventas (POS/SumUp o placeholder). El rango de fechas todavía no filtra unidades vendidas: por ahora se usa
+        acumulado. PVP se interpreta como precio final con IVA; “Precio sin IVA” se calcula dividiendo por (1 + IVA
+        seleccionado).
       </p>
 
       {loadError ? (
