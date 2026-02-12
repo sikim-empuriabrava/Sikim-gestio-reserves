@@ -34,6 +34,7 @@ RLS: habilitado
 | `notes` | `text` | Sí |  |
 | `created_at` | `timestamp with time zone` | No | `now()` |
 | `updated_at` | `timestamp with time zone` | No | `now()` |
+| `waste_pct_override` | `numeric` | Sí |  |
 
 ### cheffing_dishes
 RLS: habilitado
@@ -45,6 +46,8 @@ RLS: habilitado
 | `selling_price` | `numeric` | Sí |  |
 | `created_at` | `timestamp with time zone` | No | `now()` |
 | `updated_at` | `timestamp with time zone` | No | `now()` |
+| `servings` | `integer` | No | `1` |
+| `units_sold` | `integer` | No | `0` |
 
 ### cheffing_ingredients
 RLS: habilitado
@@ -340,7 +343,9 @@ RLS: deshabilitado
 
 ## Views
 - `v_cheffing_dish_cost`
+- `v_cheffing_dish_items_cost`
 - `v_cheffing_ingredients_cost`
+- `v_cheffing_menu_engineering_dish_cost`
 - `v_cheffing_subrecipe_cost`
 - `v_daily_room_occupancy`
 - `v_daily_staffing_summary`

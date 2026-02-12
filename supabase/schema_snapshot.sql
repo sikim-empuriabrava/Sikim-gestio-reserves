@@ -755,8 +755,11 @@ CREATE TABLE public.cheffing_dish_items (
     notes text,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    waste_pct_override numeric,
     CONSTRAINT cheffing_dish_items_component_check CHECK (((ingredient_id IS NULL) <> (subrecipe_id IS NULL))),
-    CONSTRAINT cheffing_dish_items_quantity_check CHECK ((quantity > (0)::numeric))
+    CONSTRAINT cheffing_dish_items_quantity_check CHECK ((quantity > (0)::numeric)),
+    CONSTRAINT cheffing_dish_items_waste_pct_override_check CHECK (((waste_pct_override IS NULL) OR ((waste_pct_override >= (0)::numeric) AND (waste_pct_override < (1)::numeric)))),
+    CONSTRAINT cheffing_dish_items_waste_pct_override_chk CHECK (((waste_pct_override IS NULL) OR ((waste_pct_override >= (0)::numeric) AND (waste_pct_override < (1)::numeric))))
 );
 
 
@@ -768,11 +771,14 @@ CREATE TABLE public.cheffing_dishes (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     name text NOT NULL,
     selling_price numeric,
-    servings integer DEFAULT 1 NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    servings integer DEFAULT 1 NOT NULL,
+    units_sold integer DEFAULT 0 NOT NULL,
+    CONSTRAINT cheffing_dishes_selling_price_check CHECK (((selling_price IS NULL) OR (selling_price >= (0)::numeric))),
     CONSTRAINT cheffing_dishes_servings_check CHECK ((servings > 0)),
-    CONSTRAINT cheffing_dishes_selling_price_check CHECK (((selling_price IS NULL) OR (selling_price >= (0)::numeric)))
+    CONSTRAINT cheffing_dishes_servings_positive CHECK ((servings > 0)),
+    CONSTRAINT cheffing_dishes_units_sold_nonnegative CHECK ((units_sold >= 0))
 );
 
 
@@ -1246,6 +1252,71 @@ CREATE VIEW public.v_cheffing_dish_cost WITH (security_invoker='true') AS
     ic.items_cost_total
    FROM (public.cheffing_dishes d
      LEFT JOIN item_costs ic ON ((ic.dish_id = d.id)));
+
+
+--
+-- Name: v_cheffing_dish_items_cost; Type: VIEW; Schema: public; Owner: -
+--
+
+CREATE VIEW public.v_cheffing_dish_items_cost AS
+ SELECT di.id,
+    di.dish_id,
+    di.ingredient_id,
+    di.subrecipe_id,
+    di.unit_code,
+    di.quantity,
+    di.notes,
+    di.created_at,
+    di.updated_at,
+    di.waste_pct_override,
+        CASE
+            WHEN (di.ingredient_id IS NOT NULL) THEN COALESCE(di.waste_pct_override, vic.waste_pct, (0)::numeric)
+            WHEN (di.subrecipe_id IS NOT NULL) THEN COALESCE(di.waste_pct_override, (0)::numeric)
+            ELSE (0)::numeric
+        END AS waste_pct,
+        CASE
+            WHEN ((di.ingredient_id IS NOT NULL) AND (u_item.dimension = vic.purchase_unit_dimension)) THEN ((vic.cost_net_per_base * (di.quantity * u_item.to_base_factor)) / NULLIF(((1)::numeric - COALESCE(di.waste_pct_override, vic.waste_pct, (0)::numeric)), (0)::numeric))
+            WHEN ((di.subrecipe_id IS NOT NULL) AND (u_item.dimension = vsc.output_unit_dimension)) THEN ((vsc.cost_net_per_base * (di.quantity * u_item.to_base_factor)) / NULLIF(((1)::numeric - COALESCE(di.waste_pct_override, (0)::numeric)), (0)::numeric))
+            ELSE NULL::numeric
+        END AS line_cost_total
+   FROM (((public.cheffing_dish_items di
+     LEFT JOIN public.cheffing_units u_item ON ((u_item.code = di.unit_code)))
+     LEFT JOIN public.v_cheffing_ingredients_cost vic ON ((vic.id = di.ingredient_id)))
+     LEFT JOIN public.v_cheffing_subrecipe_cost vsc ON ((vsc.id = di.subrecipe_id)));
+
+
+--
+-- Name: v_cheffing_menu_engineering_dish_cost; Type: VIEW; Schema: public; Owner: -
+--
+
+CREATE VIEW public.v_cheffing_menu_engineering_dish_cost AS
+ WITH item_costs AS (
+         SELECT d1.id AS dish_id,
+                CASE
+                    WHEN (count(dic.id) = 0) THEN (0)::numeric
+                    WHEN (count(dic.line_cost_total) = 0) THEN NULL::numeric
+                    ELSE sum(dic.line_cost_total)
+                END AS items_cost_total
+           FROM (public.cheffing_dishes d1
+             LEFT JOIN public.v_cheffing_dish_items_cost dic ON ((dic.dish_id = d1.id)))
+          GROUP BY d1.id
+        ), sold_units AS (
+         SELECT l.dish_id,
+            (sum(COALESCE(s.units, (0)::numeric)))::integer AS units_sold
+           FROM (public.cheffing_pos_product_links l
+             LEFT JOIN public.cheffing_pos_sales_daily s ON ((s.pos_product_id = l.pos_product_id)))
+          GROUP BY l.dish_id
+        )
+ SELECT d.id,
+    d.name,
+    d.selling_price,
+    (ic.items_cost_total / (NULLIF(d.servings, 0))::numeric) AS cost_per_serving,
+    d.created_at,
+    d.updated_at,
+    COALESCE(su.units_sold, d.units_sold, 0) AS units_sold
+   FROM ((public.cheffing_dishes d
+     LEFT JOIN item_costs ic ON ((ic.dish_id = d.id)))
+     LEFT JOIN sold_units su ON ((su.dish_id = d.id)));
 
 
 --
@@ -2512,4 +2583,5 @@ CREATE POLICY "read own allowlist row" ON public.app_allowed_users FOR SELECT TO
 -- PostgreSQL database dump complete
 --
 
-\unrestrict 4HIdLiNSzyZdPkTis6DGSqd7cNcM4Ylrhf4MlFqUxse1BTapwbvJDc82Qxm6ix9
+\unrestrict fqgELzQOS6ckrT3MGffCaPdlbCdHdvYAMDPHkmleIZ29kgEHsGJRyg2aNiiLtvQ
+
