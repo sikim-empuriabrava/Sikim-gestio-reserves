@@ -63,8 +63,7 @@ export default async function MenuEngineeringPage({
       <header className="space-y-2">
         <h2 className="text-xl font-semibold text-white">Menu Engineering</h2>
         <p className="text-sm text-slate-400">
-          Analiza márgenes por plato con los datos actuales de Cheffing. La clasificación BCM se activará cuando
-          integremos ventas.
+          Analiza márgenes por plato diferenciando coste por ración (yield) y ventas reales/unidades vendidas.
         </p>
       </header>
 
@@ -113,9 +112,10 @@ export default async function MenuEngineeringPage({
         </div>
       </form>
       <p className="text-sm text-slate-400">
-        Nota: el rango de fechas se aplicará cuando integremos ventas (SumUp). Por ahora solo afecta al reporte de
-        costes/márgenes. PVP se interpreta como precio final con IVA. “Precio sin IVA” se calcula dividiendo por (1 +
-        IVA seleccionado).
+        Nota: servings = raciones producidas por receta (yield, para coste/ración), no ventas. Unidades vendidas =
+        ventas (POS/SumUp o placeholder). El rango de fechas todavía no filtra unidades vendidas: por ahora se usa
+        acumulado. PVP se interpreta como precio final con IVA; “Precio sin IVA” se calcula dividiendo por (1 + IVA
+        seleccionado).
       </p>
 
       {loadError ? (
@@ -128,18 +128,23 @@ export default async function MenuEngineeringPage({
             <thead className="bg-slate-950/60 text-xs uppercase tracking-wide text-slate-400">
               <tr>
                 <th className="px-4 py-3">Plato</th>
-                <th className="px-4 py-3">PVP</th>
+                <th className="px-4 py-3">PVP (con IVA)</th>
                 <th className="px-4 py-3">Coste/ración</th>
-                <th className="px-4 py-3">Precio sin IVA</th>
+                <th className="px-4 py-3">Precio sin IVA (base)</th>
                 <th className="px-4 py-3">Margen/ración</th>
-                <th className="px-4 py-3">Food cost %</th>
-                <th className="px-4 py-3">PVP objetivo 25%</th>
+                <th className="px-4 py-3">COGS % (sobre base)</th>
+                <th className="px-4 py-3">Margen % (sobre base)</th>
+                <th className="px-4 py-3">PVP objetivo (con IVA)</th>
+                <th className="px-4 py-3">Dif (PVP - objetivo)</th>
+                <th className="px-4 py-3">Unidades vendidas</th>
+                <th className="px-4 py-3">Total ventas (con IVA)</th>
+                <th className="px-4 py-3">Total margen</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-800 bg-slate-900/40">
               {rows.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="px-4 py-6 text-center text-sm text-slate-400">
+                  <td colSpan={13} className="px-4 py-6 text-center text-sm text-slate-400">
                     No hay platos disponibles para analizar.
                   </td>
                 </tr>
@@ -147,17 +152,17 @@ export default async function MenuEngineeringPage({
                 rows.map((row) => (
                   <tr key={row.id}>
                     <td className="px-4 py-3 font-medium text-slate-100">{row.name}</td>
-                    <td className="px-4 py-3">{formatCurrency(row.selling_price)}</td>
+                    <td className="px-4 py-3">{formatCurrency(row.selling_price_gross)}</td>
                     <td className="px-4 py-3">{formatCurrency(row.cost_per_serving)}</td>
                     <td className="px-4 py-3">{formatCurrency(row.net_price)}</td>
                     <td className="px-4 py-3">{formatCurrency(row.margin_unit)}</td>
-                    <td className="px-4 py-3">{formatPercent(row.food_cost_pct)}</td>
-                    <td className="px-4 py-3">
-                      <div className="flex flex-col text-xs text-slate-400">
-                        <span>Neto: {formatCurrency(row.target_pvp_net_25)}</span>
-                        <span>Con IVA: {formatCurrency(row.target_pvp_gross_25)}</span>
-                      </div>
-                    </td>
+                    <td className="px-4 py-3">{formatPercent(row.cogs_pct)}</td>
+                    <td className="px-4 py-3">{formatPercent(row.margin_pct)}</td>
+                    <td className="px-4 py-3">{formatCurrency(row.pvp_objetivo_gross)}</td>
+                    <td className="px-4 py-3">{formatCurrency(row.dif)}</td>
+                    <td className="px-4 py-3">{row.units_sold.toLocaleString('es-ES')}</td>
+                    <td className="px-4 py-3">{formatCurrency(row.total_sales_gross)}</td>
+                    <td className="px-4 py-3">{formatCurrency(row.total_margin)}</td>
                   </tr>
                 ))
               )}
@@ -167,7 +172,7 @@ export default async function MenuEngineeringPage({
       )}
 
       <div className="rounded-2xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-100">
-        Clasificación BCM (Estrella/Vaca/Puzzle/Perro) pendiente de integrar ventas (SumUp).
+        Clasificación BCM (Estrella/Vaca/Puzzle/Perro) pendiente de usar histórico completo de ventas (SumUp).
       </div>
     </section>
   );

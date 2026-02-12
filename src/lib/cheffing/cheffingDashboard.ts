@@ -67,18 +67,15 @@ export async function getCheffingDashboardData(vatRate: MenuEngineeringVatRate =
   const { rows } = await getMenuEngineeringRows(vatRate);
 
   const mappedRows: CheffingDashboardRow[] = rows.map((row) => {
-    const marginPct =
-      row.net_price !== null && row.net_price > 0 && row.margin_unit !== null ? row.margin_unit / row.net_price : null;
-
     const dashboardRow: CheffingDashboardRow = {
       id: row.id,
       name: row.name,
-      selling_price: row.selling_price,
+      selling_price: row.selling_price_gross,
       cost_per_serving: row.cost_per_serving,
       net_price: row.net_price,
       margin_unit: row.margin_unit,
-      food_cost_pct: row.food_cost_pct,
-      margin_pct: marginPct,
+      food_cost_pct: row.cogs_pct,
+      margin_pct: row.margin_pct,
       alerts: [],
       max_severity: 0,
     };

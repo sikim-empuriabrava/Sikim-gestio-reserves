@@ -109,6 +109,8 @@ Estas derivaciones se exponen en la vista `v_cheffing_ingredients_cost`.
 - Las líneas de plato calculan su coste a partir de ingredientes o subrecetas.
 - Solo se suman las líneas con dimensiones compatibles (si no hay conversión posible, el coste queda `NULL` y no rompe la vista). Si no hay líneas, el coste total queda en `0`.
 - **Coste por ración** = `coste_total / servings`.
+- **Importante**: `servings` representa yield/porciones de receta para calcular coste por ración; **no** representa ventas.
+- **Ventas**: usar `units_sold` (POS/SumUp o placeholder temporal) para totales de facturación y margen.
 - La vista `v_cheffing_dish_items_cost` expone el coste total por línea.
 
 ## Seguridad (RLS)
