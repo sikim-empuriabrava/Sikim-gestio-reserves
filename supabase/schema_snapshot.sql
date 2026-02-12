@@ -121,6 +121,46 @@ $$;
 
 
 --
+-- Name: cheffing_pos_refresh_sales_daily(date, date); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.cheffing_pos_refresh_sales_daily(p_from date DEFAULT NULL::date, p_to date DEFAULT NULL::date) RETURNS void
+    LANGUAGE plpgsql
+    AS $$
+begin
+  insert into public.cheffing_pos_sales_daily (
+    sale_day,
+    outlet_id,
+    pos_product_id,
+    units,
+    revenue,
+    source,
+    created_at,
+    updated_at
+  )
+  select
+    oi.opened_at::date as sale_day,
+    oi.outlet_id,
+    (oi.outlet_id || ':' || oi.product_name) as pos_product_id,
+    sum(oi.quantity)::numeric as units,
+    sum(oi.total_gross)::numeric as revenue,
+    'csv' as source,
+    now(),
+    now()
+  from public.cheffing_pos_order_items oi
+  where (p_from is null or oi.opened_at::date >= p_from)
+    and (p_to is null or oi.opened_at::date <= p_to)
+  group by 1,2,3
+  on conflict (sale_day, outlet_id, pos_product_id)
+  do update set
+    units = excluded.units,
+    revenue = excluded.revenue,
+    source = excluded.source,
+    updated_at = now();
+end $$;
+
+
+--
 -- Name: day_status_sync_legacy_columns(); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -812,6 +852,80 @@ CREATE TABLE public.cheffing_ingredients (
 
 
 --
+-- Name: cheffing_pos_order_items; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.cheffing_pos_order_items (
+    id bigint NOT NULL,
+    pos_order_id text NOT NULL,
+    outlet_id text DEFAULT 'default'::text NOT NULL,
+    outlet_name text,
+    opened_at timestamp without time zone NOT NULL,
+    closed_at timestamp without time zone,
+    product_name text NOT NULL,
+    sku text,
+    gift_card_code text,
+    quantity numeric NOT NULL,
+    unit_price_gross numeric DEFAULT 0 NOT NULL,
+    discount_gross numeric DEFAULT 0 NOT NULL,
+    total_gross numeric DEFAULT 0 NOT NULL,
+    total_net numeric,
+    vat_amount numeric,
+    currency text,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT cheffing_pos_order_items_qty_nonnegative CHECK ((quantity >= (0)::numeric)),
+    CONSTRAINT cheffing_pos_order_items_totals_nonnegative CHECK ((total_gross >= (0)::numeric))
+);
+
+
+--
+-- Name: cheffing_pos_order_items_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+CREATE SEQUENCE public.cheffing_pos_order_items_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: cheffing_pos_order_items_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+--
+
+ALTER SEQUENCE public.cheffing_pos_order_items_id_seq OWNED BY public.cheffing_pos_order_items.id;
+
+
+--
+-- Name: cheffing_pos_orders; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.cheffing_pos_orders (
+    pos_order_id text NOT NULL,
+    outlet_id text DEFAULT 'default'::text NOT NULL,
+    outlet_name text,
+    opened_at timestamp without time zone NOT NULL,
+    closed_at timestamp without time zone,
+    custom_order_id text,
+    order_name text,
+    opened_by text,
+    closed_table text,
+    clients integer,
+    duration_seconds integer,
+    status text,
+    currency text,
+    total_gross numeric,
+    total_net numeric,
+    total_vat numeric,
+    total_payments numeric,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+--
 -- Name: cheffing_pos_product_links; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -1479,6 +1593,13 @@ CREATE VIEW public.v_maintenance_daily_detail AS
 
 
 --
+-- Name: cheffing_pos_order_items id; Type: DEFAULT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.cheffing_pos_order_items ALTER COLUMN id SET DEFAULT nextval('public.cheffing_pos_order_items_id_seq'::regclass);
+
+
+--
 -- Name: app_allowed_users app_allowed_users_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -1508,6 +1629,22 @@ ALTER TABLE ONLY public.cheffing_dishes
 
 ALTER TABLE ONLY public.cheffing_ingredients
     ADD CONSTRAINT cheffing_ingredients_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: cheffing_pos_order_items cheffing_pos_order_items_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.cheffing_pos_order_items
+    ADD CONSTRAINT cheffing_pos_order_items_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: cheffing_pos_orders cheffing_pos_orders_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.cheffing_pos_orders
+    ADD CONSTRAINT cheffing_pos_orders_pkey PRIMARY KEY (pos_order_id);
 
 
 --
@@ -1757,10 +1894,52 @@ CREATE INDEX cheffing_ingredients_purchase_unit_code_idx ON public.cheffing_ingr
 
 
 --
+-- Name: cheffing_pos_order_items_dedupe_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX cheffing_pos_order_items_dedupe_idx ON public.cheffing_pos_order_items USING btree (pos_order_id, product_name, unit_price_gross, discount_gross);
+
+
+--
+-- Name: cheffing_pos_order_items_opened_at_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX cheffing_pos_order_items_opened_at_idx ON public.cheffing_pos_order_items USING btree (opened_at);
+
+
+--
+-- Name: cheffing_pos_order_items_order_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX cheffing_pos_order_items_order_idx ON public.cheffing_pos_order_items USING btree (pos_order_id);
+
+
+--
+-- Name: cheffing_pos_orders_opened_at_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX cheffing_pos_orders_opened_at_idx ON public.cheffing_pos_orders USING btree (opened_at);
+
+
+--
+-- Name: cheffing_pos_orders_outlet_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX cheffing_pos_orders_outlet_idx ON public.cheffing_pos_orders USING btree (outlet_id);
+
+
+--
 -- Name: cheffing_pos_product_links_dish_id_idx; Type: INDEX; Schema: public; Owner: -
 --
 
 CREATE INDEX cheffing_pos_product_links_dish_id_idx ON public.cheffing_pos_product_links USING btree (dish_id);
+
+
+--
+-- Name: cheffing_pos_sales_daily_unique_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX cheffing_pos_sales_daily_unique_idx ON public.cheffing_pos_sales_daily USING btree (sale_day, outlet_id, pos_product_id);
 
 
 --
@@ -2211,6 +2390,14 @@ ALTER TABLE ONLY public.cheffing_ingredients
 
 
 --
+-- Name: cheffing_pos_order_items cheffing_pos_order_items_pos_order_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.cheffing_pos_order_items
+    ADD CONSTRAINT cheffing_pos_order_items_pos_order_id_fkey FOREIGN KEY (pos_order_id) REFERENCES public.cheffing_pos_orders(pos_order_id) ON DELETE CASCADE;
+
+
+--
 -- Name: cheffing_pos_product_links cheffing_pos_product_links_dish_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -2431,6 +2618,32 @@ CREATE POLICY cheffing_ingredients_update ON public.cheffing_ingredients FOR UPD
 
 
 --
+-- Name: cheffing_pos_order_items; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.cheffing_pos_order_items ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: cheffing_pos_order_items cheffing_pos_order_items_all; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY cheffing_pos_order_items_all ON public.cheffing_pos_order_items USING (public.cheffing_is_allowed()) WITH CHECK (public.cheffing_is_allowed());
+
+
+--
+-- Name: cheffing_pos_orders; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.cheffing_pos_orders ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: cheffing_pos_orders cheffing_pos_orders_all; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY cheffing_pos_orders_all ON public.cheffing_pos_orders USING (public.cheffing_is_allowed()) WITH CHECK (public.cheffing_is_allowed());
+
+
+--
 -- Name: cheffing_pos_product_links; Type: ROW SECURITY; Schema: public; Owner: -
 --
 
@@ -2583,5 +2796,5 @@ CREATE POLICY "read own allowlist row" ON public.app_allowed_users FOR SELECT TO
 -- PostgreSQL database dump complete
 --
 
-\unrestrict fqgELzQOS6ckrT3MGffCaPdlbCdHdvYAMDPHkmleIZ29kgEHsGJRyg2aNiiLtvQ
+\unrestrict bvmHZQRdt3v3SdzkaebmoRe1bDw5jhGvkMYcxdzUHYoGgT6cHGBLWegydmhAA6g
 

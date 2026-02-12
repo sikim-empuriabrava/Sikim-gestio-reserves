@@ -71,6 +71,55 @@ RLS: habilitado
 | `allergen_codes` | `text[]` | No | `'{}'::text[]` |
 | `indicator_codes` | `text[]` | No | `'{}'::text[]` |
 
+### cheffing_pos_order_items
+RLS: habilitado
+
+| Columna | Tipo | Nullable | Default |
+| --- | --- | --- | --- |
+| `id` | `bigint` | No | `nextval('cheffing_pos_order_items_id_seq'::regclass)` |
+| `pos_order_id` | `text` | No |  |
+| `outlet_id` | `text` | No | `'default'::text` |
+| `outlet_name` | `text` | Sí |  |
+| `opened_at` | `timestamp without time zone` | No |  |
+| `closed_at` | `timestamp without time zone` | Sí |  |
+| `product_name` | `text` | No |  |
+| `sku` | `text` | Sí |  |
+| `gift_card_code` | `text` | Sí |  |
+| `quantity` | `numeric` | No |  |
+| `unit_price_gross` | `numeric` | No | `0` |
+| `discount_gross` | `numeric` | No | `0` |
+| `total_gross` | `numeric` | No | `0` |
+| `total_net` | `numeric` | Sí |  |
+| `vat_amount` | `numeric` | Sí |  |
+| `currency` | `text` | Sí |  |
+| `created_at` | `timestamp with time zone` | No | `now()` |
+| `updated_at` | `timestamp with time zone` | No | `now()` |
+
+### cheffing_pos_orders
+RLS: habilitado
+
+| Columna | Tipo | Nullable | Default |
+| --- | --- | --- | --- |
+| `pos_order_id` | `text` | No |  |
+| `outlet_id` | `text` | No | `'default'::text` |
+| `outlet_name` | `text` | Sí |  |
+| `opened_at` | `timestamp without time zone` | No |  |
+| `closed_at` | `timestamp without time zone` | Sí |  |
+| `custom_order_id` | `text` | Sí |  |
+| `order_name` | `text` | Sí |  |
+| `opened_by` | `text` | Sí |  |
+| `closed_table` | `text` | Sí |  |
+| `clients` | `integer` | Sí |  |
+| `duration_seconds` | `integer` | Sí |  |
+| `status` | `text` | Sí |  |
+| `currency` | `text` | Sí |  |
+| `total_gross` | `numeric` | Sí |  |
+| `total_net` | `numeric` | Sí |  |
+| `total_vat` | `numeric` | Sí |  |
+| `total_payments` | `numeric` | Sí |  |
+| `created_at` | `timestamp with time zone` | No | `now()` |
+| `updated_at` | `timestamp with time zone` | No | `now()` |
+
 ### cheffing_pos_product_links
 RLS: habilitado
 
@@ -370,6 +419,8 @@ RLS: deshabilitado
 | `cheffing_ingredients` | `cheffing_ingredients_insert` | INSERT | public | `` | `cheffing_is_allowed()` |
 | `cheffing_ingredients` | `cheffing_ingredients_select` | SELECT | public | `cheffing_is_allowed()` | `` |
 | `cheffing_ingredients` | `cheffing_ingredients_update` | UPDATE | public | `cheffing_is_allowed()` | `cheffing_is_allowed()` |
+| `cheffing_pos_order_items` | `cheffing_pos_order_items_all` | ALL | public | `cheffing_is_allowed()` | `cheffing_is_allowed()` |
+| `cheffing_pos_orders` | `cheffing_pos_orders_all` | ALL | public | `cheffing_is_allowed()` | `cheffing_is_allowed()` |
 | `cheffing_pos_product_links` | `cheffing_pos_product_links_select` | SELECT | public | `cheffing_is_allowed()` | `` |
 | `cheffing_pos_product_links` | `cheffing_pos_product_links_write` | ALL | public | `cheffing_is_admin()` | `cheffing_is_admin()` |
 | `cheffing_pos_sales_daily` | `cheffing_pos_sales_daily_select` | SELECT | public | `cheffing_is_allowed()` | `` |
@@ -425,6 +476,7 @@ RLS: deshabilitado
 | `app_allowed_users_email_lowercase` | `` | `trigger` |
 | `cheffing_is_admin` | `` | `boolean` |
 | `cheffing_is_allowed` | `` | `boolean` |
+| `cheffing_pos_refresh_sales_daily` | `p_from date DEFAULT NULL::date, p_to date DEFAULT NULL::date` | `void` |
 | `day_status_sync_legacy_columns` | `` | `trigger` |
 | `delete_routine_pack` | `p_pack_id uuid, p_mode text DEFAULT 'keep_all'::text, p_cutoff_week_start date DEFAULT NULL::date` | `TABLE(deleted_pack boolean, deleted_routines integer, deleted_tasks integer, unlinked_tasks integer)` |
 | `delete_routine_template` | `p_routine_id uuid, p_mode text DEFAULT 'keep_all'::text, p_cutoff_week_start date DEFAULT NULL::date` | `TABLE(deleted boolean, deleted_tasks integer, unlinked_tasks integer)` |
