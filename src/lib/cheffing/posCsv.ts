@@ -82,7 +82,7 @@ export function parseCsvSemicolon(content: string): ParsedCsv {
 
 export function resolveHeaderMap(
   headers: string[],
-  expected: Record<string, string[]>,
+  expected: Record<string, readonly string[]>,
 ): { missing: string[]; resolved: Record<string, string> } {
   const normalizedIndex = new Map<string, string>();
 
@@ -93,7 +93,7 @@ export function resolveHeaderMap(
   const resolved: Record<string, string> = {};
   const missing: string[] = [];
 
-  for (const [field, aliases] of Object.entries(expected)) {
+  for (const [field, aliases] of Object.entries(expected) as Array<[string, readonly string[]]>) {
     const found = aliases
       .map((alias) => normalizedIndex.get(normalizeHeader(alias)))
       .find((value): value is string => Boolean(value));
