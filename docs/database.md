@@ -146,6 +146,16 @@ RLS: habilitado
 | `created_at` | `timestamp with time zone` | No | `now()` |
 | `updated_at` | `timestamp with time zone` | No | `now()` |
 
+
+#### Flujo de importación POS (CSV)
+- Endpoint: `POST /api/cheffing/pos/import-csv` (multipart/form-data con `orders_csv` y/o `items_csv`).
+- Timestamp de referencia: `opened_at` (`timestamp without time zone`), tomado desde **Fecha apertura** del CSV.
+- Dedupe de pedidos: upsert por `cheffing_pos_orders.pos_order_id`.
+- Dedupe de líneas: upsert por índice único `cheffing_pos_order_items_dedupe_idx`
+  (`pos_order_id, product_name, unit_price_gross, discount_gross`).
+- Tras cada importación se refrescan agregados diarios vía `cheffing_pos_refresh_sales_daily(p_from, p_to)`
+  en el rango mínimo/máximo de `opened_at` del batch importado.
+
 ### cheffing_subrecipe_items
 RLS: habilitado
 
