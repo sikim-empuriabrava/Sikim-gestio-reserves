@@ -13,6 +13,7 @@ const NAV_ITEMS = [
   { href: '/cheffing/menus', label: 'Menús' },
   { href: '/cheffing/dashboard', label: 'Dashboard' },
   { href: '/cheffing/menu-engineering', label: 'Menu Engineering' },
+  { href: '/cheffing/ventas', label: 'Ventas POS' },
 ] as const;
 
 export function CheffingNav() {

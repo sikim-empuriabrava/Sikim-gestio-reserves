@@ -79,7 +79,15 @@ comment on column public.cheffing_dishes.servings is
 comment on column public.cheffing_dishes.units_sold is
   'Unidades vendidas agregadas (POS/SumUp o placeholder temporal para menu engineering).';
 
-create or replace view public.v_cheffing_menu_engineering_dish_cost as
+create or replace view public.v_cheffing_menu_engineering_dish_cost (
+  id,
+  name,
+  selling_price,
+  cost_per_serving,
+  created_at,
+  updated_at,
+  units_sold
+) as
 with item_costs as (
   select
     d.id as dish_id,
@@ -123,9 +131,9 @@ select
   d.name,
   d.selling_price,
   (ic.items_cost_total / nullif(coalesce(d.servings, 1), 0))::numeric as cost_per_serving,
-  coalesce(su.units_sold, d.units_sold, 0)::integer as units_sold,
   d.created_at,
-  d.updated_at
+  d.updated_at,
+  coalesce(su.units_sold, d.units_sold, 0)::integer as units_sold
 from public.cheffing_dishes d
 left join item_costs ic on ic.dish_id = d.id
 left join sold_units su on su.dish_id = d.id;
