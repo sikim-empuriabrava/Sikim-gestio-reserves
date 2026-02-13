@@ -2796,5 +2796,5 @@ CREATE POLICY "read own allowlist row" ON public.app_allowed_users FOR SELECT TO
 -- PostgreSQL database dump complete
 --
 
-\unrestrict bvmHZQRdt3v3SdzkaebmoRe1bDw5jhGvkMYcxdzUHYoGgT6cHGBLWegydmhAA6g
+\unrestrict MzUGplaCz1edfySEwzLgjrDv9QHgX2B5fyhsgwcTtUmZWQkpJin4cAY9OtRlorD
 
