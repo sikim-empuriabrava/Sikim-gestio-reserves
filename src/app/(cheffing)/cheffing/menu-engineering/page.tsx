@@ -1,10 +1,15 @@
 import { requireCheffingAccess } from '@/lib/cheffing/requireCheffing';
-import { getMenuEngineeringRows, type MenuEngineeringRow } from '@/lib/cheffing/menuEngineering';
+import { getMenuEngineeringRows, type MenuEngineeringRow, type MenuEngineeringPivots } from '@/lib/cheffing/menuEngineering';
 import { normalizeMenuEngineeringVatRate } from '@/lib/cheffing/menuEngineeringVat';
 
 const currencyFormatter = new Intl.NumberFormat('es-ES', {
   style: 'currency',
   currency: 'EUR',
+  minimumFractionDigits: 2,
+  maximumFractionDigits: 2,
+});
+
+const decimalFormatter = new Intl.NumberFormat('es-ES', {
   minimumFractionDigits: 2,
   maximumFractionDigits: 2,
 });
@@ -31,6 +36,7 @@ const formatPercent = (value: number | null) => {
   return percentFormatter.format(value);
 };
 
+const formatDecimal = (value: number) => decimalFormatter.format(value);
 
 const isValidISODate = (value: string | undefined) => {
   if (!value || !/^\d{4}-\d{2}-\d{2}$/.test(value)) {
@@ -58,6 +64,92 @@ const isValidDateRange = (from: string, to: string) => {
   return from <= to;
 };
 
+const bcmBadgeClassByType: Record<MenuEngineeringRow['bcm'], string> = {
+  ESTRELLA: 'border-emerald-500/50 bg-emerald-500/20 text-emerald-100',
+  VACA: 'border-sky-500/50 bg-sky-500/20 text-sky-100',
+  PUZZLE: 'border-amber-500/50 bg-amber-500/20 text-amber-100',
+  PERRO: 'border-rose-500/40 bg-rose-500/15 text-rose-100',
+  SIN_DATOS: 'border-slate-600/70 bg-slate-700/40 text-slate-200',
+};
+
+const bcmLabelByType: Record<MenuEngineeringRow['bcm'], string> = {
+  ESTRELLA: 'Estrella',
+  VACA: 'Vaca',
+  PUZZLE: 'Puzzle',
+  PERRO: 'Perro',
+  SIN_DATOS: 'Sin datos',
+};
+
+type BcmSummary = {
+  estrella: number;
+  vaca: number;
+  puzzle: number;
+  perro: number;
+  sinDatos: number;
+  totals: {
+    estrella: { units: number; sales: number; margin: number };
+    vaca: { units: number; sales: number; margin: number };
+    puzzle: { units: number; sales: number; margin: number };
+    perro: { units: number; sales: number; margin: number };
+  };
+};
+
+const buildBcmSummary = (rows: MenuEngineeringRow[]): BcmSummary => {
+  const summary: BcmSummary = {
+    estrella: 0,
+    vaca: 0,
+    puzzle: 0,
+    perro: 0,
+    sinDatos: 0,
+    totals: {
+      estrella: { units: 0, sales: 0, margin: 0 },
+      vaca: { units: 0, sales: 0, margin: 0 },
+      puzzle: { units: 0, sales: 0, margin: 0 },
+      perro: { units: 0, sales: 0, margin: 0 },
+    },
+  };
+
+  for (const row of rows) {
+    const units = Number.isFinite(row.units_sold) ? row.units_sold : 0;
+    const sales = Number.isFinite(row.total_sales_gross) ? row.total_sales_gross : 0;
+    const margin = row.total_margin !== null && Number.isFinite(row.total_margin) ? row.total_margin : 0;
+
+    switch (row.bcm) {
+      case 'ESTRELLA':
+        summary.estrella += 1;
+        summary.totals.estrella.units += units;
+        summary.totals.estrella.sales += sales;
+        summary.totals.estrella.margin += margin;
+        break;
+      case 'VACA':
+        summary.vaca += 1;
+        summary.totals.vaca.units += units;
+        summary.totals.vaca.sales += sales;
+        summary.totals.vaca.margin += margin;
+        break;
+      case 'PUZZLE':
+        summary.puzzle += 1;
+        summary.totals.puzzle.units += units;
+        summary.totals.puzzle.sales += sales;
+        summary.totals.puzzle.margin += margin;
+        break;
+      case 'PERRO':
+        summary.perro += 1;
+        summary.totals.perro.units += units;
+        summary.totals.perro.sales += sales;
+        summary.totals.perro.margin += margin;
+        break;
+      case 'SIN_DATOS':
+        summary.sinDatos += 1;
+        break;
+      default:
+        break;
+    }
+  }
+
+  return summary;
+};
+
 export default async function MenuEngineeringPage({
   searchParams,
 }: {
@@ -77,14 +169,18 @@ export default async function MenuEngineeringPage({
   const hasValidDateRange = isValidDateRange(selectedFrom, selectedTo);
 
   let rows: MenuEngineeringRow[] = [];
+  let pivots: MenuEngineeringPivots = { popularity: 0, margin: 0 };
   let loadError: string | null = null;
 
   try {
     const result = await getMenuEngineeringRows(selectedVatRate, { from: selectedFrom, to: selectedTo });
     rows = result.rows;
+    pivots = result.pivots;
   } catch (error) {
     loadError = error instanceof Error ? error.message : 'Error desconocido al cargar el reporte.';
   }
+
+  const bcmSummary = buildBcmSummary(rows);
 
   return (
     <section className="space-y-6 rounded-2xl border border-slate-800/80 bg-slate-900/70 p-6">
@@ -154,57 +250,124 @@ export default async function MenuEngineeringPage({
           No se pudo cargar el reporte: {loadError}
         </div>
       ) : (
-        <div className="overflow-hidden rounded-2xl border border-slate-800/70">
-          <table className="min-w-full divide-y divide-slate-800 text-left text-sm text-slate-200">
-            <thead className="bg-slate-950/60 text-xs uppercase tracking-wide text-slate-400">
-              <tr>
-                <th className="px-4 py-3">Plato</th>
-                <th className="px-4 py-3">PVP (con IVA)</th>
-                <th className="px-4 py-3">Coste/ración</th>
-                <th className="px-4 py-3">Precio sin IVA (base)</th>
-                <th className="px-4 py-3">Margen/ración</th>
-                <th className="px-4 py-3">COGS % (sobre base)</th>
-                <th className="px-4 py-3">Margen % (sobre base)</th>
-                <th className="px-4 py-3">PVP objetivo (con IVA)</th>
-                <th className="px-4 py-3">Dif (PVP - objetivo)</th>
-                <th className="px-4 py-3">Unidades vendidas</th>
-                <th className="px-4 py-3">Total ventas (con IVA)</th>
-                <th className="px-4 py-3">Total margen</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-800 bg-slate-900/40">
-              {rows.length === 0 ? (
+        <>
+          <div className="overflow-hidden rounded-2xl border border-slate-800/70">
+            <table className="min-w-full divide-y divide-slate-800 text-left text-sm text-slate-200">
+              <thead className="bg-slate-950/60 text-xs uppercase tracking-wide text-slate-400">
                 <tr>
-                  <td colSpan={13} className="px-4 py-6 text-center text-sm text-slate-400">
-                    No hay platos disponibles para analizar.
-                  </td>
+                  <th className="px-4 py-3">Plato</th>
+                  <th className="px-4 py-3">BCM</th>
+                  <th className="px-4 py-3">PVP (con IVA)</th>
+                  <th className="px-4 py-3">Coste/ración</th>
+                  <th className="px-4 py-3">Precio sin IVA (base)</th>
+                  <th className="px-4 py-3">Margen/ración</th>
+                  <th className="px-4 py-3">COGS % (sobre base)</th>
+                  <th className="px-4 py-3">Margen % (sobre base)</th>
+                  <th className="px-4 py-3">PVP objetivo (con IVA)</th>
+                  <th className="px-4 py-3">Dif (PVP - objetivo)</th>
+                  <th className="px-4 py-3">Unidades vendidas</th>
+                  <th className="px-4 py-3">Total ventas (con IVA)</th>
+                  <th className="px-4 py-3">Total margen</th>
                 </tr>
-              ) : (
-                rows.map((row) => (
-                  <tr key={row.id}>
-                    <td className="px-4 py-3 font-medium text-slate-100">{row.name}</td>
-                    <td className="px-4 py-3">{formatCurrency(row.selling_price_gross)}</td>
-                    <td className="px-4 py-3">{formatCurrency(row.cost_per_serving)}</td>
-                    <td className="px-4 py-3">{formatCurrency(row.net_price)}</td>
-                    <td className="px-4 py-3">{formatCurrency(row.margin_unit)}</td>
-                    <td className="px-4 py-3">{formatPercent(row.cogs_pct)}</td>
-                    <td className="px-4 py-3">{formatPercent(row.margin_pct)}</td>
-                    <td className="px-4 py-3">{formatCurrency(row.pvp_objetivo_gross)}</td>
-                    <td className="px-4 py-3">{formatCurrency(row.dif)}</td>
-                    <td className="px-4 py-3">{row.units_sold.toLocaleString('es-ES')}</td>
-                    <td className="px-4 py-3">{formatCurrency(row.total_sales_gross)}</td>
-                    <td className="px-4 py-3">{formatCurrency(row.total_margin)}</td>
+              </thead>
+              <tbody className="divide-y divide-slate-800 bg-slate-900/40">
+                {rows.length === 0 ? (
+                  <tr>
+                    <td colSpan={13} className="px-4 py-6 text-center text-sm text-slate-400">
+                      No hay platos disponibles para analizar.
+                    </td>
                   </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
-      )}
+                ) : (
+                  rows.map((row) => (
+                    <tr key={row.id}>
+                      <td className="px-4 py-3 font-medium text-slate-100">{row.name}</td>
+                      <td className="px-4 py-3">
+                        <span
+                          className={`inline-flex items-center rounded-full border px-2.5 py-1 text-xs font-semibold uppercase tracking-wide ${bcmBadgeClassByType[row.bcm]}`}
+                        >
+                          {bcmLabelByType[row.bcm]}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3">{formatCurrency(row.selling_price_gross)}</td>
+                      <td className="px-4 py-3">{formatCurrency(row.cost_per_serving)}</td>
+                      <td className="px-4 py-3">{formatCurrency(row.net_price)}</td>
+                      <td className="px-4 py-3">{formatCurrency(row.margin_unit)}</td>
+                      <td className="px-4 py-3">{formatPercent(row.cogs_pct)}</td>
+                      <td className="px-4 py-3">{formatPercent(row.margin_pct)}</td>
+                      <td className="px-4 py-3">{formatCurrency(row.pvp_objetivo_gross)}</td>
+                      <td className="px-4 py-3">{formatCurrency(row.dif)}</td>
+                      <td className="px-4 py-3">{row.units_sold.toLocaleString('es-ES')}</td>
+                      <td className="px-4 py-3">{formatCurrency(row.total_sales_gross)}</td>
+                      <td className="px-4 py-3">{formatCurrency(row.total_margin)}</td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
 
-      <div className="rounded-2xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-100">
-        Clasificación BCM (Estrella/Vaca/Puzzle/Perro) pendiente de usar histórico completo de ventas (SumUp).
-      </div>
+          <div className="space-y-3 rounded-2xl border border-slate-800/70 bg-slate-950/40 p-4">
+            <h3 className="text-sm font-semibold uppercase tracking-wide text-slate-200">Matriz BCM</h3>
+            <p className="text-sm text-slate-400">
+              Pivots usados (media): Popularidad = {formatDecimal(pivots.popularity)} unidades · Rentabilidad ={' '}
+              {formatCurrency(pivots.margin)} margen/ración.
+            </p>
+            <div className="overflow-hidden rounded-xl border border-slate-800/70">
+              <table className="min-w-full divide-y divide-slate-800 text-left text-sm text-slate-200">
+                <thead className="bg-slate-950/60 text-xs uppercase tracking-wide text-slate-400">
+                  <tr>
+                    <th className="px-4 py-3">Cuadrante</th>
+                    <th className="px-4 py-3">BCM</th>
+                    <th className="px-4 py-3">Platos</th>
+                    <th className="px-4 py-3">Total units</th>
+                    <th className="px-4 py-3">Total ventas</th>
+                    <th className="px-4 py-3">Total margen</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-800 bg-slate-900/40">
+                  <tr>
+                    <td className="px-4 py-3">High Pop / High Margin</td>
+                    <td className="px-4 py-3">Estrella</td>
+                    <td className="px-4 py-3">{bcmSummary.estrella}</td>
+                    <td className="px-4 py-3">{bcmSummary.totals.estrella.units.toLocaleString('es-ES')}</td>
+                    <td className="px-4 py-3">{formatCurrency(bcmSummary.totals.estrella.sales)}</td>
+                    <td className="px-4 py-3">{formatCurrency(bcmSummary.totals.estrella.margin)}</td>
+                  </tr>
+                  <tr>
+                    <td className="px-4 py-3">High Pop / Low Margin</td>
+                    <td className="px-4 py-3">Vaca</td>
+                    <td className="px-4 py-3">{bcmSummary.vaca}</td>
+                    <td className="px-4 py-3">{bcmSummary.totals.vaca.units.toLocaleString('es-ES')}</td>
+                    <td className="px-4 py-3">{formatCurrency(bcmSummary.totals.vaca.sales)}</td>
+                    <td className="px-4 py-3">{formatCurrency(bcmSummary.totals.vaca.margin)}</td>
+                  </tr>
+                  <tr>
+                    <td className="px-4 py-3">Low Pop / High Margin</td>
+                    <td className="px-4 py-3">Puzzle</td>
+                    <td className="px-4 py-3">{bcmSummary.puzzle}</td>
+                    <td className="px-4 py-3">{bcmSummary.totals.puzzle.units.toLocaleString('es-ES')}</td>
+                    <td className="px-4 py-3">{formatCurrency(bcmSummary.totals.puzzle.sales)}</td>
+                    <td className="px-4 py-3">{formatCurrency(bcmSummary.totals.puzzle.margin)}</td>
+                  </tr>
+                  <tr>
+                    <td className="px-4 py-3">Low Pop / Low Margin</td>
+                    <td className="px-4 py-3">Perro</td>
+                    <td className="px-4 py-3">{bcmSummary.perro}</td>
+                    <td className="px-4 py-3">{bcmSummary.totals.perro.units.toLocaleString('es-ES')}</td>
+                    <td className="px-4 py-3">{formatCurrency(bcmSummary.totals.perro.sales)}</td>
+                    <td className="px-4 py-3">{formatCurrency(bcmSummary.totals.perro.margin)}</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+            {bcmSummary.sinDatos > 0 ? (
+              <p className="text-xs text-slate-400">
+                Platos sin datos BCM: {bcmSummary.sinDatos} (faltan datos de margen y/o ventas válidas).
+              </p>
+            ) : null}
+          </div>
+        </>
+      )}
     </section>
   );
 }

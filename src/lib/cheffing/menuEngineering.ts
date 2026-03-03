@@ -19,6 +19,14 @@ export type MenuEngineeringRow = {
   total_sales_gross: number;
   total_sales_net: number | null;
   total_margin: number | null;
+  bcm: 'ESTRELLA' | 'VACA' | 'PUZZLE' | 'PERRO' | 'SIN_DATOS';
+  high_popularity: boolean;
+  high_margin: boolean;
+};
+
+export type MenuEngineeringPivots = {
+  popularity: number;
+  margin: number;
 };
 
 type NormalizedDateRange = { from: string; to: string };
@@ -74,6 +82,63 @@ const normalizeDateRange = (range?: { from?: string; to?: string }): NormalizedD
 
   return { from, to };
 };
+
+const toFiniteNumber = (value: number) => (Number.isFinite(value) ? value : 0);
+
+function computeBcm(rows: Omit<MenuEngineeringRow, 'bcm' | 'high_popularity' | 'high_margin'>[]): {
+  rowsEnriched: MenuEngineeringRow[];
+  pivots: MenuEngineeringPivots;
+} {
+  const popularityValues = rows.map((row) => toFiniteNumber(row.units_sold));
+  const popularityPivot =
+    popularityValues.length > 0 ? popularityValues.reduce((acc, value) => acc + value, 0) / popularityValues.length : 0;
+
+  const marginValues = rows
+    .map((row) => row.margin_unit)
+    .filter((value): value is number => value !== null && Number.isFinite(value));
+  const marginPivot = marginValues.length > 0 ? marginValues.reduce((acc, value) => acc + value, 0) / marginValues.length : 0;
+
+  const pivots: MenuEngineeringPivots = {
+    popularity: toFiniteNumber(popularityPivot),
+    margin: toFiniteNumber(marginPivot),
+  };
+
+  const rowsEnriched = rows.map((row) => {
+    const hasUnits = Number.isFinite(row.units_sold);
+    const hasMargin = row.margin_unit !== null && Number.isFinite(row.margin_unit);
+
+    if (!hasUnits || !hasMargin) {
+      return {
+        ...row,
+        bcm: 'SIN_DATOS' as const,
+        high_popularity: false,
+        high_margin: false,
+      };
+    }
+
+    const highPopularity = row.units_sold >= pivots.popularity;
+    const highMargin = row.margin_unit >= pivots.margin;
+
+    let bcm: MenuEngineeringRow['bcm'] = 'PERRO';
+
+    if (highPopularity && highMargin) {
+      bcm = 'ESTRELLA';
+    } else if (highPopularity && !highMargin) {
+      bcm = 'VACA';
+    } else if (!highPopularity && highMargin) {
+      bcm = 'PUZZLE';
+    }
+
+    return {
+      ...row,
+      bcm,
+      high_popularity: highPopularity,
+      high_margin: highMargin,
+    };
+  });
+
+  return { rowsEnriched, pivots };
+}
 
 export async function getMenuEngineeringRows(
   vatRate: MenuEngineeringVatRate,
@@ -135,12 +200,12 @@ export async function getMenuEngineeringRows(
     }
   }
 
-  const rows: MenuEngineeringRow[] =
+  const rows =
     data?.map((row) => {
       const sellingPriceGross = toNumber(row.selling_price);
       const costPerServing = toNumber(row.cost_per_serving);
-      const unitsSoldFromView = toNumber(row.units_sold) ?? 0;
-      const unitsSold = shouldFilterByDate ? unitsSoldByDish.get(row.id) ?? 0 : unitsSoldFromView;
+      const unitsSoldFromView = parseNumber(row.units_sold);
+      const unitsSold = toFiniteNumber(shouldFilterByDate ? unitsSoldByDish.get(row.id) ?? 0 : unitsSoldFromView);
       const netPrice =
         sellingPriceGross !== null ? (vatRate === 0 ? sellingPriceGross : sellingPriceGross / (1 + vatRate)) : null;
       const marginUnit = netPrice !== null && costPerServing !== null ? netPrice - costPerServing : null;
@@ -171,5 +236,7 @@ export async function getMenuEngineeringRows(
       };
     }) ?? [];
 
-  return { rows };
+  const { rowsEnriched, pivots } = computeBcm(rows);
+
+  return { rows: rowsEnriched, pivots };
 }
