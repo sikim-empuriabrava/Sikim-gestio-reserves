@@ -21,6 +21,8 @@ export type MenuEngineeringRow = {
   total_margin: number | null;
 };
 
+type NormalizedDateRange = { from: string; to: string };
+
 const toNumber = (value: number | null) => (value === null || Number.isNaN(value) ? null : value);
 
 const parseNumber = (value: unknown) => {
@@ -54,9 +56,13 @@ const isValidISODate = (value: string | undefined) => {
   );
 };
 
-const normalizeDateRange = (range?: { from?: string; to?: string }) => {
+const normalizeDateRange = (range?: { from?: string; to?: string }): NormalizedDateRange | null => {
   const from = range?.from;
   const to = range?.to;
+
+  if (!from || !to) {
+    return null;
+  }
 
   if (!isValidISODate(from) || !isValidISODate(to)) {
     return null;
