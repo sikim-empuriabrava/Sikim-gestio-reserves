@@ -116,6 +116,13 @@ export async function POST(request: Request) {
 
   if (ordersFile instanceof File) {
     const parsed = parseCsvSemicolon(await ordersFile.text());
+
+    if (parsed.headers.length === 0) {
+      const invalid = NextResponse.json({ error: 'CSV vacío o sin cabeceras.' }, { status: 400 });
+      mergeResponseCookies(access.supabaseResponse, invalid);
+      return invalid;
+    }
+
     const headerMap = resolveHeaderMap(parsed.headers, ORDER_HEADERS);
 
     if (headerMap.missing.length > 0) {
@@ -161,6 +168,13 @@ export async function POST(request: Request) {
 
   if (itemsFile instanceof File) {
     const parsed = parseCsvSemicolon(await itemsFile.text());
+
+    if (parsed.headers.length === 0) {
+      const invalid = NextResponse.json({ error: 'CSV vacío o sin cabeceras.' }, { status: 400 });
+      mergeResponseCookies(access.supabaseResponse, invalid);
+      return invalid;
+    }
+
     const headerMap = resolveHeaderMap(parsed.headers, ITEM_HEADERS);
 
     if (headerMap.missing.length > 0) {

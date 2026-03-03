@@ -1,6 +1,24 @@
+import { parse as parseCsv } from 'csv-parse/sync';
+
 export type ParsedCsv = {
   headers: string[];
   rows: Record<string, string>[];
+};
+
+const detectDelimiter = (content: string): ';' | ',' => {
+  const firstNonEmptyLine = content
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .find((line) => line.length > 0);
+
+  if (!firstNonEmptyLine) {
+    return ';';
+  }
+
+  const semicolonMatches = firstNonEmptyLine.match(/;/g)?.length ?? 0;
+  const commaMatches = firstNonEmptyLine.match(/,/g)?.length ?? 0;
+
+  return semicolonMatches >= commaMatches ? ';' : ',';
 };
 
 const normalizeHeader = (header: string) =>
@@ -57,20 +75,23 @@ export function parseDateTime(value: string | null | undefined): string | null {
 }
 
 export function parseCsvSemicolon(content: string): ParsedCsv {
-  const lines = content
-    .split(/\r?\n/)
-    .map((line) => line.trim())
-    .filter((line) => line.length > 0);
+  const records = parseCsv(content, {
+    delimiter: detectDelimiter(content),
+    bom: true,
+    relax_quotes: true,
+    relax_column_count: true,
+    skip_empty_lines: true,
+    trim: true,
+    columns: false,
+  }) as string[][];
 
-  if (lines.length === 0) {
+  const headers = records[0] ?? [];
+
+  if (headers.length === 0) {
     return { headers: [], rows: [] };
   }
 
-  const parseLine = (line: string) => line.split(';').map((cell) => cell.trim());
-
-  const headers = parseLine(lines[0]);
-  const rows = lines.slice(1).map((line) => {
-    const values = parseLine(line);
+  const rows = records.slice(1).map((values) => {
     return headers.reduce<Record<string, string>>((acc, header, index) => {
       acc[header] = values[index] ?? '';
       return acc;
