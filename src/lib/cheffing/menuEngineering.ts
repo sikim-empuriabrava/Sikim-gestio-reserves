@@ -55,15 +55,18 @@ const isValidISODate = (value: string | undefined) => {
 };
 
 const normalizeDateRange = (range?: { from?: string; to?: string }) => {
-  if (!isValidISODate(range?.from) || !isValidISODate(range?.to)) {
+  const from = range?.from;
+  const to = range?.to;
+
+  if (!isValidISODate(from) || !isValidISODate(to)) {
     return null;
   }
 
-  if ((range.from ?? '') > (range.to ?? '')) {
+  if (from > to) {
     return null;
   }
 
-  return { from: range.from, to: range.to };
+  return { from, to };
 };
 
 export async function getMenuEngineeringRows(
