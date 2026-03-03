@@ -31,6 +31,33 @@ const formatPercent = (value: number | null) => {
   return percentFormatter.format(value);
 };
 
+
+const isValidISODate = (value: string | undefined) => {
+  if (!value || !/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    return false;
+  }
+
+  const [year, month, day] = value.split('-').map((part) => Number(part));
+  const date = new Date(Date.UTC(year, month - 1, day));
+
+  return (
+    Number.isInteger(year) &&
+    Number.isInteger(month) &&
+    Number.isInteger(day) &&
+    date.getUTCFullYear() === year &&
+    date.getUTCMonth() === month - 1 &&
+    date.getUTCDate() === day
+  );
+};
+
+const isValidDateRange = (from: string, to: string) => {
+  if (!isValidISODate(from) || !isValidISODate(to)) {
+    return false;
+  }
+
+  return from <= to;
+};
+
 export default async function MenuEngineeringPage({
   searchParams,
 }: {
@@ -47,12 +74,13 @@ export default async function MenuEngineeringPage({
   const selectedFrom = searchParams?.from ?? defaultFrom;
   const selectedTo = searchParams?.to ?? defaultTo;
   const selectedVatRate = normalizeMenuEngineeringVatRate(searchParams?.iva);
+  const hasValidDateRange = isValidDateRange(selectedFrom, selectedTo);
 
   let rows: MenuEngineeringRow[] = [];
   let loadError: string | null = null;
 
   try {
-    const result = await getMenuEngineeringRows(selectedVatRate);
+    const result = await getMenuEngineeringRows(selectedVatRate, { from: selectedFrom, to: selectedTo });
     rows = result.rows;
   } catch (error) {
     loadError = error instanceof Error ? error.message : 'Error desconocido al cargar el reporte.';
@@ -113,8 +141,11 @@ export default async function MenuEngineeringPage({
       </form>
       <p className="text-sm text-slate-400">
         Nota: servings = raciones producidas por receta (yield, para coste/ración), no ventas. Unidades vendidas =
-        ventas (POS/SumUp o placeholder). El rango de fechas todavía no filtra unidades vendidas: por ahora se usa
-        acumulado. PVP se interpreta como precio final con IVA; “Precio sin IVA” se calcula dividiendo por (1 + IVA
+        ventas (POS/SumUp o placeholder).
+        {hasValidDateRange
+          ? ' Unidades vendidas se filtran por Fecha apertura (sale_day) en el rango seleccionado.'
+          : ' Rango inválido (formato o orden de fechas): no se filtra por fechas y se usa acumulado.'}
+        {' '}PVP se interpreta como precio final con IVA; “Precio sin IVA” se calcula dividiendo por (1 + IVA
         seleccionado).
       </p>
 
