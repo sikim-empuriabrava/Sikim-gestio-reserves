@@ -117,8 +117,11 @@ function computeBcm(rows: Omit<MenuEngineeringRow, 'bcm' | 'high_popularity' | '
   }
 
   const rowsEnriched = rows.map((row) => {
-    const hasUnits = Number.isFinite(row.units_sold);
-    const hasMargin = row.margin_unit !== null && Number.isFinite(row.margin_unit);
+    const units = row.units_sold;
+    const marginUnit = row.margin_unit;
+
+    const hasUnits = Number.isFinite(units);
+    const hasMargin = marginUnit !== null && Number.isFinite(marginUnit);
 
     if (!hasUnits || !hasMargin) {
       return {
@@ -129,8 +132,8 @@ function computeBcm(rows: Omit<MenuEngineeringRow, 'bcm' | 'high_popularity' | '
       };
     }
 
-    const highPopularity = row.units_sold >= pivots.popularity;
-    const highMargin = row.margin_unit >= pivots.margin;
+    const highPopularity = units >= pivots.popularity;
+    const highMargin = marginUnit >= pivots.margin;
 
     let bcm: MenuEngineeringRow['bcm'] = 'PERRO';
 
