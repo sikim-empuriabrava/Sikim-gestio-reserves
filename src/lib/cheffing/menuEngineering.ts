@@ -54,6 +54,18 @@ const isValidISODate = (value: string | undefined) => {
   );
 };
 
+const normalizeDateRange = (range?: { from?: string; to?: string }) => {
+  if (!isValidISODate(range?.from) || !isValidISODate(range?.to)) {
+    return null;
+  }
+
+  if ((range.from ?? '') > (range.to ?? '')) {
+    return null;
+  }
+
+  return { from: range.from, to: range.to };
+};
+
 export async function getMenuEngineeringRows(
   vatRate: MenuEngineeringVatRate,
   range?: { from?: string; to?: string },
@@ -68,17 +80,18 @@ export async function getMenuEngineeringRows(
     throw new Error(error.message);
   }
 
-  const shouldFilterByDate = isValidISODate(range?.from) && isValidISODate(range?.to);
+  const normalized = normalizeDateRange(range);
+  const shouldFilterByDate = Boolean(normalized);
   const unitsSoldByDish = new Map<string, number>();
 
-  if (shouldFilterByDate) {
+  if (normalized) {
     const [linksResult, salesResult] = await Promise.all([
       supabase.from('cheffing_pos_product_links').select('pos_product_id, dish_id'),
       supabase
         .from('cheffing_pos_sales_daily')
-        .select('pos_product_id, units, revenue')
-        .gte('sale_day', range.from ?? '')
-        .lte('sale_day', range.to ?? ''),
+        .select('pos_product_id, units')
+        .gte('sale_day', normalized.from)
+        .lte('sale_day', normalized.to),
     ]);
 
     if (linksResult.error) {
