@@ -23,7 +23,41 @@ export type MenuEngineeringRow = {
 
 const toNumber = (value: number | null) => (value === null || Number.isNaN(value) ? null : value);
 
-export async function getMenuEngineeringRows(vatRate: MenuEngineeringVatRate) {
+const parseNumber = (value: unknown) => {
+  if (typeof value === 'number') {
+    return Number.isFinite(value) ? value : 0;
+  }
+
+  if (typeof value === 'string') {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : 0;
+  }
+
+  return 0;
+};
+
+const isValidISODate = (value: string | undefined) => {
+  if (!value || !/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    return false;
+  }
+
+  const [year, month, day] = value.split('-').map((part) => Number(part));
+  const date = new Date(Date.UTC(year, month - 1, day));
+
+  return (
+    Number.isInteger(year) &&
+    Number.isInteger(month) &&
+    Number.isInteger(day) &&
+    date.getUTCFullYear() === year &&
+    date.getUTCMonth() === month - 1 &&
+    date.getUTCDate() === day
+  );
+};
+
+export async function getMenuEngineeringRows(
+  vatRate: MenuEngineeringVatRate,
+  range?: { from?: string; to?: string },
+) {
   const supabase = createSupabaseAdminClient();
   const { data, error } = await supabase
     .from('v_cheffing_menu_engineering_dish_cost')
@@ -34,11 +68,57 @@ export async function getMenuEngineeringRows(vatRate: MenuEngineeringVatRate) {
     throw new Error(error.message);
   }
 
+  const shouldFilterByDate = isValidISODate(range?.from) && isValidISODate(range?.to);
+  const unitsSoldByDish = new Map<string, number>();
+
+  if (shouldFilterByDate) {
+    const [linksResult, salesResult] = await Promise.all([
+      supabase.from('cheffing_pos_product_links').select('pos_product_id, dish_id'),
+      supabase
+        .from('cheffing_pos_sales_daily')
+        .select('pos_product_id, units, revenue')
+        .gte('sale_day', range.from ?? '')
+        .lte('sale_day', range.to ?? ''),
+    ]);
+
+    if (linksResult.error) {
+      throw new Error(linksResult.error.message);
+    }
+
+    if (salesResult.error) {
+      throw new Error(salesResult.error.message);
+    }
+
+    const dishByPosProduct = new Map<string, string>();
+    for (const link of linksResult.data ?? []) {
+      if (!link.dish_id || !link.pos_product_id) {
+        continue;
+      }
+
+      dishByPosProduct.set(String(link.pos_product_id), String(link.dish_id));
+    }
+
+    for (const sale of salesResult.data ?? []) {
+      if (!sale.pos_product_id) {
+        continue;
+      }
+
+      const dishId = dishByPosProduct.get(String(sale.pos_product_id));
+      if (!dishId) {
+        continue;
+      }
+
+      const units = parseNumber(sale.units);
+      unitsSoldByDish.set(dishId, (unitsSoldByDish.get(dishId) ?? 0) + units);
+    }
+  }
+
   const rows: MenuEngineeringRow[] =
     data?.map((row) => {
       const sellingPriceGross = toNumber(row.selling_price);
       const costPerServing = toNumber(row.cost_per_serving);
-      const unitsSold = toNumber(row.units_sold) ?? 0;
+      const unitsSoldFromView = toNumber(row.units_sold) ?? 0;
+      const unitsSold = shouldFilterByDate ? unitsSoldByDish.get(row.id) ?? 0 : unitsSoldFromView;
       const netPrice =
         sellingPriceGross !== null ? (vatRate === 0 ? sellingPriceGross : sellingPriceGross / (1 + vatRate)) : null;
       const marginUnit = netPrice !== null && costPerServing !== null ? netPrice - costPerServing : null;

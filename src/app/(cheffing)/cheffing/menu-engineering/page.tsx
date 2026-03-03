@@ -52,7 +52,7 @@ export default async function MenuEngineeringPage({
   let loadError: string | null = null;
 
   try {
-    const result = await getMenuEngineeringRows(selectedVatRate);
+    const result = await getMenuEngineeringRows(selectedVatRate, { from: selectedFrom, to: selectedTo });
     rows = result.rows;
   } catch (error) {
     loadError = error instanceof Error ? error.message : 'Error desconocido al cargar el reporte.';
@@ -113,8 +113,8 @@ export default async function MenuEngineeringPage({
       </form>
       <p className="text-sm text-slate-400">
         Nota: servings = raciones producidas por receta (yield, para coste/ración), no ventas. Unidades vendidas =
-        ventas (POS/SumUp o placeholder). El rango de fechas todavía no filtra unidades vendidas: por ahora se usa
-        acumulado. PVP se interpreta como precio final con IVA; “Precio sin IVA” se calcula dividiendo por (1 + IVA
+        ventas (POS/SumUp o placeholder). Unidades vendidas se filtran por Fecha apertura (sale_day) en el rango
+        seleccionado. PVP se interpreta como precio final con IVA; “Precio sin IVA” se calcula dividiendo por (1 + IVA
         seleccionado).
       </p>
 
