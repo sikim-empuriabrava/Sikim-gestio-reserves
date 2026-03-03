@@ -181,6 +181,7 @@ export default async function MenuEngineeringPage({
   }
 
   const bcmSummary = buildBcmSummary(rows);
+  const hasBcmUsableData = rows.some((row) => row.bcm !== 'SIN_DATOS');
 
   return (
     <section className="space-y-6 rounded-2xl border border-slate-800/80 bg-slate-900/70 p-6">
@@ -312,54 +313,60 @@ export default async function MenuEngineeringPage({
               Pivots usados (media): Popularidad = {formatDecimal(pivots.popularity)} unidades · Rentabilidad ={' '}
               {formatCurrency(pivots.margin)} margen/ración.
             </p>
-            <div className="overflow-hidden rounded-xl border border-slate-800/70">
-              <table className="min-w-full divide-y divide-slate-800 text-left text-sm text-slate-200">
-                <thead className="bg-slate-950/60 text-xs uppercase tracking-wide text-slate-400">
-                  <tr>
-                    <th className="px-4 py-3">Cuadrante</th>
-                    <th className="px-4 py-3">BCM</th>
-                    <th className="px-4 py-3">Platos</th>
-                    <th className="px-4 py-3">Total units</th>
-                    <th className="px-4 py-3">Total ventas</th>
-                    <th className="px-4 py-3">Total margen</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-800 bg-slate-900/40">
-                  <tr>
-                    <td className="px-4 py-3">High Pop / High Margin</td>
-                    <td className="px-4 py-3">Estrella</td>
-                    <td className="px-4 py-3">{bcmSummary.estrella}</td>
-                    <td className="px-4 py-3">{bcmSummary.totals.estrella.units.toLocaleString('es-ES')}</td>
-                    <td className="px-4 py-3">{formatCurrency(bcmSummary.totals.estrella.sales)}</td>
-                    <td className="px-4 py-3">{formatCurrency(bcmSummary.totals.estrella.margin)}</td>
-                  </tr>
-                  <tr>
-                    <td className="px-4 py-3">High Pop / Low Margin</td>
-                    <td className="px-4 py-3">Vaca</td>
-                    <td className="px-4 py-3">{bcmSummary.vaca}</td>
-                    <td className="px-4 py-3">{bcmSummary.totals.vaca.units.toLocaleString('es-ES')}</td>
-                    <td className="px-4 py-3">{formatCurrency(bcmSummary.totals.vaca.sales)}</td>
-                    <td className="px-4 py-3">{formatCurrency(bcmSummary.totals.vaca.margin)}</td>
-                  </tr>
-                  <tr>
-                    <td className="px-4 py-3">Low Pop / High Margin</td>
-                    <td className="px-4 py-3">Puzzle</td>
-                    <td className="px-4 py-3">{bcmSummary.puzzle}</td>
-                    <td className="px-4 py-3">{bcmSummary.totals.puzzle.units.toLocaleString('es-ES')}</td>
-                    <td className="px-4 py-3">{formatCurrency(bcmSummary.totals.puzzle.sales)}</td>
-                    <td className="px-4 py-3">{formatCurrency(bcmSummary.totals.puzzle.margin)}</td>
-                  </tr>
-                  <tr>
-                    <td className="px-4 py-3">Low Pop / Low Margin</td>
-                    <td className="px-4 py-3">Perro</td>
-                    <td className="px-4 py-3">{bcmSummary.perro}</td>
-                    <td className="px-4 py-3">{bcmSummary.totals.perro.units.toLocaleString('es-ES')}</td>
-                    <td className="px-4 py-3">{formatCurrency(bcmSummary.totals.perro.sales)}</td>
-                    <td className="px-4 py-3">{formatCurrency(bcmSummary.totals.perro.margin)}</td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
+            {hasBcmUsableData ? (
+              <div className="overflow-hidden rounded-xl border border-slate-800/70">
+                <table className="min-w-full divide-y divide-slate-800 text-left text-sm text-slate-200">
+                  <thead className="bg-slate-950/60 text-xs uppercase tracking-wide text-slate-400">
+                    <tr>
+                      <th className="px-4 py-3">Cuadrante</th>
+                      <th className="px-4 py-3">BCM</th>
+                      <th className="px-4 py-3">Platos</th>
+                      <th className="px-4 py-3">Total units</th>
+                      <th className="px-4 py-3">Total ventas</th>
+                      <th className="px-4 py-3">Total margen</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-800 bg-slate-900/40">
+                    <tr>
+                      <td className="px-4 py-3">High Pop / High Margin</td>
+                      <td className="px-4 py-3">Estrella</td>
+                      <td className="px-4 py-3">{bcmSummary.estrella}</td>
+                      <td className="px-4 py-3">{bcmSummary.totals.estrella.units.toLocaleString('es-ES')}</td>
+                      <td className="px-4 py-3">{formatCurrency(bcmSummary.totals.estrella.sales)}</td>
+                      <td className="px-4 py-3">{formatCurrency(bcmSummary.totals.estrella.margin)}</td>
+                    </tr>
+                    <tr>
+                      <td className="px-4 py-3">High Pop / Low Margin</td>
+                      <td className="px-4 py-3">Vaca</td>
+                      <td className="px-4 py-3">{bcmSummary.vaca}</td>
+                      <td className="px-4 py-3">{bcmSummary.totals.vaca.units.toLocaleString('es-ES')}</td>
+                      <td className="px-4 py-3">{formatCurrency(bcmSummary.totals.vaca.sales)}</td>
+                      <td className="px-4 py-3">{formatCurrency(bcmSummary.totals.vaca.margin)}</td>
+                    </tr>
+                    <tr>
+                      <td className="px-4 py-3">Low Pop / High Margin</td>
+                      <td className="px-4 py-3">Puzzle</td>
+                      <td className="px-4 py-3">{bcmSummary.puzzle}</td>
+                      <td className="px-4 py-3">{bcmSummary.totals.puzzle.units.toLocaleString('es-ES')}</td>
+                      <td className="px-4 py-3">{formatCurrency(bcmSummary.totals.puzzle.sales)}</td>
+                      <td className="px-4 py-3">{formatCurrency(bcmSummary.totals.puzzle.margin)}</td>
+                    </tr>
+                    <tr>
+                      <td className="px-4 py-3">Low Pop / Low Margin</td>
+                      <td className="px-4 py-3">Perro</td>
+                      <td className="px-4 py-3">{bcmSummary.perro}</td>
+                      <td className="px-4 py-3">{bcmSummary.totals.perro.units.toLocaleString('es-ES')}</td>
+                      <td className="px-4 py-3">{formatCurrency(bcmSummary.totals.perro.sales)}</td>
+                      <td className="px-4 py-3">{formatCurrency(bcmSummary.totals.perro.margin)}</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <div className="rounded-xl border border-slate-800/70 bg-slate-900/40 px-4 py-3 text-sm text-slate-300">
+                BCM no disponible: aún no hay ventas (o mapeo TPV) en el rango seleccionado.
+              </div>
+            )}
             {bcmSummary.sinDatos > 0 ? (
               <p className="text-xs text-slate-400">
                 Platos sin datos BCM: {bcmSummary.sinDatos} (faltan datos de margen y/o ventas válidas).

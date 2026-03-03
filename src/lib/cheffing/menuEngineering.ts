@@ -90,18 +90,31 @@ function computeBcm(rows: Omit<MenuEngineeringRow, 'bcm' | 'high_popularity' | '
   pivots: MenuEngineeringPivots;
 } {
   const popularityValues = rows.map((row) => toFiniteNumber(row.units_sold));
-  const popularityPivot =
-    popularityValues.length > 0 ? popularityValues.reduce((acc, value) => acc + value, 0) / popularityValues.length : 0;
+  const totalUnits = popularityValues.reduce((acc, value) => acc + value, 0);
+  const hasPopularitySignal = popularityValues.some((value) => value > 0);
+  const popularityPivot = popularityValues.length > 0 ? totalUnits / popularityValues.length : 0;
 
   const marginValues = rows
     .map((row) => row.margin_unit)
     .filter((value): value is number => value !== null && Number.isFinite(value));
-  const marginPivot = marginValues.length > 0 ? marginValues.reduce((acc, value) => acc + value, 0) / marginValues.length : 0;
+  const hasMarginSignal = marginValues.length > 0;
+  const marginPivot = hasMarginSignal ? marginValues.reduce((acc, value) => acc + value, 0) / marginValues.length : 0;
 
   const pivots: MenuEngineeringPivots = {
     popularity: toFiniteNumber(popularityPivot),
     margin: toFiniteNumber(marginPivot),
   };
+
+  if (!hasPopularitySignal || totalUnits === 0 || !hasMarginSignal) {
+    const rowsEnriched = rows.map((row) => ({
+      ...row,
+      bcm: 'SIN_DATOS' as const,
+      high_popularity: false,
+      high_margin: false,
+    }));
+
+    return { rowsEnriched, pivots };
+  }
 
   const rowsEnriched = rows.map((row) => {
     const hasUnits = Number.isFinite(row.units_sold);
