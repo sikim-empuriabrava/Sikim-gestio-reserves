@@ -5,7 +5,7 @@ import { useMemo, useState, type FormEvent } from 'react';
 
 type ImportResult = {
   mode?: string;
-  deleted?: { orders: number; items: number };
+  deleted?: { orders: number; items: number; sales_daily?: number };
   orders: { inserted: number; updated: number; total: number };
   items: { inserted: number; updated: number; total: number };
   dateRange: { from: string; to: string } | null;
@@ -194,7 +194,10 @@ export function VentasTabsClient({
               </p>
               {importResult.deleted ? (
                 <p>
-                  Borrado en rango: {importResult.deleted.orders} pedidos / {importResult.deleted.items} líneas.
+                  Borrado en rango: {importResult.deleted.orders} pedidos / {importResult.deleted.items} líneas
+                  {typeof importResult.deleted.sales_daily === 'number'
+                    ? ` / ${importResult.deleted.sales_daily} filas de ventas diarias`
+                    : ''}.
                 </p>
               ) : null}
               {importResult.warnings.length > 0 ? (

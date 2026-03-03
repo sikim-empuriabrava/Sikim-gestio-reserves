@@ -56,17 +56,17 @@ const ORDER_OPTIONAL_HEADERS = {
   outlet_name: ['Establecimiento', 'Nombre local', 'Local', 'Outlet name'],
   closed_at: ['Fecha de cierre', 'Fecha cierre', 'Close date', 'Closed at'],
   custom_order_id: ['ID pedido personalizado', 'Custom order ID'],
-  order_name: ['Nombre pedido', 'Order name'],
-  opened_by: ['Abierto por', 'Opened by'],
-  closed_table: ['Mesa cerrada', 'Closed table', 'Table'],
+  order_name: ['Nombre del pedido', 'Nombre pedido', 'Order name'],
+  opened_by: ['Abierto por el usuario', 'Abierto por', 'Opened by'],
+  closed_table: ['Cerrado en mesa', 'Mesa cerrada', 'Closed table', 'Table'],
   clients: ['Numero de clientes', 'Clientes', 'Comensales', 'Customer count'],
-  duration_seconds: ['Duración (s)', 'Duration seconds'],
+  duration_seconds: ['Duracion del pedido', 'Duración del pedido', 'Duración (s)', 'Duration seconds'],
   status: ['Estado del pedido', 'Estado', 'Payment status', 'Status'],
   currency: ['Moneda', 'Currency'],
   total_gross: ['Facturacion con IVA', 'Total bruto', 'Gross total'],
-  total_net: ['Total neto', 'Net total'],
-  total_vat: ['IVA total', 'VAT total'],
-  total_payments: ['Importe pagado', 'Total pagos', 'Total payments'],
+  total_net: ['Facturacion sin IVA', 'Total neto', 'Net total'],
+  total_vat: ['Total IVA aplicado', 'IVA total', 'VAT total'],
+  total_payments: ['Total cobros', 'Importe pagado', 'Total pagos', 'Total payments'],
 } as const;
 
 const ITEM_REQUIRED_HEADERS = {
@@ -98,6 +98,35 @@ const findOptionalHeader = (headers: string[], aliases: readonly string[]) => {
 };
 
 const toDateOnly = (timestamp: string) => timestamp.slice(0, 10);
+
+const parseDurationToSeconds = (value: string | null | undefined): number | null => {
+  const normalized = (value ?? '').trim();
+  if (!normalized) {
+    return null;
+  }
+
+  if (/^\d+$/.test(normalized)) {
+    const parsed = Number.parseInt(normalized, 10);
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+
+  const timeParts = normalized.split(':').map((part) => part.trim());
+  if (timeParts.some((part) => !/^\d+$/.test(part))) {
+    return null;
+  }
+
+  if (timeParts.length === 3) {
+    const [hours, minutes, seconds] = timeParts.map((part) => Number.parseInt(part, 10));
+    return hours * 3600 + minutes * 60 + seconds;
+  }
+
+  if (timeParts.length === 2) {
+    const [minutes, seconds] = timeParts.map((part) => Number.parseInt(part, 10));
+    return minutes * 60 + seconds;
+  }
+
+  return null;
+};
 
 const buildItemDedupeKey = (row: ItemRow) =>
   `${row.pos_order_id}|${row.product_name}|${row.unit_price_gross.toFixed(4)}|${row.discount_gross.toFixed(4)}`;
@@ -172,7 +201,7 @@ export async function POST(request: Request) {
           opened_by: getCell(raw, optionalHeaders.opened_by).trim() || null,
           closed_table: getCell(raw, optionalHeaders.closed_table).trim() || null,
           clients: Number.parseInt(getCell(raw, optionalHeaders.clients), 10) || null,
-          duration_seconds: Number.parseInt(getCell(raw, optionalHeaders.duration_seconds), 10) || null,
+          duration_seconds: parseDurationToSeconds(getCell(raw, optionalHeaders.duration_seconds)),
           status: getCell(raw, optionalHeaders.status).trim() || null,
           currency: getCell(raw, optionalHeaders.currency).trim() || null,
           total_gross: parseDecimalEs(getCell(raw, optionalHeaders.total_gross)),
@@ -320,6 +349,19 @@ export async function POST(request: Request) {
     return failed;
   }
 
+  const { count: deletedSalesDailyCount, error: deleteSalesDailyError } = await supabase
+    .from('cheffing_pos_sales_daily')
+    .delete({ count: 'exact' })
+    .gte('sale_day', dateRange.from)
+    .lte('sale_day', dateRange.to)
+    .eq('source', 'csv');
+
+  if (deleteSalesDailyError) {
+    const failed = NextResponse.json({ error: deleteSalesDailyError.message }, { status: 500 });
+    mergeResponseCookies(access.supabaseResponse, failed);
+    return failed;
+  }
+
   const { error: refreshError } = await supabase.rpc('cheffing_pos_refresh_sales_daily', {
     p_from: dateRange.from,
     p_to: dateRange.to,
@@ -337,7 +379,7 @@ export async function POST(request: Request) {
   const response = NextResponse.json({
     ok: true,
     mode: 'overwrite_by_csv_date_range',
-    deleted: { orders: deletedOrdersCount ?? 0, items: deletedItemsCount ?? 0 },
+    deleted: { orders: deletedOrdersCount ?? 0, items: deletedItemsCount ?? 0, sales_daily: deletedSalesDailyCount ?? 0 },
     orders: { inserted: ordersInserted, updated: ordersUpdated, total: dedupedOrders.length },
     items: { inserted: itemsInserted, updated: itemsUpdated, total: dedupedItems.length },
     dateRange,
