@@ -46,45 +46,56 @@ type ItemRow = {
   currency: string | null;
 };
 
-const ORDER_HEADERS = {
+const ORDER_REQUIRED_HEADERS = {
   pos_order_id: ['ID pedido', 'Pedido ID', 'Order ID'],
-  outlet_id: ['ID local', 'Local ID', 'Outlet ID'],
-  outlet_name: ['Nombre local', 'Local', 'Outlet name'],
-  opened_at: ['Fecha apertura', 'Open date', 'Opened at'],
-  closed_at: ['Fecha cierre', 'Close date', 'Closed at'],
+  outlet_id: ['ID Establecimiento', 'ID local', 'Local ID', 'Outlet ID'],
+  opened_at: ['Fecha de apertura', 'Fecha apertura', 'Open date', 'Opened at'],
+} as const;
+
+const ORDER_OPTIONAL_HEADERS = {
+  outlet_name: ['Establecimiento', 'Nombre local', 'Local', 'Outlet name'],
+  closed_at: ['Fecha de cierre', 'Fecha cierre', 'Close date', 'Closed at'],
   custom_order_id: ['ID pedido personalizado', 'Custom order ID'],
   order_name: ['Nombre pedido', 'Order name'],
   opened_by: ['Abierto por', 'Opened by'],
   closed_table: ['Mesa cerrada', 'Closed table', 'Table'],
-  clients: ['Clientes', 'Comensales', 'Customer count'],
+  clients: ['Numero de clientes', 'Clientes', 'Comensales', 'Customer count'],
   duration_seconds: ['Duración (s)', 'Duration seconds'],
-  status: ['Estado', 'Payment status', 'Status'],
+  status: ['Estado del pedido', 'Estado', 'Payment status', 'Status'],
   currency: ['Moneda', 'Currency'],
-  total_gross: ['Total bruto', 'Gross total'],
+  total_gross: ['Facturacion con IVA', 'Total bruto', 'Gross total'],
   total_net: ['Total neto', 'Net total'],
   total_vat: ['IVA total', 'VAT total'],
-  total_payments: ['Total pagos', 'Total payments'],
+  total_payments: ['Importe pagado', 'Total pagos', 'Total payments'],
 } as const;
 
-const ITEM_HEADERS = {
+const ITEM_REQUIRED_HEADERS = {
   pos_order_id: ['ID pedido', 'Pedido ID', 'Order ID'],
-  outlet_id: ['ID local', 'Local ID', 'Outlet ID'],
-  outlet_name: ['Nombre local', 'Local', 'Outlet name'],
-  opened_at: ['Fecha apertura', 'Open date', 'Opened at'],
-  closed_at: ['Fecha cierre', 'Close date', 'Closed at'],
+  outlet_id: ['ID Establecimiento', 'ID local', 'Local ID', 'Outlet ID'],
+  opened_at: ['Fecha de apertura', 'Fecha apertura', 'Open date', 'Opened at'],
   product_name: ['Producto', 'Nombre producto', 'Product name'],
-  sku: ['SKU', 'Referencia'],
-  gift_card_code: ['Código tarjeta regalo', 'Gift card code'],
   quantity: ['Cantidad', 'Units'],
-  unit_price_gross: ['Precio unitario bruto', 'Unit gross price'],
-  discount_gross: ['Descuento bruto', 'Gross discount'],
-  total_gross: ['Total bruto', 'Gross total'],
-  total_net: ['Total neto', 'Net total'],
-  vat_amount: ['IVA', 'VAT amount'],
+  unit_price_gross: ['Precio unitario IVA incluido', 'Precio unitario bruto', 'Unit gross price'],
+  total_gross: ['Facturacion con IVA', 'Total bruto', 'Gross total'],
+} as const;
+
+const ITEM_OPTIONAL_HEADERS = {
+  outlet_name: ['Establecimiento', 'Nombre local', 'Local', 'Outlet name'],
+  closed_at: ['Fecha de cierre', 'Fecha cierre', 'Close date', 'Closed at'],
+  sku: ['SKU', 'Referencia'],
+  gift_card_code: ['Código tarjeta regalo', 'Codigo tarjeta regalo', 'Gift card code'],
+  discount_gross: ['Descuento', 'Descuento bruto', 'Gross discount'],
+  total_net: ['Facturacion sin IVA', 'Total neto', 'Net total'],
+  vat_amount: ['IVA aplicado', 'IVA', 'VAT amount'],
   currency: ['Moneda', 'Currency'],
 } as const;
 
-const getCell = (row: Record<string, string>, header: string) => row[header] ?? '';
+const getCell = (row: Record<string, string>, header?: string | null) => (header ? (row[header] ?? '') : '');
+
+const findOptionalHeader = (headers: string[], aliases: readonly string[]) => {
+  const optionalMap = resolveHeaderMap(headers, { optional: aliases });
+  return optionalMap.resolved.optional ?? null;
+};
 
 const toDateOnly = (timestamp: string) => timestamp.slice(0, 10);
 
@@ -102,8 +113,11 @@ export async function POST(request: Request) {
   const ordersFile = formData.get('orders_csv');
   const itemsFile = formData.get('items_csv');
 
-  if (!(ordersFile instanceof File) && !(itemsFile instanceof File)) {
-    const invalid = NextResponse.json({ error: 'Debes enviar al menos un CSV: orders_csv o items_csv.' }, { status: 400 });
+  if (!(ordersFile instanceof File) || !(itemsFile instanceof File)) {
+    const invalid = NextResponse.json(
+      { error: 'En modo overwrite debes subir orders_csv (totales) y items_csv (por producto) a la vez.' },
+      { status: 400 },
+    );
     mergeResponseCookies(access.supabaseResponse, invalid);
     return invalid;
   }
@@ -123,21 +137,25 @@ export async function POST(request: Request) {
       return invalid;
     }
 
-    const headerMap = resolveHeaderMap(parsed.headers, ORDER_HEADERS);
+    const requiredHeaderMap = resolveHeaderMap(parsed.headers, ORDER_REQUIRED_HEADERS);
 
-    if (headerMap.missing.length > 0) {
+    if (requiredHeaderMap.missing.length > 0) {
       const invalid = NextResponse.json(
-        { error: 'Faltan columnas en orders_csv.', missingHeaders: headerMap.missing },
+        { error: 'Faltan columnas requeridas en orders_csv.', missingHeaders: requiredHeaderMap.missing },
         { status: 400 },
       );
       mergeResponseCookies(access.supabaseResponse, invalid);
       return invalid;
     }
 
+    const optionalHeaders = Object.fromEntries(
+      Object.entries(ORDER_OPTIONAL_HEADERS).map(([field, aliases]) => [field, findOptionalHeader(parsed.headers, aliases)]),
+    ) as Record<keyof typeof ORDER_OPTIONAL_HEADERS, string | null>;
+
     orders = parsed.rows
       .map((raw) => {
-        const posOrderId = getCell(raw, headerMap.resolved.pos_order_id).trim();
-        const openedAt = parseDateTime(getCell(raw, headerMap.resolved.opened_at));
+        const posOrderId = getCell(raw, requiredHeaderMap.resolved.pos_order_id).trim();
+        const openedAt = parseDateTime(getCell(raw, requiredHeaderMap.resolved.opened_at));
 
         if (!posOrderId || !openedAt) {
           return null;
@@ -145,22 +163,22 @@ export async function POST(request: Request) {
 
         return {
           pos_order_id: posOrderId,
-          outlet_id: getCell(raw, headerMap.resolved.outlet_id).trim() || 'default',
-          outlet_name: getCell(raw, headerMap.resolved.outlet_name).trim() || null,
+          outlet_id: getCell(raw, requiredHeaderMap.resolved.outlet_id).trim() || 'default',
+          outlet_name: getCell(raw, optionalHeaders.outlet_name).trim() || null,
           opened_at: openedAt,
-          closed_at: parseDateTime(getCell(raw, headerMap.resolved.closed_at)),
-          custom_order_id: getCell(raw, headerMap.resolved.custom_order_id).trim() || null,
-          order_name: getCell(raw, headerMap.resolved.order_name).trim() || null,
-          opened_by: getCell(raw, headerMap.resolved.opened_by).trim() || null,
-          closed_table: getCell(raw, headerMap.resolved.closed_table).trim() || null,
-          clients: Number.parseInt(getCell(raw, headerMap.resolved.clients), 10) || null,
-          duration_seconds: Number.parseInt(getCell(raw, headerMap.resolved.duration_seconds), 10) || null,
-          status: getCell(raw, headerMap.resolved.status).trim() || null,
-          currency: getCell(raw, headerMap.resolved.currency).trim() || null,
-          total_gross: parseDecimalEs(getCell(raw, headerMap.resolved.total_gross)),
-          total_net: parseDecimalEs(getCell(raw, headerMap.resolved.total_net)),
-          total_vat: parseDecimalEs(getCell(raw, headerMap.resolved.total_vat)),
-          total_payments: parseDecimalEs(getCell(raw, headerMap.resolved.total_payments)),
+          closed_at: parseDateTime(getCell(raw, optionalHeaders.closed_at)),
+          custom_order_id: getCell(raw, optionalHeaders.custom_order_id).trim() || null,
+          order_name: getCell(raw, optionalHeaders.order_name).trim() || null,
+          opened_by: getCell(raw, optionalHeaders.opened_by).trim() || null,
+          closed_table: getCell(raw, optionalHeaders.closed_table).trim() || null,
+          clients: Number.parseInt(getCell(raw, optionalHeaders.clients), 10) || null,
+          duration_seconds: Number.parseInt(getCell(raw, optionalHeaders.duration_seconds), 10) || null,
+          status: getCell(raw, optionalHeaders.status).trim() || null,
+          currency: getCell(raw, optionalHeaders.currency).trim() || null,
+          total_gross: parseDecimalEs(getCell(raw, optionalHeaders.total_gross)),
+          total_net: parseDecimalEs(getCell(raw, optionalHeaders.total_net)),
+          total_vat: parseDecimalEs(getCell(raw, optionalHeaders.total_vat)),
+          total_payments: parseDecimalEs(getCell(raw, optionalHeaders.total_payments)),
         } satisfies OrderRow;
       })
       .filter((row): row is OrderRow => row !== null);
@@ -175,22 +193,26 @@ export async function POST(request: Request) {
       return invalid;
     }
 
-    const headerMap = resolveHeaderMap(parsed.headers, ITEM_HEADERS);
+    const requiredHeaderMap = resolveHeaderMap(parsed.headers, ITEM_REQUIRED_HEADERS);
 
-    if (headerMap.missing.length > 0) {
+    if (requiredHeaderMap.missing.length > 0) {
       const invalid = NextResponse.json(
-        { error: 'Faltan columnas en items_csv.', missingHeaders: headerMap.missing },
+        { error: 'Faltan columnas requeridas en items_csv.', missingHeaders: requiredHeaderMap.missing },
         { status: 400 },
       );
       mergeResponseCookies(access.supabaseResponse, invalid);
       return invalid;
     }
 
+    const optionalHeaders = Object.fromEntries(
+      Object.entries(ITEM_OPTIONAL_HEADERS).map(([field, aliases]) => [field, findOptionalHeader(parsed.headers, aliases)]),
+    ) as Record<keyof typeof ITEM_OPTIONAL_HEADERS, string | null>;
+
     items = parsed.rows
       .map((raw) => {
-        const posOrderId = getCell(raw, headerMap.resolved.pos_order_id).trim();
-        const openedAt = parseDateTime(getCell(raw, headerMap.resolved.opened_at));
-        const productName = getCell(raw, headerMap.resolved.product_name).trim();
+        const posOrderId = getCell(raw, requiredHeaderMap.resolved.pos_order_id).trim();
+        const openedAt = parseDateTime(getCell(raw, requiredHeaderMap.resolved.opened_at));
+        const productName = getCell(raw, requiredHeaderMap.resolved.product_name).trim();
 
         if (!posOrderId || !openedAt || !productName) {
           return null;
@@ -198,20 +220,20 @@ export async function POST(request: Request) {
 
         return {
           pos_order_id: posOrderId,
-          outlet_id: getCell(raw, headerMap.resolved.outlet_id).trim() || 'default',
-          outlet_name: getCell(raw, headerMap.resolved.outlet_name).trim() || null,
+          outlet_id: getCell(raw, requiredHeaderMap.resolved.outlet_id).trim() || 'default',
+          outlet_name: getCell(raw, optionalHeaders.outlet_name).trim() || null,
           opened_at: openedAt,
-          closed_at: parseDateTime(getCell(raw, headerMap.resolved.closed_at)),
+          closed_at: parseDateTime(getCell(raw, optionalHeaders.closed_at)),
           product_name: productName,
-          sku: getCell(raw, headerMap.resolved.sku).trim() || null,
-          gift_card_code: getCell(raw, headerMap.resolved.gift_card_code).trim() || null,
-          quantity: parseDecimalEs(getCell(raw, headerMap.resolved.quantity)) ?? 0,
-          unit_price_gross: parseDecimalEs(getCell(raw, headerMap.resolved.unit_price_gross)) ?? 0,
-          discount_gross: parseDecimalEs(getCell(raw, headerMap.resolved.discount_gross)) ?? 0,
-          total_gross: parseDecimalEs(getCell(raw, headerMap.resolved.total_gross)) ?? 0,
-          total_net: parseDecimalEs(getCell(raw, headerMap.resolved.total_net)),
-          vat_amount: parseDecimalEs(getCell(raw, headerMap.resolved.vat_amount)),
-          currency: getCell(raw, headerMap.resolved.currency).trim() || null,
+          sku: getCell(raw, optionalHeaders.sku).trim() || null,
+          gift_card_code: getCell(raw, optionalHeaders.gift_card_code).trim() || null,
+          quantity: parseDecimalEs(getCell(raw, requiredHeaderMap.resolved.quantity)) ?? 0,
+          unit_price_gross: parseDecimalEs(getCell(raw, requiredHeaderMap.resolved.unit_price_gross)) ?? 0,
+          discount_gross: parseDecimalEs(getCell(raw, optionalHeaders.discount_gross)) ?? 0,
+          total_gross: parseDecimalEs(getCell(raw, requiredHeaderMap.resolved.total_gross)) ?? 0,
+          total_net: parseDecimalEs(getCell(raw, optionalHeaders.total_net)),
+          vat_amount: parseDecimalEs(getCell(raw, optionalHeaders.vat_amount)),
+          currency: getCell(raw, optionalHeaders.currency).trim() || null,
         } satisfies ItemRow;
       })
       .filter((row): row is ItemRow => row !== null);
@@ -239,111 +261,83 @@ export async function POST(request: Request) {
   }
   const dedupedItems = Array.from(itemRollup.values());
 
-  let ordersInserted = 0;
-  let ordersUpdated = 0;
-  if (dedupedOrders.length > 0) {
-    const orderIds = dedupedOrders.map((row) => row.pos_order_id);
-    const { data: existingOrders, error: existingOrdersError } = await supabase
-      .from('cheffing_pos_orders')
-      .select('pos_order_id, opened_at')
-      .in('pos_order_id', orderIds);
-
-    if (existingOrdersError) {
-      const failed = NextResponse.json({ error: existingOrdersError.message }, { status: 500 });
-      mergeResponseCookies(access.supabaseResponse, failed);
-      return failed;
-    }
-
-    const existingMap = new Map((existingOrders ?? []).map((row) => [row.pos_order_id, row.opened_at]));
-
-    for (const row of dedupedOrders) {
-      const existing = existingMap.get(row.pos_order_id);
-      if (!existing) {
-        ordersInserted += 1;
-        continue;
-      }
-      ordersUpdated += 1;
-      const existingTs = new Date(existing).getTime();
-      const importedTs = new Date(row.opened_at.replace(' ', 'T')).getTime();
-      if (Number.isFinite(existingTs) && Number.isFinite(importedTs) && existingTs !== importedTs) {
-        warnings.push(`Pedido ${row.pos_order_id} ya existía con opened_at distinto (${existing}).`);
-      }
-    }
-
-    const { error: upsertOrdersError } = await supabase
-      .from('cheffing_pos_orders')
-      .upsert(dedupedOrders, { onConflict: 'pos_order_id' });
-
-    if (upsertOrdersError) {
-      const failed = NextResponse.json({ error: upsertOrdersError.message }, { status: 500 });
-      mergeResponseCookies(access.supabaseResponse, failed);
-      return failed;
-    }
+  if (dedupedOrders.length === 0 || dedupedItems.length === 0) {
+    const invalid = NextResponse.json({ error: 'CSV sin datos importables' }, { status: 400 });
+    mergeResponseCookies(access.supabaseResponse, invalid);
+    return invalid;
   }
 
-  let itemsInserted = 0;
-  let itemsUpdated = 0;
-  if (dedupedItems.length > 0) {
-    const orderIds = Array.from(new Set(dedupedItems.map((row) => row.pos_order_id)));
-    const { data: existingItems, error: existingItemsError } = await supabase
-      .from('cheffing_pos_order_items')
-      .select('pos_order_id, product_name, unit_price_gross, discount_gross')
-      .in('pos_order_id', orderIds);
+  const dateCandidates = [...dedupedOrders, ...dedupedItems].map((row) => toDateOnly(row.opened_at)).sort();
+  const dateRange = {
+    from: dateCandidates[0],
+    to: dateCandidates[dateCandidates.length - 1],
+  };
 
-    if (existingItemsError) {
-      const failed = NextResponse.json({ error: existingItemsError.message }, { status: 500 });
-      mergeResponseCookies(access.supabaseResponse, failed);
-      return failed;
-    }
+  const fromTs = `${dateRange.from} 00:00:00`;
+  const toTs = `${dateRange.to} 23:59:59`;
 
-    const existingKeys = new Set(
-      (existingItems ?? []).map(
-        (row) =>
-          `${row.pos_order_id}|${row.product_name}|${Number(row.unit_price_gross).toFixed(4)}|${Number(row.discount_gross).toFixed(4)}`,
-      ),
-    );
+  const { count: deletedItemsCount, error: deleteItemsError } = await supabase
+    .from('cheffing_pos_order_items')
+    .delete({ count: 'exact' })
+    .gte('opened_at', fromTs)
+    .lte('opened_at', toTs);
 
-    for (const row of dedupedItems) {
-      if (existingKeys.has(buildItemDedupeKey(row))) {
-        itemsUpdated += 1;
-      } else {
-        itemsInserted += 1;
-      }
-    }
-
-    const { error: upsertItemsError } = await supabase.from('cheffing_pos_order_items').upsert(dedupedItems, {
-      onConflict: 'pos_order_id,product_name,unit_price_gross,discount_gross',
-    });
-
-    if (upsertItemsError) {
-      const failed = NextResponse.json({ error: upsertItemsError.message }, { status: 500 });
-      mergeResponseCookies(access.supabaseResponse, failed);
-      return failed;
-    }
+  if (deleteItemsError) {
+    const failed = NextResponse.json({ error: deleteItemsError.message }, { status: 500 });
+    mergeResponseCookies(access.supabaseResponse, failed);
+    return failed;
   }
 
-  const dateCandidates = [...dedupedOrders.map((row) => row.opened_at), ...dedupedItems.map((row) => row.opened_at)].sort();
-  const dateRange =
-    dateCandidates.length > 0
-      ? {
-          from: toDateOnly(dateCandidates[0]),
-          to: toDateOnly(dateCandidates[dateCandidates.length - 1]),
-        }
-      : null;
+  const { count: deletedOrdersCount, error: deleteOrdersError } = await supabase
+    .from('cheffing_pos_orders')
+    .delete({ count: 'exact' })
+    .gte('opened_at', fromTs)
+    .lte('opened_at', toTs);
 
-  if (dateRange) {
-    const { error: refreshError } = await supabase.rpc('cheffing_pos_refresh_sales_daily', {
-      p_from: dateRange.from,
-      p_to: dateRange.to,
-    });
-
-    if (refreshError) {
-      warnings.push(`No se pudo refrescar cheffing_pos_sales_daily: ${refreshError.message}`);
-    }
+  if (deleteOrdersError) {
+    const failed = NextResponse.json({ error: deleteOrdersError.message }, { status: 500 });
+    mergeResponseCookies(access.supabaseResponse, failed);
+    return failed;
   }
+
+  const { error: upsertOrdersError } = await supabase.from('cheffing_pos_orders').upsert(dedupedOrders, {
+    onConflict: 'pos_order_id',
+  });
+
+  if (upsertOrdersError) {
+    const failed = NextResponse.json({ error: upsertOrdersError.message }, { status: 500 });
+    mergeResponseCookies(access.supabaseResponse, failed);
+    return failed;
+  }
+
+  const { error: upsertItemsError } = await supabase.from('cheffing_pos_order_items').upsert(dedupedItems, {
+    onConflict: 'pos_order_id,product_name,unit_price_gross,discount_gross',
+  });
+
+  if (upsertItemsError) {
+    const failed = NextResponse.json({ error: upsertItemsError.message }, { status: 500 });
+    mergeResponseCookies(access.supabaseResponse, failed);
+    return failed;
+  }
+
+  const { error: refreshError } = await supabase.rpc('cheffing_pos_refresh_sales_daily', {
+    p_from: dateRange.from,
+    p_to: dateRange.to,
+  });
+
+  if (refreshError) {
+    warnings.push(`No se pudo refrescar cheffing_pos_sales_daily: ${refreshError.message}`);
+  }
+
+  const ordersInserted = dedupedOrders.length;
+  const ordersUpdated = 0;
+  const itemsInserted = dedupedItems.length;
+  const itemsUpdated = 0;
 
   const response = NextResponse.json({
     ok: true,
+    mode: 'overwrite_by_csv_date_range',
+    deleted: { orders: deletedOrdersCount ?? 0, items: deletedItemsCount ?? 0 },
     orders: { inserted: ordersInserted, updated: ordersUpdated, total: dedupedOrders.length },
     items: { inserted: itemsInserted, updated: itemsUpdated, total: dedupedItems.length },
     dateRange,

@@ -151,3 +151,11 @@ En la pantalla de Menu Engineering se usan pivots por **media (avg)**:
 - **Sin datos**: cuando no se puede clasificar (ej. `margin_unit = null`).
 
 La matriz BCM se recalcula con el rango de fechas válido seleccionado, porque `units_sold` se recalcula en ese rango antes de clasificar.
+
+
+## Flujo POS CSV (source of truth)
+
+- La importación POS se hace con dos CSV de SumUp ES: pedidos totales (`orders_csv`) y líneas por producto (`items_csv`).
+- El rango efectivo se calcula por `Fecha de apertura` (`opened_at`) usando mínimo y máximo entre ambos archivos.
+- El proceso es overwrite por rango: se borra primero todo lo ya guardado en ese intervalo y luego se inserta lo del CSV.
+- Esto garantiza que, ante solapes, el último archivo importado sea la verdad para ese periodo.
