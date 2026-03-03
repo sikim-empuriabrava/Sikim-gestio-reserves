@@ -124,3 +124,30 @@ Todas las tablas `cheffing_*` tienen RLS activado y políticas basadas en `publi
 - OCR y proveedores.
 - Fichas y PDF.
 - UI avanzada de subrecetas, platos, menús y análisis de costes.
+
+## BCM en Menu Engineering
+
+La clasificación BCM segmenta platos en 4 cuadrantes a partir de dos ejes:
+
+- **Popularidad**: `units_sold`.
+- **Rentabilidad**: `margin_unit` (margen por ración sobre base imponible).
+
+### Pivots usados
+
+En la pantalla de Menu Engineering se usan pivots por **media (avg)**:
+
+- `pivotPopularity = avg(units_sold)` sobre todas las filas con `units_sold` numérico (incluye ceros).
+- `pivotMargin = avg(margin_unit)` sobre filas con `margin_unit != null`.
+- Si no hay filas válidas para `margin_unit`, `pivotMargin = 0`.
+
+### Reglas de clasificación
+
+- High Popularity: `units_sold >= pivotPopularity`
+- High Margin: `margin_unit >= pivotMargin`
+- **Estrella**: High Pop + High Margin
+- **Vaca**: High Pop + Low Margin
+- **Puzzle**: Low Pop + High Margin
+- **Perro**: Low Pop + Low Margin
+- **Sin datos**: cuando no se puede clasificar (ej. `margin_unit = null`).
+
+La matriz BCM se recalcula con el rango de fechas válido seleccionado, porque `units_sold` se recalcula en ese rango antes de clasificar.
