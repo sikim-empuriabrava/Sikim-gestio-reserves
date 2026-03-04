@@ -4,6 +4,8 @@ import Link from 'next/link';
 import { useMemo, useState, type FormEvent } from 'react';
 
 type ImportResult = {
+  mode?: string;
+  deleted?: { orders: number; items: number; sales_daily?: number };
   orders: { inserted: number; updated: number; total: number };
   items: { inserted: number; updated: number; total: number };
   dateRange: { from: string; to: string } | null;
@@ -157,6 +159,10 @@ export function VentasTabsClient({
 
       {tab === 'import' ? (
         <div className="space-y-4">
+          <p className="text-xs text-amber-200">
+            Este import SOBREESCRIBE la BD para el rango de fechas incluido en el CSV (Fecha de apertura).
+            El último CSV subido manda.
+          </p>
           <form onSubmit={handleImport} className="grid gap-4 rounded-xl border border-slate-800 p-4 md:grid-cols-2">
             <label className="space-y-2 text-sm text-slate-300">
               CSV pedidos totales (orders_csv)
@@ -186,6 +192,14 @@ export function VentasTabsClient({
               <p>
                 Rango: {importResult.dateRange?.from ?? '—'} → {importResult.dateRange?.to ?? '—'} · {importResult.durationMs} ms.
               </p>
+              {importResult.deleted ? (
+                <p>
+                  Borrado en rango: {importResult.deleted.orders} pedidos / {importResult.deleted.items} líneas
+                  {typeof importResult.deleted.sales_daily === 'number'
+                    ? ` / ${importResult.deleted.sales_daily} filas de ventas diarias`
+                    : ''}.
+                </p>
+              ) : null}
               {importResult.warnings.length > 0 ? (
                 <ul className="list-disc pl-5 text-amber-200">
                   {importResult.warnings.map((warning) => (

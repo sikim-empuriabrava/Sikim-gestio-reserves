@@ -497,3 +497,14 @@ Incluye tablas, vistas, funciones/RPC, políticas RLS (con `ALTER TABLE ... ENAB
 No incluye datos.
 - Local/Codex: `SUPABASE_DB_URL=... bash scripts/db_snapshot.sh`
 - GitHub Actions: workflow `db-schema-snapshot` (workflow_dispatch). Usa el secret `SUPABASE_DB_URL`.
+
+
+## Flujo de importación POS (CSV)
+
+- El endpoint de importación exige **dos CSV simultáneos**: `orders_csv` (Informe de pedidos totales) e `items_csv` (Informe de pedidos por producto).
+- El rango de importación se deduce automáticamente con `MIN/MAX` de `opened_at` (columna **Fecha de apertura**) combinando ambos CSV.
+- Modo overwrite por rango: antes de insertar, se elimina en BD todo lo existente en `[from,to]` (inclusive) en `cheffing_pos_order_items` y `cheffing_pos_orders`.
+- Después se inserta/upserta solo lo importado del CSV (deduplicación intra-CSV), evitando duplicados por solapamiento histórico.
+- Antes del refresh también se limpian las filas de `cheffing_pos_sales_daily` en ese rango con `source='csv'` para evitar stale rows cuando desaparecen productos/ventas en el último upload.
+- Finalmente se refresca `cheffing_pos_sales_daily` para ese mismo rango con `cheffing_pos_refresh_sales_daily(p_from, p_to)`.
+- Resultado operativo: **el último CSV subido por Pau manda** para el rango incluido en los ficheros.
