@@ -135,10 +135,19 @@ export function VentasTabsClient({
         return;
       }
       setImportResult(json);
-      setImportStatus({
-        lastOrder: json?.lastOrder ?? importStatus?.lastOrder ?? null,
-        range: json?.dateRange ?? importStatus?.range ?? null,
-      });
+
+      try {
+        const statusResponse = await fetch('/api/cheffing/pos/import-status');
+        const statusJson = await statusResponse.json();
+        if (statusResponse.ok) {
+          setImportStatus({
+            lastOrder: statusJson.lastOrder ?? null,
+            range: statusJson.range ?? null,
+          });
+        }
+      } catch {
+        // No bloqueamos el resultado del import si falla el refresh de estado.
+      }
     } catch {
       setError('Error de red al importar CSV.');
     } finally {
@@ -160,6 +169,9 @@ export function VentasTabsClient({
     }
     window.location.reload();
   };
+
+  const normalizedLastOpenedAt =
+    importStatus?.lastOrder?.opened_at ? importStatus.lastOrder.opened_at.replace(' ', 'T') : '';
 
   const handleManualLink = async (posProductId: string) => {
     const dishId = selectedDishByProduct[posProductId];
@@ -223,7 +235,7 @@ export function VentasTabsClient({
                 <p>
                   Último importado:{' '}
                   {importStatus?.lastOrder
-                    ? `${new Date(importStatus.lastOrder.opened_at).toLocaleString('es-ES')} (pedido ${importStatus.lastOrder.pos_order_id})`
+                    ? `${new Date(normalizedLastOpenedAt).toLocaleString('es-ES')} (pedido ${importStatus.lastOrder.pos_order_id})`
                     : 'No disponible'}
                 </p>
                 <p>
