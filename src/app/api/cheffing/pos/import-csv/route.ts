@@ -99,6 +99,15 @@ const findOptionalHeader = (headers: string[], aliases: readonly string[]) => {
 
 const toDateOnly = (timestamp: string) => timestamp.slice(0, 10);
 
+const dayAfter = (dateStrYYYYMMDD: string) => {
+  const [year, month, day] = dateStrYYYYMMDD.split('-').map((part) => Number.parseInt(part, 10));
+  const nextDay = new Date(Date.UTC(year, month - 1, day + 1));
+  const nextYear = String(nextDay.getUTCFullYear());
+  const nextMonth = String(nextDay.getUTCMonth() + 1).padStart(2, '0');
+  const nextDate = String(nextDay.getUTCDate()).padStart(2, '0');
+  return `${nextYear}-${nextMonth}-${nextDate}`;
+};
+
 const parseDurationToSeconds = (value: string | null | undefined): number | null => {
   const normalized = (value ?? '').trim();
   if (!normalized) {
@@ -297,19 +306,36 @@ export async function POST(request: Request) {
   }
 
   const dateCandidates = [...dedupedOrders, ...dedupedItems].map((row) => toDateOnly(row.opened_at)).sort();
+  const orderDateCandidates = dedupedOrders.map((row) => toDateOnly(row.opened_at)).sort();
+  const itemDateCandidates = dedupedItems.map((row) => toDateOnly(row.opened_at)).sort();
+  const ordersRange = {
+    from: orderDateCandidates[0],
+    to: orderDateCandidates[orderDateCandidates.length - 1],
+  };
+  const itemsRange = {
+    from: itemDateCandidates[0],
+    to: itemDateCandidates[itemDateCandidates.length - 1],
+  };
+
+  if (ordersRange.from !== itemsRange.from || ordersRange.to !== itemsRange.to) {
+    warnings.push(
+      `ATENCIÓN: orders_csv e items_csv cubren rangos distintos de Fecha de apertura. orders_csv=${ordersRange.from}→${ordersRange.to}; items_csv=${itemsRange.from}→${itemsRange.to}. Se seguirá con el rango combinado para evitar incoherencias, revisa los CSV antes del siguiente import.`,
+    );
+  }
+
   const dateRange = {
     from: dateCandidates[0],
     to: dateCandidates[dateCandidates.length - 1],
   };
 
   const fromTs = `${dateRange.from} 00:00:00`;
-  const toTs = `${dateRange.to} 23:59:59`;
+  const toExclusiveTs = `${dayAfter(dateRange.to)} 00:00:00`;
 
   const { count: deletedItemsCount, error: deleteItemsError } = await supabase
     .from('cheffing_pos_order_items')
     .delete({ count: 'exact' })
     .gte('opened_at', fromTs)
-    .lte('opened_at', toTs);
+    .lt('opened_at', toExclusiveTs);
 
   if (deleteItemsError) {
     const failed = NextResponse.json({ error: deleteItemsError.message }, { status: 500 });
@@ -321,7 +347,7 @@ export async function POST(request: Request) {
     .from('cheffing_pos_orders')
     .delete({ count: 'exact' })
     .gte('opened_at', fromTs)
-    .lte('opened_at', toTs);
+    .lt('opened_at', toExclusiveTs);
 
   if (deleteOrdersError) {
     const failed = NextResponse.json({ error: deleteOrdersError.message }, { status: 500 });

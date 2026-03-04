@@ -503,8 +503,9 @@ No incluye datos.
 
 - El endpoint de importación exige **dos CSV simultáneos**: `orders_csv` (Informe de pedidos totales) e `items_csv` (Informe de pedidos por producto).
 - El rango de importación se deduce automáticamente con `MIN/MAX` de `opened_at` (columna **Fecha de apertura**) combinando ambos CSV.
-- Modo overwrite por rango: antes de insertar, se elimina en BD todo lo existente en `[from,to]` (inclusive) en `cheffing_pos_order_items` y `cheffing_pos_orders`.
+- Modo overwrite por rango: antes de insertar, se elimina en BD todo lo existente en `opened_at >= from 00:00:00` y `< day_after(to) 00:00:00` (rango semiabierto) en `cheffing_pos_order_items` y `cheffing_pos_orders`.
 - Después se inserta/upserta solo lo importado del CSV (deduplicación intra-CSV), evitando duplicados por solapamiento histórico.
 - Antes del refresh también se limpian las filas de `cheffing_pos_sales_daily` en ese rango con `source='csv'` para evitar stale rows cuando desaparecen productos/ventas en el último upload.
 - Finalmente se refresca `cheffing_pos_sales_daily` para ese mismo rango con `cheffing_pos_refresh_sales_daily(p_from, p_to)`.
 - Resultado operativo: **el último CSV subido por Pau manda** para el rango incluido en los ficheros.
+- Si `orders_csv` e `items_csv` difieren en su rango `opened_at`, el endpoint devuelve un warning explícito para revisar los ficheros.

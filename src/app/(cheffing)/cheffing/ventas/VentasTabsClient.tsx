@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useMemo, useState, type FormEvent } from 'react';
+import { useEffect, useMemo, useState, type FormEvent } from 'react';
 
 type ImportResult = {
   mode?: string;
@@ -35,6 +35,12 @@ type ProductSalesRow = {
 
 type Dish = { id: string; name: string };
 
+
+type ImportStatus = {
+  lastOrder: { pos_order_id: string; opened_at: string } | null;
+  range: { from: string; to: string } | null;
+};
+
 const currencyFormatter = new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR' });
 
 export function VentasTabsClient({
@@ -54,6 +60,8 @@ export function VentasTabsClient({
   const [page, setPage] = useState(1);
   const [mappingRows, setMappingRows] = useState(productRows);
   const [selectedDishByProduct, setSelectedDishByProduct] = useState<Record<string, string>>({});
+  const [importStatus, setImportStatus] = useState<ImportStatus | null>(null);
+  const [importStatusLoading, setImportStatusLoading] = useState(true);
 
   const filteredOrders = useMemo(() => {
     const text = query.toLowerCase().trim();
@@ -68,6 +76,46 @@ export function VentasTabsClient({
   const PAGE_SIZE = 20;
   const visibleOrders = filteredOrders.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
   const totalPages = Math.max(1, Math.ceil(filteredOrders.length / PAGE_SIZE));
+
+
+  useEffect(() => {
+    let active = true;
+
+    const loadImportStatus = async () => {
+      setImportStatusLoading(true);
+      try {
+        const response = await fetch('/api/cheffing/pos/import-status');
+        const json = await response.json();
+        if (!response.ok) {
+          if (active) {
+            setImportStatus(null);
+          }
+          return;
+        }
+
+        if (active) {
+          setImportStatus({
+            lastOrder: json.lastOrder ?? null,
+            range: json.range ?? null,
+          });
+        }
+      } catch {
+        if (active) {
+          setImportStatus(null);
+        }
+      } finally {
+        if (active) {
+          setImportStatusLoading(false);
+        }
+      }
+    };
+
+    void loadImportStatus();
+
+    return () => {
+      active = false;
+    };
+  }, []);
 
   const handleImport = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -87,6 +135,10 @@ export function VentasTabsClient({
         return;
       }
       setImportResult(json);
+      setImportStatus({
+        lastOrder: json?.lastOrder ?? importStatus?.lastOrder ?? null,
+        range: json?.dateRange ?? importStatus?.range ?? null,
+      });
     } catch {
       setError('Error de red al importar CSV.');
     } finally {
@@ -163,6 +215,26 @@ export function VentasTabsClient({
             Este import SOBREESCRIBE la BD para el rango de fechas incluido en el CSV (Fecha de apertura).
             El último CSV subido manda.
           </p>
+          <div className="rounded-xl border border-slate-800 bg-slate-950/50 p-3 text-sm text-slate-300">
+            {importStatusLoading ? (
+              <p>Cargando estado de importación…</p>
+            ) : importStatus?.lastOrder || importStatus?.range ? (
+              <div className="space-y-1">
+                <p>
+                  Último importado:{' '}
+                  {importStatus?.lastOrder
+                    ? `${new Date(importStatus.lastOrder.opened_at).toLocaleString('es-ES')} (pedido ${importStatus.lastOrder.pos_order_id})`
+                    : 'No disponible'}
+                </p>
+                <p>
+                  Rango en BD:{' '}
+                  {importStatus?.range ? `${importStatus.range.from} → ${importStatus.range.to}` : 'No disponible'}
+                </p>
+              </div>
+            ) : (
+              <p>Aún no hay importaciones.</p>
+            )}
+          </div>
           <form onSubmit={handleImport} className="grid gap-4 rounded-xl border border-slate-800 p-4 md:grid-cols-2">
             <label className="space-y-2 text-sm text-slate-300">
               CSV pedidos totales (orders_csv)
