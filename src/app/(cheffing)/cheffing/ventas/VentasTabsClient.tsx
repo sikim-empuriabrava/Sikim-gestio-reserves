@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useMemo, useState, type FormEvent } from 'react';
+import { useEffect, useMemo, useState, type FormEvent } from 'react';
 
 type ImportResult = {
   mode?: string;
@@ -35,7 +35,35 @@ type ProductSalesRow = {
 
 type Dish = { id: string; name: string };
 
+
+
+function parseLocalTimestamp(ts: string): Date | null {
+  if (!ts) return null;
+
+  const [datePart, timePart = '00:00:00'] = ts.split(' ');
+  const [year, month, day] = datePart.split('-').map(Number);
+  const [hour, minute, second] = timePart.split(':').map(Number);
+
+  if (!year || !month || !day) return null;
+
+  return new Date(year, month - 1, day, hour || 0, minute || 0, second || 0);
+}
+
+type ImportStatus = {
+  lastOrder: { pos_order_id: string; opened_at: string } | null;
+  range: { from: string; to: string } | null;
+};
+
 const currencyFormatter = new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR' });
+
+const dateFormatter = new Intl.DateTimeFormat('es-ES', {
+  year: 'numeric',
+  month: '2-digit',
+  day: '2-digit',
+  hour: '2-digit',
+  minute: '2-digit',
+  second: '2-digit',
+});
 
 export function VentasTabsClient({
   initialOrders,
@@ -54,6 +82,8 @@ export function VentasTabsClient({
   const [page, setPage] = useState(1);
   const [mappingRows, setMappingRows] = useState(productRows);
   const [selectedDishByProduct, setSelectedDishByProduct] = useState<Record<string, string>>({});
+  const [importStatus, setImportStatus] = useState<ImportStatus | null>(null);
+  const [importStatusLoading, setImportStatusLoading] = useState(true);
 
   const filteredOrders = useMemo(() => {
     const text = query.toLowerCase().trim();
@@ -68,6 +98,46 @@ export function VentasTabsClient({
   const PAGE_SIZE = 20;
   const visibleOrders = filteredOrders.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
   const totalPages = Math.max(1, Math.ceil(filteredOrders.length / PAGE_SIZE));
+
+
+  useEffect(() => {
+    let active = true;
+
+    const loadImportStatus = async () => {
+      setImportStatusLoading(true);
+      try {
+        const response = await fetch('/api/cheffing/pos/import-status');
+        const json = await response.json();
+        if (!response.ok) {
+          if (active) {
+            setImportStatus(null);
+          }
+          return;
+        }
+
+        if (active) {
+          setImportStatus({
+            lastOrder: json.lastOrder ?? null,
+            range: json.range ?? null,
+          });
+        }
+      } catch {
+        if (active) {
+          setImportStatus(null);
+        }
+      } finally {
+        if (active) {
+          setImportStatusLoading(false);
+        }
+      }
+    };
+
+    void loadImportStatus();
+
+    return () => {
+      active = false;
+    };
+  }, []);
 
   const handleImport = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -87,6 +157,19 @@ export function VentasTabsClient({
         return;
       }
       setImportResult(json);
+
+      try {
+        const statusResponse = await fetch('/api/cheffing/pos/import-status');
+        const statusJson = await statusResponse.json();
+        if (statusResponse.ok) {
+          setImportStatus({
+            lastOrder: statusJson.lastOrder ?? null,
+            range: statusJson.range ?? null,
+          });
+        }
+      } catch {
+        // No bloqueamos el resultado del import si falla el refresh de estado.
+      }
     } catch {
       setError('Error de red al importar CSV.');
     } finally {
@@ -108,6 +191,8 @@ export function VentasTabsClient({
     }
     window.location.reload();
   };
+
+  const lastDate = importStatus?.lastOrder ? parseLocalTimestamp(importStatus.lastOrder.opened_at) : null;
 
   const handleManualLink = async (posProductId: string) => {
     const dishId = selectedDishByProduct[posProductId];
@@ -163,6 +248,26 @@ export function VentasTabsClient({
             Este import SOBREESCRIBE la BD para el rango de fechas incluido en el CSV (Fecha de apertura).
             El último CSV subido manda.
           </p>
+          <div className="rounded-xl border border-slate-800 bg-slate-950/50 p-3 text-sm text-slate-300">
+            {importStatusLoading ? (
+              <p>Cargando estado de importación…</p>
+            ) : importStatus?.lastOrder || importStatus?.range ? (
+              <div className="space-y-1">
+                <p>
+                  Último importado:{' '}
+                  {importStatus?.lastOrder
+                    ? `${lastDate ? dateFormatter.format(lastDate) : 'No disponible'} (pedido ${importStatus.lastOrder.pos_order_id})`
+                    : 'No disponible'}
+                </p>
+                <p>
+                  Rango en BD:{' '}
+                  {importStatus?.range ? `${importStatus.range.from} → ${importStatus.range.to}` : 'No disponible'}
+                </p>
+              </div>
+            ) : (
+              <p>Aún no hay importaciones.</p>
+            )}
+          </div>
           <form onSubmit={handleImport} className="grid gap-4 rounded-xl border border-slate-800 p-4 md:grid-cols-2">
             <label className="space-y-2 text-sm text-slate-300">
               CSV pedidos totales (orders_csv)
