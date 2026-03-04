@@ -36,12 +36,34 @@ type ProductSalesRow = {
 type Dish = { id: string; name: string };
 
 
+
+function parseLocalTimestamp(ts: string): Date | null {
+  if (!ts) return null;
+
+  const [datePart, timePart = '00:00:00'] = ts.split(' ');
+  const [year, month, day] = datePart.split('-').map(Number);
+  const [hour, minute, second] = timePart.split(':').map(Number);
+
+  if (!year || !month || !day) return null;
+
+  return new Date(year, month - 1, day, hour || 0, minute || 0, second || 0);
+}
+
 type ImportStatus = {
   lastOrder: { pos_order_id: string; opened_at: string } | null;
   range: { from: string; to: string } | null;
 };
 
 const currencyFormatter = new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR' });
+
+const dateFormatter = new Intl.DateTimeFormat('es-ES', {
+  year: 'numeric',
+  month: '2-digit',
+  day: '2-digit',
+  hour: '2-digit',
+  minute: '2-digit',
+  second: '2-digit',
+});
 
 export function VentasTabsClient({
   initialOrders,
@@ -170,8 +192,7 @@ export function VentasTabsClient({
     window.location.reload();
   };
 
-  const normalizedLastOpenedAt =
-    importStatus?.lastOrder?.opened_at ? importStatus.lastOrder.opened_at.replace(' ', 'T') : '';
+  const lastDate = importStatus?.lastOrder ? parseLocalTimestamp(importStatus.lastOrder.opened_at) : null;
 
   const handleManualLink = async (posProductId: string) => {
     const dishId = selectedDishByProduct[posProductId];
@@ -235,7 +256,7 @@ export function VentasTabsClient({
                 <p>
                   Último importado:{' '}
                   {importStatus?.lastOrder
-                    ? `${new Date(normalizedLastOpenedAt).toLocaleString('es-ES')} (pedido ${importStatus.lastOrder.pos_order_id})`
+                    ? `${lastDate ? dateFormatter.format(lastDate) : 'No disponible'} (pedido ${importStatus.lastOrder.pos_order_id})`
                     : 'No disponible'}
                 </p>
                 <p>
