@@ -121,6 +121,93 @@ $$;
 
 
 --
+-- Name: cheffing_menu_engineering_dish_cost(date, date); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.cheffing_menu_engineering_dish_cost(p_from date DEFAULT NULL::date, p_to date DEFAULT NULL::date) RETURNS TABLE(id uuid, name text, selling_price numeric, cost_per_serving numeric, created_at timestamp with time zone, updated_at timestamp with time zone, units_sold integer)
+    LANGUAGE sql STABLE
+    AS $$
+with item_costs as (
+  select
+    d.id as dish_id,
+    case
+      when count(item_lines.id) = 0 then 0::numeric
+      when count(item_lines.compatible_cost) = 0 then null::numeric
+      else sum(item_lines.compatible_cost)
+    end as items_cost_total
+  from public.cheffing_dishes d
+  left join (
+    select
+      di.id,
+      di.dish_id,
+      case
+        when di.ingredient_id is not null
+          and u_item.dimension = vic.purchase_unit_dimension
+          then (vic.cost_net_per_base * (di.quantity * u_item.to_base_factor))
+            / nullif(1 - coalesce(di.waste_pct_override, vic.waste_pct, 0), 0)
+        when di.subrecipe_id is not null
+          and u_item.dimension = vsc.output_unit_dimension
+          then (vsc.cost_net_per_base * (di.quantity * u_item.to_base_factor))
+            / nullif(1 - coalesce(di.waste_pct_override, 0), 0)
+        else null
+      end as compatible_cost
+    from public.cheffing_dish_items di
+    left join public.v_cheffing_ingredients_cost vic on vic.id = di.ingredient_id
+    left join public.v_cheffing_subrecipe_cost vsc on vsc.id = di.subrecipe_id
+    left join public.cheffing_units u_item on u_item.code = di.unit_code
+  ) item_lines on item_lines.dish_id = d.id
+  group by d.id
+),
+sold_units as (
+  select
+    l.dish_id,
+    sum(coalesce(s.units, 0))::integer as units_sold
+  from public.cheffing_pos_product_links l
+  left join public.cheffing_pos_sales_daily s
+    on s.pos_product_id = l.pos_product_id
+   and (p_from is null or s.sale_day >= p_from)
+   and (p_to   is null or s.sale_day <= p_to)
+  group by l.dish_id
+)
+select
+  d.id,
+  d.name,
+  d.selling_price,
+  (ic.items_cost_total / nullif(coalesce(d.servings, 1), 0))::numeric as cost_per_serving,
+  d.created_at,
+  d.updated_at,
+  coalesce(su.units_sold, d.units_sold, 0)::integer as units_sold
+from public.cheffing_dishes d
+left join item_costs ic on ic.dish_id = d.id
+left join sold_units su on su.dish_id = d.id;
+$$;
+
+
+--
+-- Name: cheffing_pos_import_status(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.cheffing_pos_import_status() RETURNS TABLE(last_order_id text, last_opened_at timestamp without time zone, range_from date, range_to date)
+    LANGUAGE sql STABLE
+    AS $$
+  select
+    (select pos_order_id
+     from cheffing_pos_orders
+     order by opened_at desc, pos_order_id desc
+     limit 1) as last_order_id,
+
+    (select opened_at
+     from cheffing_pos_orders
+     order by opened_at desc, pos_order_id desc
+     limit 1) as last_opened_at,
+
+    (select min(opened_at)::date from cheffing_pos_orders) as range_from,
+
+    (select max(opened_at)::date from cheffing_pos_orders) as range_to;
+$$;
+
+
+--
 -- Name: cheffing_pos_refresh_sales_daily(date, date); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -2796,5 +2883,5 @@ CREATE POLICY "read own allowlist row" ON public.app_allowed_users FOR SELECT TO
 -- PostgreSQL database dump complete
 --
 
-\unrestrict MzUGplaCz1edfySEwzLgjrDv9QHgX2B5fyhsgwcTtUmZWQkpJin4cAY9OtRlorD
+\unrestrict AtXwr4q29af6HcPkw8dwEeAF3FBCcerYfjMHQjzZFkg73UzByai2hK5g4sWYlyk
 

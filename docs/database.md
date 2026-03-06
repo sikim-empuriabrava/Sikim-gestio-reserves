@@ -476,6 +476,8 @@ RLS: deshabilitado
 | `app_allowed_users_email_lowercase` | `` | `trigger` |
 | `cheffing_is_admin` | `` | `boolean` |
 | `cheffing_is_allowed` | `` | `boolean` |
+| `cheffing_menu_engineering_dish_cost` | `p_from date DEFAULT NULL::date, p_to date DEFAULT NULL::date` | `TABLE(id uuid, name text, selling_price numeric, cost_per_serving numeric, created_at timestamp with time zone, updated_at timestamp with time zone, units_sold integer)` |
+| `cheffing_pos_import_status` | `` | `TABLE(last_order_id text, last_opened_at timestamp without time zone, range_from date, range_to date)` |
 | `cheffing_pos_refresh_sales_daily` | `p_from date DEFAULT NULL::date, p_to date DEFAULT NULL::date` | `void` |
 | `day_status_sync_legacy_columns` | `` | `trigger` |
 | `delete_routine_pack` | `p_pack_id uuid, p_mode text DEFAULT 'keep_all'::text, p_cutoff_week_start date DEFAULT NULL::date` | `TABLE(deleted_pack boolean, deleted_routines integer, deleted_tasks integer, unlinked_tasks integer)` |
@@ -497,15 +499,3 @@ Incluye tablas, vistas, funciones/RPC, políticas RLS (con `ALTER TABLE ... ENAB
 No incluye datos.
 - Local/Codex: `SUPABASE_DB_URL=... bash scripts/db_snapshot.sh`
 - GitHub Actions: workflow `db-schema-snapshot` (workflow_dispatch). Usa el secret `SUPABASE_DB_URL`.
-
-
-## Flujo de importación POS (CSV)
-
-- El endpoint de importación exige **dos CSV simultáneos**: `orders_csv` (Informe de pedidos totales) e `items_csv` (Informe de pedidos por producto).
-- El rango de importación se deduce automáticamente con `MIN/MAX` de `opened_at` (columna **Fecha de apertura**) combinando ambos CSV.
-- Modo overwrite por rango: antes de insertar, se elimina en BD todo lo existente en `opened_at >= from 00:00:00` y `< day_after(to) 00:00:00` (rango semiabierto) en `cheffing_pos_order_items` y `cheffing_pos_orders`.
-- Después se inserta/upserta solo lo importado del CSV (deduplicación intra-CSV), evitando duplicados por solapamiento histórico.
-- Antes del refresh también se limpian las filas de `cheffing_pos_sales_daily` en ese rango con `source='csv'` para evitar stale rows cuando desaparecen productos/ventas en el último upload.
-- Finalmente se refresca `cheffing_pos_sales_daily` para ese mismo rango con `cheffing_pos_refresh_sales_daily(p_from, p_to)`.
-- Resultado operativo: **el último CSV subido por Pau manda** para el rango incluido en los ficheros.
-- Si `orders_csv` e `items_csv` difieren en su rango `opened_at`, el endpoint devuelve un warning explícito para revisar los ficheros.
