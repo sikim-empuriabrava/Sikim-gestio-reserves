@@ -121,6 +121,93 @@ $$;
 
 
 --
+-- Name: cheffing_menu_engineering_dish_cost(date, date); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.cheffing_menu_engineering_dish_cost(p_from date DEFAULT NULL::date, p_to date DEFAULT NULL::date) RETURNS TABLE(id uuid, name text, selling_price numeric, cost_per_serving numeric, created_at timestamp with time zone, updated_at timestamp with time zone, units_sold integer)
+    LANGUAGE sql STABLE
+    AS $$
+with item_costs as (
+  select
+    d.id as dish_id,
+    case
+      when count(item_lines.id) = 0 then 0::numeric
+      when count(item_lines.compatible_cost) = 0 then null::numeric
+      else sum(item_lines.compatible_cost)
+    end as items_cost_total
+  from public.cheffing_dishes d
+  left join (
+    select
+      di.id,
+      di.dish_id,
+      case
+        when di.ingredient_id is not null
+          and u_item.dimension = vic.purchase_unit_dimension
+          then (vic.cost_net_per_base * (di.quantity * u_item.to_base_factor))
+            / nullif(1 - coalesce(di.waste_pct_override, vic.waste_pct, 0), 0)
+        when di.subrecipe_id is not null
+          and u_item.dimension = vsc.output_unit_dimension
+          then (vsc.cost_net_per_base * (di.quantity * u_item.to_base_factor))
+            / nullif(1 - coalesce(di.waste_pct_override, 0), 0)
+        else null
+      end as compatible_cost
+    from public.cheffing_dish_items di
+    left join public.v_cheffing_ingredients_cost vic on vic.id = di.ingredient_id
+    left join public.v_cheffing_subrecipe_cost vsc on vsc.id = di.subrecipe_id
+    left join public.cheffing_units u_item on u_item.code = di.unit_code
+  ) item_lines on item_lines.dish_id = d.id
+  group by d.id
+),
+sold_units as (
+  select
+    l.dish_id,
+    sum(coalesce(s.units, 0))::integer as units_sold
+  from public.cheffing_pos_product_links l
+  left join public.cheffing_pos_sales_daily s
+    on s.pos_product_id = l.pos_product_id
+   and (p_from is null or s.sale_day >= p_from)
+   and (p_to   is null or s.sale_day <= p_to)
+  group by l.dish_id
+)
+select
+  d.id,
+  d.name,
+  d.selling_price,
+  (ic.items_cost_total / nullif(coalesce(d.servings, 1), 0))::numeric as cost_per_serving,
+  d.created_at,
+  d.updated_at,
+  coalesce(su.units_sold, d.units_sold, 0)::integer as units_sold
+from public.cheffing_dishes d
+left join item_costs ic on ic.dish_id = d.id
+left join sold_units su on su.dish_id = d.id;
+$$;
+
+
+--
+-- Name: cheffing_pos_import_status(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.cheffing_pos_import_status() RETURNS TABLE(last_order_id text, last_opened_at timestamp without time zone, range_from date, range_to date)
+    LANGUAGE sql STABLE
+    AS $$
+  select
+    (select pos_order_id
+     from cheffing_pos_orders
+     order by opened_at desc, pos_order_id desc
+     limit 1) as last_order_id,
+
+    (select opened_at
+     from cheffing_pos_orders
+     order by opened_at desc, pos_order_id desc
+     limit 1) as last_opened_at,
+
+    (select min(opened_at)::date from cheffing_pos_orders) as range_from,
+
+    (select max(opened_at)::date from cheffing_pos_orders) as range_to;
+$$;
+
+
+--
 -- Name: cheffing_pos_refresh_sales_daily(date, date); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -340,6 +427,77 @@ begin
   return query
   select (routine_deleted_count = 1), deleted_tasks_count, unlinked_tasks_count;
 end;
+$$;
+
+
+--
+-- Name: fn_bool_01(text); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.fn_bool_01(v text) RETURNS boolean
+    LANGUAGE sql IMMUTABLE
+    AS $$
+  select case lower(btrim(coalesce(v, '')))
+    when '1' then true
+    when 'true' then true
+    when 't' then true
+    when 'yes' then true
+    when 'y' then true
+    when '0' then false
+    when 'false' then false
+    when 'f' then false
+    when 'no' then false
+    when 'n' then false
+    else null
+  end
+$$;
+
+
+--
+-- Name: fn_norm_purchase_unit(text); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.fn_norm_purchase_unit(v text) RETURNS text
+    LANGUAGE sql IMMUTABLE
+    AS $$
+  select case lower(btrim(coalesce(v, '')))
+    when 'kg' then 'kg'
+    when 'gr' then 'g'
+    when 'g' then 'g'
+    when 'l' then 'l'
+    when 'ml' then 'ml'
+    when 'ud.' then 'ud'
+    when 'ud' then 'ud'
+    else nullif(lower(btrim(coalesce(v, ''))), '')
+  end
+$$;
+
+
+--
+-- Name: fn_split_pipe(text); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.fn_split_pipe(v text) RETURNS text[]
+    LANGUAGE sql IMMUTABLE
+    AS $$
+  select case
+    when v is null or btrim(v) = '' then '{}'::text[]
+    else regexp_split_to_array(v, '\s*\|\s*')
+  end
+$$;
+
+
+--
+-- Name: fn_text_to_numeric(text); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.fn_text_to_numeric(v text) RETURNS numeric
+    LANGUAGE sql IMMUTABLE
+    AS $$
+  select case
+    when v is null or btrim(v) = '' then null
+    else replace(btrim(v), ',', '.')::numeric
+  end
 $$;
 
 
@@ -796,10 +954,41 @@ CREATE TABLE public.cheffing_dish_items (
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     updated_at timestamp with time zone DEFAULT now() NOT NULL,
     waste_pct_override numeric,
+    source_system text,
+    source_component_uid text,
+    source_raw jsonb,
+    source_measurement text,
+    source_quantity_raw numeric,
+    source_quantity_gross_raw numeric,
+    source_waste_pct_raw numeric,
+    source_price_unit_raw numeric,
+    source_price_total_raw numeric,
     CONSTRAINT cheffing_dish_items_component_check CHECK (((ingredient_id IS NULL) <> (subrecipe_id IS NULL))),
     CONSTRAINT cheffing_dish_items_quantity_check CHECK ((quantity > (0)::numeric)),
     CONSTRAINT cheffing_dish_items_waste_pct_override_check CHECK (((waste_pct_override IS NULL) OR ((waste_pct_override >= (0)::numeric) AND (waste_pct_override < (1)::numeric)))),
     CONSTRAINT cheffing_dish_items_waste_pct_override_chk CHECK (((waste_pct_override IS NULL) OR ((waste_pct_override >= (0)::numeric) AND (waste_pct_override < (1)::numeric))))
+);
+
+
+--
+-- Name: cheffing_dish_source_labels; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.cheffing_dish_source_labels (
+    dish_id uuid NOT NULL,
+    source_label_uid text NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+--
+-- Name: cheffing_dish_tags; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.cheffing_dish_tags (
+    dish_id uuid NOT NULL,
+    tag_id uuid NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL
 );
 
 
@@ -815,10 +1004,53 @@ CREATE TABLE public.cheffing_dishes (
     updated_at timestamp with time zone DEFAULT now() NOT NULL,
     servings integer DEFAULT 1 NOT NULL,
     units_sold integer DEFAULT 0 NOT NULL,
+    source_system text,
+    source_uid text,
+    source_name text,
+    source_raw jsonb,
+    description text,
+    recipe_text text,
+    tax_rate numeric,
+    reference text,
+    image_url text,
+    is_active boolean DEFAULT true NOT NULL,
+    mycheftool_kind text,
+    mycheftool_type text,
+    mycheftool_name_ca text,
+    mycheftool_name_es text,
+    mycheftool_name_en text,
+    mycheftool_description_ca text,
+    mycheftool_description_es text,
+    mycheftool_measurement text,
+    mycheftool_price_takeaway numeric,
+    mycheftool_price_tapa numeric,
+    mycheftool_price_half numeric,
+    mycheftool_ean text,
+    mycheftool_tags_raw text,
+    mycheftool_source_tag_names text[] DEFAULT '{}'::text[] NOT NULL,
+    mycheftool_source_label_ids text[] DEFAULT '{}'::text[] NOT NULL,
+    mycheftool_foodcost_static numeric,
+    mycheftool_foodcost_parts integer,
+    mycheftool_tk_active boolean,
+    mycheftool_pos_favourite boolean,
+    mycheftool_created_at_source timestamp with time zone,
+    mycheftool_updated_at_source timestamp with time zone,
+    mycheftool_updated_by_name text,
     CONSTRAINT cheffing_dishes_selling_price_check CHECK (((selling_price IS NULL) OR (selling_price >= (0)::numeric))),
     CONSTRAINT cheffing_dishes_servings_check CHECK ((servings > 0)),
     CONSTRAINT cheffing_dishes_servings_positive CHECK ((servings > 0)),
     CONSTRAINT cheffing_dishes_units_sold_nonnegative CHECK ((units_sold >= 0))
+);
+
+
+--
+-- Name: cheffing_ingredient_tags; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.cheffing_ingredient_tags (
+    ingredient_id uuid NOT NULL,
+    tag_id uuid NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL
 );
 
 
@@ -843,6 +1075,27 @@ CREATE TABLE public.cheffing_ingredients (
     max_stock_qty numeric,
     allergen_codes text[] DEFAULT '{}'::text[] NOT NULL,
     indicator_codes text[] DEFAULT '{}'::text[] NOT NULL,
+    source_system text,
+    source_uid text,
+    source_name text,
+    source_raw jsonb,
+    mycheftool_kind text,
+    mycheftool_type text,
+    mycheftool_name_ca text,
+    mycheftool_measurement text,
+    mycheftool_purchase_price numeric,
+    mycheftool_provider text,
+    mycheftool_stock numeric,
+    mycheftool_stock_alert numeric,
+    mycheftool_stock_max numeric,
+    mycheftool_real_weight numeric,
+    mycheftool_tags_raw text,
+    mycheftool_source_tag_names text[] DEFAULT '{}'::text[] NOT NULL,
+    mycheftool_allergens_count integer,
+    mycheftool_recipe_has_content boolean,
+    mycheftool_foodcost_items_count integer,
+    mycheftool_updated_at_source timestamp with time zone,
+    mycheftool_updated_by_name text,
     CONSTRAINT cheffing_ingredients_purchase_pack_qty_check CHECK ((purchase_pack_qty > (0)::numeric)),
     CONSTRAINT cheffing_ingredients_purchase_price_check CHECK ((purchase_price >= (0)::numeric)),
     CONSTRAINT cheffing_ingredients_stock_qty_check CHECK ((stock_qty >= (0)::numeric)),
@@ -956,6 +1209,22 @@ CREATE TABLE public.cheffing_pos_sales_daily (
 
 
 --
+-- Name: cheffing_source_labels; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.cheffing_source_labels (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    source_system text DEFAULT 'mycheftool'::text NOT NULL,
+    source_uid text NOT NULL,
+    label_name text,
+    label_type text,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT cheffing_source_labels_label_type_check CHECK (((label_type = ANY (ARRAY['allergen'::text, 'indicator'::text])) OR (label_type IS NULL)))
+);
+
+
+--
 -- Name: cheffing_subrecipe_items; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -969,10 +1238,29 @@ CREATE TABLE public.cheffing_subrecipe_items (
     notes text,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    source_system text,
+    source_component_uid text,
+    source_raw jsonb,
+    source_measurement text,
+    source_quantity_raw numeric,
+    source_quantity_gross_raw numeric,
+    source_waste_pct_raw numeric,
+    source_price_unit_raw numeric,
     CONSTRAINT cheffing_subrecipe_items_component_check CHECK (((ingredient_id IS NULL) <> (subrecipe_component_id IS NULL))),
     CONSTRAINT cheffing_subrecipe_items_no_self_component CHECK (((subrecipe_component_id IS NULL) OR (subrecipe_component_id <> subrecipe_id))),
     CONSTRAINT cheffing_subrecipe_items_quantity_check CHECK ((quantity > (0)::numeric)),
     CONSTRAINT cheffing_subrecipe_no_self_ref CHECK (((subrecipe_component_id IS NULL) OR (subrecipe_component_id <> subrecipe_id)))
+);
+
+
+--
+-- Name: cheffing_subrecipe_tags; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.cheffing_subrecipe_tags (
+    subrecipe_id uuid NOT NULL,
+    tag_id uuid NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL
 );
 
 
@@ -989,9 +1277,42 @@ CREATE TABLE public.cheffing_subrecipes (
     notes text,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    source_system text,
+    source_uid text,
+    source_name text,
+    source_raw jsonb,
+    reference text,
+    categories text[] DEFAULT '{}'::text[] NOT NULL,
+    allergen_codes text[] DEFAULT '{}'::text[] NOT NULL,
+    indicator_codes text[] DEFAULT '{}'::text[] NOT NULL,
+    mycheftool_kind text,
+    mycheftool_type text,
+    mycheftool_name_ca text,
+    mycheftool_measurement text,
+    mycheftool_price_static numeric,
+    mycheftool_provider text,
+    mycheftool_real_weight numeric,
+    mycheftool_tags_raw text,
+    mycheftool_source_tag_names text[] DEFAULT '{}'::text[] NOT NULL,
+    mycheftool_allergens_count integer,
+    mycheftool_recipe_has_content boolean,
+    mycheftool_foodcost_items_count integer,
+    mycheftool_updated_at_source timestamp with time zone,
+    mycheftool_updated_by_name text,
     CONSTRAINT cheffing_subrecipes_output_qty_check CHECK ((output_qty > (0)::numeric)),
     CONSTRAINT cheffing_subrecipes_waste_lt_one CHECK (((waste_pct >= (0)::numeric) AND (waste_pct < (1)::numeric))),
     CONSTRAINT cheffing_subrecipes_waste_pct_check CHECK (((waste_pct >= (0)::numeric) AND (waste_pct < (1)::numeric)))
+);
+
+
+--
+-- Name: cheffing_tags; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.cheffing_tags (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    tag_name text NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL
 );
 
 
@@ -1616,11 +1937,35 @@ ALTER TABLE ONLY public.cheffing_dish_items
 
 
 --
+-- Name: cheffing_dish_source_labels cheffing_dish_source_labels_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.cheffing_dish_source_labels
+    ADD CONSTRAINT cheffing_dish_source_labels_pkey PRIMARY KEY (dish_id, source_label_uid);
+
+
+--
+-- Name: cheffing_dish_tags cheffing_dish_tags_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.cheffing_dish_tags
+    ADD CONSTRAINT cheffing_dish_tags_pkey PRIMARY KEY (dish_id, tag_id);
+
+
+--
 -- Name: cheffing_dishes cheffing_dishes_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.cheffing_dishes
     ADD CONSTRAINT cheffing_dishes_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: cheffing_ingredient_tags cheffing_ingredient_tags_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.cheffing_ingredient_tags
+    ADD CONSTRAINT cheffing_ingredient_tags_pkey PRIMARY KEY (ingredient_id, tag_id);
 
 
 --
@@ -1664,6 +2009,22 @@ ALTER TABLE ONLY public.cheffing_pos_sales_daily
 
 
 --
+-- Name: cheffing_source_labels cheffing_source_labels_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.cheffing_source_labels
+    ADD CONSTRAINT cheffing_source_labels_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: cheffing_source_labels cheffing_source_labels_source_uid_key; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.cheffing_source_labels
+    ADD CONSTRAINT cheffing_source_labels_source_uid_key UNIQUE (source_uid);
+
+
+--
 -- Name: cheffing_subrecipe_items cheffing_subrecipe_items_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -1672,11 +2033,35 @@ ALTER TABLE ONLY public.cheffing_subrecipe_items
 
 
 --
+-- Name: cheffing_subrecipe_tags cheffing_subrecipe_tags_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.cheffing_subrecipe_tags
+    ADD CONSTRAINT cheffing_subrecipe_tags_pkey PRIMARY KEY (subrecipe_id, tag_id);
+
+
+--
 -- Name: cheffing_subrecipes cheffing_subrecipes_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.cheffing_subrecipes
     ADD CONSTRAINT cheffing_subrecipes_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: cheffing_tags cheffing_tags_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.cheffing_tags
+    ADD CONSTRAINT cheffing_tags_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: cheffing_tags cheffing_tags_tag_name_key; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.cheffing_tags
+    ADD CONSTRAINT cheffing_tags_tag_name_key UNIQUE (tag_name);
 
 
 --
@@ -2146,6 +2531,27 @@ CREATE INDEX tasks_due_date_idx ON public.tasks USING btree (due_date);
 
 
 --
+-- Name: ux_cheffing_dishes_source; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX ux_cheffing_dishes_source ON public.cheffing_dishes USING btree (source_system, source_uid);
+
+
+--
+-- Name: ux_cheffing_ingredients_source; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX ux_cheffing_ingredients_source ON public.cheffing_ingredients USING btree (source_system, source_uid);
+
+
+--
+-- Name: ux_cheffing_subrecipes_source; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX ux_cheffing_subrecipes_source ON public.cheffing_subrecipes USING btree (source_system, source_uid);
+
+
+--
 -- Name: app_allowed_users normalize_allowed_user_email; Type: TRIGGER; Schema: public; Owner: -
 --
 
@@ -2374,6 +2780,54 @@ ALTER TABLE ONLY public.cheffing_dish_items
 
 
 --
+-- Name: cheffing_dish_source_labels cheffing_dish_source_labels_dish_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.cheffing_dish_source_labels
+    ADD CONSTRAINT cheffing_dish_source_labels_dish_id_fkey FOREIGN KEY (dish_id) REFERENCES public.cheffing_dishes(id) ON DELETE CASCADE;
+
+
+--
+-- Name: cheffing_dish_source_labels cheffing_dish_source_labels_source_label_uid_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.cheffing_dish_source_labels
+    ADD CONSTRAINT cheffing_dish_source_labels_source_label_uid_fkey FOREIGN KEY (source_label_uid) REFERENCES public.cheffing_source_labels(source_uid) ON DELETE CASCADE;
+
+
+--
+-- Name: cheffing_dish_tags cheffing_dish_tags_dish_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.cheffing_dish_tags
+    ADD CONSTRAINT cheffing_dish_tags_dish_id_fkey FOREIGN KEY (dish_id) REFERENCES public.cheffing_dishes(id) ON DELETE CASCADE;
+
+
+--
+-- Name: cheffing_dish_tags cheffing_dish_tags_tag_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.cheffing_dish_tags
+    ADD CONSTRAINT cheffing_dish_tags_tag_id_fkey FOREIGN KEY (tag_id) REFERENCES public.cheffing_tags(id) ON DELETE CASCADE;
+
+
+--
+-- Name: cheffing_ingredient_tags cheffing_ingredient_tags_ingredient_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.cheffing_ingredient_tags
+    ADD CONSTRAINT cheffing_ingredient_tags_ingredient_id_fkey FOREIGN KEY (ingredient_id) REFERENCES public.cheffing_ingredients(id) ON DELETE CASCADE;
+
+
+--
+-- Name: cheffing_ingredient_tags cheffing_ingredient_tags_tag_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.cheffing_ingredient_tags
+    ADD CONSTRAINT cheffing_ingredient_tags_tag_id_fkey FOREIGN KEY (tag_id) REFERENCES public.cheffing_tags(id) ON DELETE CASCADE;
+
+
+--
 -- Name: cheffing_ingredients cheffing_ingredients_purchase_unit_code_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -2435,6 +2889,22 @@ ALTER TABLE ONLY public.cheffing_subrecipe_items
 
 ALTER TABLE ONLY public.cheffing_subrecipe_items
     ADD CONSTRAINT cheffing_subrecipe_items_unit_code_fkey FOREIGN KEY (unit_code) REFERENCES public.cheffing_units(code);
+
+
+--
+-- Name: cheffing_subrecipe_tags cheffing_subrecipe_tags_subrecipe_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.cheffing_subrecipe_tags
+    ADD CONSTRAINT cheffing_subrecipe_tags_subrecipe_id_fkey FOREIGN KEY (subrecipe_id) REFERENCES public.cheffing_subrecipes(id) ON DELETE CASCADE;
+
+
+--
+-- Name: cheffing_subrecipe_tags cheffing_subrecipe_tags_tag_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.cheffing_subrecipe_tags
+    ADD CONSTRAINT cheffing_subrecipe_tags_tag_id_fkey FOREIGN KEY (tag_id) REFERENCES public.cheffing_tags(id) ON DELETE CASCADE;
 
 
 --
@@ -2796,5 +3266,5 @@ CREATE POLICY "read own allowlist row" ON public.app_allowed_users FOR SELECT TO
 -- PostgreSQL database dump complete
 --
 
-\unrestrict MzUGplaCz1edfySEwzLgjrDv9QHgX2B5fyhsgwcTtUmZWQkpJin4cAY9OtRlorD
+\unrestrict jCphLsYgFhKULy4dXjhZKQntzSWsbLHGU8OyJvO2YdEk256VpyOLtPy4jsEzHFk
 
