@@ -35,6 +35,33 @@ RLS: habilitado
 | `created_at` | `timestamp with time zone` | No | `now()` |
 | `updated_at` | `timestamp with time zone` | No | `now()` |
 | `waste_pct_override` | `numeric` | Sí |  |
+| `source_system` | `text` | Sí |  |
+| `source_component_uid` | `text` | Sí |  |
+| `source_raw` | `jsonb` | Sí |  |
+| `source_measurement` | `text` | Sí |  |
+| `source_quantity_raw` | `numeric` | Sí |  |
+| `source_quantity_gross_raw` | `numeric` | Sí |  |
+| `source_waste_pct_raw` | `numeric` | Sí |  |
+| `source_price_unit_raw` | `numeric` | Sí |  |
+| `source_price_total_raw` | `numeric` | Sí |  |
+
+### cheffing_dish_source_labels
+RLS: deshabilitado
+
+| Columna | Tipo | Nullable | Default |
+| --- | --- | --- | --- |
+| `dish_id` | `uuid` | No |  |
+| `source_label_uid` | `text` | No |  |
+| `created_at` | `timestamp with time zone` | No | `now()` |
+
+### cheffing_dish_tags
+RLS: deshabilitado
+
+| Columna | Tipo | Nullable | Default |
+| --- | --- | --- | --- |
+| `dish_id` | `uuid` | No |  |
+| `tag_id` | `uuid` | No |  |
+| `created_at` | `timestamp with time zone` | No | `now()` |
 
 ### cheffing_dishes
 RLS: habilitado
@@ -48,6 +75,47 @@ RLS: habilitado
 | `updated_at` | `timestamp with time zone` | No | `now()` |
 | `servings` | `integer` | No | `1` |
 | `units_sold` | `integer` | No | `0` |
+| `source_system` | `text` | Sí |  |
+| `source_uid` | `text` | Sí |  |
+| `source_name` | `text` | Sí |  |
+| `source_raw` | `jsonb` | Sí |  |
+| `description` | `text` | Sí |  |
+| `recipe_text` | `text` | Sí |  |
+| `tax_rate` | `numeric` | Sí |  |
+| `reference` | `text` | Sí |  |
+| `image_url` | `text` | Sí |  |
+| `is_active` | `boolean` | No | `true` |
+| `mycheftool_kind` | `text` | Sí |  |
+| `mycheftool_type` | `text` | Sí |  |
+| `mycheftool_name_ca` | `text` | Sí |  |
+| `mycheftool_name_es` | `text` | Sí |  |
+| `mycheftool_name_en` | `text` | Sí |  |
+| `mycheftool_description_ca` | `text` | Sí |  |
+| `mycheftool_description_es` | `text` | Sí |  |
+| `mycheftool_measurement` | `text` | Sí |  |
+| `mycheftool_price_takeaway` | `numeric` | Sí |  |
+| `mycheftool_price_tapa` | `numeric` | Sí |  |
+| `mycheftool_price_half` | `numeric` | Sí |  |
+| `mycheftool_ean` | `text` | Sí |  |
+| `mycheftool_tags_raw` | `text` | Sí |  |
+| `mycheftool_source_tag_names` | `text[]` | No | `'{}'::text[]` |
+| `mycheftool_source_label_ids` | `text[]` | No | `'{}'::text[]` |
+| `mycheftool_foodcost_static` | `numeric` | Sí |  |
+| `mycheftool_foodcost_parts` | `integer` | Sí |  |
+| `mycheftool_tk_active` | `boolean` | Sí |  |
+| `mycheftool_pos_favourite` | `boolean` | Sí |  |
+| `mycheftool_created_at_source` | `timestamp with time zone` | Sí |  |
+| `mycheftool_updated_at_source` | `timestamp with time zone` | Sí |  |
+| `mycheftool_updated_by_name` | `text` | Sí |  |
+
+### cheffing_ingredient_tags
+RLS: deshabilitado
+
+| Columna | Tipo | Nullable | Default |
+| --- | --- | --- | --- |
+| `ingredient_id` | `uuid` | No |  |
+| `tag_id` | `uuid` | No |  |
+| `created_at` | `timestamp with time zone` | No | `now()` |
 
 ### cheffing_ingredients
 RLS: habilitado
@@ -70,6 +138,27 @@ RLS: habilitado
 | `max_stock_qty` | `numeric` | Sí |  |
 | `allergen_codes` | `text[]` | No | `'{}'::text[]` |
 | `indicator_codes` | `text[]` | No | `'{}'::text[]` |
+| `source_system` | `text` | Sí |  |
+| `source_uid` | `text` | Sí |  |
+| `source_name` | `text` | Sí |  |
+| `source_raw` | `jsonb` | Sí |  |
+| `mycheftool_kind` | `text` | Sí |  |
+| `mycheftool_type` | `text` | Sí |  |
+| `mycheftool_name_ca` | `text` | Sí |  |
+| `mycheftool_measurement` | `text` | Sí |  |
+| `mycheftool_purchase_price` | `numeric` | Sí |  |
+| `mycheftool_provider` | `text` | Sí |  |
+| `mycheftool_stock` | `numeric` | Sí |  |
+| `mycheftool_stock_alert` | `numeric` | Sí |  |
+| `mycheftool_stock_max` | `numeric` | Sí |  |
+| `mycheftool_real_weight` | `numeric` | Sí |  |
+| `mycheftool_tags_raw` | `text` | Sí |  |
+| `mycheftool_source_tag_names` | `text[]` | No | `'{}'::text[]` |
+| `mycheftool_allergens_count` | `integer` | Sí |  |
+| `mycheftool_recipe_has_content` | `boolean` | Sí |  |
+| `mycheftool_foodcost_items_count` | `integer` | Sí |  |
+| `mycheftool_updated_at_source` | `timestamp with time zone` | Sí |  |
+| `mycheftool_updated_by_name` | `text` | Sí |  |
 
 ### cheffing_pos_order_items
 RLS: habilitado
@@ -146,6 +235,19 @@ RLS: habilitado
 | `created_at` | `timestamp with time zone` | No | `now()` |
 | `updated_at` | `timestamp with time zone` | No | `now()` |
 
+### cheffing_source_labels
+RLS: deshabilitado
+
+| Columna | Tipo | Nullable | Default |
+| --- | --- | --- | --- |
+| `id` | `uuid` | No | `gen_random_uuid()` |
+| `source_system` | `text` | No | `'mycheftool'::text` |
+| `source_uid` | `text` | No |  |
+| `label_name` | `text` | Sí |  |
+| `label_type` | `text` | Sí |  |
+| `created_at` | `timestamp with time zone` | No | `now()` |
+| `updated_at` | `timestamp with time zone` | No | `now()` |
+
 ### cheffing_subrecipe_items
 RLS: habilitado
 
@@ -160,6 +262,23 @@ RLS: habilitado
 | `notes` | `text` | Sí |  |
 | `created_at` | `timestamp with time zone` | No | `now()` |
 | `updated_at` | `timestamp with time zone` | No | `now()` |
+| `source_system` | `text` | Sí |  |
+| `source_component_uid` | `text` | Sí |  |
+| `source_raw` | `jsonb` | Sí |  |
+| `source_measurement` | `text` | Sí |  |
+| `source_quantity_raw` | `numeric` | Sí |  |
+| `source_quantity_gross_raw` | `numeric` | Sí |  |
+| `source_waste_pct_raw` | `numeric` | Sí |  |
+| `source_price_unit_raw` | `numeric` | Sí |  |
+
+### cheffing_subrecipe_tags
+RLS: deshabilitado
+
+| Columna | Tipo | Nullable | Default |
+| --- | --- | --- | --- |
+| `subrecipe_id` | `uuid` | No |  |
+| `tag_id` | `uuid` | No |  |
+| `created_at` | `timestamp with time zone` | No | `now()` |
 
 ### cheffing_subrecipes
 RLS: habilitado
@@ -174,6 +293,37 @@ RLS: habilitado
 | `notes` | `text` | Sí |  |
 | `created_at` | `timestamp with time zone` | No | `now()` |
 | `updated_at` | `timestamp with time zone` | No | `now()` |
+| `source_system` | `text` | Sí |  |
+| `source_uid` | `text` | Sí |  |
+| `source_name` | `text` | Sí |  |
+| `source_raw` | `jsonb` | Sí |  |
+| `reference` | `text` | Sí |  |
+| `categories` | `text[]` | No | `'{}'::text[]` |
+| `allergen_codes` | `text[]` | No | `'{}'::text[]` |
+| `indicator_codes` | `text[]` | No | `'{}'::text[]` |
+| `mycheftool_kind` | `text` | Sí |  |
+| `mycheftool_type` | `text` | Sí |  |
+| `mycheftool_name_ca` | `text` | Sí |  |
+| `mycheftool_measurement` | `text` | Sí |  |
+| `mycheftool_price_static` | `numeric` | Sí |  |
+| `mycheftool_provider` | `text` | Sí |  |
+| `mycheftool_real_weight` | `numeric` | Sí |  |
+| `mycheftool_tags_raw` | `text` | Sí |  |
+| `mycheftool_source_tag_names` | `text[]` | No | `'{}'::text[]` |
+| `mycheftool_allergens_count` | `integer` | Sí |  |
+| `mycheftool_recipe_has_content` | `boolean` | Sí |  |
+| `mycheftool_foodcost_items_count` | `integer` | Sí |  |
+| `mycheftool_updated_at_source` | `timestamp with time zone` | Sí |  |
+| `mycheftool_updated_by_name` | `text` | Sí |  |
+
+### cheffing_tags
+RLS: deshabilitado
+
+| Columna | Tipo | Nullable | Default |
+| --- | --- | --- | --- |
+| `id` | `uuid` | No | `gen_random_uuid()` |
+| `tag_name` | `text` | No |  |
+| `created_at` | `timestamp with time zone` | No | `now()` |
 
 ### cheffing_units
 RLS: habilitado
@@ -476,10 +626,16 @@ RLS: deshabilitado
 | `app_allowed_users_email_lowercase` | `` | `trigger` |
 | `cheffing_is_admin` | `` | `boolean` |
 | `cheffing_is_allowed` | `` | `boolean` |
+| `cheffing_menu_engineering_dish_cost` | `p_from date DEFAULT NULL::date, p_to date DEFAULT NULL::date` | `TABLE(id uuid, name text, selling_price numeric, cost_per_serving numeric, created_at timestamp with time zone, updated_at timestamp with time zone, units_sold integer)` |
+| `cheffing_pos_import_status` | `` | `TABLE(last_order_id text, last_opened_at timestamp without time zone, range_from date, range_to date)` |
 | `cheffing_pos_refresh_sales_daily` | `p_from date DEFAULT NULL::date, p_to date DEFAULT NULL::date` | `void` |
 | `day_status_sync_legacy_columns` | `` | `trigger` |
 | `delete_routine_pack` | `p_pack_id uuid, p_mode text DEFAULT 'keep_all'::text, p_cutoff_week_start date DEFAULT NULL::date` | `TABLE(deleted_pack boolean, deleted_routines integer, deleted_tasks integer, unlinked_tasks integer)` |
 | `delete_routine_template` | `p_routine_id uuid, p_mode text DEFAULT 'keep_all'::text, p_cutoff_week_start date DEFAULT NULL::date` | `TABLE(deleted boolean, deleted_tasks integer, unlinked_tasks integer)` |
+| `fn_bool_01` | `v text` | `boolean` |
+| `fn_norm_purchase_unit` | `v text` | `text` |
+| `fn_split_pipe` | `v text` | `text[]` |
+| `fn_text_to_numeric` | `v text` | `numeric` |
 | `generate_weekly_tasks` | `p_week_start date, p_created_by_email text DEFAULT NULL::text` | `TABLE(created integer, skipped integer)` |
 | `generate_weekly_tasks_auto` | `p_week_start date, p_created_by_email text DEFAULT 'system'::text` | `TABLE(created integer, skipped integer)` |
 | `generate_weekly_tasks_for_pack` | `p_week_start date, p_pack_id uuid, p_created_by_email text DEFAULT NULL::text` | `TABLE(created integer, skipped integer)` |
@@ -497,15 +653,3 @@ Incluye tablas, vistas, funciones/RPC, políticas RLS (con `ALTER TABLE ... ENAB
 No incluye datos.
 - Local/Codex: `SUPABASE_DB_URL=... bash scripts/db_snapshot.sh`
 - GitHub Actions: workflow `db-schema-snapshot` (workflow_dispatch). Usa el secret `SUPABASE_DB_URL`.
-
-
-## Flujo de importación POS (CSV)
-
-- El endpoint de importación exige **dos CSV simultáneos**: `orders_csv` (Informe de pedidos totales) e `items_csv` (Informe de pedidos por producto).
-- El rango de importación se deduce automáticamente con `MIN/MAX` de `opened_at` (columna **Fecha de apertura**) combinando ambos CSV.
-- Modo overwrite por rango: antes de insertar, se elimina en BD todo lo existente en `opened_at >= from 00:00:00` y `< day_after(to) 00:00:00` (rango semiabierto) en `cheffing_pos_order_items` y `cheffing_pos_orders`.
-- Después se inserta/upserta solo lo importado del CSV (deduplicación intra-CSV), evitando duplicados por solapamiento histórico.
-- Antes del refresh también se limpian las filas de `cheffing_pos_sales_daily` en ese rango con `source='csv'` para evitar stale rows cuando desaparecen productos/ventas en el último upload.
-- Finalmente se refresca `cheffing_pos_sales_daily` para ese mismo rango con `cheffing_pos_refresh_sales_daily(p_from, p_to)`.
-- Resultado operativo: **el último CSV subido por Pau manda** para el rango incluido en los ficheros.
-- Si `orders_csv` e `items_csv` difieren en su rango `opened_at`, el endpoint devuelve un warning explícito para revisar los ficheros.
