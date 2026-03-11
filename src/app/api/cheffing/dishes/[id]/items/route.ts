@@ -59,7 +59,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       subrecipe_id: parsed.data.subrecipe_id,
       unit_code: parsed.data.unit_code,
       quantity: parsed.data.quantity,
-      waste_pct: parsed.data.waste_pct ?? 0,
+      // `cheffing_dish_items` persists only the optional per-line override.
       waste_pct_override: parsed.data.waste_pct_override ?? null,
       notes: parsed.data.notes ?? null,
     })
