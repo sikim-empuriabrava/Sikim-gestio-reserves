@@ -178,8 +178,8 @@ export async function POST(req: NextRequest) {
       stock_qty: resolvedStockQty,
       min_stock_qty: resolvedMinStockQty,
       max_stock_qty: resolvedMaxStockQty,
-      allergens: allergenCodes,
-      indicators: indicatorCodes,
+      allergen_codes: allergenCodes,
+      indicator_codes: indicatorCodes,
     })
     .select('id')
     .maybeSingle();

@@ -143,7 +143,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
       mergeResponseCookies(access.supabaseResponse, invalid);
       return invalid;
     }
-    updates.allergens = allergenCodes;
+    updates.allergen_codes = allergenCodes;
   }
 
   if (body?.indicators !== undefined) {
@@ -153,7 +153,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
       mergeResponseCookies(access.supabaseResponse, invalid);
       return invalid;
     }
-    updates.indicators = indicatorCodes;
+    updates.indicator_codes = indicatorCodes;
   }
 
   if (body?.reference !== undefined) {
