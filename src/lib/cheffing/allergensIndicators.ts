@@ -1,36 +1,30 @@
-export const ALLERGENS = [
-  { key: 'gluten', label: 'Gluten' },
-  { key: 'crustaceans', label: 'Crustáceos' },
-  { key: 'eggs', label: 'Huevo' },
-  { key: 'fish', label: 'Pescado' },
-  { key: 'peanuts', label: 'Cacahuetes' },
-  { key: 'soy', label: 'Soja' },
-  { key: 'milk', label: 'Leche' },
-  { key: 'nuts', label: 'Frutos secos' },
-  { key: 'celery', label: 'Apio' },
-  { key: 'mustard', label: 'Mostaza' },
-  { key: 'sesame', label: 'Sésamo' },
-  { key: 'sulphites', label: 'Sulfitos' },
-  { key: 'lupin', label: 'Altramuz' },
-  { key: 'molluscs', label: 'Moluscos' },
-] as const;
+import {
+  ALLERGEN_CATALOG,
+  ALLERGEN_CODE_SET,
+  type AllergenCode,
+} from './allergens';
+import {
+  INDICATOR_CATALOG,
+  INDICATOR_CODE_SET,
+  type IndicatorCode,
+} from './indicators';
 
-export type AllergenKey = (typeof ALLERGENS)[number]['key'];
+export const ALLERGENS = ALLERGEN_CATALOG.map(({ code, label }) => ({
+  key: code,
+  label,
+})) as ReadonlyArray<{ key: AllergenCode; label: string }>;
 
-export const INDICATORS = [
-  { key: 'vegan', label: 'Vegano' },
-  { key: 'vegetarian', label: 'Vegetariano' },
-  { key: 'spicy', label: 'Picante' },
-  { key: 'very_spicy', label: 'Muy picante' },
-  { key: 'contains_alcohol', label: 'Contiene alcohol' },
-  { key: 'halal', label: 'Halal' },
-  { key: 'kosher', label: 'Kosher' },
-] as const;
+export type AllergenKey = AllergenCode;
 
-export type IndicatorKey = (typeof INDICATORS)[number]['key'];
+export const INDICATORS = INDICATOR_CATALOG.map(({ code, label }) => ({
+  key: code,
+  label,
+})) as ReadonlyArray<{ key: IndicatorCode; label: string }>;
 
-export const ALLERGEN_KEYS = new Set(ALLERGENS.map((allergen) => allergen.key));
-export const INDICATOR_KEYS = new Set(INDICATORS.map((indicator) => indicator.key));
+export type IndicatorKey = IndicatorCode;
+
+export const ALLERGEN_KEYS = ALLERGEN_CODE_SET;
+export const INDICATOR_KEYS = INDICATOR_CODE_SET;
 
 export function sanitizeAllergenIndicatorArray(
   value: unknown,
