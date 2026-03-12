@@ -7,9 +7,9 @@ import { useRouter } from 'next/navigation';
 import type { IngredientCost, Unit, UnitDimension } from '@/lib/cheffing/types';
 import { createSupabaseBrowserClient } from '@/lib/supabase/browser';
 
-const baseUnitLabelByDimension: Record<UnitDimension, string> = {
-  mass: 'g',
-  volume: 'ml',
+const displayUnitByDimension: Record<UnitDimension, 'kg' | 'l' | 'u'> = {
+  mass: 'kg',
+  volume: 'l',
   unit: 'u',
 };
 
@@ -39,14 +39,48 @@ export function ProductsManager({ initialIngredients, units }: ProductsManagerPr
     return [...units].sort((a, b) => a.code.localeCompare(b.code));
   }, [units]);
 
-  const baseUnitLabel = (dimension: UnitDimension | null) => {
-    if (!dimension) return '-';
-    return baseUnitLabelByDimension[dimension] ?? '-';
+  const formatDisplayCost = (value: number | null) => {
+    if (value === null || Number.isNaN(value)) return '—';
+    return value.toLocaleString('es-ES', {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    });
   };
 
-  const formatCurrency = (value: number | null) => {
+  const formatInternalCost = (value: number | null) => {
     if (value === null || Number.isNaN(value)) return '—';
-    return value.toFixed(4);
+    return value.toLocaleString('es-ES', {
+      minimumFractionDigits: 4,
+      maximumFractionDigits: 4,
+    });
+  };
+
+  const resolveDisplayCost = (costPerBase: number | null, dimension: UnitDimension | null) => {
+    if (costPerBase === null || Number.isNaN(costPerBase) || !dimension) {
+      return { value: null, unit: '-', secondary: null as string | null };
+    }
+
+    if (dimension === 'mass') {
+      return {
+        value: costPerBase * 1000,
+        unit: displayUnitByDimension[dimension],
+        secondary: `Coste base interno: ${formatInternalCost(costPerBase)} €/g`,
+      };
+    }
+
+    if (dimension === 'volume') {
+      return {
+        value: costPerBase * 1000,
+        unit: displayUnitByDimension[dimension],
+        secondary: `Coste base interno: ${formatInternalCost(costPerBase)} €/ml`,
+      };
+    }
+
+    return {
+      value: costPerBase,
+      unit: displayUnitByDimension[dimension],
+      secondary: null,
+    };
   };
 
   const formatFactor = (value: number | null) => {
@@ -185,8 +219,15 @@ export function ProductsManager({ initialIngredients, units }: ProductsManagerPr
               initialIngredients.map((ingredient) => {
                 const isEditing = editingId === ingredient.id;
                 const editingValues = isEditing ? editingState : null;
-                const baseUnit = baseUnitLabel(ingredient.purchase_unit_dimension);
                 const imageUrl = resolveImageUrl(ingredient);
+                const grossDisplayCost = resolveDisplayCost(
+                  ingredient.cost_gross_per_base,
+                  ingredient.purchase_unit_dimension,
+                );
+                const netDisplayCost = resolveDisplayCost(
+                  ingredient.cost_net_per_base,
+                  ingredient.purchase_unit_dimension,
+                );
 
                 return (
                   <tr key={ingredient.id} className="border-t border-slate-800/60">
@@ -298,10 +339,52 @@ export function ProductsManager({ initialIngredients, units }: ProductsManagerPr
                       {formatFactor(ingredient.waste_factor)}x
                     </td>
                     <td className="px-4 py-3 text-slate-300">
-                      {formatCurrency(ingredient.cost_gross_per_base)} €/ {baseUnit}
+                      <div className="inline-flex items-center gap-1">
+                        <span>
+                          {formatDisplayCost(grossDisplayCost.value)} €/{grossDisplayCost.unit}
+                        </span>
+                        {grossDisplayCost.secondary ? (
+                          <span className="group relative inline-flex items-center">
+                            <button
+                              type="button"
+                              aria-label="Ver coste base interno"
+                              className="inline-flex h-4 w-4 items-center justify-center rounded-full border border-slate-600 text-[10px] font-semibold text-slate-300"
+                            >
+                              i
+                            </button>
+                            <span
+                              role="tooltip"
+                              className="pointer-events-none absolute left-0 top-full z-20 mt-2 w-52 rounded-md border border-slate-700 bg-slate-950/95 p-2 text-[11px] normal-case text-slate-200 opacity-0 shadow-lg transition-opacity delay-700 group-hover:opacity-100 group-focus-within:opacity-100"
+                            >
+                              {grossDisplayCost.secondary}
+                            </span>
+                          </span>
+                        ) : null}
+                      </div>
                     </td>
                     <td className="px-4 py-3 text-slate-100">
-                      {formatCurrency(ingredient.cost_net_per_base)} €/ {baseUnit}
+                      <div className="inline-flex items-center gap-1">
+                        <span>
+                          {formatDisplayCost(netDisplayCost.value)} €/{netDisplayCost.unit}
+                        </span>
+                        {netDisplayCost.secondary ? (
+                          <span className="group relative inline-flex items-center">
+                            <button
+                              type="button"
+                              aria-label="Ver coste base interno"
+                              className="inline-flex h-4 w-4 items-center justify-center rounded-full border border-slate-600 text-[10px] font-semibold text-slate-300"
+                            >
+                              i
+                            </button>
+                            <span
+                              role="tooltip"
+                              className="pointer-events-none absolute left-0 top-full z-20 mt-2 w-52 rounded-md border border-slate-700 bg-slate-950/95 p-2 text-[11px] normal-case text-slate-200 opacity-0 shadow-lg transition-opacity delay-700 group-hover:opacity-100 group-focus-within:opacity-100"
+                            >
+                              {netDisplayCost.secondary}
+                            </span>
+                          </span>
+                        ) : null}
+                      </div>
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex gap-2">
