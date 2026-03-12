@@ -135,6 +135,9 @@ export function DishDetailManager({
     return `${value.toFixed(2)} €`;
   };
 
+  const wasteHelpText =
+    'La merma de esta línea sustituye la merma base solo para esta línea, pero no puede ser inferior a la merma base del ingrediente o elaboración. Si se deja vacío, se usa la merma base heredada.';
+
   const parseWastePct = (value: string) => {
     const trimmed = value.trim();
     if (trimmed === '') return null;
@@ -570,7 +573,24 @@ export function DishDetailManager({
                 <th className="px-4 py-3">Tipo</th>
                 <th className="px-4 py-3">Detalle</th>
                 <th className="px-4 py-3">Cantidad</th>
-                <th className="px-4 py-3">Merma (%)</th>
+                <th className="px-4 py-3">
+                  <div className="group relative inline-flex items-center gap-1">
+                    <span>Merma (%)</span>
+                    <button
+                      type="button"
+                      aria-label="Ayuda sobre merma"
+                      className="inline-flex h-4 w-4 items-center justify-center rounded-full border border-slate-600 text-[10px] font-semibold text-slate-300"
+                    >
+                      ?
+                    </button>
+                    <div
+                      role="tooltip"
+                      className="pointer-events-none absolute left-0 top-full z-20 mt-2 w-72 rounded-md border border-slate-700 bg-slate-950/95 p-2 text-[11px] normal-case text-slate-200 opacity-0 shadow-lg transition-opacity delay-700 group-hover:opacity-100 group-focus-within:opacity-100"
+                    >
+                      {wasteHelpText}
+                    </div>
+                  </div>
+                </th>
                 <th className="px-4 py-3">Notas</th>
                 <th className="px-4 py-3">Coste</th>
                 <th className="px-4 py-3">Acciones</th>
@@ -709,6 +729,7 @@ export function DishDetailManager({
                             max="99.99"
                             step="0.01"
                             className="w-20 rounded-md border border-slate-700 bg-slate-950/70 px-2 py-1 text-white"
+                            title={wasteHelpText}
                             value={editingValues?.waste_pct_override ?? ''}
                             onChange={(event) =>
                               setEditingItemState((prev) =>

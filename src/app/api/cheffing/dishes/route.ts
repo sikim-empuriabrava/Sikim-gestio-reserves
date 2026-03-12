@@ -14,6 +14,93 @@ import {
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
+const resolveDishItemWasteOverride = (payload: { waste_pct_override?: number | null; waste_pct?: number }) => {
+  return payload.waste_pct_override ?? payload.waste_pct ?? null;
+};
+
+const formatPctLabel = (value: number) => {
+  const normalized = Number((value * 100).toFixed(2));
+  return `${normalized}%`;
+};
+
+async function validateDishItemsWasteFloor(items: DishItemCreateInput[]) {
+  const itemsWithWaste = items
+    .map((item) => ({ item, finalWasteOverride: resolveDishItemWasteOverride(item) }))
+    .filter((entry) => entry.finalWasteOverride !== null);
+
+  if (itemsWithWaste.length === 0) {
+    return null;
+  }
+
+  const supabase = createSupabaseAdminClient();
+
+  const ingredientIds = Array.from(
+    new Set(itemsWithWaste.map(({ item }) => item.ingredient_id).filter((value): value is string => Boolean(value))),
+  );
+  const subrecipeIds = Array.from(
+    new Set(itemsWithWaste.map(({ item }) => item.subrecipe_id).filter((value): value is string => Boolean(value))),
+  );
+
+  const ingredientWaste = new Map<string, number>();
+  const subrecipeWaste = new Map<string, number>();
+
+  if (ingredientIds.length > 0) {
+    const { data, error } = await supabase
+      .from('cheffing_ingredients')
+      .select('id, waste_pct')
+      .in('id', ingredientIds);
+
+    if (error) {
+      return { status: 500, error: error.message };
+    }
+
+    (data ?? []).forEach((row) => {
+      ingredientWaste.set(row.id, row.waste_pct ?? 0);
+    });
+  }
+
+  if (subrecipeIds.length > 0) {
+    const { data, error } = await supabase
+      .from('cheffing_subrecipes')
+      .select('id, waste_pct')
+      .in('id', subrecipeIds);
+
+    if (error) {
+      return { status: 500, error: error.message };
+    }
+
+    (data ?? []).forEach((row) => {
+      subrecipeWaste.set(row.id, row.waste_pct ?? 0);
+    });
+  }
+
+  for (const { item, finalWasteOverride } of itemsWithWaste) {
+    const finalWaste = finalWasteOverride as number;
+
+    if (item.ingredient_id) {
+      const baseWaste = ingredientWaste.get(item.ingredient_id) ?? 0;
+      if (finalWaste < baseWaste) {
+        return {
+          status: 400,
+          error: `La merma de la línea no puede ser inferior a la merma base del ingrediente (${formatPctLabel(baseWaste)}).`,
+        };
+      }
+    }
+
+    if (item.subrecipe_id) {
+      const baseWaste = subrecipeWaste.get(item.subrecipe_id) ?? 0;
+      if (finalWaste < baseWaste) {
+        return {
+          status: 400,
+          error: `La merma de la línea no puede ser inferior a la merma base de la elaboración (${formatPctLabel(baseWaste)}).`,
+        };
+      }
+    }
+  }
+
+  return null;
+}
+
 export async function GET() {
   const access = await requireCheffingRouteAccess();
   if (access.response) {
@@ -66,6 +153,13 @@ export async function POST(req: NextRequest) {
     dishInput = parsed.data;
   }
 
+  const itemsWasteValidation = await validateDishItemsWasteFloor(items);
+  if (itemsWasteValidation) {
+    const errorResponse = NextResponse.json({ error: itemsWasteValidation.error }, { status: itemsWasteValidation.status });
+    mergeResponseCookies(access.supabaseResponse, errorResponse);
+    return errorResponse;
+  }
+
   const supabase = createSupabaseAdminClient();
   const { data, error } = await supabase
     .from('cheffing_dishes')
@@ -101,8 +195,8 @@ export async function POST(req: NextRequest) {
         subrecipe_id: item.subrecipe_id,
         unit_code: item.unit_code,
         quantity: item.quantity,
-        waste_pct: item.waste_pct ?? 0,
-        waste_pct_override: item.waste_pct_override ?? null,
+        // `cheffing_dish_items` persists only the optional per-line override.
+        waste_pct_override: resolveDishItemWasteOverride(item),
         notes: item.notes ?? null,
       })),
     );
