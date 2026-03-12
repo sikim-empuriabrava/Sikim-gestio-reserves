@@ -13,13 +13,36 @@ export default async function CheffingProductoDetailPage({ params }: { params: {
     isAdmin(allowlistInfo.role) || Boolean(allowlistInfo.allowedUser?.cheffing_images_manage);
 
   const supabase = createSupabaseServerClient();
-  const { data: product, error: productError } = await supabase
+  let { data: product, error: productError } = await supabase
     .from('cheffing_ingredients')
     .select(
       'id, name, purchase_unit_code, purchase_pack_qty, purchase_price, waste_pct, categories, reference, stock_unit_code, stock_qty, min_stock_qty, max_stock_qty, allergens, indicators, image_path, created_at, updated_at',
     )
     .eq('id', params.id)
     .maybeSingle();
+
+  if (productError?.code === '42703') {
+    const fallback = await supabase
+      .from('cheffing_ingredients')
+      .select('id, name, purchase_unit_code, purchase_pack_qty, purchase_price, waste_pct, image_path, created_at, updated_at')
+      .eq('id', params.id)
+      .maybeSingle();
+
+    product = fallback.data
+      ? {
+          ...fallback.data,
+          categories: [],
+          reference: null,
+          stock_unit_code: null,
+          stock_qty: 0,
+          min_stock_qty: null,
+          max_stock_qty: null,
+          allergens: [],
+          indicators: [],
+        }
+      : null;
+    productError = fallback.error;
+  }
 
   if (productError || !product) {
     console.error('[cheffing/productos] Failed to load product', productError);
