@@ -32,8 +32,8 @@ export default async function CheffingProductoDetailPage({ params }: { params: {
     stock_qty: typeof rawProduct.stock_qty === 'number' ? rawProduct.stock_qty : 0,
     min_stock_qty: typeof rawProduct.min_stock_qty === 'number' ? rawProduct.min_stock_qty : null,
     max_stock_qty: typeof rawProduct.max_stock_qty === 'number' ? rawProduct.max_stock_qty : null,
-    allergens: Array.isArray(rawProduct.allergens) ? rawProduct.allergens : [],
-    indicators: Array.isArray(rawProduct.indicators) ? rawProduct.indicators : [],
+    allergens: Array.isArray(rawProduct.allergen_codes) ? rawProduct.allergen_codes : [],
+    indicators: Array.isArray(rawProduct.indicator_codes) ? rawProduct.indicator_codes : [],
     image_path: typeof rawProduct.image_path === 'string' ? rawProduct.image_path : null,
   };
 
