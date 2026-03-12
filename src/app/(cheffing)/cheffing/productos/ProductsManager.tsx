@@ -341,7 +341,7 @@ export function ProductsManager({ initialIngredients, units }: ProductsManagerPr
                     <td className="px-4 py-3 text-slate-300">
                       <div className="inline-flex items-center gap-1">
                         <span>
-                          {formatDisplayCost(grossDisplayCost.value)} €/ {grossDisplayCost.unit}
+                          {formatDisplayCost(grossDisplayCost.value)} €/{grossDisplayCost.unit}
                         </span>
                         {grossDisplayCost.secondary ? (
                           <span className="group relative inline-flex items-center">
@@ -365,7 +365,7 @@ export function ProductsManager({ initialIngredients, units }: ProductsManagerPr
                     <td className="px-4 py-3 text-slate-100">
                       <div className="inline-flex items-center gap-1">
                         <span>
-                          {formatDisplayCost(netDisplayCost.value)} €/ {netDisplayCost.unit}
+                          {formatDisplayCost(netDisplayCost.value)} €/{netDisplayCost.unit}
                         </span>
                         {netDisplayCost.secondary ? (
                           <span className="group relative inline-flex items-center">
