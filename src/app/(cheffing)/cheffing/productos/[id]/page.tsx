@@ -13,41 +13,29 @@ export default async function CheffingProductoDetailPage({ params }: { params: {
     isAdmin(allowlistInfo.role) || Boolean(allowlistInfo.allowedUser?.cheffing_images_manage);
 
   const supabase = createSupabaseServerClient();
-  let { data: product, error: productError } = await supabase
+  const { data: rawProduct, error: productError } = await supabase
     .from('cheffing_ingredients')
-    .select(
-      'id, name, purchase_unit_code, purchase_pack_qty, purchase_price, waste_pct, categories, reference, stock_unit_code, stock_qty, min_stock_qty, max_stock_qty, allergens, indicators, image_path, created_at, updated_at',
-    )
+    .select('*')
     .eq('id', params.id)
     .maybeSingle();
 
-  if (productError?.code === '42703') {
-    const fallback = await supabase
-      .from('cheffing_ingredients')
-      .select('id, name, purchase_unit_code, purchase_pack_qty, purchase_price, waste_pct, image_path, created_at, updated_at')
-      .eq('id', params.id)
-      .maybeSingle();
-
-    product = fallback.data
-      ? {
-          ...fallback.data,
-          categories: [],
-          reference: null,
-          stock_unit_code: null,
-          stock_qty: 0,
-          min_stock_qty: null,
-          max_stock_qty: null,
-          allergens: [],
-          indicators: [],
-        }
-      : null;
-    productError = fallback.error;
-  }
-
-  if (productError || !product) {
+  if (productError || !rawProduct) {
     console.error('[cheffing/productos] Failed to load product', productError);
     notFound();
   }
+
+  const product: Ingredient = {
+    ...rawProduct,
+    categories: Array.isArray(rawProduct.categories) ? rawProduct.categories : [],
+    reference: typeof rawProduct.reference === 'string' ? rawProduct.reference : null,
+    stock_unit_code: typeof rawProduct.stock_unit_code === 'string' ? rawProduct.stock_unit_code : null,
+    stock_qty: typeof rawProduct.stock_qty === 'number' ? rawProduct.stock_qty : 0,
+    min_stock_qty: typeof rawProduct.min_stock_qty === 'number' ? rawProduct.min_stock_qty : null,
+    max_stock_qty: typeof rawProduct.max_stock_qty === 'number' ? rawProduct.max_stock_qty : null,
+    allergens: Array.isArray(rawProduct.allergens) ? rawProduct.allergens : [],
+    indicators: Array.isArray(rawProduct.indicators) ? rawProduct.indicators : [],
+    image_path: typeof rawProduct.image_path === 'string' ? rawProduct.image_path : null,
+  };
 
   const { data: units, error: unitsError } = await supabase
     .from('cheffing_units')
@@ -69,7 +57,7 @@ export default async function CheffingProductoDetailPage({ params }: { params: {
       <div className="rounded-2xl border border-slate-800/80 bg-slate-900/70 p-6">
         <ProductsNewForm
           units={(units ?? []) as Unit[]}
-          initialProduct={product as Ingredient}
+          initialProduct={product}
           productId={params.id}
           canManageImages={canManageImages}
         />
