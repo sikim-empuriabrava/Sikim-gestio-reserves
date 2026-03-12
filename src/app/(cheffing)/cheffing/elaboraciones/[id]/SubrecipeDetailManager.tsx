@@ -56,6 +56,12 @@ type ItemFormState = {
   notes: string;
 };
 
+const displayUnitByDimension: Record<UnitDimension, 'kg' | 'l' | 'u'> = {
+  mass: 'kg',
+  volume: 'l',
+  unit: 'u',
+};
+
 export function SubrecipeDetailManager({
   subrecipe,
   items,
@@ -150,9 +156,53 @@ export function SubrecipeDetailManager({
     return numericValue;
   };
 
-  const formatCurrency = (value: number | null) => {
+  const formatDisplayCost = (value: number | null) => {
+    if (value === null || Number.isNaN(value)) return '—';
+    return value.toLocaleString('es-ES', {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    });
+  };
+
+  const formatInternalCost = (value: number | null) => {
+    if (value === null || Number.isNaN(value)) return '—';
+    return value.toLocaleString('es-ES', {
+      minimumFractionDigits: 4,
+      maximumFractionDigits: 4,
+    });
+  };
+
+  const formatLineCost = (value: number | null) => {
     if (value === null || Number.isNaN(value)) return '—';
     return value.toFixed(4);
+  };
+
+  const resolveDisplayCost = (costPerBase: number | null, dimension: UnitDimension | null) => {
+    if (costPerBase === null || Number.isNaN(costPerBase) || !dimension) {
+      return { value: null, unit: '-', secondary: null as string | null };
+    }
+
+    if (dimension === 'mass') {
+      return {
+        value: costPerBase * 1000,
+        unit: displayUnitByDimension[dimension],
+        secondary: `Coste base interno: ${formatInternalCost(costPerBase)} €/g`,
+      };
+    }
+
+    if (dimension === 'volume') {
+      return {
+        value: costPerBase * 1000,
+        unit: displayUnitByDimension[dimension],
+        secondary: `Coste base interno: ${formatInternalCost(costPerBase)} €/ml`,
+      };
+    }
+
+    return {
+      value: costPerBase,
+      unit: displayUnitByDimension[dimension],
+      secondary: null,
+    };
   };
 
   const existingImageUrl = useMemo(() => {
@@ -446,6 +496,8 @@ export function SubrecipeDetailManager({
     }
   };
 
+  const netDisplayCost = resolveDisplayCost(subrecipe.cost_net_per_base, subrecipe.output_unit_dimension);
+
   return (
     <div className="space-y-8">
       <form
@@ -458,8 +510,29 @@ export function SubrecipeDetailManager({
             <h2 className="text-xl font-semibold text-white">{subrecipe.name}</h2>
           </div>
           <div className="text-right text-sm text-slate-300">
-            <p>Coste total: {formatCurrency(subrecipe.items_cost_total)} €</p>
-            <p>Coste neto base: {formatCurrency(subrecipe.cost_net_per_base)} €</p>
+            <p>Coste total: {formatDisplayCost(subrecipe.items_cost_total)} €</p>
+            <div className="inline-flex items-center justify-end gap-1">
+              <span>
+                Coste unitario: {formatDisplayCost(netDisplayCost.value)} €/{netDisplayCost.unit}
+              </span>
+              {netDisplayCost.secondary ? (
+                <span className="group relative inline-flex items-center">
+                  <button
+                    type="button"
+                    aria-label="Ver coste base interno"
+                    className="inline-flex h-4 w-4 items-center justify-center rounded-full border border-slate-600 text-[10px] font-semibold text-slate-300"
+                  >
+                    i
+                  </button>
+                  <span
+                    role="tooltip"
+                    className="pointer-events-none absolute right-0 top-full z-20 mt-2 w-56 rounded-md border border-slate-700 bg-slate-950/95 p-2 text-left text-[11px] normal-case text-slate-200 opacity-0 shadow-lg transition-opacity delay-700 group-hover:opacity-100 group-focus-within:opacity-100"
+                  >
+                    {netDisplayCost.secondary}
+                  </span>
+                </span>
+              ) : null}
+            </div>
           </div>
         </div>
         {headerError ? <p className="text-sm text-rose-400">{headerError}</p> : null}
@@ -761,7 +834,7 @@ export function SubrecipeDetailManager({
                         )}
                       </td>
                       <td className="px-4 py-3 text-slate-100">
-                        {formatCurrency(item.line_cost_total ?? null)} €
+                        {formatLineCost(item.line_cost_total ?? null)} €
                       </td>
                       <td className="px-4 py-3">
                         <div className="flex gap-2">
