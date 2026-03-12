@@ -245,7 +245,7 @@ export function ProductsManager({ initialIngredients, units }: ProductsManagerPr
                           <span className="font-semibold text-white">{ingredient.name}</span>
                           <div>
                             <Link
-                              href={`/cheffing/productos/${ingredient.id}`}
+                              href={`/cheffing/productos/${encodeURIComponent(ingredient.id)}`}
                               className="text-xs font-semibold text-emerald-200 hover:text-emerald-100"
                             >
                               Editar ficha →
