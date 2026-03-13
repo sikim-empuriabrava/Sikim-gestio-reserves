@@ -3,8 +3,8 @@ import { notFound } from 'next/navigation';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { requireCheffingAccess } from '@/lib/cheffing/requireCheffing';
 import { isAdmin } from '@/lib/auth/requireRole';
-import type { AllergenKey, IndicatorKey } from '@/lib/cheffing/allergensIndicators';
-import { sanitizeAllergens, sanitizeIndicators } from '@/lib/cheffing/allergensHelpers';
+import type { AllergenKey, ProductIndicatorKey } from '@/lib/cheffing/allergensIndicators';
+import { sanitizeAllergens, sanitizeProductIndicators } from '@/lib/cheffing/allergensHelpers';
 import type { Ingredient, Subrecipe, Unit } from '@/lib/cheffing/types';
 import {
   addAllergens,
@@ -116,13 +116,13 @@ export default async function CheffingPlatoDetailPage({ params }: { params: { id
     const current = subrecipeLookup.get(subrecipeId);
     const manualAddAllergens = sanitizeAllergens(current?.allergens_manual_add);
     const manualExcludeAllergens = sanitizeAllergens(current?.allergens_manual_exclude);
-    const manualAddIndicators = sanitizeIndicators(current?.indicators_manual_add);
-    const manualExcludeIndicators = sanitizeIndicators(current?.indicators_manual_exclude);
+    const manualAddIndicators = sanitizeProductIndicators(current?.indicators_manual_add);
+    const manualExcludeIndicators = sanitizeProductIndicators(current?.indicators_manual_exclude);
 
     if (inProgress.has(subrecipeId)) {
       const fallbackAllergens = new Set<AllergenKey>(manualAddAllergens);
       removeAllergens(fallbackAllergens, manualExcludeAllergens);
-      const fallbackIndicators = new Set<IndicatorKey>(manualAddIndicators);
+      const fallbackIndicators = new Set<ProductIndicatorKey>(manualAddIndicators);
       removeIndicators(fallbackIndicators, manualExcludeIndicators);
       const fallback = {
         allergens: Array.from(fallbackAllergens),
@@ -135,7 +135,7 @@ export default async function CheffingPlatoDetailPage({ params }: { params: { id
     inProgress.add(subrecipeId);
 
     const inheritedAllergens = new Set<AllergenKey>();
-    const inheritedIndicators = new Set<IndicatorKey>();
+    const inheritedIndicators = new Set<ProductIndicatorKey>();
     const relatedItems = itemsBySubrecipe.get(subrecipeId) ?? [];
 
     for (const item of relatedItems) {
@@ -152,7 +152,7 @@ export default async function CheffingPlatoDetailPage({ params }: { params: { id
 
     const effectiveAllergens = new Set<AllergenKey>([...inheritedAllergens, ...manualAddAllergens]);
     removeAllergens(effectiveAllergens, manualExcludeAllergens);
-    const effectiveIndicators = new Set<IndicatorKey>([...inheritedIndicators, ...manualAddIndicators]);
+    const effectiveIndicators = new Set<ProductIndicatorKey>([...inheritedIndicators, ...manualAddIndicators]);
     removeIndicators(effectiveIndicators, manualExcludeIndicators);
 
     const resolved = {

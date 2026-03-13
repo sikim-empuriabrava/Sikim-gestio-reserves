@@ -10,8 +10,8 @@ import { CheffingItemPicker } from '@/app/(cheffing)/cheffing/components/Cheffin
 import { AllergensIndicatorsPicker } from '@/app/(cheffing)/cheffing/components/AllergensIndicatorsPicker';
 import { ImageUploader } from '@/app/(cheffing)/cheffing/components/ImageUploader';
 import { createSupabaseBrowserClient } from '@/lib/supabase/browser';
-import type { AllergenKey, IndicatorKey } from '@/lib/cheffing/allergensIndicators';
-import { toAllergenKeys, toIndicatorKeys } from '@/lib/cheffing/allergensHelpers';
+import type { AllergenKey, ProductIndicatorKey } from '@/lib/cheffing/allergensIndicators';
+import { toAllergenKeys, toDishIndicatorKeys } from '@/lib/cheffing/allergensHelpers';
 import { addAllergens, addIndicators } from '@/lib/cheffing/allergensIndicatorsOps';
 
 export type DishCost = Dish & {
@@ -74,9 +74,7 @@ export function DishDetailManager({
   const [manualAddIndicators, setManualAddIndicators] = useState<string[]>(
     dish.indicators_manual_add ?? [],
   );
-  const [manualExcludeIndicators, setManualExcludeIndicators] = useState<string[]>(
-    dish.indicators_manual_exclude ?? [],
-  );
+  const [manualExcludeIndicators] = useState<string[]>(dish.indicators_manual_exclude ?? []);
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [formState, setFormState] = useState<DishFormState>({
     name: dish.name,
@@ -110,7 +108,7 @@ export function DishDetailManager({
   }, [items, ingredientsById, subrecipesById]);
 
   const inheritedIndicators = useMemo(() => {
-    const inherited = new Set<IndicatorKey>();
+    const inherited = new Set<ProductIndicatorKey>();
     items.forEach((item) => {
       if (item.ingredient_id) {
         const ingredient = ingredientsById.get(item.ingredient_id);
@@ -212,8 +210,8 @@ export function DishDetailManager({
           notes: formState.notes.trim() ? formState.notes.trim() : null,
           allergens_manual_add: Array.from(new Set(toAllergenKeys(manualAddAllergens))),
           allergens_manual_exclude: Array.from(new Set(toAllergenKeys(manualExcludeAllergens))),
-          indicators_manual_add: Array.from(new Set(toIndicatorKeys(manualAddIndicators))),
-          indicators_manual_exclude: Array.from(new Set(toIndicatorKeys(manualExcludeIndicators))),
+          indicators_manual_add: Array.from(new Set(toDishIndicatorKeys(manualAddIndicators))),
+          indicators_manual_exclude: [],
           image_path: newImagePath,
         }),
       });
@@ -521,15 +519,14 @@ export function DishDetailManager({
         ) : null}
         <AllergensIndicatorsPicker
           inheritedAllergens={inheritedAllergens}
-          inheritedIndicators={inheritedIndicators}
+          inheritedProductIndicators={inheritedIndicators}
           manualAddAllergens={manualAddAllergens}
           setManualAddAllergens={setManualAddAllergens}
           manualExcludeAllergens={manualExcludeAllergens}
           setManualExcludeAllergens={setManualExcludeAllergens}
-          manualAddIndicators={manualAddIndicators}
-          setManualAddIndicators={setManualAddIndicators}
+          manualDishIndicators={manualAddIndicators}
+          setManualDishIndicators={setManualAddIndicators}
           manualExcludeIndicators={manualExcludeIndicators}
-          setManualExcludeIndicators={setManualExcludeIndicators}
         />
         <div className="flex flex-wrap gap-2">
           <button

@@ -6,7 +6,7 @@ import { getAllowlistRoleForUserEmail, isAdmin } from '@/lib/auth/requireRole';
 import { mapCheffingPostgresError } from '@/lib/cheffing/postgresErrors';
 import {
   ALLERGEN_KEYS,
-  INDICATOR_KEYS,
+  PRODUCT_INDICATOR_KEYS,
   sanitizeAllergenIndicatorArray,
 } from '@/lib/cheffing/allergensIndicators';
 
@@ -122,7 +122,7 @@ export async function POST(req: NextRequest) {
   }
 
   const indicatorCodes =
-    indicatorInput === undefined ? [] : sanitizeAllergenIndicatorArray(indicatorInput, INDICATOR_KEYS);
+    indicatorInput === undefined ? [] : sanitizeAllergenIndicatorArray(indicatorInput, PRODUCT_INDICATOR_KEYS);
   if (indicatorCodes === null) {
     const invalid = NextResponse.json({ error: 'Invalid indicators' }, { status: 400 });
     mergeResponseCookies(supabaseResponse, invalid);
