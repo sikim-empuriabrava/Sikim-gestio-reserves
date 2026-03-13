@@ -9,8 +9,8 @@ import type { Ingredient, Subrecipe, SubrecipeItem, Unit, UnitDimension } from '
 import { CheffingItemPicker } from '@/app/(cheffing)/cheffing/components/CheffingItemPicker';
 import { AllergensIndicatorsPicker } from '@/app/(cheffing)/cheffing/components/AllergensIndicatorsPicker';
 import { ImageUploader } from '@/app/(cheffing)/cheffing/components/ImageUploader';
-import type { AllergenKey, IndicatorKey } from '@/lib/cheffing/allergensIndicators';
-import { toAllergenKeys, toIndicatorKeys } from '@/lib/cheffing/allergensHelpers';
+import type { AllergenKey, ProductIndicatorKey } from '@/lib/cheffing/allergensIndicators';
+import { toAllergenKeys, toProductIndicatorKeys } from '@/lib/cheffing/allergensHelpers';
 import { addAllergens, addIndicators } from '@/lib/cheffing/allergensIndicatorsOps';
 import { createSupabaseBrowserClient } from '@/lib/supabase/browser';
 
@@ -127,7 +127,7 @@ export function SubrecipeDetailManager({
   }, [items, ingredientsById, subrecipesById]);
 
   const inheritedIndicators = useMemo(() => {
-    const inherited = new Set<IndicatorKey>();
+    const inherited = new Set<ProductIndicatorKey>();
     items.forEach((item) => {
       if (item.ingredient_id) {
         const ingredient = ingredientsById.get(item.ingredient_id);
@@ -240,8 +240,8 @@ export function SubrecipeDetailManager({
           notes: formState.notes.trim() ? formState.notes.trim() : null,
           allergens_manual_add: Array.from(new Set(toAllergenKeys(manualAddAllergens))),
           allergens_manual_exclude: Array.from(new Set(toAllergenKeys(manualExcludeAllergens))),
-          indicators_manual_add: Array.from(new Set(toIndicatorKeys(manualAddIndicators))),
-          indicators_manual_exclude: Array.from(new Set(toIndicatorKeys(manualExcludeIndicators))),
+          indicators_manual_add: Array.from(new Set(toProductIndicatorKeys(manualAddIndicators))),
+          indicators_manual_exclude: Array.from(new Set(toProductIndicatorKeys(manualExcludeIndicators))),
         }),
       });
 
@@ -618,7 +618,7 @@ export function SubrecipeDetailManager({
         </div>
         <AllergensIndicatorsPicker
           inheritedAllergens={inheritedAllergens}
-          inheritedIndicators={inheritedIndicators}
+          inheritedProductIndicators={inheritedIndicators}
           manualAddAllergens={manualAddAllergens}
           setManualAddAllergens={setManualAddAllergens}
           manualExcludeAllergens={manualExcludeAllergens}

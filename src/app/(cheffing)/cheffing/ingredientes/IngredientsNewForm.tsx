@@ -5,7 +5,7 @@ import type { FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
 
 import type { Unit } from '@/lib/cheffing/types';
-import { ALLERGENS, INDICATORS } from '@/lib/cheffing/allergensIndicators';
+import { ALLERGENS, PRODUCT_INDICATORS } from '@/lib/cheffing/allergensIndicators';
 
 type IngredientFormState = {
   name: string;
@@ -171,7 +171,7 @@ export function IngredientsNewForm({ units }: IngredientsNewFormProps) {
             <p className="text-sm text-slate-400">Destaca características del producto.</p>
           </div>
           <div className="grid gap-2 sm:grid-cols-2">
-            {INDICATORS.map((indicator) => {
+            {PRODUCT_INDICATORS.map((indicator) => {
               const isActive = formState.indicators.includes(indicator.key);
               return (
                 <button

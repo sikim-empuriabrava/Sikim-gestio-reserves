@@ -5,8 +5,8 @@ import type { FormEvent, KeyboardEvent } from 'react';
 import { useRouter } from 'next/navigation';
 
 import type { Ingredient, Unit, UnitDimension } from '@/lib/cheffing/types';
-import { ALLERGENS, INDICATORS } from '@/lib/cheffing/allergensIndicators';
-import { toAllergenKeys, toIndicatorKeys } from '@/lib/cheffing/allergensHelpers';
+import { ALLERGENS, PRODUCT_INDICATORS } from '@/lib/cheffing/allergensIndicators';
+import { toAllergenKeys, toProductIndicatorKeys } from '@/lib/cheffing/allergensHelpers';
 import { ImageUploader } from '@/app/(cheffing)/cheffing/components/ImageUploader';
 import { createSupabaseBrowserClient } from '@/lib/supabase/browser';
 
@@ -245,7 +245,7 @@ export function ProductsNewForm({ units, initialProduct, productId, canManageIma
 
       const categories = sanitizeStringArray(formState.categories);
       const allergenCodes = toAllergenKeys(sanitizeStringArray(formState.allergens));
-      const indicatorCodes = toIndicatorKeys(sanitizeStringArray(formState.indicators));
+      const indicatorCodes = toProductIndicatorKeys(sanitizeStringArray(formState.indicators));
       const reference = formState.reference.trim();
       const stockUnitCode = formState.stock_unit_code.trim();
 
@@ -650,7 +650,7 @@ export function ProductsNewForm({ units, initialProduct, productId, canManageIma
           <p className="text-xs text-slate-400">Destaca características del producto.</p>
         </header>
         <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-          {INDICATORS.map((indicator) => {
+          {PRODUCT_INDICATORS.map((indicator) => {
             const isActive = formState.indicators.includes(indicator.key);
             return (
               <button

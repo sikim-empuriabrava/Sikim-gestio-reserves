@@ -7,7 +7,7 @@ import { mapCheffingPostgresError } from '@/lib/cheffing/postgresErrors';
 import { subrecipeUpdateSchema } from '@/lib/cheffing/schemas';
 import {
   ALLERGEN_KEYS,
-  INDICATOR_KEYS,
+  PRODUCT_INDICATOR_KEYS,
   sanitizeAllergenIndicatorArray,
 } from '@/lib/cheffing/allergensIndicators';
 
@@ -79,7 +79,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   }
 
   if (body?.indicators_manual_add !== undefined) {
-    const value = sanitizeAllergenIndicatorArray(body.indicators_manual_add, INDICATOR_KEYS);
+    const value = sanitizeAllergenIndicatorArray(body.indicators_manual_add, PRODUCT_INDICATOR_KEYS);
     if (!value) {
       const invalid = NextResponse.json({ error: 'Invalid indicators_manual_add' }, { status: 400 });
       mergeResponseCookies(access.supabaseResponse, invalid);
@@ -89,7 +89,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   }
 
   if (body?.indicators_manual_exclude !== undefined) {
-    const value = sanitizeAllergenIndicatorArray(body.indicators_manual_exclude, INDICATOR_KEYS);
+    const value = sanitizeAllergenIndicatorArray(body.indicators_manual_exclude, PRODUCT_INDICATOR_KEYS);
     if (!value) {
       const invalid = NextResponse.json({ error: 'Invalid indicators_manual_exclude' }, { status: 400 });
       mergeResponseCookies(access.supabaseResponse, invalid);
