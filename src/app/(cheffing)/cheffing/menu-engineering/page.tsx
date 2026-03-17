@@ -9,11 +9,6 @@ const currencyFormatter = new Intl.NumberFormat('es-ES', {
   maximumFractionDigits: 2,
 });
 
-const decimalFormatter = new Intl.NumberFormat('es-ES', {
-  minimumFractionDigits: 2,
-  maximumFractionDigits: 2,
-});
-
 const percentFormatter = new Intl.NumberFormat('es-ES', {
   style: 'percent',
   minimumFractionDigits: 1,
@@ -35,8 +30,6 @@ const formatPercent = (value: number | null) => {
   }
   return percentFormatter.format(value);
 };
-
-const formatDecimal = (value: number) => decimalFormatter.format(value);
 
 const isValidISODate = (value: string | undefined) => {
   if (!value || !/^\d{4}-\d{2}-\d{2}$/.test(value)) {
@@ -102,6 +95,8 @@ const bcmTitleByType: Record<Exclude<MenuEngineeringRow['bcm'], 'SIN_DATOS'>, st
   PUZZLE: '+- Puzzle',
   PERRO: '-- Perro',
 };
+
+const bcmSign = (value: boolean) => (value ? '+' : '-');
 
 const buildBcmSummary = (rows: MenuEngineeringRow[]): BcmSummary => {
   const summary: BcmSummary = {
@@ -204,6 +199,9 @@ export default async function MenuEngineeringPage({
   const hasBcmUsableData = rows.some((row) => row.bcm !== 'SIN_DATOS');
   const bcmScatterRows = rows.filter(
     (row) => row.bcm !== 'SIN_DATOS' && row.bcm_margin_g !== null && row.bcm_popularity_g !== null,
+  );
+  const bcmDetailRows = rows.filter(
+    (row) => row.bcm !== 'SIN_DATOS' && row.margin_unit !== null && row.bcm_popularity_index !== null,
   );
 
   const marginAbsMax = bcmScatterRows.reduce(
@@ -380,7 +378,7 @@ export default async function MenuEngineeringPage({
                     </div>
                     <div className="rounded-xl border border-slate-800/70 bg-slate-900/40 p-3 text-sm">
                       <p className="text-slate-400">Índice medio popularidad</p>
-                      <p className="mt-1 text-lg font-semibold text-slate-100">{formatDecimal(bcmStats.popularityIndexAverage)}</p>
+                      <p className="mt-1 text-lg font-semibold text-slate-100">{formatPercent(bcmStats.popularityIndexAverage)}</p>
                     </div>
                   </div>
 
@@ -427,6 +425,37 @@ export default async function MenuEngineeringPage({
                       </tbody>
                     </table>
                   </div>
+
+                  <div className="overflow-hidden rounded-xl border border-slate-800/70">
+                    <table className="min-w-full divide-y divide-slate-800 text-left text-sm text-slate-200">
+                      <thead className="bg-slate-950/60 text-xs uppercase tracking-wide text-slate-400">
+                        <tr>
+                          <th className="px-4 py-3">Plato</th>
+                          <th className="px-4 py-3">Margen unitario</th>
+                          <th className="px-4 py-3">Índice ventas</th>
+                          <th className="px-4 py-3">Margen</th>
+                          <th className="px-4 py-3">Popularidad</th>
+                          <th className="px-4 py-3">Tipo</th>
+                          <th className="px-4 py-3">Margen G</th>
+                          <th className="px-4 py-3">Popularidad G</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-800 bg-slate-900/40">
+                        {bcmDetailRows.map((row) => (
+                          <tr key={`bcm-detail-${row.id}`}>
+                            <td className="px-4 py-3 font-medium text-slate-100">{row.name}</td>
+                            <td className="px-4 py-3">{formatCurrency(row.margin_unit)}</td>
+                            <td className="px-4 py-3">{formatPercent(row.bcm_popularity_index)}</td>
+                            <td className="px-4 py-3">{bcmSign(row.high_margin)}</td>
+                            <td className="px-4 py-3">{bcmSign(row.high_popularity)}</td>
+                            <td className="px-4 py-3">{bcmLabelByType[row.bcm]}</td>
+                            <td className="px-4 py-3">{formatCurrency(row.bcm_margin_g)}</td>
+                            <td className="px-4 py-3">{formatPercent(row.bcm_popularity_g)}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
                 </div>
 
                 <div className="rounded-xl border border-slate-800/70 bg-slate-900/40 p-4">
@@ -441,7 +470,7 @@ export default async function MenuEngineeringPage({
                       return (
                         <div
                           key={row.id}
-                          title={`${row.name} · ${bcmLabelByType[row.bcm]} · Margen G ${formatCurrency(row.bcm_margin_g)} · Popularidad G ${formatDecimal(row.bcm_popularity_g ?? 0)}`}
+                          title={`${row.name} · ${bcmLabelByType[row.bcm]} · Margen G ${formatCurrency(row.bcm_margin_g)} · Popularidad G ${formatPercent(row.bcm_popularity_g)}`}
                           className={`absolute h-3 w-3 -translate-x-1/2 -translate-y-1/2 rounded-full border ${bcmBadgeClassByType[row.bcm]}`}
                           style={{ left: `${Math.min(96, Math.max(4, xPct))}%`, top: `${Math.min(96, Math.max(4, yPct))}%` }}
                         />
@@ -452,7 +481,7 @@ export default async function MenuEngineeringPage({
                     </div>
                   </div>
                   <p className="mt-3 text-xs text-slate-400">
-                    Umbral margen = {formatCurrency(pivots.margin)} · umbral popularidad = {formatDecimal(pivots.popularity)}
+                    Umbral margen = {formatCurrency(pivots.margin)} · umbral popularidad = {formatPercent(pivots.popularity)}
                   </p>
                 </div>
               </div>
