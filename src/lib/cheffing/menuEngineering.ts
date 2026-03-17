@@ -19,6 +19,9 @@ export type MenuEngineeringRow = {
   total_sales_gross: number;
   total_sales_net: number | null;
   total_margin: number | null;
+  bcm_margin_g: number | null;
+  bcm_popularity_index: number | null;
+  bcm_popularity_g: number | null;
   bcm: 'ESTRELLA' | 'VACA' | 'PUZZLE' | 'PERRO' | 'SIN_DATOS';
   high_popularity: boolean;
   high_margin: boolean;
@@ -27,6 +30,17 @@ export type MenuEngineeringRow = {
 export type MenuEngineeringPivots = {
   popularity: number;
   margin: number;
+};
+
+export type MenuEngineeringBcmStats = {
+  totalUnitsSold: number;
+  totalSales: number;
+  totalMargin: number;
+  dishCount: number;
+  marginAverage: number;
+  costProductPct: number;
+  popularityCorrectionPct: number;
+  popularityIndexAverage: number;
 };
 
 type NormalizedDateRange = { from: string; to: string };
@@ -88,32 +102,49 @@ const toFiniteNumber = (value: number) => (Number.isFinite(value) ? value : 0);
 function computeBcm(rows: Omit<MenuEngineeringRow, 'bcm' | 'high_popularity' | 'high_margin'>[]): {
   rowsEnriched: MenuEngineeringRow[];
   pivots: MenuEngineeringPivots;
+  stats: MenuEngineeringBcmStats;
 } {
-  const popularityValues = rows.map((row) => toFiniteNumber(row.units_sold));
-  const totalUnits = popularityValues.reduce((acc, value) => acc + value, 0);
-  const hasPopularitySignal = popularityValues.some((value) => value > 0);
-  const popularityPivot = popularityValues.length > 0 ? totalUnits / popularityValues.length : 0;
+  const bcmRows = rows.filter(
+    (row) => row.margin_unit !== null && Number.isFinite(row.margin_unit) && Number.isFinite(row.units_sold) && row.units_sold > 0,
+  );
 
-  const marginValues = rows
-    .map((row) => row.margin_unit)
-    .filter((value): value is number => value !== null && Number.isFinite(value));
-  const hasMarginSignal = marginValues.length > 0;
-  const marginPivot = hasMarginSignal ? marginValues.reduce((acc, value) => acc + value, 0) / marginValues.length : 0;
+  const totalUnits = bcmRows.reduce((acc, row) => acc + toFiniteNumber(row.units_sold), 0);
+  const totalSales = bcmRows.reduce((acc, row) => acc + (row.total_sales_net !== null ? toFiniteNumber(row.total_sales_net) : 0), 0);
+  const totalMargin = bcmRows.reduce((acc, row) => acc + (row.total_margin !== null ? toFiniteNumber(row.total_margin) : 0), 0);
+  const dishCount = bcmRows.length;
+  const popularityCorrectionPct = 0.7;
+  const marginPivot = totalUnits > 0 ? totalMargin / totalUnits : 0;
+  const popularityPivot = dishCount > 0 ? (1 / dishCount) * popularityCorrectionPct : 0;
+  const costProductPct = totalSales > 0 ? (totalSales - totalMargin) / totalSales : 0;
+
+  const stats: MenuEngineeringBcmStats = {
+    totalUnitsSold: toFiniteNumber(totalUnits),
+    totalSales: toFiniteNumber(totalSales),
+    totalMargin: toFiniteNumber(totalMargin),
+    dishCount,
+    marginAverage: toFiniteNumber(marginPivot),
+    costProductPct: toFiniteNumber(costProductPct),
+    popularityCorrectionPct,
+    popularityIndexAverage: toFiniteNumber(popularityPivot),
+  };
 
   const pivots: MenuEngineeringPivots = {
     popularity: toFiniteNumber(popularityPivot),
     margin: toFiniteNumber(marginPivot),
   };
 
-  if (!hasPopularitySignal || totalUnits === 0 || !hasMarginSignal) {
+  if (dishCount === 0 || totalUnits === 0) {
     const rowsEnriched = rows.map((row) => ({
       ...row,
+      bcm_margin_g: null,
+      bcm_popularity_index: null,
+      bcm_popularity_g: null,
       bcm: 'SIN_DATOS' as const,
       high_popularity: false,
       high_margin: false,
     }));
 
-    return { rowsEnriched, pivots };
+    return { rowsEnriched, pivots, stats };
   }
 
   const rowsEnriched = rows.map((row) => {
@@ -126,14 +157,20 @@ function computeBcm(rows: Omit<MenuEngineeringRow, 'bcm' | 'high_popularity' | '
     if (!hasUnits || !hasMargin) {
       return {
         ...row,
+        bcm_margin_g: null,
+        bcm_popularity_index: null,
+        bcm_popularity_g: null,
         bcm: 'SIN_DATOS' as const,
         high_popularity: false,
         high_margin: false,
       };
     }
 
-    const highPopularity = units >= pivots.popularity;
+    const popularityIndex = units / totalUnits;
+    const highPopularity = popularityIndex >= pivots.popularity;
     const highMargin = marginUnit >= pivots.margin;
+    const marginG = marginUnit - pivots.margin;
+    const popularityG = popularityIndex - pivots.popularity;
 
     let bcm: MenuEngineeringRow['bcm'] = 'PERRO';
 
@@ -147,13 +184,16 @@ function computeBcm(rows: Omit<MenuEngineeringRow, 'bcm' | 'high_popularity' | '
 
     return {
       ...row,
+      bcm_margin_g: marginG,
+      bcm_popularity_index: popularityIndex,
+      bcm_popularity_g: popularityG,
       bcm,
       high_popularity: highPopularity,
       high_margin: highMargin,
     };
   });
 
-  return { rowsEnriched, pivots };
+  return { rowsEnriched, pivots, stats };
 }
 
 export async function getMenuEngineeringRows(
@@ -252,7 +292,7 @@ export async function getMenuEngineeringRows(
       };
     }) ?? [];
 
-  const { rowsEnriched, pivots } = computeBcm(rows);
+  const { rowsEnriched, pivots, stats } = computeBcm(rows);
 
-  return { rows: rowsEnriched, pivots };
+  return { rows: rowsEnriched, pivots, stats };
 }
