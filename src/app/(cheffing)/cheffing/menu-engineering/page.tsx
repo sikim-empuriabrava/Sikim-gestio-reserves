@@ -2,6 +2,7 @@ import { requireCheffingAccess } from '@/lib/cheffing/requireCheffing';
 import { getMenuEngineeringRows, type MenuEngineeringRow, type MenuEngineeringPivots } from '@/lib/cheffing/menuEngineering';
 import { MENU_ENGINEERING_FAMILIES, type MenuEngineeringDishFamily } from '@/lib/cheffing/menuEngineeringFamily';
 import { normalizeMenuEngineeringVatRate } from '@/lib/cheffing/menuEngineeringVat';
+import { MenuEngineeringSortableBcmDetailTable, MenuEngineeringSortableMainTable } from './MenuEngineeringSortableTables';
 
 const currencyFormatter = new Intl.NumberFormat('es-ES', {
   style: 'currency',
@@ -97,7 +98,6 @@ const bcmTitleByType: Record<Exclude<MenuEngineeringRow['bcm'], 'SIN_DATOS'>, st
   PERRO: '-- Perro',
 };
 
-const bcmSign = (value: boolean) => (value ? '+' : '-');
 
 const buildBcmSummary = (rows: MenuEngineeringRow[]): BcmSummary => {
   const summary: BcmSummary = {
@@ -303,62 +303,7 @@ export default async function MenuEngineeringPage({
         </div>
       ) : (
         <>
-          <div className="overflow-hidden rounded-2xl border border-slate-800/70">
-            <table className="min-w-full divide-y divide-slate-800 text-left text-sm text-slate-200">
-              <thead className="bg-slate-950/60 text-xs uppercase tracking-wide text-slate-400">
-                <tr>
-                  <th className="px-4 py-3">Plato</th>
-                  <th className="px-4 py-3">Familia</th>
-                  <th className="px-4 py-3">BCM</th>
-                  <th className="px-4 py-3">PVP (con IVA)</th>
-                  <th className="px-4 py-3">Coste/ración</th>
-                  <th className="px-4 py-3">Precio sin IVA (base)</th>
-                  <th className="px-4 py-3">Margen/ración</th>
-                  <th className="px-4 py-3">COGS % (sobre base)</th>
-                  <th className="px-4 py-3">Margen % (sobre base)</th>
-                  <th className="px-4 py-3">PVP objetivo (con IVA)</th>
-                  <th className="px-4 py-3">Dif (PVP - objetivo)</th>
-                  <th className="px-4 py-3">Unidades vendidas</th>
-                  <th className="px-4 py-3">Total ventas (€)</th>
-                  <th className="px-4 py-3">Total margen</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-800 bg-slate-900/40">
-                {rows.length === 0 ? (
-                  <tr>
-                    <td colSpan={14} className="px-4 py-6 text-center text-sm text-slate-400">
-                      No hay platos disponibles para analizar.
-                    </td>
-                  </tr>
-                ) : (
-                  rows.map((row) => (
-                    <tr key={row.id}>
-                      <td className="px-4 py-3 font-medium text-slate-100">{row.name}</td>
-                      <td className="px-4 py-3">{row.family || 'Sin familia'}</td>
-                      <td className="px-4 py-3">
-                        <span
-                          className={`inline-flex items-center rounded-full border px-2.5 py-1 text-xs font-semibold uppercase tracking-wide ${bcmBadgeClassByType[row.bcm]}`}
-                        >
-                          {bcmLabelByType[row.bcm]}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3">{formatCurrency(row.selling_price_gross)}</td>
-                      <td className="px-4 py-3">{formatCurrency(row.cost_per_serving)}</td>
-                      <td className="px-4 py-3">{formatCurrency(row.net_price)}</td>
-                      <td className="px-4 py-3">{formatCurrency(row.margin_unit)}</td>
-                      <td className="px-4 py-3">{formatPercent(row.cogs_pct)}</td>
-                      <td className="px-4 py-3">{formatPercent(row.margin_pct)}</td>
-                      <td className="px-4 py-3">{formatCurrency(row.pvp_objetivo_gross)}</td>
-                      <td className="px-4 py-3">{formatCurrency(row.dif)}</td>
-                      <td className="px-4 py-3">{row.units_sold.toLocaleString('es-ES')}</td>
-                      <td className="px-4 py-3">{formatCurrency(row.total_sales_net)}</td>
-                      <td className="px-4 py-3">{formatCurrency(row.total_margin)}</td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
+          <MenuEngineeringSortableMainTable rows={rows} />
 
           <div className="space-y-3 rounded-2xl border border-slate-800/70 bg-slate-950/40 p-4">
             <h3 className="text-sm font-semibold uppercase tracking-wide text-slate-200">Matriz BCM</h3>
@@ -449,38 +394,7 @@ export default async function MenuEngineeringPage({
                     </table>
                   </div>
 
-                  <div className="overflow-hidden rounded-xl border border-slate-800/70">
-                    <table className="min-w-full divide-y divide-slate-800 text-left text-sm text-slate-200">
-                      <thead className="bg-slate-950/60 text-xs uppercase tracking-wide text-slate-400">
-                        <tr>
-                          <th className="px-4 py-3">Plato</th>
-                          <th className="px-4 py-3">Familia</th>
-                          <th className="px-4 py-3">Margen unitario</th>
-                          <th className="px-4 py-3">Índice ventas</th>
-                          <th className="px-4 py-3">Margen</th>
-                          <th className="px-4 py-3">Popularidad</th>
-                          <th className="px-4 py-3">Tipo</th>
-                          <th className="px-4 py-3">Margen G</th>
-                          <th className="px-4 py-3">Popularidad G</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-slate-800 bg-slate-900/40">
-                        {bcmDetailRows.map((row) => (
-                          <tr key={`bcm-detail-${row.id}`}>
-                            <td className="px-4 py-3 font-medium text-slate-100">{row.name}</td>
-                            <td className="px-4 py-3">{row.family || 'Sin familia'}</td>
-                            <td className="px-4 py-3">{formatCurrency(row.margin_unit)}</td>
-                            <td className="px-4 py-3">{formatPercent(row.bcm_popularity_index)}</td>
-                            <td className="px-4 py-3">{bcmSign(row.high_margin)}</td>
-                            <td className="px-4 py-3">{bcmSign(row.high_popularity)}</td>
-                            <td className="px-4 py-3">{bcmLabelByType[row.bcm]}</td>
-                            <td className="px-4 py-3">{formatCurrency(row.bcm_margin_g)}</td>
-                            <td className="px-4 py-3">{formatPercent(row.bcm_popularity_g)}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
+                  <MenuEngineeringSortableBcmDetailTable bcmDetailRows={bcmDetailRows} />
                 </div>
 
                 <div className="rounded-xl border border-slate-800/70 bg-slate-900/40 p-4">
