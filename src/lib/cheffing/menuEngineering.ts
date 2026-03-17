@@ -27,6 +27,11 @@ export type MenuEngineeringRow = {
   high_margin: boolean;
 };
 
+export type MenuEngineeringRowBase = Omit<
+  MenuEngineeringRow,
+  'bcm_margin_g' | 'bcm_popularity_index' | 'bcm_popularity_g' | 'bcm' | 'high_popularity' | 'high_margin'
+>;
+
 export type MenuEngineeringPivots = {
   popularity: number;
   margin: number;
@@ -99,7 +104,7 @@ const normalizeDateRange = (range?: { from?: string; to?: string }): NormalizedD
 
 const toFiniteNumber = (value: number) => (Number.isFinite(value) ? value : 0);
 
-function computeBcm(rows: Omit<MenuEngineeringRow, 'bcm' | 'high_popularity' | 'high_margin'>[]): {
+function computeBcm(rows: MenuEngineeringRowBase[]): {
   rowsEnriched: MenuEngineeringRow[];
   pivots: MenuEngineeringPivots;
   stats: MenuEngineeringBcmStats;
@@ -256,7 +261,7 @@ export async function getMenuEngineeringRows(
     }
   }
 
-  const rows =
+  const rows: MenuEngineeringRowBase[] =
     data?.map((row) => {
       const sellingPriceGross = toNumber(row.selling_price);
       const costPerServing = toNumber(row.cost_per_serving);
