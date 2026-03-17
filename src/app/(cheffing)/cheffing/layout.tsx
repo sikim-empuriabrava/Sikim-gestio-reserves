@@ -1,4 +1,5 @@
 import { redirect } from 'next/navigation';
+import Link from 'next/link';
 
 import { getAllowlistRoleForUserEmail, getDefaultModulePath, isAdmin } from '@/lib/auth/requireRole';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
@@ -27,6 +28,15 @@ export default async function CheffingLayout({ children }: { children: React.Rea
   }
 
   const allowedUser = allowlistInfo.allowedUser;
+  const backToAppHref = isAdmin(allowlistInfo.role)
+    ? '/admin'
+    : allowedUser?.can_reservas
+      ? '/reservas?view=week'
+      : allowedUser?.can_mantenimiento
+        ? '/mantenimiento'
+        : allowedUser?.can_cocina
+          ? '/cocina'
+          : '/';
 
   if (!isAdmin(allowlistInfo.role) && !allowedUser?.can_cheffing) {
     redirect(getDefaultModulePath(allowedUser));
@@ -37,6 +47,12 @@ export default async function CheffingLayout({ children }: { children: React.Rea
       <header className="rounded-2xl border border-slate-800/80 bg-slate-900/70 px-6 py-5 shadow-lg shadow-slate-900/30">
         <div className="flex flex-col gap-5 md:flex-row md:items-center md:justify-between">
           <div className="space-y-2">
+            <Link
+              href={backToAppHref}
+              className="inline-flex items-center rounded-full border border-slate-700 bg-slate-950/60 px-3 py-1 text-xs font-semibold text-slate-200 transition hover:border-slate-500 hover:text-white"
+            >
+              ← Volver a la app
+            </Link>
             <h1 className="text-2xl font-bold text-white">Cheffing</h1>
             <p className="text-sm text-slate-400">Gestión de cocina y escandallos</p>
           </div>

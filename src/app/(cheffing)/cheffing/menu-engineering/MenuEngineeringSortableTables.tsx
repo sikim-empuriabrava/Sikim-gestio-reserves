@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useMemo, useState } from 'react';
 import type { MenuEngineeringRow } from '@/lib/cheffing/menuEngineering';
 
@@ -228,7 +229,11 @@ export function MenuEngineeringSortableMainTable({ rows }: { rows: MenuEngineeri
           ) : (
             sortedMainRows.map((row) => (
               <tr key={row.id}>
-                <td className="px-4 py-3 font-medium text-slate-100">{row.name}</td>
+                <td className="px-4 py-3 font-medium">
+                  <Link href={`/cheffing/platos/${row.id}`} className="text-slate-100 transition hover:text-white hover:underline">
+                    {row.name}
+                  </Link>
+                </td>
                 <td className="px-4 py-3">{row.family || 'Sin familia'}</td>
                 <td className="px-4 py-3">
                   <span
@@ -351,7 +356,11 @@ export function MenuEngineeringSortableBcmDetailTable({ bcmDetailRows }: { bcmDe
         <tbody className="divide-y divide-slate-800 bg-slate-900/40">
           {sortedDetailRows.map((row) => (
             <tr key={`bcm-detail-${row.id}`}>
-              <td className="px-4 py-3 font-medium text-slate-100">{row.name}</td>
+              <td className="px-4 py-3 font-medium">
+                <Link href={`/cheffing/platos/${row.id}`} className="text-slate-100 transition hover:text-white hover:underline">
+                  {row.name}
+                </Link>
+              </td>
               <td className="px-4 py-3">{row.family || 'Sin familia'}</td>
               <td className="px-4 py-3">{formatCurrency(row.margin_unit)}</td>
               <td className="px-4 py-3">{formatPercent(row.bcm_popularity_index)}</td>
