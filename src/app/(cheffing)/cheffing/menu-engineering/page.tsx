@@ -308,6 +308,7 @@ export default async function MenuEngineeringPage({
               <thead className="bg-slate-950/60 text-xs uppercase tracking-wide text-slate-400">
                 <tr>
                   <th className="px-4 py-3">Plato</th>
+                  <th className="px-4 py-3">Familia</th>
                   <th className="px-4 py-3">BCM</th>
                   <th className="px-4 py-3">PVP (con IVA)</th>
                   <th className="px-4 py-3">Coste/ración</th>
@@ -325,7 +326,7 @@ export default async function MenuEngineeringPage({
               <tbody className="divide-y divide-slate-800 bg-slate-900/40">
                 {rows.length === 0 ? (
                   <tr>
-                    <td colSpan={13} className="px-4 py-6 text-center text-sm text-slate-400">
+                    <td colSpan={14} className="px-4 py-6 text-center text-sm text-slate-400">
                       No hay platos disponibles para analizar.
                     </td>
                   </tr>
@@ -333,6 +334,7 @@ export default async function MenuEngineeringPage({
                   rows.map((row) => (
                     <tr key={row.id}>
                       <td className="px-4 py-3 font-medium text-slate-100">{row.name}</td>
+                      <td className="px-4 py-3">{row.family || 'Sin familia'}</td>
                       <td className="px-4 py-3">
                         <span
                           className={`inline-flex items-center rounded-full border px-2.5 py-1 text-xs font-semibold uppercase tracking-wide ${bcmBadgeClassByType[row.bcm]}`}
@@ -452,6 +454,7 @@ export default async function MenuEngineeringPage({
                       <thead className="bg-slate-950/60 text-xs uppercase tracking-wide text-slate-400">
                         <tr>
                           <th className="px-4 py-3">Plato</th>
+                          <th className="px-4 py-3">Familia</th>
                           <th className="px-4 py-3">Margen unitario</th>
                           <th className="px-4 py-3">Índice ventas</th>
                           <th className="px-4 py-3">Margen</th>
@@ -465,6 +468,7 @@ export default async function MenuEngineeringPage({
                         {bcmDetailRows.map((row) => (
                           <tr key={`bcm-detail-${row.id}`}>
                             <td className="px-4 py-3 font-medium text-slate-100">{row.name}</td>
+                            <td className="px-4 py-3">{row.family || 'Sin familia'}</td>
                             <td className="px-4 py-3">{formatCurrency(row.margin_unit)}</td>
                             <td className="px-4 py-3">{formatPercent(row.bcm_popularity_index)}</td>
                             <td className="px-4 py-3">{bcmSign(row.high_margin)}</td>
