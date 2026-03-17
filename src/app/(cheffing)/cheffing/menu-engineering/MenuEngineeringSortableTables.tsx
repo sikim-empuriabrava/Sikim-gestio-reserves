@@ -114,11 +114,13 @@ export function MenuEngineeringSortableMainTable({ rows }: { rows: MenuEngineeri
 
     const indexedRows = rows.map((row, index) => ({ row, index }));
 
+    const sortKey: MainSortKey = mainSort.key;
+
     indexedRows.sort((a, b) => {
       const dir = mainSort.direction === 'asc' ? 1 : -1;
       let result = 0;
 
-      switch (mainSort.key) {
+      switch (sortKey) {
         case 'name':
           result = a.row.name.localeCompare(b.row.name, 'es');
           break;
@@ -129,7 +131,7 @@ export function MenuEngineeringSortableMainTable({ rows }: { rows: MenuEngineeri
           result = a.row.units_sold - b.row.units_sold;
           break;
         default:
-          result = compareNullableNumbers(a.row[mainSort.key], b.row[mainSort.key]);
+          result = compareNullableNumbers(a.row[sortKey], b.row[sortKey]);
           break;
       }
 
@@ -263,11 +265,13 @@ export function MenuEngineeringSortableBcmDetailTable({ bcmDetailRows }: { bcmDe
 
     const indexedRows = bcmDetailRows.map((row, index) => ({ row, index }));
 
+    const sortKey: DetailSortKey = detailSort.key;
+
     indexedRows.sort((a, b) => {
       const dir = detailSort.direction === 'asc' ? 1 : -1;
       let result = 0;
 
-      switch (detailSort.key) {
+      switch (sortKey) {
         case 'name':
           result = a.row.name.localeCompare(b.row.name, 'es');
           break;
@@ -278,7 +282,7 @@ export function MenuEngineeringSortableBcmDetailTable({ bcmDetailRows }: { bcmDe
           result = bcmLabelByType[a.row.bcm].localeCompare(bcmLabelByType[b.row.bcm], 'es');
           break;
         default:
-          result = compareNullableNumbers(a.row[detailSort.key], b.row[detailSort.key]);
+          result = compareNullableNumbers(a.row[sortKey], b.row[sortKey]);
           break;
       }
 
