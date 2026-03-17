@@ -20,6 +20,54 @@ RLS: habilitado
 | `can_cheffing` | `boolean` | No | `false` |
 | `cheffing_images_manage` | `boolean` | No | `false` |
 
+### backup_cheffing_dish_items_phase2_20260312
+RLS: deshabilitado
+
+| Columna | Tipo | Nullable | Default |
+| --- | --- | --- | --- |
+| `id` | `uuid` | Sí |  |
+| `dish_id` | `uuid` | Sí |  |
+| `ingredient_id` | `uuid` | Sí |  |
+| `subrecipe_id` | `uuid` | Sí |  |
+| `unit_code` | `text` | Sí |  |
+| `quantity` | `numeric` | Sí |  |
+| `notes` | `text` | Sí |  |
+| `created_at` | `timestamp with time zone` | Sí |  |
+| `updated_at` | `timestamp with time zone` | Sí |  |
+| `waste_pct_override` | `numeric` | Sí |  |
+| `source_system` | `text` | Sí |  |
+| `source_component_uid` | `text` | Sí |  |
+| `source_raw` | `jsonb` | Sí |  |
+| `source_measurement` | `text` | Sí |  |
+| `source_quantity_raw` | `numeric` | Sí |  |
+| `source_quantity_gross_raw` | `numeric` | Sí |  |
+| `source_waste_pct_raw` | `numeric` | Sí |  |
+| `source_price_unit_raw` | `numeric` | Sí |  |
+| `source_price_total_raw` | `numeric` | Sí |  |
+
+### backup_cheffing_subrecipe_items_phase2_20260312
+RLS: deshabilitado
+
+| Columna | Tipo | Nullable | Default |
+| --- | --- | --- | --- |
+| `id` | `uuid` | Sí |  |
+| `subrecipe_id` | `uuid` | Sí |  |
+| `ingredient_id` | `uuid` | Sí |  |
+| `subrecipe_component_id` | `uuid` | Sí |  |
+| `unit_code` | `text` | Sí |  |
+| `quantity` | `numeric` | Sí |  |
+| `notes` | `text` | Sí |  |
+| `created_at` | `timestamp with time zone` | Sí |  |
+| `updated_at` | `timestamp with time zone` | Sí |  |
+| `source_system` | `text` | Sí |  |
+| `source_component_uid` | `text` | Sí |  |
+| `source_raw` | `jsonb` | Sí |  |
+| `source_measurement` | `text` | Sí |  |
+| `source_quantity_raw` | `numeric` | Sí |  |
+| `source_quantity_gross_raw` | `numeric` | Sí |  |
+| `source_waste_pct_raw` | `numeric` | Sí |  |
+| `source_price_unit_raw` | `numeric` | Sí |  |
+
 ### cheffing_dish_items
 RLS: habilitado
 
