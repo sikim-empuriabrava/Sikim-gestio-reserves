@@ -1,5 +1,6 @@
 import { requireCheffingAccess } from '@/lib/cheffing/requireCheffing';
 import { getMenuEngineeringRows, type MenuEngineeringRow, type MenuEngineeringPivots } from '@/lib/cheffing/menuEngineering';
+import { MENU_ENGINEERING_FAMILIES, type MenuEngineeringDishFamily } from '@/lib/cheffing/menuEngineeringFamily';
 import { normalizeMenuEngineeringVatRate } from '@/lib/cheffing/menuEngineeringVat';
 
 const currencyFormatter = new Intl.NumberFormat('es-ES', {
@@ -157,7 +158,7 @@ const buildBcmSummary = (rows: MenuEngineeringRow[]): BcmSummary => {
 export default async function MenuEngineeringPage({
   searchParams,
 }: {
-  searchParams?: { from?: string; to?: string; iva?: string };
+  searchParams?: { from?: string; to?: string; iva?: string; family?: string };
 }) {
   await requireCheffingAccess();
 
@@ -170,9 +171,13 @@ export default async function MenuEngineeringPage({
   const selectedFrom = searchParams?.from ?? defaultFrom;
   const selectedTo = searchParams?.to ?? defaultTo;
   const selectedVatRate = normalizeMenuEngineeringVatRate(searchParams?.iva);
+  const selectedFamily = searchParams?.family && MENU_ENGINEERING_FAMILIES.includes(searchParams.family as MenuEngineeringDishFamily)
+    ? (searchParams.family as MenuEngineeringDishFamily)
+    : null;
   const hasValidDateRange = isValidDateRange(selectedFrom, selectedTo);
 
   let rows: MenuEngineeringRow[] = [];
+  let availableFamilies: MenuEngineeringDishFamily[] = [];
   let pivots: MenuEngineeringPivots = { popularity: 0, margin: 0 };
   let bcmStats = {
     totalUnitsSold: 0,
@@ -187,10 +192,11 @@ export default async function MenuEngineeringPage({
   let loadError: string | null = null;
 
   try {
-    const result = await getMenuEngineeringRows(selectedVatRate, { from: selectedFrom, to: selectedTo });
+    const result = await getMenuEngineeringRows(selectedVatRate, { from: selectedFrom, to: selectedTo }, selectedFamily ?? undefined);
     rows = result.rows;
     pivots = result.pivots;
     bcmStats = result.stats;
+    availableFamilies = result.availableFamilies;
   } catch (error) {
     loadError = error instanceof Error ? error.message : 'Error desconocido al cargar el reporte.';
   }
@@ -224,7 +230,7 @@ export default async function MenuEngineeringPage({
 
       <form
         method="get"
-        className="grid gap-4 rounded-2xl border border-slate-800/70 bg-slate-950/50 p-4 md:grid-cols-4"
+        className="grid gap-4 rounded-2xl border border-slate-800/70 bg-slate-950/50 p-4 md:grid-cols-5"
       >
         <label className="space-y-1 text-sm text-slate-300">
           Desde
@@ -255,6 +261,21 @@ export default async function MenuEngineeringPage({
             <option value="0.04">4%</option>
             <option value="0.1">10%</option>
             <option value="0.21">21%</option>
+          </select>
+        </label>
+        <label className="space-y-1 text-sm text-slate-300">
+          Familia
+          <select
+            name="family"
+            defaultValue={selectedFamily ?? ''}
+            className="w-full rounded-lg border border-slate-800 bg-slate-950/60 px-3 py-2 text-sm text-slate-100"
+          >
+            <option value="">Todas</option>
+            {availableFamilies.map((family) => (
+              <option key={family} value={family}>
+                {family}
+              </option>
+            ))}
           </select>
         </label>
         <div className="flex items-end">

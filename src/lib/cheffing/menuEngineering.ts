@@ -2,10 +2,16 @@ import 'server-only';
 
 import { createSupabaseAdminClient } from '@/lib/supabaseAdmin';
 import { type MenuEngineeringVatRate } from '@/lib/cheffing/menuEngineeringVat';
+import {
+  MENU_ENGINEERING_FAMILIES,
+  resolveDishFamilyFromSourceTags,
+  type MenuEngineeringDishFamily,
+} from '@/lib/cheffing/menuEngineeringFamily';
 
 export type MenuEngineeringRow = {
   id: string;
   name: string;
+  family: MenuEngineeringDishFamily;
   selling_price_gross: number | null;
   vat_rate: number;
   units_sold: number;
@@ -204,6 +210,7 @@ function computeBcm(rows: MenuEngineeringRowBase[]): {
 export async function getMenuEngineeringRows(
   vatRate: MenuEngineeringVatRate,
   range?: { from?: string; to?: string },
+  family?: MenuEngineeringDishFamily,
 ) {
   const supabase = createSupabaseAdminClient();
   const { data, error } = await supabase
@@ -213,6 +220,27 @@ export async function getMenuEngineeringRows(
 
   if (error) {
     throw new Error(error.message);
+  }
+
+  const dishIds = (data ?? []).map((row) => row.id);
+  const familyByDishId = new Map<string, MenuEngineeringDishFamily>();
+
+  if (dishIds.length > 0) {
+    const { data: dishesData, error: dishesError } = await supabase
+      .from('cheffing_dishes')
+      .select('id, mycheftool_source_tag_names')
+      .in('id', dishIds);
+
+    if (dishesError) {
+      throw new Error(dishesError.message);
+    }
+
+    for (const dish of dishesData ?? []) {
+      familyByDishId.set(
+        dish.id,
+        resolveDishFamilyFromSourceTags(Array.isArray(dish.mycheftool_source_tag_names) ? dish.mycheftool_source_tag_names : []),
+      );
+    }
   }
 
   const normalized = normalizeDateRange(range);
@@ -281,6 +309,7 @@ export async function getMenuEngineeringRows(
       return {
         id: row.id,
         name: row.name,
+        family: familyByDishId.get(row.id) ?? 'Sin familia',
         selling_price_gross: sellingPriceGross,
         vat_rate: vatRate,
         units_sold: unitsSold,
@@ -297,7 +326,11 @@ export async function getMenuEngineeringRows(
       };
     }) ?? [];
 
-  const { rowsEnriched, pivots, stats } = computeBcm(rows);
+  const availableFamilies = [...new Set(rows.map((row) => row.family))].sort((a, b) => a.localeCompare(b, 'es'));
+  const normalizedFamilyFilter = family && MENU_ENGINEERING_FAMILIES.includes(family) ? family : null;
+  const filteredRows = normalizedFamilyFilter ? rows.filter((row) => row.family === normalizedFamilyFilter) : rows;
 
-  return { rows: rowsEnriched, pivots, stats };
+  const { rowsEnriched, pivots, stats } = computeBcm(filteredRows);
+
+  return { rows: rowsEnriched, pivots, stats, availableFamilies };
 }
