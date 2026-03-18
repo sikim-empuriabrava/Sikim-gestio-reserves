@@ -44,9 +44,15 @@ export type Subrecipe = {
   output_qty: number;
   waste_pct: number;
   notes: string | null;
+  allergen_codes?: string[];
+  indicator_codes?: string[];
+  /** @deprecated Legacy model, keep only for backwards compatibility. */
   allergens_manual_add?: string[];
+  /** @deprecated Legacy model, keep only for backwards compatibility. */
   allergens_manual_exclude?: string[];
+  /** @deprecated Legacy model, keep only for backwards compatibility. */
   indicators_manual_add?: string[];
+  /** @deprecated Legacy model, keep only for backwards compatibility. */
   indicators_manual_exclude?: string[];
   effective_allergens?: string[];
   effective_indicators?: string[];
@@ -72,11 +78,19 @@ export type Dish = {
   selling_price: number | null;
   servings: number;
   notes: string | null;
+  allergen_codes?: string[];
+  indicator_codes?: string[];
+  /** @deprecated Legacy model, keep only for backwards compatibility. */
   allergens_manual_add?: string[];
+  /** @deprecated Legacy model, keep only for backwards compatibility. */
   allergens_manual_exclude?: string[];
+  /** @deprecated Legacy model, keep only for backwards compatibility. */
   indicators_manual_add?: string[];
+  /** @deprecated Legacy model, keep only for backwards compatibility. */
   indicators_manual_exclude?: string[];
   image_path?: string | null;
+  /** @deprecated Legacy field, canonical image field is `image_path`. */
+  image_url?: string | null;
   venue_id?: string | null;
   created_at: string;
   updated_at: string;

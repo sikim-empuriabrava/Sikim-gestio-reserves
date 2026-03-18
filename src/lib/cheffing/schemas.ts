@@ -16,12 +16,28 @@ export const notesSchema = z.preprocess(
   z.string().min(1).nullable().optional(),
 );
 
+const canonicalCodesSchema = z.array(trimmedString.min(1)).optional();
+const imagePathSchema = z.preprocess(
+  (value) => {
+    if (value === undefined || value === null) return value;
+    if (typeof value === 'string') {
+      const trimmed = value.trim();
+      return trimmed.length > 0 ? trimmed : null;
+    }
+    return value;
+  },
+  z.string().min(1).nullable().optional(),
+);
+
 export const subrecipeCreateSchema = z.object({
   name: trimmedString.min(1),
   output_unit_code: trimmedString.min(1),
   output_qty: z.number().positive(),
   waste_pct: wastePctSchema,
   notes: notesSchema,
+  allergen_codes: canonicalCodesSchema,
+  indicator_codes: canonicalCodesSchema,
+  image_path: imagePathSchema,
 });
 
 export const subrecipeUpdateSchema = subrecipeCreateSchema.partial().refine((data) => Object.keys(data).length > 0, {
@@ -61,6 +77,9 @@ export const dishCreateSchema = z.object({
   selling_price: z.number().min(0).nullable().optional(),
   servings: z.number().positive(),
   notes: notesSchema,
+  allergen_codes: canonicalCodesSchema,
+  indicator_codes: canonicalCodesSchema,
+  image_path: imagePathSchema,
 });
 
 export const dishUpdateSchema = z
@@ -69,6 +88,9 @@ export const dishUpdateSchema = z
     selling_price: z.number().min(0).nullable().optional(),
     servings: z.number().positive().optional(),
     notes: notesSchema,
+    allergen_codes: canonicalCodesSchema,
+    indicator_codes: canonicalCodesSchema,
+    image_path: imagePathSchema,
   })
   .partial()
   .refine((data) => Object.keys(data).length > 0, {

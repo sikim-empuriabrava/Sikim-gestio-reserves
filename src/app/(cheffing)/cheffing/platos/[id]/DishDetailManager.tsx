@@ -5,8 +5,12 @@ import type { FormEvent } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 
+import { ImageUploader } from '@/app/(cheffing)/cheffing/components/ImageUploader';
 import type { Dish, DishItem, Ingredient, Subrecipe, Unit } from '@/lib/cheffing/types';
+import { ALLERGENS, PRODUCT_INDICATORS } from '@/lib/cheffing/allergensIndicators';
+import { toAllergenKeys, toProductIndicatorKeys } from '@/lib/cheffing/allergensHelpers';
 import { CheffingItemPicker } from '@/app/(cheffing)/cheffing/components/CheffingItemPicker';
+import { createSupabaseBrowserClient } from '@/lib/supabase/browser';
 
 export type DishCost = Dish & {
   items_cost_total: number | null;
@@ -25,6 +29,9 @@ type DishDetailManagerProps = {
   ingredients: Ingredient[];
   subrecipes: Subrecipe[];
   units: Unit[];
+  inheritedAllergens: string[];
+  inheritedIndicators: string[];
+  canManageImages: boolean;
 };
 
 type DishFormState = {
@@ -32,6 +39,8 @@ type DishFormState = {
   selling_price: string;
   servings: string;
   notes: string;
+  allergen_codes: string[];
+  indicator_codes: string[];
 };
 
 type ItemFormState = {
@@ -50,11 +59,17 @@ export function DishDetailManager({
   ingredients,
   subrecipes,
   units,
+  inheritedAllergens,
+  inheritedIndicators,
+  canManageImages,
 }: DishDetailManagerProps) {
   const router = useRouter();
+  const supabase = useMemo(() => createSupabaseBrowserClient(), []);
   const [headerError, setHeaderError] = useState<string | null>(null);
   const [itemsError, setItemsError] = useState<string | null>(null);
+  const [imageWarning, setImageWarning] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [imageFile, setImageFile] = useState<File | null>(null);
   const [editingItemId, setEditingItemId] = useState<string | null>(null);
   const [editingItemState, setEditingItemState] = useState<ItemFormState | null>(null);
   const [formState, setFormState] = useState<DishFormState>({
@@ -62,7 +77,25 @@ export function DishDetailManager({
     selling_price: dish.selling_price === null ? '' : String(dish.selling_price),
     servings: String(dish.servings ?? 1),
     notes: dish.notes ?? '',
+    allergen_codes: dish.allergen_codes ?? [],
+    indicator_codes: dish.indicator_codes ?? [],
   });
+
+  const existingImageUrl = useMemo(() => {
+    if (!dish.image_path) return null;
+    const { data } = supabase.storage.from('cheffing-images').getPublicUrl(dish.image_path);
+    const cacheKey = dish.updated_at ?? Date.now().toString();
+    return `${data.publicUrl}?v=${encodeURIComponent(cacheKey)}`;
+  }, [dish.image_path, dish.updated_at, supabase]);
+
+  const toggleCode = (field: 'allergen_codes' | 'indicator_codes', code: string) => {
+    setFormState((prev) => {
+      const next = new Set(prev[field]);
+      if (next.has(code)) next.delete(code);
+      else next.add(code);
+      return { ...prev, [field]: Array.from(next) };
+    });
+  };
 
   const ingredientsById = useMemo(() => {
     return new Map<string, Ingredient>(ingredients.map((ingredient) => [ingredient.id, ingredient] as const));
@@ -107,6 +140,7 @@ export function DishDetailManager({
   const saveHeader = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setHeaderError(null);
+    setImageWarning(null);
     setIsSubmitting(true);
 
     try {
@@ -129,6 +163,8 @@ export function DishDetailManager({
           selling_price: sellingPriceValue,
           servings: servingsValue,
           notes: formState.notes.trim() ? formState.notes.trim() : null,
+          allergen_codes: toAllergenKeys(formState.allergen_codes),
+          indicator_codes: toProductIndicatorKeys(formState.indicator_codes),
         }),
       });
 
@@ -139,10 +175,72 @@ export function DishDetailManager({
         }
         throw new Error(payload?.error ?? 'Error actualizando plato');
       }
+      if (imageFile && canManageImages) {
+        let uploadedPath: string | null = null;
+        try {
+          const extension = imageFile.type === 'image/webp' ? 'webp' : 'jpg';
+          const path = `dishes/${dish.id}/main.${extension}`;
+          const { error: uploadError } = await supabase.storage
+            .from('cheffing-images')
+            .upload(path, imageFile, { upsert: true, contentType: imageFile.type });
+
+          if (uploadError) {
+            throw new Error('Error subiendo la imagen del plato.');
+          }
+
+          uploadedPath = path;
+          const patchResponse = await fetch(`/api/cheffing/dishes/${dish.id}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ image_path: path }),
+          });
+          if (!patchResponse.ok) {
+            throw new Error('Error guardando la imagen del plato.');
+          }
+          if (dish.image_path && dish.image_path !== path) {
+            await supabase.storage.from('cheffing-images').remove([dish.image_path]);
+          }
+          setImageFile(null);
+        } catch (imageError) {
+          if (uploadedPath) {
+            await supabase.storage.from('cheffing-images').remove([uploadedPath]);
+          }
+          setImageWarning(imageError instanceof Error ? imageError.message : 'No se pudo guardar la imagen del plato.');
+        }
+      }
+
       router.refresh();
       // TODO: Auto-select the newly added line for editing once we can identify it reliably.
     } catch (err) {
       setHeaderError(err instanceof Error ? err.message : 'Error desconocido');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleDeleteImage = async () => {
+    if (!dish.image_path || !canManageImages) return;
+    setImageWarning(null);
+    setIsSubmitting(true);
+    try {
+      const confirmed = window.confirm('¿Seguro que quieres eliminar la imagen?');
+      if (!confirmed) return;
+      const { error: removeError } = await supabase.storage.from('cheffing-images').remove([dish.image_path]);
+      if (removeError) {
+        throw new Error('Error eliminando la imagen del plato.');
+      }
+      const patchResponse = await fetch(`/api/cheffing/dishes/${dish.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ image_path: null }),
+      });
+      if (!patchResponse.ok) {
+        throw new Error('Error guardando la eliminación de la imagen.');
+      }
+      setImageFile(null);
+      router.refresh();
+    } catch (err) {
+      setImageWarning(err instanceof Error ? err.message : 'No se pudo eliminar la imagen.');
     } finally {
       setIsSubmitting(false);
     }
@@ -330,6 +428,7 @@ export function DishDetailManager({
           </div>
         </div>
         {headerError ? <p className="text-sm text-rose-400">{headerError}</p> : null}
+        {imageWarning ? <p className="text-sm text-amber-300">{imageWarning}</p> : null}
         <div className="grid gap-4 md:grid-cols-3">
           <label className="flex flex-col gap-2 text-sm text-slate-300">
             Nombre
@@ -373,10 +472,95 @@ export function DishDetailManager({
               onChange={(event) => setFormState((prev) => ({ ...prev, notes: event.target.value }))}
             />
           </label>
-        </div>
-        <div className="rounded-xl border border-amber-500/30 bg-amber-500/5 px-3 py-2 text-xs text-amber-200">
-          Alérgenos/indicadores manuales e imagen del plato están temporalmente deshabilitados por compatibilidad con
-          el schema de producción actual.
+          <div className="space-y-3 md:col-span-3">
+            <p className="text-xs uppercase text-slate-500">Alérgenos heredados (solo lectura)</p>
+            {inheritedAllergens.length === 0 ? (
+              <p className="text-xs text-slate-500">Sin alérgenos heredados.</p>
+            ) : (
+              <div className="flex flex-wrap gap-2">
+                {ALLERGENS.filter((allergen) => inheritedAllergens.includes(allergen.key)).map((allergen) => (
+                  <span
+                    key={allergen.key}
+                    className="rounded-full border border-slate-700 bg-slate-900/70 px-3 py-1 text-xs font-semibold text-slate-200"
+                  >
+                    {allergen.label}
+                  </span>
+                ))}
+              </div>
+            )}
+            <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+              {ALLERGENS.map((allergen) => (
+                <label
+                  key={allergen.key}
+                  className="flex items-center gap-2 rounded-lg border border-slate-800/70 bg-slate-950/40 px-3 py-2 text-xs text-slate-200"
+                >
+                  <input
+                    type="checkbox"
+                    className="h-4 w-4 accent-emerald-400"
+                    checked={formState.allergen_codes.includes(allergen.key)}
+                    onChange={() => toggleCode('allergen_codes', allergen.key)}
+                  />
+                  {allergen.label}
+                </label>
+              ))}
+            </div>
+          </div>
+          <div className="space-y-3 md:col-span-3">
+            <p className="text-xs uppercase text-slate-500">Indicadores heredados (solo lectura)</p>
+            {inheritedIndicators.length === 0 ? (
+              <p className="text-xs text-slate-500">Sin indicadores heredados.</p>
+            ) : (
+              <div className="flex flex-wrap gap-2">
+                {PRODUCT_INDICATORS.filter((indicator) => inheritedIndicators.includes(indicator.key)).map(
+                  (indicator) => (
+                    <span
+                      key={indicator.key}
+                      className="rounded-full border border-slate-700 bg-slate-900/70 px-3 py-1 text-xs font-semibold text-slate-200"
+                    >
+                      {indicator.label}
+                    </span>
+                  ),
+                )}
+              </div>
+            )}
+            <div className="grid gap-2 sm:grid-cols-2">
+              {PRODUCT_INDICATORS.map((indicator) => (
+                <label
+                  key={indicator.key}
+                  className="flex items-center gap-2 rounded-lg border border-slate-800/70 bg-slate-950/40 px-3 py-2 text-xs text-slate-200"
+                >
+                  <input
+                    type="checkbox"
+                    className="h-4 w-4 accent-sky-400"
+                    checked={formState.indicator_codes.includes(indicator.key)}
+                    onChange={() => toggleCode('indicator_codes', indicator.key)}
+                  />
+                  {indicator.label}
+                </label>
+              ))}
+            </div>
+          </div>
+          {canManageImages ? (
+            <div className="space-y-3 md:col-span-3">
+              <ImageUploader
+                label="Imagen del plato"
+                initialUrl={existingImageUrl}
+                onFileReady={setImageFile}
+                disabled={isSubmitting}
+                readOnly={!canManageImages}
+              />
+              {dish.image_path ? (
+                <button
+                  type="button"
+                  onClick={handleDeleteImage}
+                  disabled={isSubmitting}
+                  className="rounded-full border border-rose-500/70 px-4 py-2 text-xs font-semibold text-rose-200"
+                >
+                  Eliminar imagen
+                </button>
+              ) : null}
+            </div>
+          ) : null}
         </div>
         <div className="flex flex-wrap gap-2">
           <button

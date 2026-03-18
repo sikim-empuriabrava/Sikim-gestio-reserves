@@ -2,6 +2,7 @@ import { notFound } from 'next/navigation';
 
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { requireCheffingAccess } from '@/lib/cheffing/requireCheffing';
+import { isAdmin } from '@/lib/auth/requireRole';
 import type { AllergenKey, ProductIndicatorKey } from '@/lib/cheffing/allergensIndicators';
 import { sanitizeAllergens, sanitizeProductIndicators } from '@/lib/cheffing/allergensHelpers';
 import type { Ingredient, Subrecipe, Unit } from '@/lib/cheffing/types';
@@ -13,8 +14,6 @@ import {
 import {
   addAllergens,
   addIndicators,
-  removeAllergens,
-  removeIndicators,
   type EffectiveAI,
 } from '@/lib/cheffing/allergensIndicatorsOps';
 
@@ -25,7 +24,9 @@ import {
 } from './DishDetailManager';
 
 export default async function CheffingPlatoDetailPage({ params }: { params: { id: string } }) {
-  await requireCheffingAccess();
+  const { allowlistInfo } = await requireCheffingAccess();
+  const canManageImages =
+    isAdmin(allowlistInfo.role) || Boolean(allowlistInfo.allowedUser?.cheffing_images_manage);
 
   const supabase = createSupabaseServerClient();
   const { data: dish, error: dishError } = await supabase
@@ -103,19 +104,13 @@ export default async function CheffingPlatoDetailPage({ params }: { params: { id
     if (cached) return cached;
 
     const current = subrecipeLookup.get(subrecipeId);
-    const manualAddAllergens = sanitizeAllergens(current?.allergens_manual_add);
-    const manualExcludeAllergens = sanitizeAllergens(current?.allergens_manual_exclude);
-    const manualAddIndicators = sanitizeProductIndicators(current?.indicators_manual_add);
-    const manualExcludeIndicators = sanitizeProductIndicators(current?.indicators_manual_exclude);
+    const directAllergens = sanitizeAllergens(current?.allergen_codes);
+    const directIndicators = sanitizeProductIndicators(current?.indicator_codes);
 
     if (inProgress.has(subrecipeId)) {
-      const fallbackAllergens = new Set<AllergenKey>(manualAddAllergens);
-      removeAllergens(fallbackAllergens, manualExcludeAllergens);
-      const fallbackIndicators = new Set<ProductIndicatorKey>(manualAddIndicators);
-      removeIndicators(fallbackIndicators, manualExcludeIndicators);
       const fallback = {
-        allergens: Array.from(fallbackAllergens),
-        indicators: Array.from(fallbackIndicators),
+        allergens: [...directAllergens],
+        indicators: [...directIndicators],
       };
       effectiveCache.set(subrecipeId, fallback);
       return fallback;
@@ -139,10 +134,8 @@ export default async function CheffingPlatoDetailPage({ params }: { params: { id
       }
     }
 
-    const effectiveAllergens = new Set<AllergenKey>([...inheritedAllergens, ...manualAddAllergens]);
-    removeAllergens(effectiveAllergens, manualExcludeAllergens);
-    const effectiveIndicators = new Set<ProductIndicatorKey>([...inheritedIndicators, ...manualAddIndicators]);
-    removeIndicators(effectiveIndicators, manualExcludeIndicators);
+    const effectiveAllergens = new Set([...inheritedAllergens, ...directAllergens]);
+    const effectiveIndicators = new Set([...inheritedIndicators, ...directIndicators]);
 
     const resolved = {
       allergens: Array.from(effectiveAllergens),
@@ -177,6 +170,25 @@ export default async function CheffingPlatoDetailPage({ params }: { params: { id
     ...dish,
     ...normalizeDishCompatibilityMeta((dishMeta ?? null) as Record<string, unknown> | null),
   };
+  const inheritedAllergenSet = new Set<AllergenKey>();
+  const inheritedIndicatorSet = new Set<ProductIndicatorKey>();
+  normalizedItems.forEach((item) => {
+    if (item.ingredient_id) {
+      const ingredient = ingredientLookup.get(item.ingredient_id);
+      addAllergens(inheritedAllergenSet, ingredient?.allergens);
+      addIndicators(inheritedIndicatorSet, ingredient?.indicators);
+      return;
+    }
+    if (item.subrecipe_id) {
+      const subrecipeEffective = resolveEffective(item.subrecipe_id);
+      addAllergens(inheritedAllergenSet, subrecipeEffective.allergens);
+      addIndicators(inheritedIndicatorSet, subrecipeEffective.indicators);
+    }
+  });
+  const directDishAllergens = sanitizeAllergens(mergedDish.allergen_codes);
+  const directDishIndicators = sanitizeProductIndicators(mergedDish.indicator_codes);
+  const inheritedAllergens = [...inheritedAllergenSet].filter((key) => !directDishAllergens.includes(key));
+  const inheritedIndicators = [...inheritedIndicatorSet].filter((key) => !directDishIndicators.includes(key));
 
   return (
     <section className="space-y-6">
@@ -191,6 +203,9 @@ export default async function CheffingPlatoDetailPage({ params }: { params: { id
         ingredients={ingredientsTyped}
         subrecipes={enrichedSubrecipes as Subrecipe[]}
         units={(units ?? []) as Unit[]}
+        inheritedAllergens={inheritedAllergens}
+        inheritedIndicators={inheritedIndicators}
+        canManageImages={canManageImages}
       />
     </section>
   );

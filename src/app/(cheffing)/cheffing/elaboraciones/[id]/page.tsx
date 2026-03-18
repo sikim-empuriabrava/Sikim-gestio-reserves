@@ -2,17 +2,12 @@ import { notFound } from 'next/navigation';
 
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { requireCheffingAccess } from '@/lib/cheffing/requireCheffing';
+import { isAdmin } from '@/lib/auth/requireRole';
 import type { Ingredient, Subrecipe, Unit } from '@/lib/cheffing/types';
 import type { AllergenKey, ProductIndicatorKey } from '@/lib/cheffing/allergensIndicators';
 import { sanitizeAllergens, sanitizeProductIndicators } from '@/lib/cheffing/allergensHelpers';
 import { normalizeIngredient, normalizeSubrecipe } from '@/lib/cheffing/compat';
-import {
-  addAllergens,
-  addIndicators,
-  removeAllergens,
-  removeIndicators,
-  type EffectiveAI,
-} from '@/lib/cheffing/allergensIndicatorsOps';
+import { addAllergens, addIndicators, type EffectiveAI } from '@/lib/cheffing/allergensIndicatorsOps';
 
 import {
   SubrecipeDetailManager,
@@ -21,7 +16,9 @@ import {
 } from './SubrecipeDetailManager';
 
 export default async function CheffingElaboracionDetailPage({ params }: { params: { id: string } }) {
-  await requireCheffingAccess();
+  const { allowlistInfo } = await requireCheffingAccess();
+  const canManageImages =
+    isAdmin(allowlistInfo.role) || Boolean(allowlistInfo.allowedUser?.cheffing_images_manage);
 
   const supabase = createSupabaseServerClient();
   const { data: subrecipe, error: subrecipeError } = await supabase
@@ -94,19 +91,13 @@ export default async function CheffingElaboracionDetailPage({ params }: { params
     if (cached) return cached;
 
     const current = subrecipeLookup.get(subrecipeId);
-    const manualAddAllergens = sanitizeAllergens(current?.allergens_manual_add);
-    const manualExcludeAllergens = sanitizeAllergens(current?.allergens_manual_exclude);
-    const manualAddIndicators = sanitizeProductIndicators(current?.indicators_manual_add);
-    const manualExcludeIndicators = sanitizeProductIndicators(current?.indicators_manual_exclude);
+    const directAllergens = sanitizeAllergens(current?.allergen_codes);
+    const directIndicators = sanitizeProductIndicators(current?.indicator_codes);
 
     if (inProgress.has(subrecipeId)) {
-      const fallbackAllergens = new Set<AllergenKey>(manualAddAllergens);
-      removeAllergens(fallbackAllergens, manualExcludeAllergens);
-      const fallbackIndicators = new Set<ProductIndicatorKey>(manualAddIndicators);
-      removeIndicators(fallbackIndicators, manualExcludeIndicators);
       const fallback = {
-        allergens: Array.from(fallbackAllergens),
-        indicators: Array.from(fallbackIndicators),
+        allergens: [...directAllergens],
+        indicators: [...directIndicators],
       };
       effectiveCache.set(subrecipeId, fallback);
       return fallback;
@@ -130,10 +121,8 @@ export default async function CheffingElaboracionDetailPage({ params }: { params
       }
     }
 
-    const effectiveAllergens = new Set<AllergenKey>([...inheritedAllergens, ...manualAddAllergens]);
-    removeAllergens(effectiveAllergens, manualExcludeAllergens);
-    const effectiveIndicators = new Set<ProductIndicatorKey>([...inheritedIndicators, ...manualAddIndicators]);
-    removeIndicators(effectiveIndicators, manualExcludeIndicators);
+    const effectiveAllergens = new Set([...inheritedAllergens, ...directAllergens]);
+    const effectiveIndicators = new Set([...inheritedIndicators, ...directIndicators]);
 
     const resolved = {
       allergens: Array.from(effectiveAllergens),
@@ -171,6 +160,11 @@ export default async function CheffingElaboracionDetailPage({ params }: { params
     ...subrecipe,
     ...(subrecipeManual ?? {}),
   };
+  const inheritedCurrent = resolveEffective(params.id);
+  const directCurrentAllergens = sanitizeAllergens(mergedSubrecipe.allergen_codes);
+  const directCurrentIndicators = sanitizeProductIndicators(mergedSubrecipe.indicator_codes);
+  const inheritedAllergens = inheritedCurrent.allergens.filter((key) => !directCurrentAllergens.includes(key));
+  const inheritedIndicators = inheritedCurrent.indicators.filter((key) => !directCurrentIndicators.includes(key));
 
   return (
     <section className="space-y-6">
@@ -185,6 +179,9 @@ export default async function CheffingElaboracionDetailPage({ params }: { params
         ingredients={ingredientsTyped}
         subrecipes={enrichedSubrecipes}
         units={(units ?? []) as Unit[]}
+        inheritedAllergens={inheritedAllergens}
+        inheritedIndicators={inheritedIndicators}
+        canManageImages={canManageImages}
       />
     </section>
   );

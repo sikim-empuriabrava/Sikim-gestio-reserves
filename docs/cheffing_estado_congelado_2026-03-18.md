@@ -21,7 +21,11 @@ Se aplicó un ajuste pequeño en detalle de platos/elaboraciones para corregir d
 - En cargas de catálogo (`cheffing_ingredients`) se dejó de depender de columnas legacy (`allergens`, `indicators`) y se normaliza desde `allergen_codes` / `indicator_codes` al shape de UI.
 - En detalle de platos y elaboraciones se eliminaron embeds frágiles sobre vistas `v_cheffing_*_items_cost`; ahora se cargan filas simples y los nombres de ingrediente/elaboración se enriquecen en memoria con mapas locales.
 - En updates de header (`PATCH /api/cheffing/dishes/[id]` y `PATCH /api/cheffing/subrecipes/[id]`) se restringió el payload al bloque base soportado por schema actual para evitar errores por columnas no existentes.
-- Como degradación segura temporal, metadata avanzada no garantizada por schema actual (alérgenos/indicadores manuales e imagen en detalle de plato/elaboración) queda deshabilitada en UI para no bloquear guardado de nombre/PVP/raciones/notas o nombre/producción/merma/notas.
+- **Actualización posterior (misma fecha):** el detalle de elaboraciones y platos vuelve a operar con contrato canónico en DB para metadata editable:
+  - `allergen_codes`
+  - `indicator_codes`
+  - `image_path`
+- El flujo manual add/exclude se mantiene solo como legado de compatibilidad y ya no es el camino principal de edición en UI/API de detalle.
 - En platos, `cheffing_dishes.notes` ya es el campo canónico real para el campo UI “Notas”.
 - Se retiró la compatibilidad temporal con `cheffing_dishes.description` en carga/guardado de detalle de platos.
 - `cheffing_dishes.description` queda como campo legacy y su futuro se decidirá en un bloque posterior.
