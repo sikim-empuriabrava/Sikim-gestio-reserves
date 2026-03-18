@@ -5,6 +5,11 @@ import { mergeResponseCookies } from '@/lib/supabase/route';
 import { requireCheffingRouteAccess } from '@/lib/cheffing/requireCheffingRoute';
 import { mapCheffingPostgresError } from '@/lib/cheffing/postgresErrors';
 import { subrecipeUpdateSchema } from '@/lib/cheffing/schemas';
+import {
+  ALLERGEN_KEYS,
+  PRODUCT_INDICATOR_KEYS,
+  sanitizeAllergenIndicatorArray,
+} from '@/lib/cheffing/allergensIndicators';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -58,8 +63,30 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     return invalid;
   }
 
+  const updates: Record<string, unknown> = { ...parsed.data };
+
+  if ('allergen_codes' in updates) {
+    const sanitized = sanitizeAllergenIndicatorArray(updates.allergen_codes, ALLERGEN_KEYS);
+    if (!sanitized) {
+      const invalid = NextResponse.json({ error: 'Invalid allergen_codes' }, { status: 400 });
+      mergeResponseCookies(access.supabaseResponse, invalid);
+      return invalid;
+    }
+    updates.allergen_codes = sanitized;
+  }
+
+  if ('indicator_codes' in updates) {
+    const sanitized = sanitizeAllergenIndicatorArray(updates.indicator_codes, PRODUCT_INDICATOR_KEYS);
+    if (!sanitized) {
+      const invalid = NextResponse.json({ error: 'Invalid indicator_codes' }, { status: 400 });
+      mergeResponseCookies(access.supabaseResponse, invalid);
+      return invalid;
+    }
+    updates.indicator_codes = sanitized;
+  }
+
   const supabase = createSupabaseAdminClient();
-  const { error } = await supabase.from('cheffing_subrecipes').update(parsed.data).eq('id', params.id);
+  const { error } = await supabase.from('cheffing_subrecipes').update(updates).eq('id', params.id);
 
   if (error) {
     const mapped = mapCheffingPostgresError(error);

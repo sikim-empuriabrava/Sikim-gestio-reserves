@@ -19,6 +19,9 @@ Ingredientes (materia prima) con información de compra.
 - `purchase_pack_qty`: cantidad de unidades por pack.
 - `purchase_price`: precio total del pack.
 - `waste_pct`: merma en rango `0..1` (la UI siempre opera en porcentaje).
+- `allergen_codes`: lista canónica editable de alérgenos.
+- `indicator_codes`: lista canónica editable de indicadores de producto.
+- `image_path`: ruta canónica editable de imagen en Storage.
 
 ### `cheffing_subrecipes`
 Subrecetas/elaboraciones con rendimiento.
@@ -28,6 +31,9 @@ Subrecetas/elaboraciones con rendimiento.
 - `output_qty`: cantidad de salida.
 - `waste_pct`: merma de proceso (0..1, UI en porcentaje).
 - `notes`: notas internas.
+- `allergen_codes`: lista canónica editable de alérgenos.
+- `indicator_codes`: lista canónica editable de indicadores de producto.
+- `image_path`: ruta canónica editable de imagen en Storage.
 
 ### `cheffing_subrecipe_items`
 Líneas de subreceta (ingredientes u otras subrecetas).
@@ -48,6 +54,31 @@ Platos de carta (venta).
 - `selling_price`: precio de venta (nullable en esta fase).
 - `servings`: número de raciones (mínimo 1).
 - `notes`: notas internas.
+- `allergen_codes`: lista canónica editable de alérgenos.
+- `indicator_codes`: lista canónica editable de indicadores de producto.
+- `image_path`: ruta canónica editable de imagen en Storage.
+
+## Contrato canónico y legado
+
+Para el detalle editable de productos, elaboraciones y platos, el contrato principal es:
+
+- `allergen_codes`
+- `indicator_codes`
+- `image_path`
+
+Semántica de `indicator_codes` por entidad:
+
+- Ingredientes y elaboraciones: catálogo de **indicadores de producto** (`PRODUCT_INDICATORS`).
+- Platos: catálogo de **indicadores de plato final** (`DISH_INDICATORS`).
+
+Campos legacy que se mantienen solo por compatibilidad/histórico (no como flujo principal):
+
+- `allergens_manual_add`
+- `allergens_manual_exclude`
+- `indicators_manual_add`
+- `indicators_manual_exclude`
+- `image_url` (en platos, pendiente de decisión futura)
+- `description`
 
 ### `cheffing_dish_items`
 Líneas de plato (ingredientes u otras subrecetas).

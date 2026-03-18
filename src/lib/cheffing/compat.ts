@@ -40,6 +40,8 @@ export const normalizeSubrecipe = (raw: Record<string, unknown>): Subrecipe => (
   output_qty: toNumber(raw.output_qty, 0),
   waste_pct: toNumber(raw.waste_pct, 0),
   notes: toStringOrNull(raw.notes),
+  allergen_codes: toStringArray(raw.allergen_codes ?? raw.allergens_manual_add),
+  indicator_codes: toStringArray(raw.indicator_codes ?? raw.indicators_manual_add),
   allergens_manual_add: toStringArray(raw.allergens_manual_add ?? raw.allergen_codes),
   allergens_manual_exclude: toStringArray(raw.allergens_manual_exclude),
   indicators_manual_add: toStringArray(raw.indicators_manual_add ?? raw.indicator_codes),
@@ -53,19 +55,25 @@ export const normalizeDishCompatibilityMeta = (
   raw: Record<string, unknown> | null | undefined,
 ): Pick<
   Dish,
+  | 'allergen_codes'
+  | 'indicator_codes'
   | 'allergens_manual_add'
   | 'allergens_manual_exclude'
   | 'indicators_manual_add'
   | 'indicators_manual_exclude'
   | 'image_path'
+  | 'image_url'
   | 'notes'
   | 'venue_id'
 > => ({
+  allergen_codes: toStringArray(raw?.allergen_codes ?? raw?.allergens_manual_add),
+  indicator_codes: toStringArray(raw?.indicator_codes ?? raw?.indicators_manual_add),
   allergens_manual_add: toStringArray(raw?.allergens_manual_add),
   allergens_manual_exclude: toStringArray(raw?.allergens_manual_exclude),
   indicators_manual_add: toStringArray(raw?.indicators_manual_add),
   indicators_manual_exclude: toStringArray(raw?.indicators_manual_exclude),
   image_path: toStringOrNull(raw?.image_path),
+  image_url: toStringOrNull(raw?.image_url),
   notes: toStringOrNull(raw?.notes),
   venue_id: toStringOrNull(raw?.venue_id),
 });
