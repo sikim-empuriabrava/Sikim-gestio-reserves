@@ -66,6 +66,6 @@ export const normalizeDishCompatibilityMeta = (
   indicators_manual_add: toStringArray(raw?.indicators_manual_add),
   indicators_manual_exclude: toStringArray(raw?.indicators_manual_exclude),
   image_path: toStringOrNull(raw?.image_path),
-  notes: toStringOrNull(raw?.description),
+  notes: toStringOrNull(raw?.notes),
   venue_id: toStringOrNull(raw?.venue_id),
 });

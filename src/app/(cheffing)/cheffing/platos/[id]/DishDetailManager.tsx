@@ -128,7 +128,7 @@ export function DishDetailManager({
           name: formState.name,
           selling_price: sellingPriceValue,
           servings: servingsValue,
-          description: formState.notes.trim() ? formState.notes.trim() : null,
+          notes: formState.notes.trim() ? formState.notes.trim() : null,
         }),
       });
 
