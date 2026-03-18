@@ -155,6 +155,10 @@ RLS: habilitado
 | `mycheftool_created_at_source` | `timestamp with time zone` | Sí |  |
 | `mycheftool_updated_at_source` | `timestamp with time zone` | Sí |  |
 | `mycheftool_updated_by_name` | `text` | Sí |  |
+| `notes` | `text` | Sí |  |
+| `allergen_codes` | `text[]` | No | `'{}'::text[]` |
+| `indicator_codes` | `text[]` | No | `'{}'::text[]` |
+| `image_path` | `text` | Sí |  |
 
 ### cheffing_ingredient_tags
 RLS: deshabilitado

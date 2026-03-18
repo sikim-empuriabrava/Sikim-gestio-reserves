@@ -1094,6 +1094,10 @@ CREATE TABLE public.cheffing_dishes (
     mycheftool_created_at_source timestamp with time zone,
     mycheftool_updated_at_source timestamp with time zone,
     mycheftool_updated_by_name text,
+    notes text,
+    allergen_codes text[] DEFAULT '{}'::text[] NOT NULL,
+    indicator_codes text[] DEFAULT '{}'::text[] NOT NULL,
+    image_path text,
     CONSTRAINT cheffing_dishes_selling_price_check CHECK (((selling_price IS NULL) OR (selling_price >= (0)::numeric))),
     CONSTRAINT cheffing_dishes_servings_check CHECK ((servings > 0)),
     CONSTRAINT cheffing_dishes_servings_positive CHECK ((servings > 0)),
@@ -3332,5 +3336,5 @@ CREATE POLICY "read own allowlist row" ON public.app_allowed_users FOR SELECT TO
 -- PostgreSQL database dump complete
 --
 
-\unrestrict wkHqzzBKOOWGh3UwbjaxLVSPBYphsd5X9u4UxQH9OjcTegifnd05gUDaEpMAVOW
+\unrestrict Yie4o8KN2ME59sm7UN1kvdGftuk1dTeSbHFbLNu8LsvbTp6OGfCbg7NVXf41oxc
 
