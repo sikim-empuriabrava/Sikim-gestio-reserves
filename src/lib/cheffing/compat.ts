@@ -58,6 +58,7 @@ export const normalizeDishCompatibilityMeta = (
   | 'indicators_manual_add'
   | 'indicators_manual_exclude'
   | 'image_path'
+  | 'notes'
   | 'venue_id'
 > => ({
   allergens_manual_add: toStringArray(raw?.allergens_manual_add),
@@ -65,5 +66,6 @@ export const normalizeDishCompatibilityMeta = (
   indicators_manual_add: toStringArray(raw?.indicators_manual_add),
   indicators_manual_exclude: toStringArray(raw?.indicators_manual_exclude),
   image_path: toStringOrNull(raw?.image_path),
+  notes: toStringOrNull(raw?.description),
   venue_id: toStringOrNull(raw?.venue_id),
 });

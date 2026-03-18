@@ -63,9 +63,17 @@ export const dishCreateSchema = z.object({
   notes: notesSchema,
 });
 
-export const dishUpdateSchema = dishCreateSchema.partial().refine((data) => Object.keys(data).length > 0, {
-  message: 'No fields to update',
-});
+export const dishUpdateSchema = z
+  .object({
+    name: trimmedString.min(1).optional(),
+    selling_price: z.number().min(0).nullable().optional(),
+    servings: z.number().positive().optional(),
+    description: notesSchema,
+  })
+  .partial()
+  .refine((data) => Object.keys(data).length > 0, {
+    message: 'No fields to update',
+  });
 
 export const dishItemSchema = z
   .object({
