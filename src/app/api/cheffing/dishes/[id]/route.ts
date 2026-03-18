@@ -7,7 +7,7 @@ import { mapCheffingPostgresError } from '@/lib/cheffing/postgresErrors';
 import { dishUpdateSchema } from '@/lib/cheffing/schemas';
 import {
   ALLERGEN_KEYS,
-  PRODUCT_INDICATOR_KEYS,
+  DISH_INDICATOR_KEYS,
   sanitizeAllergenIndicatorArray,
 } from '@/lib/cheffing/allergensIndicators';
 
@@ -74,7 +74,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   }
 
   if ('indicator_codes' in updates) {
-    const sanitized = sanitizeAllergenIndicatorArray(updates.indicator_codes, PRODUCT_INDICATOR_KEYS);
+    const sanitized = sanitizeAllergenIndicatorArray(updates.indicator_codes, DISH_INDICATOR_KEYS);
     if (!sanitized) {
       const invalid = NextResponse.json({ error: 'Invalid indicator_codes' }, { status: 400 });
       mergeResponseCookies(access.supabaseResponse, invalid);

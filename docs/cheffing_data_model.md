@@ -66,6 +66,11 @@ Para el detalle editable de productos, elaboraciones y platos, el contrato princ
 - `indicator_codes`
 - `image_path`
 
+Semántica de `indicator_codes` por entidad:
+
+- Ingredientes y elaboraciones: catálogo de **indicadores de producto** (`PRODUCT_INDICATORS`).
+- Platos: catálogo de **indicadores de plato final** (`DISH_INDICATORS`).
+
 Campos legacy que se mantienen solo por compatibilidad/histórico (no como flujo principal):
 
 - `allergens_manual_add`

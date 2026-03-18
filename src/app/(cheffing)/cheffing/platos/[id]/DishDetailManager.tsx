@@ -7,8 +7,8 @@ import { useRouter } from 'next/navigation';
 
 import { ImageUploader } from '@/app/(cheffing)/cheffing/components/ImageUploader';
 import type { Dish, DishItem, Ingredient, Subrecipe, Unit } from '@/lib/cheffing/types';
-import { ALLERGENS, PRODUCT_INDICATORS } from '@/lib/cheffing/allergensIndicators';
-import { toAllergenKeys, toProductIndicatorKeys } from '@/lib/cheffing/allergensHelpers';
+import { ALLERGENS, DISH_INDICATORS, PRODUCT_INDICATORS } from '@/lib/cheffing/allergensIndicators';
+import { toAllergenKeys, toDishIndicatorKeys } from '@/lib/cheffing/allergensHelpers';
 import { CheffingItemPicker } from '@/app/(cheffing)/cheffing/components/CheffingItemPicker';
 import { createSupabaseBrowserClient } from '@/lib/supabase/browser';
 
@@ -164,7 +164,7 @@ export function DishDetailManager({
           servings: servingsValue,
           notes: formState.notes.trim() ? formState.notes.trim() : null,
           allergen_codes: toAllergenKeys(formState.allergen_codes),
-          indicator_codes: toProductIndicatorKeys(formState.indicator_codes),
+          indicator_codes: toDishIndicatorKeys(formState.indicator_codes),
         }),
       });
 
@@ -524,7 +524,7 @@ export function DishDetailManager({
               </div>
             )}
             <div className="grid gap-2 sm:grid-cols-2">
-              {PRODUCT_INDICATORS.map((indicator) => (
+              {DISH_INDICATORS.map((indicator) => (
                 <label
                   key={indicator.key}
                   className="flex items-center gap-2 rounded-lg border border-slate-800/70 bg-slate-950/40 px-3 py-2 text-xs text-slate-200"
