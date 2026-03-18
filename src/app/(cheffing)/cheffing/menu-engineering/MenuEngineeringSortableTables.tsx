@@ -95,6 +95,39 @@ const sortButtonClass =
 
 const bcmSign = (value: boolean) => (value ? '+' : '-');
 
+const headerTooltipButtonClass =
+  'inline-flex h-4 w-4 items-center justify-center rounded-full border border-slate-600 text-[10px] font-semibold text-slate-300';
+
+const headerTooltipPanelClass =
+  'pointer-events-none absolute left-0 top-full z-20 mt-2 w-64 rounded-md border border-slate-700 bg-slate-950/95 p-2 text-[11px] normal-case text-slate-200 opacity-0 shadow-lg transition-opacity delay-700 group-hover:opacity-100 group-focus-within:opacity-100';
+
+function HeaderTooltip({
+  label,
+  description,
+  formula,
+}: {
+  label: string;
+  description: string;
+  formula?: string;
+}) {
+  return (
+    <span className="group relative inline-flex items-center gap-1">
+      <span>{label}</span>
+      <span
+        aria-label={`Información sobre ${label}`}
+        tabIndex={0}
+        className={headerTooltipButtonClass}
+      >
+        i
+      </span>
+      <span role="tooltip" className={headerTooltipPanelClass}>
+        <span className="block">{description}</span>
+        {formula ? <span className="mt-1 block text-slate-300">Fórmula: {formula}</span> : null}
+      </span>
+    </span>
+  );
+}
+
 const toggleSort = <T extends string>(prev: SortState<T>, key: T): SortState<T> => {
   if (prev.key !== key) {
     return { key, direction: 'asc' };
@@ -164,57 +197,109 @@ export function MenuEngineeringSortableMainTable({ rows }: { rows: MenuEngineeri
             <th className="px-4 py-3">BCM</th>
             <th className="px-4 py-3">
               <button type="button" className={sortButtonClass} onClick={() => setMainSort((prev) => toggleSort(prev, 'selling_price_gross'))}>
-                PVP (con IVA) <span>{indicator(mainSort, 'selling_price_gross')}</span>
+                <HeaderTooltip
+                  label="PVP (con IVA)"
+                  description="Precio final de venta al cliente, con IVA incluido."
+                />{' '}
+                <span>{indicator(mainSort, 'selling_price_gross')}</span>
               </button>
             </th>
             <th className="px-4 py-3">
               <button type="button" className={sortButtonClass} onClick={() => setMainSort((prev) => toggleSort(prev, 'cost_per_serving'))}>
-                Coste/ración <span>{indicator(mainSort, 'cost_per_serving')}</span>
+                <HeaderTooltip
+                  label="Coste/ración"
+                  description="Coste estimado de una ración del plato según su escandallo."
+                />{' '}
+                <span>{indicator(mainSort, 'cost_per_serving')}</span>
               </button>
             </th>
             <th className="px-4 py-3">
               <button type="button" className={sortButtonClass} onClick={() => setMainSort((prev) => toggleSort(prev, 'net_price'))}>
-                Precio sin IVA (base) <span>{indicator(mainSort, 'net_price')}</span>
+                <HeaderTooltip
+                  label="Precio sin IVA"
+                  description="Precio final sin IVA."
+                  formula="PVP / (1 + IVA)"
+                />{' '}
+                <span>{indicator(mainSort, 'net_price')}</span>
               </button>
             </th>
             <th className="px-4 py-3">
               <button type="button" className={sortButtonClass} onClick={() => setMainSort((prev) => toggleSort(prev, 'margin_unit'))}>
-                Margen/ración <span>{indicator(mainSort, 'margin_unit')}</span>
+                <HeaderTooltip
+                  label="Margen/ración"
+                  description="Beneficio bruto por ración antes de IVA."
+                  formula="Precio sin IVA - Coste/ración"
+                />{' '}
+                <span>{indicator(mainSort, 'margin_unit')}</span>
               </button>
             </th>
             <th className="px-4 py-3">
               <button type="button" className={sortButtonClass} onClick={() => setMainSort((prev) => toggleSort(prev, 'cogs_pct'))}>
-                COGS % (sobre base) <span>{indicator(mainSort, 'cogs_pct')}</span>
+                <HeaderTooltip
+                  label="COGS %"
+                  description="Porcentaje del precio neto que representa el coste del plato."
+                  formula="Coste/ración / Precio sin IVA"
+                />{' '}
+                <span>{indicator(mainSort, 'cogs_pct')}</span>
               </button>
             </th>
             <th className="px-4 py-3">
               <button type="button" className={sortButtonClass} onClick={() => setMainSort((prev) => toggleSort(prev, 'margin_pct'))}>
-                Margen % (sobre base) <span>{indicator(mainSort, 'margin_pct')}</span>
+                <HeaderTooltip
+                  label="Margen %"
+                  description="Porcentaje del precio neto que queda como margen bruto."
+                  formula="Margen/ración / Precio sin IVA"
+                />{' '}
+                <span>{indicator(mainSort, 'margin_pct')}</span>
               </button>
             </th>
             <th className="px-4 py-3">
               <button type="button" className={sortButtonClass} onClick={() => setMainSort((prev) => toggleSort(prev, 'pvp_objetivo_gross'))}>
-                PVP objetivo (con IVA) <span>{indicator(mainSort, 'pvp_objetivo_gross')}</span>
+                <HeaderTooltip
+                  label="PVP objetivo"
+                  description="Precio recomendado para que el coste represente un 25% del precio neto."
+                  formula="Coste/ración × 4 × (1 + IVA)"
+                />{' '}
+                <span>{indicator(mainSort, 'pvp_objetivo_gross')}</span>
               </button>
             </th>
             <th className="px-4 py-3">
               <button type="button" className={sortButtonClass} onClick={() => setMainSort((prev) => toggleSort(prev, 'dif'))}>
-                Dif (PVP - objetivo) <span>{indicator(mainSort, 'dif')}</span>
+                <HeaderTooltip
+                  label="Dif"
+                  description="Diferencia entre el PVP actual y el PVP objetivo."
+                  formula="PVP actual - PVP objetivo"
+                />{' '}
+                <span>{indicator(mainSort, 'dif')}</span>
               </button>
             </th>
             <th className="px-4 py-3">
               <button type="button" className={sortButtonClass} onClick={() => setMainSort((prev) => toggleSort(prev, 'units_sold'))}>
-                Unidades vendidas <span>{indicator(mainSort, 'units_sold')}</span>
+                <HeaderTooltip
+                  label="Unidades vendidas"
+                  description="Número total de unidades vendidas en el periodo filtrado."
+                />{' '}
+                <span>{indicator(mainSort, 'units_sold')}</span>
               </button>
             </th>
             <th className="px-4 py-3">
               <button type="button" className={sortButtonClass} onClick={() => setMainSort((prev) => toggleSort(prev, 'total_sales_net'))}>
-                Total ventas (€) <span>{indicator(mainSort, 'total_sales_net')}</span>
+                <HeaderTooltip
+                  label="Total ventas"
+                  description="Ventas netas totales del plato en el periodo."
+                  formula="Unidades vendidas × Precio sin IVA"
+                />{' '}
+                <span>{indicator(mainSort, 'total_sales_net')}</span>
               </button>
             </th>
             <th className="px-4 py-3">
               <button type="button" className={sortButtonClass} onClick={() => setMainSort((prev) => toggleSort(prev, 'total_margin'))}>
-                Total margen <span>{indicator(mainSort, 'total_margin')}</span>
+                <HeaderTooltip
+                  label="Total margen"
+                  description="Margen bruto total generado por el plato en el periodo."
+                  formula="Unidades vendidas × Margen/ración"
+                />{' '}
+                <span>{indicator(mainSort, 'total_margin')}</span>
               </button>
             </th>
           </tr>
@@ -318,7 +403,11 @@ export function MenuEngineeringSortableBcmDetailTable({ bcmDetailRows }: { bcmDe
             </th>
             <th className="px-4 py-3">
               <button type="button" className={sortButtonClass} onClick={() => setDetailSort((prev) => toggleSort(prev, 'margin_unit'))}>
-                Margen unitario <span>{indicator(detailSort, 'margin_unit')}</span>
+                <HeaderTooltip
+                  label="Margen unitario"
+                  description="Margen bruto por unidad vendida del plato."
+                />{' '}
+                <span>{indicator(detailSort, 'margin_unit')}</span>
               </button>
             </th>
             <th className="px-4 py-3">
@@ -327,19 +416,43 @@ export function MenuEngineeringSortableBcmDetailTable({ bcmDetailRows }: { bcmDe
                 className={sortButtonClass}
                 onClick={() => setDetailSort((prev) => toggleSort(prev, 'bcm_popularity_index'))}
               >
-                Índice ventas <span>{indicator(detailSort, 'bcm_popularity_index')}</span>
+                <HeaderTooltip
+                  label="Índice ventas"
+                  description="Peso de este plato sobre el total de unidades vendidas."
+                  formula="Unidades del plato / Total unidades vendidas"
+                />{' '}
+                <span>{indicator(detailSort, 'bcm_popularity_index')}</span>
               </button>
             </th>
-            <th className="px-4 py-3">Margen</th>
-            <th className="px-4 py-3">Popularidad</th>
+            <th className="px-4 py-3">
+              <HeaderTooltip
+                label="Margen"
+                description="Indica si el margen unitario está por encima (+) o por debajo (-) del margen medio."
+              />
+            </th>
+            <th className="px-4 py-3">
+              <HeaderTooltip
+                label="Popularidad"
+                description="Indica si el índice de ventas está por encima (+) o por debajo (-) del índice medio de popularidad."
+              />
+            </th>
             <th className="px-4 py-3">
               <button type="button" className={sortButtonClass} onClick={() => setDetailSort((prev) => toggleSort(prev, 'bcm'))}>
-                Tipo <span>{indicator(detailSort, 'bcm')}</span>
+                <HeaderTooltip
+                  label="Tipo"
+                  description="Clasificación BCM del plato: Estrella, Vaca, Puzzle o Perro."
+                />{' '}
+                <span>{indicator(detailSort, 'bcm')}</span>
               </button>
             </th>
             <th className="px-4 py-3">
               <button type="button" className={sortButtonClass} onClick={() => setDetailSort((prev) => toggleSort(prev, 'bcm_margin_g'))}>
-                Margen G <span>{indicator(detailSort, 'bcm_margin_g')}</span>
+                <HeaderTooltip
+                  label="Margen G"
+                  description="Diferencia entre el margen unitario del plato y el margen medio."
+                  formula="Margen unitario - Margen medio"
+                />{' '}
+                <span>{indicator(detailSort, 'bcm_margin_g')}</span>
               </button>
             </th>
             <th className="px-4 py-3">
@@ -348,7 +461,12 @@ export function MenuEngineeringSortableBcmDetailTable({ bcmDetailRows }: { bcmDe
                 className={sortButtonClass}
                 onClick={() => setDetailSort((prev) => toggleSort(prev, 'bcm_popularity_g'))}
               >
-                Popularidad G <span>{indicator(detailSort, 'bcm_popularity_g')}</span>
+                <HeaderTooltip
+                  label="Popularidad G"
+                  description="Diferencia entre el índice de ventas del plato y el índice medio de popularidad."
+                  formula="Índice ventas - Índice medio popularidad"
+                />{' '}
+                <span>{indicator(detailSort, 'bcm_popularity_g')}</span>
               </button>
             </th>
           </tr>
