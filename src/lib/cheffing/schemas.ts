@@ -68,7 +68,7 @@ export const dishUpdateSchema = z
     name: trimmedString.min(1).optional(),
     selling_price: z.number().min(0).nullable().optional(),
     servings: z.number().positive().optional(),
-    description: notesSchema,
+    notes: notesSchema,
   })
   .partial()
   .refine((data) => Object.keys(data).length > 0, {
