@@ -7,12 +7,6 @@ import { useRouter } from 'next/navigation';
 
 import type { Ingredient, Subrecipe, SubrecipeItem, Unit, UnitDimension } from '@/lib/cheffing/types';
 import { CheffingItemPicker } from '@/app/(cheffing)/cheffing/components/CheffingItemPicker';
-import { AllergensIndicatorsPicker } from '@/app/(cheffing)/cheffing/components/AllergensIndicatorsPicker';
-import { ImageUploader } from '@/app/(cheffing)/cheffing/components/ImageUploader';
-import type { AllergenKey, ProductIndicatorKey } from '@/lib/cheffing/allergensIndicators';
-import { toAllergenKeys, toProductIndicatorKeys } from '@/lib/cheffing/allergensHelpers';
-import { addAllergens, addIndicators } from '@/lib/cheffing/allergensIndicatorsOps';
-import { createSupabaseBrowserClient } from '@/lib/supabase/browser';
 
 export type SubrecipeCost = Subrecipe & {
   output_unit_dimension: UnitDimension | null;
@@ -35,7 +29,6 @@ type SubrecipeDetailManagerProps = {
   ingredients: Ingredient[];
   subrecipes: Subrecipe[];
   units: Unit[];
-  canManageImages: boolean;
 };
 
 type SubrecipeFormState = {
@@ -68,28 +61,13 @@ export function SubrecipeDetailManager({
   ingredients,
   subrecipes,
   units,
-  canManageImages,
 }: SubrecipeDetailManagerProps) {
   const router = useRouter();
   const [headerError, setHeaderError] = useState<string | null>(null);
-  const [imageWarning, setImageWarning] = useState<string | null>(null);
   const [itemsError, setItemsError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [editingItemId, setEditingItemId] = useState<string | null>(null);
   const [editingItemState, setEditingItemState] = useState<ItemFormState | null>(null);
-  const [imageFile, setImageFile] = useState<File | null>(null);
-  const [manualAddAllergens, setManualAddAllergens] = useState<string[]>(
-    subrecipe.allergens_manual_add ?? [],
-  );
-  const [manualExcludeAllergens, setManualExcludeAllergens] = useState<string[]>(
-    subrecipe.allergens_manual_exclude ?? [],
-  );
-  const [manualAddIndicators, setManualAddIndicators] = useState<string[]>(
-    subrecipe.indicators_manual_add ?? [],
-  );
-  const [manualExcludeIndicators, setManualExcludeIndicators] = useState<string[]>(
-    subrecipe.indicators_manual_exclude ?? [],
-  );
   const [formState, setFormState] = useState<SubrecipeFormState>({
     name: subrecipe.name,
     output_unit_code: subrecipe.output_unit_code,
@@ -98,47 +76,9 @@ export function SubrecipeDetailManager({
     notes: subrecipe.notes ?? '',
   });
 
-  const supabase = useMemo(() => createSupabaseBrowserClient(), []);
-
   const subrecipeOptions = useMemo(() => {
     return subrecipes.filter((entry) => entry.id !== subrecipe.id);
   }, [subrecipe.id, subrecipes]);
-
-  const ingredientsById = useMemo(() => {
-    return new Map<string, Ingredient>(ingredients.map((ingredient) => [ingredient.id, ingredient] as const));
-  }, [ingredients]);
-
-  const subrecipesById = useMemo(() => {
-    return new Map<string, Subrecipe>(subrecipes.map((entry) => [entry.id, entry] as const));
-  }, [subrecipes]);
-
-  const inheritedAllergens = useMemo(() => {
-    const inherited = new Set<AllergenKey>();
-    items.forEach((item) => {
-      if (item.ingredient_id) {
-        const ingredient = ingredientsById.get(item.ingredient_id);
-        addAllergens(inherited, ingredient?.allergens);
-      } else if (item.subrecipe_component_id) {
-        const subrecipeComponent = subrecipesById.get(item.subrecipe_component_id);
-        addAllergens(inherited, subrecipeComponent?.effective_allergens);
-      }
-    });
-    return Array.from(inherited);
-  }, [items, ingredientsById, subrecipesById]);
-
-  const inheritedIndicators = useMemo(() => {
-    const inherited = new Set<ProductIndicatorKey>();
-    items.forEach((item) => {
-      if (item.ingredient_id) {
-        const ingredient = ingredientsById.get(item.ingredient_id);
-        addIndicators(inherited, ingredient?.indicators);
-      } else if (item.subrecipe_component_id) {
-        const subrecipeComponent = subrecipesById.get(item.subrecipe_component_id);
-        addIndicators(inherited, subrecipeComponent?.effective_indicators);
-      }
-    });
-    return Array.from(inherited);
-  }, [items, ingredientsById, subrecipesById]);
 
   const parseWastePct = (value: string) => {
     const percentValue = Number(value);
@@ -205,17 +145,9 @@ export function SubrecipeDetailManager({
     };
   };
 
-  const existingImageUrl = useMemo(() => {
-    if (!subrecipe.image_path) return null;
-    const { data } = supabase.storage.from('cheffing-images').getPublicUrl(subrecipe.image_path);
-    const cacheKey = subrecipe.updated_at ?? Date.now().toString();
-    return `${data.publicUrl}?v=${encodeURIComponent(cacheKey)}`;
-  }, [subrecipe.image_path, subrecipe.updated_at, supabase]);
-
   const saveHeader = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setHeaderError(null);
-    setImageWarning(null);
     setIsSubmitting(true);
 
     try {
@@ -238,10 +170,6 @@ export function SubrecipeDetailManager({
           output_qty: outputQtyValue,
           waste_pct: wastePctValue,
           notes: formState.notes.trim() ? formState.notes.trim() : null,
-          allergens_manual_add: Array.from(new Set(toAllergenKeys(manualAddAllergens))),
-          allergens_manual_exclude: Array.from(new Set(toAllergenKeys(manualExcludeAllergens))),
-          indicators_manual_add: Array.from(new Set(toProductIndicatorKeys(manualAddIndicators))),
-          indicators_manual_exclude: Array.from(new Set(toProductIndicatorKeys(manualExcludeIndicators))),
         }),
       });
 
@@ -251,45 +179,6 @@ export function SubrecipeDetailManager({
           throw new Error('Ya existe una elaboración con ese nombre.');
         }
         throw new Error(payload?.error ?? 'Error actualizando elaboración');
-      }
-
-      if (imageFile && canManageImages) {
-        let uploadedPath: string | null = null;
-        const previousPath = subrecipe.image_path ?? null;
-        try {
-          const extension = imageFile.type === 'image/webp' ? 'webp' : 'jpg';
-          const path = `subrecipes/${subrecipe.id}/main.${extension}`;
-          const { error: uploadError } = await supabase.storage
-            .from('cheffing-images')
-            .upload(path, imageFile, { upsert: true, contentType: imageFile.type });
-
-          if (uploadError) {
-            throw new Error('Error subiendo la imagen de la elaboración.');
-          }
-
-          uploadedPath = path;
-          const patchResponse = await fetch(`/api/cheffing/subrecipes/${subrecipe.id}`, {
-            method: 'PATCH',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ image_path: path }),
-          });
-
-          if (!patchResponse.ok) {
-            throw new Error('Error guardando la imagen de la elaboración.');
-          }
-
-          if (previousPath && previousPath !== path) {
-            await supabase.storage.from('cheffing-images').remove([previousPath]);
-          }
-          setImageFile(null);
-        } catch (imageError) {
-          if (uploadedPath) {
-            await supabase.storage.from('cheffing-images').remove([uploadedPath]);
-          }
-          setImageWarning(
-            imageError instanceof Error ? imageError.message : 'No se pudo guardar la imagen de la elaboración.',
-          );
-        }
       }
 
       router.refresh();
@@ -323,38 +212,6 @@ export function SubrecipeDetailManager({
       router.refresh();
     } catch (err) {
       setHeaderError(err instanceof Error ? err.message : 'Error desconocido');
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
-  const deleteImage = async () => {
-    if (!subrecipe.image_path || !canManageImages) return;
-    setImageWarning(null);
-    setIsSubmitting(true);
-
-    try {
-      const confirmed = window.confirm('¿Seguro que quieres eliminar la imagen?');
-      if (!confirmed) {
-        return;
-      }
-      const { error: removeError } = await supabase.storage
-        .from('cheffing-images')
-        .remove([subrecipe.image_path]);
-      if (removeError) {
-        throw new Error('Error eliminando la imagen de la elaboración.');
-      }
-      const response = await fetch(`/api/cheffing/subrecipes/${subrecipe.id}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ image_path: null }),
-      });
-      if (!response.ok) {
-        throw new Error('Error guardando la eliminación de la imagen.');
-      }
-      router.refresh();
-    } catch (err) {
-      setImageWarning(err instanceof Error ? err.message : 'No se pudo eliminar la imagen.');
     } finally {
       setIsSubmitting(false);
     }
@@ -536,7 +393,6 @@ export function SubrecipeDetailManager({
           </div>
         </div>
         {headerError ? <p className="text-sm text-rose-400">{headerError}</p> : null}
-        {imageWarning ? <p className="text-sm text-amber-300">{imageWarning}</p> : null}
         <div className="grid gap-4 md:grid-cols-4">
           <label className="flex flex-col gap-2 text-sm text-slate-300">
             Nombre
@@ -594,40 +450,11 @@ export function SubrecipeDetailManager({
               onChange={(event) => setFormState((prev) => ({ ...prev, notes: event.target.value }))}
             />
           </label>
-          {canManageImages || existingImageUrl ? (
-            <div className="space-y-3 md:col-span-4">
-              <ImageUploader
-                label="Imagen de la elaboración"
-                initialUrl={existingImageUrl}
-                onFileReady={setImageFile}
-                disabled={isSubmitting}
-                readOnly={!canManageImages}
-              />
-              {canManageImages && subrecipe.image_path ? (
-                <button
-                  type="button"
-                  onClick={deleteImage}
-                  disabled={isSubmitting}
-                  className="rounded-full border border-rose-500/70 px-4 py-2 text-xs font-semibold text-rose-200"
-                >
-                  Eliminar imagen
-                </button>
-              ) : null}
-            </div>
-          ) : null}
         </div>
-        <AllergensIndicatorsPicker
-          inheritedAllergens={inheritedAllergens}
-          inheritedProductIndicators={inheritedIndicators}
-          manualAddAllergens={manualAddAllergens}
-          setManualAddAllergens={setManualAddAllergens}
-          manualExcludeAllergens={manualExcludeAllergens}
-          setManualExcludeAllergens={setManualExcludeAllergens}
-          manualAddIndicators={manualAddIndicators}
-          setManualAddIndicators={setManualAddIndicators}
-          manualExcludeIndicators={manualExcludeIndicators}
-          setManualExcludeIndicators={setManualExcludeIndicators}
-        />
+        <div className="rounded-xl border border-amber-500/30 bg-amber-500/5 px-3 py-2 text-xs text-amber-200">
+          Alérgenos/indicadores manuales e imagen de elaboración están temporalmente deshabilitados por
+          compatibilidad con el schema de producción actual.
+        </div>
         <div className="flex flex-wrap gap-2">
           <button
             type="submit"
