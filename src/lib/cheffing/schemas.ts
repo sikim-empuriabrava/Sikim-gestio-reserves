@@ -1,8 +1,6 @@
 import { z } from 'zod';
 
 const trimmedString = z.string().trim();
-const allergenIndicatorArraySchema = z.array(trimmedString);
-
 export const wastePctSchema = z.number().min(0).lt(1);
 export const wastePctOverrideSchema = wastePctSchema.nullable();
 
@@ -26,18 +24,9 @@ export const subrecipeCreateSchema = z.object({
   notes: notesSchema,
 });
 
-export const subrecipeUpdateSchema = subrecipeCreateSchema
-  .partial()
-  .extend({
-    allergens_manual_add: allergenIndicatorArraySchema.optional(),
-    allergens_manual_exclude: allergenIndicatorArraySchema.optional(),
-    indicators_manual_add: allergenIndicatorArraySchema.optional(),
-    indicators_manual_exclude: allergenIndicatorArraySchema.optional(),
-    image_path: trimmedString.nullable().optional(),
-  })
-  .refine((data) => Object.keys(data).length > 0, {
-    message: 'No fields to update',
-  });
+export const subrecipeUpdateSchema = subrecipeCreateSchema.partial().refine((data) => Object.keys(data).length > 0, {
+  message: 'No fields to update',
+});
 
 export const subrecipeItemSchema = z
   .object({
@@ -74,18 +63,9 @@ export const dishCreateSchema = z.object({
   notes: notesSchema,
 });
 
-export const dishUpdateSchema = dishCreateSchema
-  .partial()
-  .extend({
-    allergens_manual_add: allergenIndicatorArraySchema.optional(),
-    allergens_manual_exclude: allergenIndicatorArraySchema.optional(),
-    indicators_manual_add: allergenIndicatorArraySchema.optional(),
-    indicators_manual_exclude: allergenIndicatorArraySchema.optional(),
-    image_path: trimmedString.nullable().optional(),
-  })
-  .refine((data) => Object.keys(data).length > 0, {
-    message: 'No fields to update',
-  });
+export const dishUpdateSchema = dishCreateSchema.partial().refine((data) => Object.keys(data).length > 0, {
+  message: 'No fields to update',
+});
 
 export const dishItemSchema = z
   .object({

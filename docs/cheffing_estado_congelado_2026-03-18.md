@@ -14,6 +14,15 @@ Dejar una foto clara del estado actual del módulo Cheffing antes de entrar en l
 ## 1. Estado general
 Cheffing ya está en un punto funcional y utilizable a nivel interno.
 
+## Nota de handoff (hotfix de compatibilidad schema, 2026-03-18)
+
+Se aplicó un ajuste pequeño en detalle de platos/elaboraciones para corregir drift entre código y schema real de producción:
+
+- En cargas de catálogo (`cheffing_ingredients`) se dejó de depender de columnas legacy (`allergens`, `indicators`) y se normaliza desde `allergen_codes` / `indicator_codes` al shape de UI.
+- En detalle de platos y elaboraciones se eliminaron embeds frágiles sobre vistas `v_cheffing_*_items_cost`; ahora se cargan filas simples y los nombres de ingrediente/elaboración se enriquecen en memoria con mapas locales.
+- En updates de header (`PATCH /api/cheffing/dishes/[id]` y `PATCH /api/cheffing/subrecipes/[id]`) se restringió el payload al bloque base soportado por schema actual para evitar errores por columnas no existentes.
+- Como degradación segura temporal, metadata avanzada no garantizada por schema actual (alérgenos/indicadores manuales e imagen en detalle de plato/elaboración) queda deshabilitada en UI para no bloquear guardado de nombre/PVP/raciones/notas o nombre/producción/merma/notas.
+
 La base del sistema está operativa:
 - productos
 - elaboraciones

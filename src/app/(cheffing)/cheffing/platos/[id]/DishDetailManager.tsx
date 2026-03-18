@@ -7,12 +7,6 @@ import { useRouter } from 'next/navigation';
 
 import type { Dish, DishItem, Ingredient, Subrecipe, Unit } from '@/lib/cheffing/types';
 import { CheffingItemPicker } from '@/app/(cheffing)/cheffing/components/CheffingItemPicker';
-import { AllergensIndicatorsPicker } from '@/app/(cheffing)/cheffing/components/AllergensIndicatorsPicker';
-import { ImageUploader } from '@/app/(cheffing)/cheffing/components/ImageUploader';
-import { createSupabaseBrowserClient } from '@/lib/supabase/browser';
-import type { AllergenKey, ProductIndicatorKey } from '@/lib/cheffing/allergensIndicators';
-import { toAllergenKeys, toDishIndicatorKeys } from '@/lib/cheffing/allergensHelpers';
-import { addAllergens, addIndicators } from '@/lib/cheffing/allergensIndicatorsOps';
 
 export type DishCost = Dish & {
   items_cost_total: number | null;
@@ -31,7 +25,6 @@ type DishDetailManagerProps = {
   ingredients: Ingredient[];
   subrecipes: Subrecipe[];
   units: Unit[];
-  canManageImages: boolean;
 };
 
 type DishFormState = {
@@ -57,7 +50,6 @@ export function DishDetailManager({
   ingredients,
   subrecipes,
   units,
-  canManageImages,
 }: DishDetailManagerProps) {
   const router = useRouter();
   const [headerError, setHeaderError] = useState<string | null>(null);
@@ -65,17 +57,6 @@ export function DishDetailManager({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [editingItemId, setEditingItemId] = useState<string | null>(null);
   const [editingItemState, setEditingItemState] = useState<ItemFormState | null>(null);
-  const [manualAddAllergens, setManualAddAllergens] = useState<string[]>(
-    dish.allergens_manual_add ?? [],
-  );
-  const [manualExcludeAllergens, setManualExcludeAllergens] = useState<string[]>(
-    dish.allergens_manual_exclude ?? [],
-  );
-  const [manualAddIndicators, setManualAddIndicators] = useState<string[]>(
-    dish.indicators_manual_add ?? [],
-  );
-  const [manualExcludeIndicators] = useState<string[]>(dish.indicators_manual_exclude ?? []);
-  const [imageFile, setImageFile] = useState<File | null>(null);
   const [formState, setFormState] = useState<DishFormState>({
     name: dish.name,
     selling_price: dish.selling_price === null ? '' : String(dish.selling_price),
@@ -83,50 +64,9 @@ export function DishDetailManager({
     notes: dish.notes ?? '',
   });
 
-  const supabase = useMemo(() => createSupabaseBrowserClient(), []);
-
   const ingredientsById = useMemo(() => {
     return new Map<string, Ingredient>(ingredients.map((ingredient) => [ingredient.id, ingredient] as const));
   }, [ingredients]);
-
-  const subrecipesById = useMemo(() => {
-    return new Map<string, Subrecipe>(subrecipes.map((entry) => [entry.id, entry] as const));
-  }, [subrecipes]);
-
-  const inheritedAllergens = useMemo(() => {
-    const inherited = new Set<AllergenKey>();
-    items.forEach((item) => {
-      if (item.ingredient_id) {
-        const ingredient = ingredientsById.get(item.ingredient_id);
-        addAllergens(inherited, ingredient?.allergens);
-      } else if (item.subrecipe_id) {
-        const subrecipe = subrecipesById.get(item.subrecipe_id);
-        addAllergens(inherited, subrecipe?.effective_allergens);
-      }
-    });
-    return Array.from(inherited);
-  }, [items, ingredientsById, subrecipesById]);
-
-  const inheritedIndicators = useMemo(() => {
-    const inherited = new Set<ProductIndicatorKey>();
-    items.forEach((item) => {
-      if (item.ingredient_id) {
-        const ingredient = ingredientsById.get(item.ingredient_id);
-        addIndicators(inherited, ingredient?.indicators);
-      } else if (item.subrecipe_id) {
-        const subrecipe = subrecipesById.get(item.subrecipe_id);
-        addIndicators(inherited, subrecipe?.effective_indicators);
-      }
-    });
-    return Array.from(inherited);
-  }, [items, ingredientsById, subrecipesById]);
-
-  const existingImageUrl = useMemo(() => {
-    if (!dish.image_path) return null;
-    const { data } = supabase.storage.from('cheffing-images').getPublicUrl(dish.image_path);
-    const cacheKey = dish.updated_at ?? Date.now().toString();
-    return `${data.publicUrl}?v=${encodeURIComponent(cacheKey)}`;
-  }, [dish.image_path, dish.updated_at, supabase]);
 
   const formatCurrency = (value: number | null) => {
     if (value === null || Number.isNaN(value)) return '—';
@@ -181,25 +121,6 @@ export function DishDetailManager({
         throw new Error('Las raciones deben ser mayores que 0.');
       }
 
-      let newImagePath: string | null = dish.image_path ?? null;
-      let uploadedPath: string | null = null;
-      const previousPath = dish.image_path ?? null;
-
-      if (imageFile && canManageImages) {
-        const extension = imageFile.type === 'image/webp' ? 'webp' : 'jpg';
-        const path = `dishes/${dish.id}/main.${extension}`;
-        const { error: uploadError } = await supabase.storage
-          .from('cheffing-images')
-          .upload(path, imageFile, { upsert: true, contentType: imageFile.type });
-
-        if (uploadError) {
-          throw new Error('Error subiendo la imagen del plato.');
-        }
-
-        newImagePath = path;
-        uploadedPath = path;
-      }
-
       const response = await fetch(`/api/cheffing/dishes/${dish.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
@@ -208,11 +129,6 @@ export function DishDetailManager({
           selling_price: sellingPriceValue,
           servings: servingsValue,
           notes: formState.notes.trim() ? formState.notes.trim() : null,
-          allergens_manual_add: Array.from(new Set(toAllergenKeys(manualAddAllergens))),
-          allergens_manual_exclude: Array.from(new Set(toAllergenKeys(manualExcludeAllergens))),
-          indicators_manual_add: Array.from(new Set(toDishIndicatorKeys(manualAddIndicators))),
-          indicators_manual_exclude: [],
-          image_path: newImagePath,
         }),
       });
 
@@ -221,17 +137,8 @@ export function DishDetailManager({
         if (response.status === 409) {
           throw new Error('Ya existe un plato con ese nombre.');
         }
-        if (uploadedPath) {
-          await supabase.storage.from('cheffing-images').remove([uploadedPath]);
-        }
         throw new Error(payload?.error ?? 'Error actualizando plato');
       }
-
-      if (previousPath && uploadedPath && previousPath !== uploadedPath) {
-        await supabase.storage.from('cheffing-images').remove([previousPath]);
-      }
-
-      setImageFile(null);
       router.refresh();
       // TODO: Auto-select the newly added line for editing once we can identify it reliably.
     } catch (err) {
@@ -263,36 +170,6 @@ export function DishDetailManager({
       router.refresh();
     } catch (err) {
       setHeaderError(err instanceof Error ? err.message : 'Error desconocido');
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
-  const deleteImage = async () => {
-    if (!dish.image_path || !canManageImages) return;
-    setHeaderError(null);
-    setIsSubmitting(true);
-
-    try {
-      const confirmed = window.confirm('¿Seguro que quieres eliminar la imagen?');
-      if (!confirmed) {
-        return;
-      }
-      const { error: removeError } = await supabase.storage.from('cheffing-images').remove([dish.image_path]);
-      if (removeError) {
-        throw new Error('Error eliminando la imagen del plato.');
-      }
-      const response = await fetch(`/api/cheffing/dishes/${dish.id}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ image_path: null }),
-      });
-      if (!response.ok) {
-        throw new Error('Error guardando la eliminación de la imagen.');
-      }
-      router.refresh();
-    } catch (err) {
-      setHeaderError(err instanceof Error ? err.message : 'No se pudo eliminar la imagen.');
     } finally {
       setIsSubmitting(false);
     }
@@ -497,37 +374,10 @@ export function DishDetailManager({
             />
           </label>
         </div>
-        {canManageImages || existingImageUrl ? (
-          <div className="space-y-3 rounded-2xl border border-slate-800/70 bg-slate-950/60 p-4">
-            <ImageUploader
-              initialUrl={existingImageUrl}
-              onFileReady={setImageFile}
-              disabled={isSubmitting}
-              readOnly={!canManageImages}
-            />
-            {canManageImages && dish.image_path ? (
-              <button
-                type="button"
-                onClick={deleteImage}
-                disabled={isSubmitting}
-                className="rounded-full border border-rose-500/70 px-4 py-2 text-xs font-semibold text-rose-200"
-              >
-                Eliminar imagen
-              </button>
-            ) : null}
-          </div>
-        ) : null}
-        <AllergensIndicatorsPicker
-          inheritedAllergens={inheritedAllergens}
-          inheritedProductIndicators={inheritedIndicators}
-          manualAddAllergens={manualAddAllergens}
-          setManualAddAllergens={setManualAddAllergens}
-          manualExcludeAllergens={manualExcludeAllergens}
-          setManualExcludeAllergens={setManualExcludeAllergens}
-          manualDishIndicators={manualAddIndicators}
-          setManualDishIndicators={setManualAddIndicators}
-          manualExcludeIndicators={manualExcludeIndicators}
-        />
+        <div className="rounded-xl border border-amber-500/30 bg-amber-500/5 px-3 py-2 text-xs text-amber-200">
+          Alérgenos/indicadores manuales e imagen del plato están temporalmente deshabilitados por compatibilidad con
+          el schema de producción actual.
+        </div>
         <div className="flex flex-wrap gap-2">
           <button
             type="submit"

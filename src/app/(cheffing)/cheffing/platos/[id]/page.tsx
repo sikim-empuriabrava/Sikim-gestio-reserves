@@ -2,10 +2,14 @@ import { notFound } from 'next/navigation';
 
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { requireCheffingAccess } from '@/lib/cheffing/requireCheffing';
-import { isAdmin } from '@/lib/auth/requireRole';
 import type { AllergenKey, ProductIndicatorKey } from '@/lib/cheffing/allergensIndicators';
 import { sanitizeAllergens, sanitizeProductIndicators } from '@/lib/cheffing/allergensHelpers';
 import type { Ingredient, Subrecipe, Unit } from '@/lib/cheffing/types';
+import {
+  normalizeDishCompatibilityMeta,
+  normalizeIngredient,
+  normalizeSubrecipe,
+} from '@/lib/cheffing/compat';
 import {
   addAllergens,
   addIndicators,
@@ -21,9 +25,7 @@ import {
 } from './DishDetailManager';
 
 export default async function CheffingPlatoDetailPage({ params }: { params: { id: string } }) {
-  const { allowlistInfo } = await requireCheffingAccess();
-  const canManageImages =
-    isAdmin(allowlistInfo.role) || Boolean(allowlistInfo.allowedUser?.cheffing_images_manage);
+  await requireCheffingAccess();
 
   const supabase = createSupabaseServerClient();
   const { data: dish, error: dishError } = await supabase
@@ -39,30 +41,24 @@ export default async function CheffingPlatoDetailPage({ params }: { params: { id
 
   const { data: dishMeta, error: dishMetaError } = await supabase
     .from('cheffing_dishes')
-    .select(
-      'id, allergens_manual_add, allergens_manual_exclude, indicators_manual_add, indicators_manual_exclude, image_path, venue_id',
-    )
+    .select('*')
     .eq('id', params.id)
     .maybeSingle();
 
   const { data: items, error: itemsError } = await supabase
     .from('v_cheffing_dish_items_cost')
     .select(
-      'id, dish_id, ingredient_id, subrecipe_id, unit_code, quantity, waste_pct, waste_pct_override, notes, line_cost_total, ingredient:cheffing_ingredients(id, name), subrecipe:cheffing_subrecipes(id, name)',
+      'id, dish_id, ingredient_id, subrecipe_id, unit_code, quantity, waste_pct, waste_pct_override, notes, line_cost_total',
     )
     .eq('dish_id', params.id)
     .order('created_at', { ascending: true });
   const { data: ingredients, error: ingredientsError } = await supabase
     .from('cheffing_ingredients')
-    .select(
-      'id, name, purchase_unit_code, purchase_pack_qty, purchase_price, waste_pct, allergens, indicators, created_at, updated_at',
-    )
+    .select('*')
     .order('name', { ascending: true });
   const { data: subrecipes, error: subrecipesError } = await supabase
     .from('cheffing_subrecipes')
-    .select(
-      'id, name, output_unit_code, output_qty, waste_pct, notes, allergens_manual_add, allergens_manual_exclude, indicators_manual_add, indicators_manual_exclude, created_at, updated_at',
-    )
+    .select('*')
     .order('name', { ascending: true });
   const { data: subrecipeItems, error: subrecipeItemsError } = await supabase
     .from('cheffing_subrecipe_items')
@@ -73,26 +69,19 @@ export default async function CheffingPlatoDetailPage({ params }: { params: { id
     .order('dimension', { ascending: true })
     .order('to_base_factor', { ascending: true });
 
-  if (itemsError || ingredientsError || subrecipesError || subrecipeItemsError || unitsError || dishMetaError) {
-    console.error(
-      '[cheffing/platos] Failed to load dish items',
-      itemsError ?? ingredientsError ?? subrecipesError ?? subrecipeItemsError ?? unitsError ?? dishMetaError,
-    );
+  if (dishMetaError || itemsError || ingredientsError || subrecipesError || subrecipeItemsError || unitsError) {
+    const loadError =
+      dishMetaError ?? itemsError ?? ingredientsError ?? subrecipesError ?? subrecipeItemsError ?? unitsError;
+    console.error('[cheffing/platos] Failed to load dish detail data', loadError);
+    throw new Error('No se pudieron cargar los datos del plato por incompatibilidad de schema.');
   }
 
-  const dishItemsTyped = (items ?? []) as Array<{
-    ingredient?: unknown;
-    subrecipe?: unknown;
-    [key: string]: unknown;
-  }>;
-  const ingredientsTyped = (ingredients ?? []) as Ingredient[];
-  const subrecipesTyped = (subrecipes ?? []) as Subrecipe[];
-
-  const normalizedItems = dishItemsTyped.map((item) => ({
-    ...item,
-    ingredient: Array.isArray(item.ingredient) ? item.ingredient[0] ?? null : item.ingredient ?? null,
-    subrecipe: Array.isArray(item.subrecipe) ? item.subrecipe[0] ?? null : item.subrecipe ?? null,
-  }));
+  const ingredientsTyped = (ingredients ?? []).map((raw) =>
+    normalizeIngredient(raw as Record<string, unknown>),
+  ) as Ingredient[];
+  const subrecipesTyped = (subrecipes ?? []).map((raw) =>
+    normalizeSubrecipe(raw as Record<string, unknown>),
+  ) as Subrecipe[];
 
   const ingredientLookup = new Map<string, Ingredient>(
     ingredientsTyped.map((entry) => [entry.id, entry] as const),
@@ -174,9 +163,19 @@ export default async function CheffingPlatoDetailPage({ params }: { params: { id
     };
   });
 
+  const normalizedItems = (items ?? []).map((item) => {
+    const ingredient = item.ingredient_id ? ingredientLookup.get(item.ingredient_id) : null;
+    const subrecipe = item.subrecipe_id ? subrecipeLookup.get(item.subrecipe_id) : null;
+    return {
+      ...item,
+      ingredient: ingredient ? { id: ingredient.id, name: ingredient.name } : null,
+      subrecipe: subrecipe ? { id: subrecipe.id, name: subrecipe.name } : null,
+    };
+  });
+
   const mergedDish = {
     ...dish,
-    ...(dishMeta ?? {}),
+    ...normalizeDishCompatibilityMeta((dishMeta ?? null) as Record<string, unknown> | null),
   };
 
   return (
@@ -192,7 +191,6 @@ export default async function CheffingPlatoDetailPage({ params }: { params: { id
         ingredients={ingredientsTyped}
         subrecipes={enrichedSubrecipes as Subrecipe[]}
         units={(units ?? []) as Unit[]}
-        canManageImages={canManageImages}
       />
     </section>
   );

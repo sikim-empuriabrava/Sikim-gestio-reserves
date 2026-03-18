@@ -2,10 +2,10 @@ import { notFound } from 'next/navigation';
 
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { requireCheffingAccess } from '@/lib/cheffing/requireCheffing';
-import { isAdmin } from '@/lib/auth/requireRole';
 import type { Ingredient, Subrecipe, Unit } from '@/lib/cheffing/types';
 import type { AllergenKey, ProductIndicatorKey } from '@/lib/cheffing/allergensIndicators';
 import { sanitizeAllergens, sanitizeProductIndicators } from '@/lib/cheffing/allergensHelpers';
+import { normalizeIngredient, normalizeSubrecipe } from '@/lib/cheffing/compat';
 import {
   addAllergens,
   addIndicators,
@@ -21,9 +21,7 @@ import {
 } from './SubrecipeDetailManager';
 
 export default async function CheffingElaboracionDetailPage({ params }: { params: { id: string } }) {
-  const { allowlistInfo } = await requireCheffingAccess();
-  const canManageImages =
-    isAdmin(allowlistInfo.role) || Boolean(allowlistInfo.allowedUser?.cheffing_images_manage);
+  await requireCheffingAccess();
 
   const supabase = createSupabaseServerClient();
   const { data: subrecipe, error: subrecipeError } = await supabase
@@ -42,21 +40,17 @@ export default async function CheffingElaboracionDetailPage({ params }: { params
   const { data: items, error: itemsError } = await supabase
     .from('v_cheffing_subrecipe_items_cost')
     .select(
-      'id, subrecipe_id, ingredient_id, subrecipe_component_id, unit_code, quantity, waste_pct, notes, line_cost_total, ingredient:cheffing_ingredients!cheffing_subrecipe_items_ingredient_id_fkey(id, name), subrecipe_component:cheffing_subrecipes!cheffing_subrecipe_items_subrecipe_component_id_fkey(id, name)',
+      'id, subrecipe_id, ingredient_id, subrecipe_component_id, unit_code, quantity, waste_pct, notes, line_cost_total',
     )
     .eq('subrecipe_id', params.id)
     .order('created_at', { ascending: true });
   const { data: ingredients, error: ingredientsError } = await supabase
     .from('cheffing_ingredients')
-    .select(
-      'id, name, purchase_unit_code, purchase_pack_qty, purchase_price, waste_pct, allergens, indicators, created_at, updated_at',
-    )
+    .select('*')
     .order('name', { ascending: true });
   const { data: subrecipes, error: subrecipesError } = await supabase
     .from('cheffing_subrecipes')
-    .select(
-      'id, name, output_unit_code, output_qty, waste_pct, notes, allergens_manual_add, allergens_manual_exclude, indicators_manual_add, indicators_manual_exclude, image_path, created_at, updated_at',
-    )
+    .select('*')
     .order('name', { ascending: true });
   const { data: subrecipeItems, error: subrecipeItemsError } = await supabase
     .from('cheffing_subrecipe_items')
@@ -68,26 +62,17 @@ export default async function CheffingElaboracionDetailPage({ params }: { params
     .order('to_base_factor', { ascending: true });
 
   if (itemsError || ingredientsError || subrecipesError || subrecipeItemsError || unitsError) {
-    console.error(
-      '[cheffing/elaboraciones] Failed to load subrecipe items',
-      itemsError ?? ingredientsError ?? subrecipesError ?? subrecipeItemsError ?? unitsError,
-    );
+    const loadError = itemsError ?? ingredientsError ?? subrecipesError ?? subrecipeItemsError ?? unitsError;
+    console.error('[cheffing/elaboraciones] Failed to load subrecipe detail data', loadError);
+    throw new Error('No se pudieron cargar los datos de la elaboración por incompatibilidad de schema.');
   }
 
-  const normalizedItems = (items ?? []).map((item) => {
-    const ingredient = Array.isArray(item.ingredient) ? item.ingredient[0] ?? null : item.ingredient ?? null;
-    const subrecipeComponent = Array.isArray(item.subrecipe_component)
-      ? item.subrecipe_component[0] ?? null
-      : item.subrecipe_component ?? null;
-    return {
-      ...item,
-      ingredient,
-      subrecipe_component: subrecipeComponent,
-    };
-  });
-
-  const subrecipesTyped = (subrecipes ?? []) as Subrecipe[];
-  const ingredientsTyped = (ingredients ?? []) as Ingredient[];
+  const ingredientsTyped = (ingredients ?? []).map((raw) =>
+    normalizeIngredient(raw as Record<string, unknown>),
+  ) as Ingredient[];
+  const subrecipesTyped = (subrecipes ?? []).map((raw) =>
+    normalizeSubrecipe(raw as Record<string, unknown>),
+  ) as Subrecipe[];
 
   const subrecipeLookup = new Map<string, Subrecipe>(subrecipesTyped.map((entry) => [entry.id, entry] as const));
   const ingredientLookup = new Map<string, Ingredient>(
@@ -169,6 +154,18 @@ export default async function CheffingElaboracionDetailPage({ params }: { params
     };
   });
 
+  const normalizedItems = (items ?? []).map((item) => {
+    const ingredient = item.ingredient_id ? ingredientLookup.get(item.ingredient_id) : null;
+    const subrecipeComponent = item.subrecipe_component_id
+      ? subrecipeLookup.get(item.subrecipe_component_id)
+      : null;
+    return {
+      ...item,
+      ingredient: ingredient ? { id: ingredient.id, name: ingredient.name } : null,
+      subrecipe_component: subrecipeComponent ? { id: subrecipeComponent.id, name: subrecipeComponent.name } : null,
+    };
+  });
+
   const subrecipeManual = subrecipeLookup.get(params.id);
   const mergedSubrecipe = {
     ...subrecipe,
@@ -188,7 +185,6 @@ export default async function CheffingElaboracionDetailPage({ params }: { params
         ingredients={ingredientsTyped}
         subrecipes={enrichedSubrecipes}
         units={(units ?? []) as Unit[]}
-        canManageImages={canManageImages}
       />
     </section>
   );
