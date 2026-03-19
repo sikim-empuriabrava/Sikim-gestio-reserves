@@ -13,7 +13,7 @@ export const MENU_ENGINEERING_FAMILIES = [
   'Peix',
   'Postres',
   'Refrescos',
-  'Resfrescos Pub',
+  'Refrescos Pub',
   'Saltejats',
   'Sin familia',
   'Snacks',
@@ -60,7 +60,7 @@ export const resolveDishFamilyFromSourceTags = (sourceTagNames: string[] | null 
   }
 
   if (tagSet.has('redbull')) {
-    return 'Resfrescos Pub';
+    return 'Refrescos Pub';
   }
 
   if (tagSetHasAny(tagSet, ['coca de pa de vidre', 'entrants', 'compartir'])) {
