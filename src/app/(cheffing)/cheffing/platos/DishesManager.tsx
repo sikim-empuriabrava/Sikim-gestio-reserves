@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 
 import type { Dish } from '@/lib/cheffing/types';
 import { formatEditableMoney, parseEditableMoney } from '@/lib/cheffing/money';
+import { normalizeSearchText } from '@/lib/cheffing/search';
 import { createSupabaseBrowserClient } from '@/lib/supabase/browser';
 
 export type DishCost = Dish & {
@@ -35,6 +36,7 @@ export function DishesManager({ initialDishes, availableFamilies }: DishesManage
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingState, setEditingState] = useState<DishFormState | null>(null);
   const [selectedFamily, setSelectedFamily] = useState('todas');
+  const [searchTerm, setSearchTerm] = useState('');
   const [sortState, setSortState] = useState<{ key: DishSortKey; direction: SortDirection }>({
     key: 'name',
     direction: 'asc',
@@ -151,13 +153,18 @@ export function DishesManager({ initialDishes, availableFamilies }: DishesManage
   };
 
   const filteredAndSortedDishes = useMemo(() => {
-    const filtered =
+    const familyFilteredDishes =
       selectedFamily === 'todas'
         ? initialDishes
         : initialDishes.filter((dish) => (dish.family ?? 'Sin familia') === selectedFamily);
+    const normalizedQuery = normalizeSearchText(searchTerm);
+    const filteredDishes =
+      normalizedQuery.length === 0
+        ? familyFilteredDishes
+        : familyFilteredDishes.filter((dish) => normalizeSearchText(dish.name).includes(normalizedQuery));
 
     const directionMultiplier = sortState.direction === 'asc' ? 1 : -1;
-    return [...filtered].sort((a, b) => {
+    return [...filteredDishes].sort((a, b) => {
       let result = 0;
       switch (sortState.key) {
         case 'name':
@@ -178,7 +185,7 @@ export function DishesManager({ initialDishes, availableFamilies }: DishesManage
       }
       return result * directionMultiplier;
     });
-  }, [initialDishes, selectedFamily, sortState]);
+  }, [initialDishes, searchTerm, selectedFamily, sortState]);
 
   return (
     <div className="space-y-6">
@@ -204,6 +211,13 @@ export function DishesManager({ initialDishes, availableFamilies }: DishesManage
             ))}
           </select>
         </label>
+        <input
+          type="search"
+          value={searchTerm}
+          onChange={(event) => setSearchTerm(event.target.value)}
+          placeholder="Buscar plato por nombre"
+          className="w-full max-w-xs rounded-md border border-slate-700 bg-slate-950/70 px-3 py-2 text-sm text-white placeholder:text-slate-500"
+        />
         {error ? <p className="text-sm text-rose-400">{error}</p> : null}
       </div>
 
@@ -258,10 +272,16 @@ export function DishesManager({ initialDishes, availableFamilies }: DishesManage
             </tr>
           </thead>
           <tbody>
-            {filteredAndSortedDishes.length === 0 ? (
+            {initialDishes.length === 0 ? (
               <tr>
                 <td colSpan={8} className="px-4 py-6 text-center text-sm text-slate-500">
-                  No hay platos para el filtro seleccionado.
+                  No hay platos todavía.
+                </td>
+              </tr>
+            ) : filteredAndSortedDishes.length === 0 ? (
+              <tr>
+                <td colSpan={8} className="px-4 py-6 text-center text-sm text-slate-500">
+                  No hay platos que coincidan con el filtro actual.
                 </td>
               </tr>
             ) : (

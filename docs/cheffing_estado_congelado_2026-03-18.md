@@ -255,6 +255,23 @@ Se deja registrada una mejora pequeña-media enfocada a robustez en detalle de e
 - **Alcance explícitamente fuera de este bloque**:
   - no se toca todavía el trabajo para permitir `0.5` raciones.
 
+### Nota adicional (2026-03-19) — búsqueda por nombre en listados principales
+
+Se añadió buscador de texto en los listados de:
+- `/cheffing/productos`
+- `/cheffing/elaboraciones`
+- `/cheffing/platos`
+
+Alcance de esta mejora:
+- la búsqueda filtra solo por `name` (sin familia, notas, referencias, categorías, alérgenos, indicadores ni campos numéricos);
+- matching case-insensitive y con normalización simple de diacríticos;
+- en platos convive con el filtro de familia y el orden existente (familia → texto en nombre → sort).
+
+Fuera de alcance en este bloque:
+- no se implementa fuzzy search real ni tolerancia a typos.
+
+Mejora futura (post-MVP general): evaluar búsqueda tolerante a errores ortográficos / similitud fonética si en uso real aporta valor.
+
 ### 8.1 Tabla principal
 La tabla principal ya replica la lógica base validada contra el Excel:
 
