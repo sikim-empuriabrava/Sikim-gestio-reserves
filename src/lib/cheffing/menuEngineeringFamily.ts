@@ -21,6 +21,11 @@ export const MENU_ENGINEERING_FAMILIES = [
 
 export type MenuEngineeringDishFamily = (typeof MENU_ENGINEERING_FAMILIES)[number];
 
+/**
+ * Legacy helper used by Menu Engineering historical derivation/import paths.
+ * Canonical family model for dishes is now `cheffing_dishes.family_id`.
+ */
+
 const normalizeTag = (value: string) =>
   value
     .trim()

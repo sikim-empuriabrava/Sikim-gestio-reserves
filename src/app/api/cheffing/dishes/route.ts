@@ -165,6 +165,7 @@ export async function POST(req: NextRequest) {
     .from('cheffing_dishes')
     .insert({
       name: dishInput.name,
+      family_id: dishInput.family_id ?? null,
       selling_price: dishInput.selling_price ?? null,
       servings: dishInput.servings,
       notes: dishInput.notes ?? null,

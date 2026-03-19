@@ -6,7 +6,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "cheffing:backfill-dish-families": "npx --yes tsx scripts/cheffing/backfill-dish-families.ts"
   },
   "dependencies": {
     "@heroicons/react": "2.1.5",

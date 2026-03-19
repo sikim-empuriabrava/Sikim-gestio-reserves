@@ -250,8 +250,8 @@ Se deja registrada una mejora pequeña-media enfocada a robustez en detalle de e
 - **Platos: familia en listado + filtro por familia**:
   - columna `Familia` visible
   - selector con opción `Todas`
-  - fallback `Sin familia`
-  - derivación reutilizando la base conceptual existente de Menu Engineering (`mycheftool_source_tag_names`).
+  - opción virtual `Sin familia` (sin fila física)
+  - ahora basado en modelo canónico `cheffing_families` + `cheffing_dishes.family_id`.
 - **Alcance explícitamente fuera de este bloque**:
   - no se toca todavía el trabajo para permitir `0.5` raciones.
 
@@ -327,13 +327,14 @@ La BCM ya está separada abajo, en bloque propio, con formato híbrido:
 
 ### 8.4 Familia
 #### Fuente elegida
-La familia no sale de una columna explícita nativa en la vista de Menu Engineering.
-
-La base elegida para derivarla es:
-- `cheffing_dishes.mycheftool_source_tag_names`
+La familia de platos en Cheffing pasa a salir de un catálogo canónico:
+- `public.cheffing_families`
+- `public.cheffing_dishes.family_id` (nullable)
 
 #### Importante
-No se usa el tag crudo como familia final, sino una normalización en código para acercarlo a las familias del Excel.
+- `Sin familia` **no** se modela como fila; se representa como `family_id = null`.
+- `mycheftool_source_tag_names` queda como dato legacy para histórico/importación y para backfills puntuales.
+- En este bloque **no** se limpian labels legacy raros; se conservan tal cual para no romper la operativa actual.
 
 #### Observación
 Esta parte está implementada, pero sigue siendo una de las zonas que conviene revisar con Pau porque algunas familias son más ambiguas que otras, especialmente:

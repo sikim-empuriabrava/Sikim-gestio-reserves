@@ -75,6 +75,7 @@ export type SubrecipeItem = {
 export type Dish = {
   id: string;
   name: string;
+  family_id?: string | null;
   selling_price: number | null;
   servings: number;
   notes: string | null;

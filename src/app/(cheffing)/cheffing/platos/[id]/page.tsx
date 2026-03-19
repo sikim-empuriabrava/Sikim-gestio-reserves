@@ -7,6 +7,7 @@ import { isAdmin } from '@/lib/auth/requireRole';
 import type { AllergenKey, ProductIndicatorKey } from '@/lib/cheffing/allergensIndicators';
 import { sanitizeAllergens, sanitizeProductIndicators } from '@/lib/cheffing/allergensHelpers';
 import type { Ingredient, Subrecipe, Unit } from '@/lib/cheffing/types';
+import type { CheffingFamily } from '@/lib/cheffing/families';
 import {
   normalizeDishCompatibilityMeta,
   normalizeIngredient,
@@ -70,10 +71,16 @@ export default async function CheffingPlatoDetailPage({ params }: { params: { id
     .select('code, name, dimension, to_base_factor')
     .order('dimension', { ascending: true })
     .order('to_base_factor', { ascending: true });
+  const { data: families, error: familiesError } = await supabase
+    .from('cheffing_families')
+    .select('id, name, slug, sort_order, is_active')
+    .eq('is_active', true)
+    .order('sort_order', { ascending: true })
+    .order('name', { ascending: true });
 
-  if (dishMetaError || itemsError || ingredientsError || subrecipesError || subrecipeItemsError || unitsError) {
+  if (dishMetaError || itemsError || ingredientsError || subrecipesError || subrecipeItemsError || unitsError || familiesError) {
     const loadError =
-      dishMetaError ?? itemsError ?? ingredientsError ?? subrecipesError ?? subrecipeItemsError ?? unitsError;
+      dishMetaError ?? itemsError ?? ingredientsError ?? subrecipesError ?? subrecipeItemsError ?? unitsError ?? familiesError;
     console.error('[cheffing/platos] Failed to load dish detail data', loadError);
     throw new Error('No se pudieron cargar los datos del plato por incompatibilidad de schema.');
   }
@@ -210,6 +217,7 @@ export default async function CheffingPlatoDetailPage({ params }: { params: { id
         ingredients={ingredientsTyped}
         subrecipes={enrichedSubrecipes as Subrecipe[]}
         units={(units ?? []) as Unit[]}
+        families={(families ?? []) as CheffingFamily[]}
         inheritedAllergens={inheritedAllergens}
         inheritedIndicators={inheritedIndicators}
         canManageImages={canManageImages}
