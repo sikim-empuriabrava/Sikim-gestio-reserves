@@ -58,6 +58,10 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   );
 
   if (!parsed.success) {
+    console.error('[api/cheffing/subrecipes/:id][PATCH] Invalid payload', {
+      subrecipeId: params.id,
+      issues: parsed.error.issues,
+    });
     const invalid = NextResponse.json({ error: 'Invalid payload', issues: parsed.error.issues }, { status: 400 });
     mergeResponseCookies(access.supabaseResponse, invalid);
     return invalid;
@@ -89,6 +93,11 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   const { error } = await supabase.from('cheffing_subrecipes').update(updates).eq('id', params.id);
 
   if (error) {
+    console.error('[api/cheffing/subrecipes/:id][PATCH] Failed to save subrecipe header', {
+      subrecipeId: params.id,
+      updates: Object.keys(updates),
+      error,
+    });
     const mapped = mapCheffingPostgresError(error);
     const serverError = NextResponse.json({ error: mapped.message }, { status: mapped.status });
     mergeResponseCookies(access.supabaseResponse, serverError);

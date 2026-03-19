@@ -5,12 +5,10 @@ import type { FormEvent } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 
-import { ImageUploader } from '@/app/(cheffing)/cheffing/components/ImageUploader';
 import type { Ingredient, Subrecipe, SubrecipeItem, Unit, UnitDimension } from '@/lib/cheffing/types';
 import { ALLERGENS, PRODUCT_INDICATORS } from '@/lib/cheffing/allergensIndicators';
 import { toAllergenKeys, toProductIndicatorKeys } from '@/lib/cheffing/allergensHelpers';
 import { CheffingItemPicker } from '@/app/(cheffing)/cheffing/components/CheffingItemPicker';
-import { createSupabaseBrowserClient } from '@/lib/supabase/browser';
 
 export type SubrecipeCost = Subrecipe & {
   output_unit_dimension: UnitDimension | null;
@@ -54,7 +52,6 @@ type ItemFormState = {
   subrecipe_component_id: string;
   unit_code: string;
   quantity: string;
-  waste_pct: string;
   notes: string;
 };
 
@@ -75,12 +72,9 @@ export function SubrecipeDetailManager({
   canManageImages,
 }: SubrecipeDetailManagerProps) {
   const router = useRouter();
-  const supabase = useMemo(() => createSupabaseBrowserClient(), []);
   const [headerError, setHeaderError] = useState<string | null>(null);
   const [itemsError, setItemsError] = useState<string | null>(null);
-  const [imageWarning, setImageWarning] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [imageFile, setImageFile] = useState<File | null>(null);
   const [editingItemId, setEditingItemId] = useState<string | null>(null);
   const [editingItemState, setEditingItemState] = useState<ItemFormState | null>(null);
   const [formState, setFormState] = useState<SubrecipeFormState>({
@@ -92,13 +86,6 @@ export function SubrecipeDetailManager({
     allergen_codes: subrecipe.allergen_codes ?? [],
     indicator_codes: subrecipe.indicator_codes ?? [],
   });
-
-  const existingImageUrl = useMemo(() => {
-    if (!subrecipe.image_path) return null;
-    const { data } = supabase.storage.from('cheffing-images').getPublicUrl(subrecipe.image_path);
-    const cacheKey = subrecipe.updated_at ?? Date.now().toString();
-    return `${data.publicUrl}?v=${encodeURIComponent(cacheKey)}`;
-  }, [subrecipe.image_path, subrecipe.updated_at, supabase]);
 
   const toggleCode = (field: 'allergen_codes' | 'indicator_codes', code: string) => {
     setFormState((prev) => {
@@ -181,7 +168,6 @@ export function SubrecipeDetailManager({
   const saveHeader = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setHeaderError(null);
-    setImageWarning(null);
     setIsSubmitting(true);
 
     try {
@@ -217,74 +203,14 @@ export function SubrecipeDetailManager({
         throw new Error(payload?.error ?? 'Error actualizando elaboración');
       }
 
-      if (imageFile && canManageImages) {
-        let uploadedPath: string | null = null;
-        try {
-          const extension = imageFile.type === 'image/webp' ? 'webp' : 'jpg';
-          const path = `subrecipes/${subrecipe.id}/main.${extension}`;
-          const { error: uploadError } = await supabase.storage
-            .from('cheffing-images')
-            .upload(path, imageFile, { upsert: true, contentType: imageFile.type });
-
-          if (uploadError) {
-            throw new Error('Error subiendo la imagen de la elaboración.');
-          }
-
-          uploadedPath = path;
-          const patchResponse = await fetch(`/api/cheffing/subrecipes/${subrecipe.id}`, {
-            method: 'PATCH',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ image_path: path }),
-          });
-          if (!patchResponse.ok) {
-            throw new Error('Error guardando la imagen de la elaboración.');
-          }
-          if (subrecipe.image_path && subrecipe.image_path !== path) {
-            await supabase.storage.from('cheffing-images').remove([subrecipe.image_path]);
-          }
-          setImageFile(null);
-        } catch (imageError) {
-          if (uploadedPath) {
-            await supabase.storage.from('cheffing-images').remove([uploadedPath]);
-          }
-          setImageWarning(
-            imageError instanceof Error ? imageError.message : 'No se pudo guardar la imagen de la elaboración.',
-          );
-        }
-      }
-
       router.refresh();
       // TODO: Auto-select the newly added line for editing once we can identify it reliably.
     } catch (err) {
-      setHeaderError(err instanceof Error ? err.message : 'Error desconocido');
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
-  const handleDeleteImage = async () => {
-    if (!subrecipe.image_path || !canManageImages) return;
-    setImageWarning(null);
-    setIsSubmitting(true);
-    try {
-      const confirmed = window.confirm('¿Seguro que quieres eliminar la imagen?');
-      if (!confirmed) return;
-      const { error: removeError } = await supabase.storage.from('cheffing-images').remove([subrecipe.image_path]);
-      if (removeError) {
-        throw new Error('Error eliminando la imagen de la elaboración.');
-      }
-      const patchResponse = await fetch(`/api/cheffing/subrecipes/${subrecipe.id}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ image_path: null }),
+      console.error('[cheffing/elaboraciones][detail][header] Save failed', {
+        subrecipeId: subrecipe.id,
+        error: err,
       });
-      if (!patchResponse.ok) {
-        throw new Error('Error guardando la eliminación de la imagen.');
-      }
-      setImageFile(null);
-      router.refresh();
-    } catch (err) {
-      setImageWarning(err instanceof Error ? err.message : 'No se pudo eliminar la imagen.');
+      setHeaderError(err instanceof Error ? err.message : 'Error desconocido');
     } finally {
       setIsSubmitting(false);
     }
@@ -330,7 +256,6 @@ export function SubrecipeDetailManager({
           subrecipe_component_id: type === 'subrecipe' ? id : null,
           unit_code: unitCode,
           quantity: 1,
-          waste_pct: 0,
           notes: null,
         }),
       });
@@ -345,6 +270,10 @@ export function SubrecipeDetailManager({
 
       router.refresh();
     } catch (err) {
+      console.error('[cheffing/elaboraciones][detail][lines] Create failed', {
+        subrecipeId: subrecipe.id,
+        error: err,
+      });
       setItemsError(err instanceof Error ? err.message : 'Error desconocido');
     } finally {
       setIsSubmitting(false);
@@ -360,7 +289,6 @@ export function SubrecipeDetailManager({
       subrecipe_component_id: item.subrecipe_component_id ?? subrecipeOptions[0]?.id ?? '',
       unit_code: item.unit_code,
       quantity: String(item.quantity),
-      waste_pct: String((item.waste_pct * 100).toFixed(2)),
       notes: item.notes ?? '',
     });
   };
@@ -379,11 +307,6 @@ export function SubrecipeDetailManager({
       const quantityValue = ensureValidQuantity(editingItemState.quantity);
       if (quantityValue === null) {
         throw new Error('La cantidad debe ser mayor que 0.');
-      }
-
-      const wastePctValue = parseWastePct(editingItemState.waste_pct);
-      if (wastePctValue === null) {
-        throw new Error('La merma debe estar entre 0 y 99,99%.');
       }
 
       const ingredientId = editingItemState.itemType === 'ingredient' ? editingItemState.ingredient_id : null;
@@ -405,7 +328,6 @@ export function SubrecipeDetailManager({
           subrecipe_component_id: subrecipeComponentId,
           unit_code: editingItemState.unit_code,
           quantity: quantityValue,
-          waste_pct: wastePctValue,
           notes: editingItemState.notes.trim() ? editingItemState.notes.trim() : null,
         }),
       });
@@ -421,6 +343,11 @@ export function SubrecipeDetailManager({
       cancelEditingItem();
       router.refresh();
     } catch (err) {
+      console.error('[cheffing/elaboraciones][detail][lines] Save failed', {
+        subrecipeId: subrecipe.id,
+        lineId: itemId,
+        error: err,
+      });
       setItemsError(err instanceof Error ? err.message : 'Error desconocido');
     } finally {
       setIsSubmitting(false);
@@ -447,6 +374,11 @@ export function SubrecipeDetailManager({
 
       router.refresh();
     } catch (err) {
+      console.error('[cheffing/elaboraciones][detail][lines] Delete failed', {
+        subrecipeId: subrecipe.id,
+        lineId: itemId,
+        error: err,
+      });
       setItemsError(err instanceof Error ? err.message : 'Error desconocido');
     } finally {
       setIsSubmitting(false);
@@ -493,7 +425,10 @@ export function SubrecipeDetailManager({
           </div>
         </div>
         {headerError ? <p className="text-sm text-rose-400">{headerError}</p> : null}
-        {imageWarning ? <p className="text-sm text-amber-300">{imageWarning}</p> : null}
+        <p className="text-sm text-amber-300">
+          Compatibilidad temporal: la imagen de elaboraciones está desactivada porque el schema actual no incluye
+          <code className="mx-1 rounded bg-slate-900 px-1 py-0.5 text-xs">cheffing_subrecipes.image_path</code>.
+        </p>
         <div className="grid gap-4 md:grid-cols-4">
           <label className="flex flex-col gap-2 text-sm text-slate-300">
             Nombre
@@ -619,27 +554,10 @@ export function SubrecipeDetailManager({
               ))}
             </div>
           </div>
-          {canManageImages ? (
-            <div className="space-y-3 md:col-span-4">
-              <ImageUploader
-                label="Imagen de la elaboración"
-                initialUrl={existingImageUrl}
-                onFileReady={setImageFile}
-                disabled={isSubmitting}
-                readOnly={!canManageImages}
-              />
-              {subrecipe.image_path ? (
-                <button
-                  type="button"
-                  onClick={handleDeleteImage}
-                  disabled={isSubmitting}
-                  className="rounded-full border border-rose-500/70 px-4 py-2 text-xs font-semibold text-rose-200"
-                >
-                  Eliminar imagen
-                </button>
-              ) : null}
-            </div>
-          ) : null}
+          <div className="rounded-xl border border-amber-500/40 bg-amber-500/10 p-3 text-xs text-amber-100 md:col-span-4">
+            Imagen de elaboración temporalmente fuera de servicio por compatibilidad de schema.
+            {canManageImages ? ' Se reactivará cuando exista soporte en base de datos.' : ''}
+          </div>
         </div>
         <div className="flex flex-wrap gap-2">
           <button
@@ -665,6 +583,11 @@ export function SubrecipeDetailManager({
           <div>
             <h3 className="text-lg font-semibold text-white">Productos y elaboraciones</h3>
             <p className="text-sm text-slate-400">Añade líneas de coste para esta elaboración.</p>
+            <p className="text-xs text-amber-300">
+              La merma por línea no está disponible en el schema actual (
+              <code className="mx-1 rounded bg-slate-900 px-1 py-0.5 text-[11px]">cheffing_subrecipe_items.waste_pct</code>
+              ).
+            </p>
           </div>
           {itemsError ? <p className="text-sm text-rose-400">{itemsError}</p> : null}
         </div>
@@ -816,23 +739,7 @@ export function SubrecipeDetailManager({
                         )}
                       </td>
                       <td className="px-4 py-3">
-                        {isEditing ? (
-                          <input
-                            type="number"
-                            min="0"
-                            max="99.99"
-                            step="0.01"
-                            className="w-20 rounded-md border border-slate-700 bg-slate-950/70 px-2 py-1 text-white"
-                            value={editingValues?.waste_pct ?? ''}
-                            onChange={(event) =>
-                              setEditingItemState((prev) =>
-                                prev ? { ...prev, waste_pct: event.target.value } : prev,
-                              )
-                            }
-                          />
-                        ) : (
-                          `${(item.waste_pct * 100).toFixed(2)}%`
-                        )}
+                        <span className="text-slate-400">No disponible en schema actual</span>
                       </td>
                       <td className="px-4 py-3 text-slate-300">
                         {isEditing ? (

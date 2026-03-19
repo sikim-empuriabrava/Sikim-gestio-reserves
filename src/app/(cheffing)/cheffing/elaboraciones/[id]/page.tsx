@@ -41,7 +41,7 @@ export default async function CheffingElaboracionDetailPage({ params }: { params
   const { data: items, error: itemsError } = await supabase
     .from('cheffing_subrecipe_items')
     .select(
-      'id, subrecipe_id, ingredient_id, subrecipe_component_id, unit_code, quantity, waste_pct, notes, created_at',
+      'id, subrecipe_id, ingredient_id, subrecipe_component_id, unit_code, quantity, notes, created_at',
     )
     .eq('subrecipe_id', params.id)
     .order('created_at', { ascending: true });
@@ -176,6 +176,7 @@ export default async function CheffingElaboracionDetailPage({ params }: { params
       : null;
     return {
       ...item,
+      waste_pct: 0,
       ingredient: ingredient ? { id: ingredient.id, name: ingredient.name } : null,
       subrecipe_component: subrecipeComponent ? { id: subrecipeComponent.id, name: subrecipeComponent.name } : null,
       line_cost_total: null,

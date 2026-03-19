@@ -18,20 +18,25 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
 
   const supabase = createSupabaseAdminClient();
   const { data, error } = await supabase
-    .from('v_cheffing_subrecipe_items_cost')
+    .from('cheffing_subrecipe_items')
     .select(
-      'id, subrecipe_id, ingredient_id, subrecipe_component_id, unit_code, quantity, waste_pct, notes, line_cost_total, created_at, updated_at',
+      'id, subrecipe_id, ingredient_id, subrecipe_component_id, unit_code, quantity, notes, created_at, updated_at',
     )
     .eq('subrecipe_id', params.id)
     .order('created_at', { ascending: true });
 
   if (error) {
+    console.error('[api/cheffing/subrecipes/:id/items][GET] Failed to load subrecipe lines', {
+      subrecipeId: params.id,
+      error,
+    });
     const serverError = NextResponse.json({ error: error.message }, { status: 500 });
     mergeResponseCookies(access.supabaseResponse, serverError);
     return serverError;
   }
 
-  const response = NextResponse.json({ data: data ?? [] });
+  const normalized = (data ?? []).map((item) => ({ ...item, line_cost_total: null }));
+  const response = NextResponse.json({ data: normalized });
   mergeResponseCookies(access.supabaseResponse, response);
   return response;
 }
@@ -46,6 +51,10 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   const parsed = subrecipeItemSchema.safeParse(body);
 
   if (!parsed.success) {
+    console.error('[api/cheffing/subrecipes/:id/items][POST] Invalid payload', {
+      subrecipeId: params.id,
+      issues: parsed.error.issues,
+    });
     const invalid = NextResponse.json({ error: 'Invalid payload', issues: parsed.error.issues }, { status: 400 });
     mergeResponseCookies(access.supabaseResponse, invalid);
     return invalid;
@@ -87,13 +96,16 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       subrecipe_component_id: parsed.data.subrecipe_component_id,
       unit_code: parsed.data.unit_code,
       quantity: parsed.data.quantity,
-      waste_pct: parsed.data.waste_pct,
       notes: parsed.data.notes ?? null,
     })
     .select('id')
     .maybeSingle();
 
   if (error) {
+    console.error('[api/cheffing/subrecipes/:id/items][POST] Failed to save subrecipe line', {
+      subrecipeId: params.id,
+      error,
+    });
     const mapped = mapCheffingPostgresError(error);
     const serverError = NextResponse.json({ error: mapped.message }, { status: mapped.status });
     mergeResponseCookies(access.supabaseResponse, serverError);
