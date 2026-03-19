@@ -229,8 +229,10 @@ Ya es una primera versión seria y alineada con el Excel de referencia.
 Se deja registrada una mejora pequeña-media enfocada a robustez en detalle de elaboraciones y UX transversal de listados:
 
 - **Bugfix en ficha de elaboración (`/cheffing/elaboraciones/[id]`)**:
-  - se endurece la carga server-side para evitar fallo al procesar datos incompletos en relaciones de elaboraciones anidadas;
-  - se mantiene el contrato activo de detalle (notas, alérgenos, indicadores, imagen y líneas de coste) sin abrir cambios de schema.
+  - se eliminó la dependencia a la vista inexistente `v_cheffing_subrecipe_items_cost`;
+  - se pasó a usar `cheffing_subrecipe_items` como fuente canónica de líneas;
+  - el enriquecimiento de nombres (ingrediente/subelaboración) se resuelve en memoria;
+  - `line_cost_total` puede quedar temporalmente degradado (`null`) y en UI se muestra `—` sin romper la ficha.
 - **Breadcrumbs clicables** en fichas de:
   - productos
   - elaboraciones

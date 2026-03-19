@@ -700,6 +700,7 @@ export function SubrecipeDetailManager({
                 items.map((item) => {
                   const isEditing = editingItemId === item.id;
                   const editingValues = isEditing ? editingItemState : null;
+                  const lineCost = item.line_cost_total ?? null;
                   const itemType = item.ingredient_id ? 'Producto' : 'Elaboración';
                   const itemName = item.ingredient?.name ?? item.subrecipe_component?.name ?? '—';
                   const itemLink = item.ingredient_id
@@ -847,7 +848,7 @@ export function SubrecipeDetailManager({
                         )}
                       </td>
                       <td className="px-4 py-3 text-slate-100">
-                        {formatLineCost(item.line_cost_total ?? null)} €
+                        {lineCost === null || Number.isNaN(lineCost) ? '—' : `${formatLineCost(lineCost)} €`}
                       </td>
                       <td className="px-4 py-3">
                         <div className="flex gap-2">
