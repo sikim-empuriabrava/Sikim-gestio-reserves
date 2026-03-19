@@ -28,6 +28,17 @@ const imagePathSchema = z.preprocess(
   },
   z.string().min(1).nullable().optional(),
 );
+const uuidNullableOptionalSchema = z.preprocess(
+  (value) => {
+    if (value === undefined || value === null) return value;
+    if (typeof value === 'string') {
+      const trimmed = value.trim();
+      return trimmed.length > 0 ? trimmed : null;
+    }
+    return value;
+  },
+  z.string().uuid().nullable().optional(),
+);
 
 export const subrecipeCreateSchema = z.object({
   name: trimmedString.min(1),
@@ -71,6 +82,7 @@ export const subrecipeItemCreateSchema = z
 
 export const dishCreateSchema = z.object({
   name: trimmedString.min(1),
+  family_id: uuidNullableOptionalSchema,
   selling_price: z.number().min(0).nullable().optional(),
   servings: z.number().positive(),
   notes: notesSchema,
@@ -82,6 +94,7 @@ export const dishCreateSchema = z.object({
 export const dishUpdateSchema = z
   .object({
     name: trimmedString.min(1).optional(),
+    family_id: uuidNullableOptionalSchema,
     selling_price: z.number().min(0).nullable().optional(),
     servings: z.number().positive().optional(),
     notes: notesSchema,

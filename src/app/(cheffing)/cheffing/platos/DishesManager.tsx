@@ -8,28 +8,31 @@ import type { Dish } from '@/lib/cheffing/types';
 import { formatEditableMoney, parseEditableMoney } from '@/lib/cheffing/money';
 import { normalizeSearchText } from '@/lib/cheffing/search';
 import { createSupabaseBrowserClient } from '@/lib/supabase/browser';
+import type { CheffingFamily } from '@/lib/cheffing/families';
+import { SIN_FAMILIA_LABEL } from '@/lib/cheffing/families';
 
 export type DishCost = Dish & {
   items_cost_total: number | null;
   cost_per_serving?: number | null;
-  family?: string;
+  family_name?: string | null;
 };
 
 type DishesManagerProps = {
   initialDishes: DishCost[];
-  availableFamilies: string[];
+  families: CheffingFamily[];
 };
 
 type DishFormState = {
   name: string;
   selling_price: string;
   servings: string;
+  family_id: string;
 };
 
 type SortDirection = 'asc' | 'desc';
 type DishSortKey = 'name' | 'family' | 'selling_price' | 'servings' | 'items_cost_total' | 'cost_per_serving';
 
-export function DishesManager({ initialDishes, availableFamilies }: DishesManagerProps) {
+export function DishesManager({ initialDishes, families }: DishesManagerProps) {
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -62,6 +65,7 @@ export function DishesManager({ initialDishes, availableFamilies }: DishesManage
       name: dish.name,
       selling_price: formatEditableMoney(dish.selling_price),
       servings: String(dish.servings ?? 1),
+      family_id: dish.family_id ?? '',
     });
   };
 
@@ -94,6 +98,7 @@ export function DishesManager({ initialDishes, availableFamilies }: DishesManage
           name: editingState.name,
           selling_price: sellingPriceValue,
           servings: servingsValue,
+          family_id: editingState.family_id || null,
         }),
       });
 
@@ -156,7 +161,9 @@ export function DishesManager({ initialDishes, availableFamilies }: DishesManage
     const familyFilteredDishes =
       selectedFamily === 'todas'
         ? initialDishes
-        : initialDishes.filter((dish) => (dish.family ?? 'Sin familia') === selectedFamily);
+        : selectedFamily === '__none__'
+          ? initialDishes.filter((dish) => !dish.family_id)
+          : initialDishes.filter((dish) => dish.family_id === selectedFamily);
     const normalizedQuery = normalizeSearchText(searchTerm);
     const filteredDishes =
       normalizedQuery.length === 0
@@ -171,7 +178,7 @@ export function DishesManager({ initialDishes, availableFamilies }: DishesManage
           result = a.name.localeCompare(b.name, 'es');
           break;
         case 'family':
-          result = (a.family ?? 'Sin familia').localeCompare(b.family ?? 'Sin familia', 'es');
+          result = (a.family_name ?? SIN_FAMILIA_LABEL).localeCompare(b.family_name ?? SIN_FAMILIA_LABEL, 'es');
           break;
         default: {
           const aValue = a[sortState.key] ?? 0;
@@ -204,9 +211,10 @@ export function DishesManager({ initialDishes, availableFamilies }: DishesManage
             className="rounded-md border border-slate-700 bg-slate-950/70 px-2 py-1 text-white"
           >
             <option value="todas">Todas</option>
-            {availableFamilies.map((family) => (
-              <option key={family} value={family}>
-                {family}
+            <option value="__none__">{SIN_FAMILIA_LABEL}</option>
+            {families.map((family) => (
+              <option key={family.id} value={family.id}>
+                {family.name}
               </option>
             ))}
           </select>
@@ -307,7 +315,26 @@ export function DishesManager({ initialDishes, availableFamilies }: DishesManage
                         </Link>
                       )}
                     </td>
-                    <td className="px-4 py-3 text-slate-300">{dish.family ?? 'Sin familia'}</td>
+                    <td className="px-4 py-3 text-slate-300">
+                      {isEditing ? (
+                        <select
+                          className="rounded-md border border-slate-700 bg-slate-950/70 px-2 py-1 text-white"
+                          value={editingValues?.family_id ?? ''}
+                          onChange={(event) =>
+                            setEditingState((prev) => (prev ? { ...prev, family_id: event.target.value } : prev))
+                          }
+                        >
+                          <option value="">{SIN_FAMILIA_LABEL}</option>
+                          {families.map((family) => (
+                            <option key={family.id} value={family.id}>
+                              {family.name}
+                            </option>
+                          ))}
+                        </select>
+                      ) : (
+                        dish.family_name ?? SIN_FAMILIA_LABEL
+                      )}
+                    </td>
                     <td className="px-4 py-3">
                       {imageUrl ? (
                         <img

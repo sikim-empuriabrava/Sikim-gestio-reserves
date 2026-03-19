@@ -2,6 +2,7 @@ import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { requireCheffingAccess } from '@/lib/cheffing/requireCheffing';
 import { isAdmin } from '@/lib/auth/requireRole';
 import type { Ingredient, Subrecipe, Unit } from '@/lib/cheffing/types';
+import type { CheffingFamily } from '@/lib/cheffing/families';
 
 import { DishNewForm } from '../DishNewForm';
 
@@ -24,11 +25,17 @@ export default async function CheffingPlatosNewPage() {
     .select('code, name, dimension, to_base_factor')
     .order('dimension', { ascending: true })
     .order('to_base_factor', { ascending: true });
+  const { data: families, error: familiesError } = await supabase
+    .from('cheffing_families')
+    .select('id, name, slug, sort_order, is_active')
+    .eq('is_active', true)
+    .order('sort_order', { ascending: true })
+    .order('name', { ascending: true });
 
-  if (ingredientsError || subrecipesError || unitsError) {
+  if (ingredientsError || subrecipesError || unitsError || familiesError) {
     console.error(
       '[cheffing/platos/new] Failed to load data',
-      ingredientsError ?? subrecipesError ?? unitsError,
+      ingredientsError ?? subrecipesError ?? unitsError ?? familiesError,
     );
   }
 
@@ -45,6 +52,7 @@ export default async function CheffingPlatosNewPage() {
         ingredients={(ingredients ?? []) as Ingredient[]}
         subrecipes={(subrecipes ?? []) as Subrecipe[]}
         units={(units ?? []) as Unit[]}
+        families={(families ?? []) as CheffingFamily[]}
         canManageImages={canManageImages}
       />
     </section>
