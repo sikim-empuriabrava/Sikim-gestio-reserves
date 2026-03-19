@@ -204,6 +204,11 @@ Viven en:
 
 Y **no** se heredan automáticamente desde ingredientes o elaboraciones.
 
+#### Semántica de `indicator_codes` (canónica)
+- `cheffing_ingredients.indicator_codes` → catálogo de indicadores de producto.
+- `cheffing_subrecipes.indicator_codes` → catálogo de indicadores de producto.
+- `cheffing_dishes.indicator_codes` → catálogo de indicadores de plato final.
+
 ### 7.3 Catálogo compartido
 Se centralizó el catálogo en código para evitar duplicidades y desajustes.
 

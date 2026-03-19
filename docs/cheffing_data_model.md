@@ -55,7 +55,7 @@ Platos de carta (venta).
 - `servings`: número de raciones (mínimo 1).
 - `notes`: notas internas.
 - `allergen_codes`: lista canónica editable de alérgenos.
-- `indicator_codes`: lista canónica editable de indicadores de producto.
+- `indicator_codes`: lista canónica editable de indicadores de plato final.
 - `image_path`: ruta canónica editable de imagen en Storage.
 
 ## Contrato canónico y legado
