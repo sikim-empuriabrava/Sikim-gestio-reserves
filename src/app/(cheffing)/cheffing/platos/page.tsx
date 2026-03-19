@@ -3,6 +3,14 @@ import { requireCheffingAccess } from '@/lib/cheffing/requireCheffing';
 import { DishesManager, type DishCost } from './DishesManager';
 import type { CheffingFamily } from '@/lib/cheffing/families';
 
+type DishImageRow = {
+  id: string;
+  image_path: string | null;
+  updated_at: string;
+  family_id: string | null;
+  cheffing_families: { name: string | null } | null;
+};
+
 export default async function CheffingPlatosPage() {
   await requireCheffingAccess();
 
@@ -25,18 +33,16 @@ export default async function CheffingPlatosPage() {
     console.error('[cheffing/platos] Failed to load dishes', dishesError ?? dishImagesError ?? familiesError);
   }
 
+  const dishImageRows = (dishImages ?? []) as unknown as DishImageRow[];
   const imageById = new Map<string, { image_path: string | null; updated_at: string }>(
-    (dishImages ?? []).map((item) => [item.id, { image_path: item.image_path ?? null, updated_at: item.updated_at }]),
+    dishImageRows.map((item) => [item.id, { image_path: item.image_path ?? null, updated_at: item.updated_at }]),
   );
   const familyById = new Map<string, { id: string | null; name: string | null }>(
-    (dishImages ?? []).map((item) => [
+    dishImageRows.map((item) => [
       item.id,
       {
         id: item.family_id ?? null,
-        name:
-          item.cheffing_families && !Array.isArray(item.cheffing_families)
-            ? item.cheffing_families.name ?? null
-            : null,
+        name: item.cheffing_families?.name ?? null,
       },
     ]),
   );
