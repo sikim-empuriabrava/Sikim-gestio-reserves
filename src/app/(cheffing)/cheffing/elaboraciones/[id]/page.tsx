@@ -31,14 +31,17 @@ export default async function CheffingElaboracionDetailPage({ params }: { params
     .maybeSingle();
 
   if (subrecipeError || !subrecipe) {
-    console.error('[cheffing/elaboraciones] Failed to load subrecipe', subrecipeError);
+    console.error('[cheffing/elaboraciones] Failed to load subrecipe header', {
+      subrecipeId: params.id,
+      error: subrecipeError,
+    });
     notFound();
   }
 
   const { data: items, error: itemsError } = await supabase
-    .from('v_cheffing_subrecipe_items_cost')
+    .from('cheffing_subrecipe_items')
     .select(
-      'id, subrecipe_id, ingredient_id, subrecipe_component_id, unit_code, quantity, waste_pct, notes, line_cost_total',
+      'id, subrecipe_id, ingredient_id, subrecipe_component_id, unit_code, quantity, waste_pct, notes, created_at',
     )
     .eq('subrecipe_id', params.id)
     .order('created_at', { ascending: true });
@@ -59,18 +62,39 @@ export default async function CheffingElaboracionDetailPage({ params }: { params
     .order('dimension', { ascending: true })
     .order('to_base_factor', { ascending: true });
 
-  if (itemsError || ingredientsError || subrecipesError || subrecipeItemsError || unitsError) {
-    const loadError = itemsError ?? ingredientsError ?? subrecipesError ?? subrecipeItemsError ?? unitsError;
-    console.error('[cheffing/elaboraciones] Failed to load subrecipe detail data', loadError);
+  if (itemsError) {
+    console.error('[cheffing/elaboraciones] Failed to load subrecipe lines', {
+      subrecipeId: params.id,
+      error: itemsError,
+    });
+    throw new Error('No se pudieron cargar las líneas de la elaboración.');
+  }
+
+  if (ingredientsError || subrecipesError || subrecipeItemsError || unitsError) {
+    const loadError = ingredientsError ?? subrecipesError ?? subrecipeItemsError ?? unitsError;
+    console.error('[cheffing/elaboraciones] Failed to enrich subrecipe lines', {
+      subrecipeId: params.id,
+      error: loadError,
+    });
     throw new Error('No se pudieron cargar los datos de la elaboración por incompatibilidad de schema.');
   }
 
-  const ingredientsTyped = (ingredients ?? []).map((raw) =>
-    normalizeIngredient(raw as Record<string, unknown>),
-  ) as Ingredient[];
-  const subrecipesTyped = (subrecipes ?? []).map((raw) =>
-    normalizeSubrecipe(raw as Record<string, unknown>),
-  ) as Subrecipe[];
+  let ingredientsTyped: Ingredient[] = [];
+  let subrecipesTyped: Subrecipe[] = [];
+  try {
+    ingredientsTyped = (ingredients ?? []).map((raw) =>
+      normalizeIngredient(raw as Record<string, unknown>),
+    ) as Ingredient[];
+    subrecipesTyped = (subrecipes ?? []).map((raw) =>
+      normalizeSubrecipe(raw as Record<string, unknown>),
+    ) as Subrecipe[];
+  } catch (error) {
+    console.error('[cheffing/elaboraciones] Failed to enrich subrecipe lines in memory', {
+      subrecipeId: params.id,
+      error,
+    });
+    throw new Error('No se pudieron enriquecer las líneas de la elaboración.');
+  }
 
   const subrecipeLookup = new Map<string, Subrecipe>(subrecipesTyped.map((entry) => [entry.id, entry] as const));
   const ingredientLookup = new Map<string, Ingredient>(
@@ -154,6 +178,7 @@ export default async function CheffingElaboracionDetailPage({ params }: { params
       ...item,
       ingredient: ingredient ? { id: ingredient.id, name: ingredient.name } : null,
       subrecipe_component: subrecipeComponent ? { id: subrecipeComponent.id, name: subrecipeComponent.name } : null,
+      line_cost_total: null,
     };
   });
 
