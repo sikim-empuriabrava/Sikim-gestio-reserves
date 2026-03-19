@@ -104,12 +104,15 @@ export async function POST(req: NextRequest) {
         subrecipe_component_id: item.subrecipe_component_id,
         unit_code: item.unit_code,
         quantity: item.quantity,
-        waste_pct: item.waste_pct ?? 0,
         notes: item.notes ?? null,
       })),
     );
 
     if (itemsError) {
+      console.error('[api/cheffing/subrecipes][POST] Failed to save subrecipe lines', {
+        subrecipeId: createdId,
+        error: itemsError,
+      });
       await supabase.from('cheffing_subrecipes').delete().eq('id', createdId);
       const mapped = mapCheffingPostgresError(itemsError);
       const serverError = NextResponse.json({ error: mapped.message }, { status: mapped.status });

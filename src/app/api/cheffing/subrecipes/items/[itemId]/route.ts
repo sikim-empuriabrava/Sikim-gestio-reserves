@@ -20,6 +20,10 @@ export async function PATCH(req: NextRequest, { params }: { params: { itemId: st
   const parsed = subrecipeItemSchema.safeParse(body);
 
   if (!parsed.success) {
+    console.error('[api/cheffing/subrecipes/items/:itemId][PATCH] Invalid payload', {
+      itemId: params.itemId,
+      issues: parsed.error.issues,
+    });
     const invalid = NextResponse.json({ error: 'Invalid payload', issues: parsed.error.issues }, { status: 400 });
     mergeResponseCookies(access.supabaseResponse, invalid);
     return invalid;
@@ -79,12 +83,15 @@ export async function PATCH(req: NextRequest, { params }: { params: { itemId: st
       subrecipe_component_id: parsed.data.subrecipe_component_id,
       unit_code: parsed.data.unit_code,
       quantity: parsed.data.quantity,
-      waste_pct: parsed.data.waste_pct,
       notes: parsed.data.notes ?? null,
     })
     .eq('id', params.itemId);
 
   if (error) {
+    console.error('[api/cheffing/subrecipes/items/:itemId][PATCH] Failed to save subrecipe line', {
+      itemId: params.itemId,
+      error,
+    });
     const mapped = mapCheffingPostgresError(error);
     const serverError = NextResponse.json({ error: mapped.message }, { status: mapped.status });
     mergeResponseCookies(access.supabaseResponse, serverError);

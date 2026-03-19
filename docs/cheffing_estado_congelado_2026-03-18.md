@@ -233,6 +233,11 @@ Se deja registrada una mejora pequeña-media enfocada a robustez en detalle de e
   - se pasó a usar `cheffing_subrecipe_items` como fuente canónica de líneas;
   - el enriquecimiento de nombres (ingrediente/subelaboración) se resuelve en memoria;
   - `line_cost_total` puede quedar temporalmente degradado (`null`) y en UI se muestra `—` sin romper la ficha.
+  - **hotfix de compatibilidad con schema real (2026-03-19):**
+    - se mantiene operativa la **merma de cabecera** (`cheffing_subrecipes.waste_pct`);
+    - la **imagen de elaboraciones** queda temporalmente fuera por no existir `image_path` en `cheffing_subrecipes`;
+    - la **merma por línea** queda temporalmente fuera por no existir `waste_pct` en `cheffing_subrecipe_items`;
+    - este ajuste queda explícitamente pendiente de normalización futura.
 - **Breadcrumbs clicables** en fichas de:
   - productos
   - elaboraciones

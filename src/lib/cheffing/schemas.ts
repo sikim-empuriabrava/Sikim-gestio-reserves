@@ -37,7 +37,6 @@ export const subrecipeCreateSchema = z.object({
   notes: notesSchema,
   allergen_codes: canonicalCodesSchema,
   indicator_codes: canonicalCodesSchema,
-  image_path: imagePathSchema,
 });
 
 export const subrecipeUpdateSchema = subrecipeCreateSchema.partial().refine((data) => Object.keys(data).length > 0, {
@@ -50,7 +49,6 @@ export const subrecipeItemSchema = z
     subrecipe_component_id: z.string().uuid().nullable(),
     unit_code: trimmedString.min(1),
     quantity: z.number().positive(),
-    waste_pct: wastePctSchema,
     notes: notesSchema.optional(),
   })
   .refine(
@@ -64,7 +62,6 @@ export const subrecipeItemCreateSchema = z
     subrecipe_component_id: z.string().uuid().nullable(),
     unit_code: trimmedString.min(1),
     quantity: z.number().positive(),
-    waste_pct: wastePctSchema.optional(),
     notes: notesSchema.optional(),
   })
   .refine(
