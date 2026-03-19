@@ -411,3 +411,10 @@ Los siguientes bloques ya no son de “arreglar lo roto”, sino de:
 - enriquecer datos reales (SumUp)
 - automatizar mantenimiento de costes (facturas)
 - profesionalizar presentación y experiencia de uso (rediseño)
+
+---
+
+## Nota UX (2026-03-19)
+En detalle y creación de **platos** y **elaboraciones** se invirtió el orden visual del bloque de composición:
+- primero se muestra **Elementos seleccionados**;
+- debajo se muestra el **selector para añadir productos o elaboraciones**.

@@ -117,22 +117,30 @@ export function CheffingItemPicker({
 
   return (
     <div className="space-y-5">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <p className="text-xs uppercase text-slate-500">Selector</p>
-          <h4 className="text-base font-semibold text-white">Añadir productos o elaboraciones</h4>
-        </div>
-        <input
-          type="search"
-          placeholder="Buscar por nombre"
-          className="w-full rounded-full border border-slate-700 bg-slate-950/70 px-4 py-2 text-sm text-white md:w-64"
-          value={searchTerm}
-          onChange={(event) => setSearchTerm(event.target.value)}
-        />
-      </div>
-
       <div className="space-y-6">
+        <div className="space-y-3 rounded-2xl border border-slate-800/70 bg-slate-950/60 p-4">
+          <div>
+            <p className="text-xs uppercase text-slate-500">Elementos seleccionados</p>
+            <p className="text-sm text-slate-400">Revisa y ajusta cantidades o mermas.</p>
+          </div>
+          <div className="w-full overflow-x-auto">{children}</div>
+        </div>
+
         <div className="space-y-4 rounded-2xl border border-slate-800/70 bg-slate-950/60 p-4">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <p className="text-xs uppercase text-slate-500">Selector</p>
+              <h4 className="text-base font-semibold text-white">Añadir productos o elaboraciones</h4>
+            </div>
+            <input
+              type="search"
+              placeholder="Buscar por nombre"
+              className="w-full rounded-full border border-slate-700 bg-slate-950/70 px-4 py-2 text-sm text-white md:w-64"
+              value={searchTerm}
+              onChange={(event) => setSearchTerm(event.target.value)}
+            />
+          </div>
+
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="flex rounded-full border border-slate-700 bg-slate-950/70 p-1 text-xs">
               <button
@@ -287,14 +295,6 @@ export function CheffingItemPicker({
               </ul>
             )}
           </div>
-        </div>
-
-        <div className="space-y-3 rounded-2xl border border-slate-800/70 bg-slate-950/60 p-4">
-          <div>
-            <p className="text-xs uppercase text-slate-500">Elementos seleccionados</p>
-            <p className="text-sm text-slate-400">Revisa y ajusta cantidades o mermas.</p>
-          </div>
-          <div className="w-full overflow-x-auto">{children}</div>
         </div>
       </div>
     </div>
