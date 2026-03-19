@@ -13,13 +13,18 @@ export const MENU_ENGINEERING_FAMILIES = [
   'Peix',
   'Postres',
   'Refrescos',
-  'Resfrescos Pub',
+  'Refrescos Pub',
   'Saltejats',
   'Sin familia',
   'Snacks',
 ] as const;
 
 export type MenuEngineeringDishFamily = (typeof MENU_ENGINEERING_FAMILIES)[number];
+
+/**
+ * Legacy helper used by Menu Engineering historical derivation/import paths.
+ * Canonical family model for dishes is now `cheffing_dishes.family_id`.
+ */
 
 const normalizeTag = (value: string) =>
   value
@@ -55,7 +60,7 @@ export const resolveDishFamilyFromSourceTags = (sourceTagNames: string[] | null 
   }
 
   if (tagSet.has('redbull')) {
-    return 'Resfrescos Pub';
+    return 'Refrescos Pub';
   }
 
   if (tagSetHasAny(tagSet, ['coca de pa de vidre', 'entrants', 'compartir'])) {

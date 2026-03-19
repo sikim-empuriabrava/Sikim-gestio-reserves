@@ -51,12 +51,24 @@ Líneas de subreceta (ingredientes u otras subrecetas).
 Platos de carta (venta).
 
 - `name`: nombre.
+- `family_id`: FK nullable al catálogo canónico `cheffing_families.id`.
 - `selling_price`: precio de venta (nullable en esta fase).
 - `servings`: número de raciones (mínimo 1).
 - `notes`: notas internas.
 - `allergen_codes`: lista canónica editable de alérgenos.
 - `indicator_codes`: lista canónica editable de indicadores de plato final.
 - `image_path`: ruta canónica editable de imagen en Storage.
+- `mycheftool_source_tag_names`: dato legacy de importación/histórico (ya no es la fuente principal de familia en UI).
+
+### `cheffing_families`
+Catálogo canónico de familias de platos.
+
+- `name`: etiqueta visible de familia.
+- `slug`: identificador estable y único.
+- `sort_order`: orden manual para filtros/selectores.
+- `is_active`: activa/inactiva para UI.
+
+> Regla de representación: **“Sin familia” no existe como fila física**, se representa con `cheffing_dishes.family_id = null`.
 
 ## Contrato canónico y legado
 
@@ -100,6 +112,7 @@ Líneas de plato (ingredientes u otras subrecetas).
 - `cheffing_subrecipe_items.ingredient_id → cheffing_ingredients.id`.
 - `cheffing_subrecipe_items.subrecipe_component_id → cheffing_subrecipes.id`.
 - `cheffing_dish_items.dish_id → cheffing_dishes.id`.
+- `cheffing_dishes.family_id → cheffing_families.id` (nullable, `on delete set null`).
 - `cheffing_dish_items.ingredient_id → cheffing_ingredients.id`.
 - `cheffing_dish_items.subrecipe_id → cheffing_subrecipes.id`.
 

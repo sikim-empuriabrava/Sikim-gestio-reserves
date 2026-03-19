@@ -12,6 +12,8 @@ import { toAllergenKeys, toDishIndicatorKeys } from '@/lib/cheffing/allergensHel
 import { CheffingItemPicker } from '@/app/(cheffing)/cheffing/components/CheffingItemPicker';
 import { formatEditableMoney, parseEditableMoney } from '@/lib/cheffing/money';
 import { createSupabaseBrowserClient } from '@/lib/supabase/browser';
+import type { CheffingFamily } from '@/lib/cheffing/families';
+import { SIN_FAMILIA_LABEL } from '@/lib/cheffing/families';
 
 export type DishCost = Dish & {
   items_cost_total: number | null;
@@ -30,6 +32,7 @@ type DishDetailManagerProps = {
   ingredients: Ingredient[];
   subrecipes: Subrecipe[];
   units: Unit[];
+  families: CheffingFamily[];
   inheritedAllergens: string[];
   inheritedIndicators: string[];
   canManageImages: boolean;
@@ -39,6 +42,7 @@ type DishFormState = {
   name: string;
   selling_price: string;
   servings: string;
+  family_id: string;
   notes: string;
   allergen_codes: string[];
   indicator_codes: string[];
@@ -60,6 +64,7 @@ export function DishDetailManager({
   ingredients,
   subrecipes,
   units,
+  families,
   inheritedAllergens,
   inheritedIndicators,
   canManageImages,
@@ -77,6 +82,7 @@ export function DishDetailManager({
     name: dish.name,
     selling_price: formatEditableMoney(dish.selling_price),
     servings: String(dish.servings ?? 1),
+    family_id: dish.family_id ?? '',
     notes: dish.notes ?? '',
     allergen_codes: dish.allergen_codes ?? [],
     indicator_codes: dish.indicator_codes ?? [],
@@ -163,6 +169,7 @@ export function DishDetailManager({
           name: formState.name,
           selling_price: sellingPriceValue,
           servings: servingsValue,
+          family_id: formState.family_id || null,
           notes: formState.notes.trim() ? formState.notes.trim() : null,
           allergen_codes: toAllergenKeys(formState.allergen_codes),
           indicator_codes: toDishIndicatorKeys(formState.indicator_codes),
@@ -463,6 +470,21 @@ export function DishDetailManager({
               onChange={(event) => setFormState((prev) => ({ ...prev, servings: event.target.value }))}
               required
             />
+          </label>
+          <label className="flex flex-col gap-2 text-sm text-slate-300">
+            Familia
+            <select
+              className="rounded-lg border border-slate-700 bg-slate-950/70 px-3 py-2 text-white"
+              value={formState.family_id}
+              onChange={(event) => setFormState((prev) => ({ ...prev, family_id: event.target.value }))}
+            >
+              <option value="">{SIN_FAMILIA_LABEL}</option>
+              {families.map((family) => (
+                <option key={family.id} value={family.id}>
+                  {family.name}
+                </option>
+              ))}
+            </select>
           </label>
           <label className="flex flex-col gap-2 text-sm text-slate-300 md:col-span-3">
             Notas
