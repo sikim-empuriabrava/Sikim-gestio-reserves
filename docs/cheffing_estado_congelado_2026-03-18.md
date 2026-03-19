@@ -111,6 +111,7 @@ Funcionales y bastante estabilizados.
 - apertura correcta de ficha de producto
 - corrección del falso 404 al entrar en detalle
 - guardado funcional de datos principales
+- normalización de campos monetarios editables (PVP/precio pack) a 2 decimales en carga de formulario y guardado para evitar bloqueos de validación HTML (`step=0.01`) por valores históricos/autogenerados con 3+ decimales
 
 ### Observación
 La presentación de productos ya es razonablemente útil para operativa, aunque todavía no forma parte del rediseño visual final.

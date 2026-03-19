@@ -10,6 +10,7 @@ import type { Dish, DishItem, Ingredient, Subrecipe, Unit } from '@/lib/cheffing
 import { ALLERGENS, DISH_INDICATORS, PRODUCT_INDICATORS } from '@/lib/cheffing/allergensIndicators';
 import { toAllergenKeys, toDishIndicatorKeys } from '@/lib/cheffing/allergensHelpers';
 import { CheffingItemPicker } from '@/app/(cheffing)/cheffing/components/CheffingItemPicker';
+import { formatEditableMoney, parseEditableMoney } from '@/lib/cheffing/money';
 import { createSupabaseBrowserClient } from '@/lib/supabase/browser';
 
 export type DishCost = Dish & {
@@ -74,7 +75,7 @@ export function DishDetailManager({
   const [editingItemState, setEditingItemState] = useState<ItemFormState | null>(null);
   const [formState, setFormState] = useState<DishFormState>({
     name: dish.name,
-    selling_price: dish.selling_price === null ? '' : String(dish.selling_price),
+    selling_price: formatEditableMoney(dish.selling_price),
     servings: String(dish.servings ?? 1),
     notes: dish.notes ?? '',
     allergen_codes: dish.allergen_codes ?? [],
@@ -144,10 +145,10 @@ export function DishDetailManager({
     setIsSubmitting(true);
 
     try {
-      const sellingPriceValue = formState.selling_price.trim() === '' ? null : Number(formState.selling_price);
+      const sellingPriceValue = parseEditableMoney(formState.selling_price);
       const servingsValue = Number(formState.servings);
 
-      if (sellingPriceValue !== null && (!Number.isFinite(sellingPriceValue) || sellingPriceValue < 0)) {
+      if (sellingPriceValue !== null && sellingPriceValue < 0) {
         throw new Error('El PVP debe ser un número válido.');
       }
 

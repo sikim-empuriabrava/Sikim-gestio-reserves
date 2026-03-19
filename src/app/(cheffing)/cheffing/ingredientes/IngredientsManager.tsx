@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 
 import type { IngredientCost, Unit, UnitDimension } from '@/lib/cheffing/types';
+import { formatEditableMoney, parseEditableMoney } from '@/lib/cheffing/money';
 
 const baseUnitLabelByDimension: Record<UnitDimension, string> = {
   mass: 'g',
@@ -65,7 +66,7 @@ export function IngredientsManager({ initialIngredients, units }: IngredientsMan
       name: ingredient.name,
       purchase_unit_code: ingredient.purchase_unit_code,
       purchase_pack_qty: String(ingredient.purchase_pack_qty),
-      purchase_price: String(ingredient.purchase_price),
+      purchase_price: formatEditableMoney(ingredient.purchase_price),
       waste_pct: String((ingredient.waste_pct * 100).toFixed(2)),
     });
   };
@@ -85,6 +86,10 @@ export function IngredientsManager({ initialIngredients, units }: IngredientsMan
       if (wastePctValue === null) {
         throw new Error('La merma debe estar entre 0 y 99,99%.');
       }
+      const purchasePriceValue = parseEditableMoney(editingState.purchase_price);
+      if (purchasePriceValue === null || purchasePriceValue < 0) {
+        throw new Error('El precio del pack debe ser un número válido.');
+      }
 
       const response = await fetch(`/api/cheffing/ingredients/${ingredientId}`, {
         method: 'PATCH',
@@ -93,7 +98,7 @@ export function IngredientsManager({ initialIngredients, units }: IngredientsMan
           name: editingState.name,
           purchase_unit_code: editingState.purchase_unit_code,
           purchase_pack_qty: Number(editingState.purchase_pack_qty),
-          purchase_price: Number(editingState.purchase_price),
+          purchase_price: purchasePriceValue,
           waste_pct: wastePctValue,
         }),
       });

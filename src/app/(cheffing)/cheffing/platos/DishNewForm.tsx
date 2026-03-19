@@ -8,6 +8,7 @@ import { useRouter } from 'next/navigation';
 import { CheffingItemPicker } from '@/app/(cheffing)/cheffing/components/CheffingItemPicker';
 import { ImageUploader } from '@/app/(cheffing)/cheffing/components/ImageUploader';
 import type { Ingredient, Subrecipe, Unit } from '@/lib/cheffing/types';
+import { parseEditableMoney } from '@/lib/cheffing/money';
 import { createSupabaseBrowserClient } from '@/lib/supabase/browser';
 
 type DishFormState = {
@@ -131,11 +132,10 @@ export function DishNewForm({ ingredients, subrecipes, units, canManageImages }:
     setIsSubmitting(true);
 
     try {
-      const sellingPriceValue =
-        formState.selling_price.trim() === '' ? null : Number(formState.selling_price);
+      const sellingPriceValue = parseEditableMoney(formState.selling_price);
       const servingsValue = Number(formState.servings);
 
-      if (sellingPriceValue !== null && (!Number.isFinite(sellingPriceValue) || sellingPriceValue < 0)) {
+      if (sellingPriceValue !== null && sellingPriceValue < 0) {
         throw new Error('El PVP debe ser un número válido.');
       }
 
