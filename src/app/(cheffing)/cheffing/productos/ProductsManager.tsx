@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 
 import type { IngredientCost, Unit, UnitDimension } from '@/lib/cheffing/types';
 import { formatEditableMoney, parseEditableMoney } from '@/lib/cheffing/money';
+import { normalizeSearchText } from '@/lib/cheffing/search';
 import { createSupabaseBrowserClient } from '@/lib/supabase/browser';
 
 const displayUnitByDimension: Record<UnitDimension, 'kg' | 'l' | 'u'> = {
@@ -43,6 +44,7 @@ export function ProductsManager({ initialIngredients, units }: ProductsManagerPr
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingState, setEditingState] = useState<IngredientFormState | null>(null);
+  const [searchTerm, setSearchTerm] = useState('');
   const [sortState, setSortState] = useState<{ key: ProductSortKey; direction: SortDirection }>({
     key: 'name',
     direction: 'asc',
@@ -212,9 +214,17 @@ export function ProductsManager({ initialIngredients, units }: ProductsManagerPr
     }));
   };
 
-  const sortedIngredients = useMemo(() => {
+  const filteredAndSortedIngredients = useMemo(() => {
+    const normalizedQuery = normalizeSearchText(searchTerm);
+    const filteredIngredients =
+      normalizedQuery.length === 0
+        ? initialIngredients
+        : initialIngredients.filter((ingredient) =>
+            normalizeSearchText(ingredient.name).includes(normalizedQuery),
+          );
+
     const directionMultiplier = sortState.direction === 'asc' ? 1 : -1;
-    return [...initialIngredients].sort((a, b) => {
+    return [...filteredIngredients].sort((a, b) => {
       let result = 0;
       switch (sortState.key) {
         case 'name':
@@ -232,7 +242,7 @@ export function ProductsManager({ initialIngredients, units }: ProductsManagerPr
       }
       return result * directionMultiplier;
     });
-  }, [initialIngredients, sortState]);
+  }, [initialIngredients, searchTerm, sortState]);
 
   return (
     <div className="space-y-6">
@@ -243,6 +253,13 @@ export function ProductsManager({ initialIngredients, units }: ProductsManagerPr
         >
           Nuevo producto
         </Link>
+        <input
+          type="search"
+          value={searchTerm}
+          onChange={(event) => setSearchTerm(event.target.value)}
+          placeholder="Buscar producto por nombre"
+          className="w-full max-w-xs rounded-md border border-slate-700 bg-slate-950/70 px-3 py-2 text-sm text-white placeholder:text-slate-500"
+        />
         {error ? <p className="text-sm text-rose-400">{error}</p> : null}
       </div>
 
@@ -312,8 +329,14 @@ export function ProductsManager({ initialIngredients, units }: ProductsManagerPr
                   No hay productos todavía.
                 </td>
               </tr>
+            ) : filteredAndSortedIngredients.length === 0 ? (
+              <tr>
+                <td colSpan={9} className="px-4 py-6 text-center text-sm text-slate-500">
+                  No hay productos que coincidan con la búsqueda.
+                </td>
+              </tr>
             ) : (
-              sortedIngredients.map((ingredient) => {
+              filteredAndSortedIngredients.map((ingredient) => {
                 const isEditing = editingId === ingredient.id;
                 const editingValues = isEditing ? editingState : null;
                 const imageUrl = resolveImageUrl(ingredient);

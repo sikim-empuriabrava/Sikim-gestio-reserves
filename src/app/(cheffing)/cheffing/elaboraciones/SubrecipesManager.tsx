@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 
 import type { Subrecipe, Unit, UnitDimension } from '@/lib/cheffing/types';
+import { normalizeSearchText } from '@/lib/cheffing/search';
 import { createSupabaseBrowserClient } from '@/lib/supabase/browser';
 
 const displayUnitByDimension: Record<UnitDimension, 'kg' | 'l' | 'u'> = {
@@ -48,6 +49,7 @@ export function SubrecipesManager({ initialSubrecipes, units }: SubrecipesManage
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingState, setEditingState] = useState<SubrecipeFormState | null>(null);
+  const [searchTerm, setSearchTerm] = useState('');
   const [sortState, setSortState] = useState<{ key: SubrecipeSortKey; direction: SortDirection }>({
     key: 'name',
     direction: 'asc',
@@ -223,9 +225,15 @@ export function SubrecipesManager({ initialSubrecipes, units }: SubrecipesManage
     }));
   };
 
-  const sortedSubrecipes = useMemo(() => {
+  const filteredAndSortedSubrecipes = useMemo(() => {
+    const normalizedQuery = normalizeSearchText(searchTerm);
+    const filteredSubrecipes =
+      normalizedQuery.length === 0
+        ? initialSubrecipes
+        : initialSubrecipes.filter((subrecipe) => normalizeSearchText(subrecipe.name).includes(normalizedQuery));
+
     const directionMultiplier = sortState.direction === 'asc' ? 1 : -1;
-    return [...initialSubrecipes].sort((a, b) => {
+    return [...filteredSubrecipes].sort((a, b) => {
       let result = 0;
       switch (sortState.key) {
         case 'name':
@@ -243,7 +251,7 @@ export function SubrecipesManager({ initialSubrecipes, units }: SubrecipesManage
       }
       return result * directionMultiplier;
     });
-  }, [initialSubrecipes, sortState]);
+  }, [initialSubrecipes, searchTerm, sortState]);
 
   return (
     <div className="space-y-6">
@@ -254,6 +262,13 @@ export function SubrecipesManager({ initialSubrecipes, units }: SubrecipesManage
         >
           Nueva elaboración
         </Link>
+        <input
+          type="search"
+          value={searchTerm}
+          onChange={(event) => setSearchTerm(event.target.value)}
+          placeholder="Buscar elaboración por nombre"
+          className="w-full max-w-xs rounded-md border border-slate-700 bg-slate-950/70 px-3 py-2 text-sm text-white placeholder:text-slate-500"
+        />
         {error ? <p className="text-sm text-rose-400">{error}</p> : null}
       </div>
 
@@ -305,8 +320,14 @@ export function SubrecipesManager({ initialSubrecipes, units }: SubrecipesManage
                   No hay elaboraciones todavía.
                 </td>
               </tr>
+            ) : filteredAndSortedSubrecipes.length === 0 ? (
+              <tr>
+                <td colSpan={7} className="px-4 py-6 text-center text-sm text-slate-500">
+                  No hay elaboraciones que coincidan con la búsqueda.
+                </td>
+              </tr>
             ) : (
-              sortedSubrecipes.map((subrecipe) => {
+              filteredAndSortedSubrecipes.map((subrecipe) => {
                 const isEditing = editingId === subrecipe.id;
                 const editingValues = isEditing ? editingState : null;
                 const imageUrl = resolveImageUrl(subrecipe);
