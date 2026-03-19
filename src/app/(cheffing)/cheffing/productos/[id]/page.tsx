@@ -1,4 +1,5 @@
 import { notFound } from 'next/navigation';
+import Link from 'next/link';
 
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { requireCheffingAccess } from '@/lib/cheffing/requireCheffing';
@@ -50,8 +51,14 @@ export default async function CheffingProductoDetailPage({ params }: { params: {
   return (
     <section className="space-y-6">
       <div className="text-sm text-slate-400">
-        <span className="mr-2">Cheffing</span>/<span className="mx-2">Productos</span>/
-        <span className="ml-2 text-white">{product.name}</span>
+        <Link href="/cheffing" className="mr-2 underline-offset-2 hover:text-slate-200 hover:underline">
+          Cheffing
+        </Link>
+        /
+        <Link href="/cheffing/productos" className="mx-2 underline-offset-2 hover:text-slate-200 hover:underline">
+          Productos
+        </Link>
+        /<span className="ml-2 text-white">{product.name}</span>
       </div>
 
       <div className="rounded-2xl border border-slate-800/80 bg-slate-900/70 p-6">

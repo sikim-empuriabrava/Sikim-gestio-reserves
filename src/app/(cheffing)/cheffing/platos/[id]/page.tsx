@@ -1,4 +1,5 @@
 import { notFound } from 'next/navigation';
+import Link from 'next/link';
 
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { requireCheffingAccess } from '@/lib/cheffing/requireCheffing';
@@ -193,8 +194,14 @@ export default async function CheffingPlatoDetailPage({ params }: { params: { id
   return (
     <section className="space-y-6">
       <div className="text-sm text-slate-400">
-        <span className="mr-2">Cheffing</span>/<span className="mx-2">Platos</span>/
-        <span className="ml-2 text-white">{dish.name}</span>
+        <Link href="/cheffing" className="mr-2 underline-offset-2 hover:text-slate-200 hover:underline">
+          Cheffing
+        </Link>
+        /
+        <Link href="/cheffing/platos" className="mx-2 underline-offset-2 hover:text-slate-200 hover:underline">
+          Platos
+        </Link>
+        /<span className="ml-2 text-white">{dish.name}</span>
       </div>
 
       <DishDetailManager

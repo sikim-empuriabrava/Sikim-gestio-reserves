@@ -26,12 +26,26 @@ type IngredientFormState = {
   waste_pct: string;
 };
 
+type SortDirection = 'asc' | 'desc';
+type ProductSortKey =
+  | 'name'
+  | 'purchase_pack_qty'
+  | 'purchase_price'
+  | 'waste_pct'
+  | 'waste_factor'
+  | 'cost_gross_per_base'
+  | 'cost_net_per_base';
+
 export function ProductsManager({ initialIngredients, units }: ProductsManagerProps) {
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingState, setEditingState] = useState<IngredientFormState | null>(null);
+  const [sortState, setSortState] = useState<{ key: ProductSortKey; direction: SortDirection }>({
+    key: 'name',
+    direction: 'asc',
+  });
 
   const supabase = useMemo(() => createSupabaseBrowserClient(), []);
 
@@ -181,6 +195,40 @@ export function ProductsManager({ initialIngredients, units }: ProductsManagerPr
     }
   };
 
+  const indicator = (key: ProductSortKey) => {
+    if (sortState.key !== key) return '↕';
+    return sortState.direction === 'asc' ? '↑' : '↓';
+  };
+
+  const handleSort = (key: ProductSortKey) => {
+    setSortState((prev) => ({
+      key,
+      direction: prev.key === key && prev.direction === 'asc' ? 'desc' : 'asc',
+    }));
+  };
+
+  const sortedIngredients = useMemo(() => {
+    const directionMultiplier = sortState.direction === 'asc' ? 1 : -1;
+    return [...initialIngredients].sort((a, b) => {
+      let result = 0;
+      switch (sortState.key) {
+        case 'name':
+          result = a.name.localeCompare(b.name, 'es');
+          break;
+        default: {
+          const aValue = a[sortState.key] ?? 0;
+          const bValue = b[sortState.key] ?? 0;
+          result = aValue - bValue;
+          break;
+        }
+      }
+      if (result === 0) {
+        return a.name.localeCompare(b.name, 'es');
+      }
+      return result * directionMultiplier;
+    });
+  }, [initialIngredients, sortState]);
+
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -197,14 +245,58 @@ export function ProductsManager({ initialIngredients, units }: ProductsManagerPr
         <table className="w-full min-w-[1020px] text-left text-sm text-slate-200">
           <thead className="bg-slate-950/70 text-xs uppercase text-slate-400">
             <tr>
-              <th className="px-4 py-3">Producto</th>
+              <th className="px-4 py-3">
+                <button type="button" className="inline-flex items-center gap-1" onClick={() => handleSort('name')}>
+                  Producto <span className="text-[10px]">{indicator('name')}</span>
+                </button>
+              </th>
               <th className="px-4 py-3">Imagen</th>
-              <th className="px-4 py-3">Compra</th>
-              <th className="px-4 py-3">Precio pack</th>
-              <th className="px-4 py-3">Merma</th>
-              <th className="px-4 py-3">FC</th>
-              <th className="px-4 py-3">Coste base bruto</th>
-              <th className="px-4 py-3">Coste base neto</th>
+              <th className="px-4 py-3">
+                <button
+                  type="button"
+                  className="inline-flex items-center gap-1"
+                  onClick={() => handleSort('purchase_pack_qty')}
+                >
+                  Compra <span className="text-[10px]">{indicator('purchase_pack_qty')}</span>
+                </button>
+              </th>
+              <th className="px-4 py-3">
+                <button
+                  type="button"
+                  className="inline-flex items-center gap-1"
+                  onClick={() => handleSort('purchase_price')}
+                >
+                  Precio pack <span className="text-[10px]">{indicator('purchase_price')}</span>
+                </button>
+              </th>
+              <th className="px-4 py-3">
+                <button type="button" className="inline-flex items-center gap-1" onClick={() => handleSort('waste_pct')}>
+                  Merma <span className="text-[10px]">{indicator('waste_pct')}</span>
+                </button>
+              </th>
+              <th className="px-4 py-3">
+                <button type="button" className="inline-flex items-center gap-1" onClick={() => handleSort('waste_factor')}>
+                  FC <span className="text-[10px]">{indicator('waste_factor')}</span>
+                </button>
+              </th>
+              <th className="px-4 py-3">
+                <button
+                  type="button"
+                  className="inline-flex items-center gap-1"
+                  onClick={() => handleSort('cost_gross_per_base')}
+                >
+                  Coste base bruto <span className="text-[10px]">{indicator('cost_gross_per_base')}</span>
+                </button>
+              </th>
+              <th className="px-4 py-3">
+                <button
+                  type="button"
+                  className="inline-flex items-center gap-1"
+                  onClick={() => handleSort('cost_net_per_base')}
+                >
+                  Coste base neto <span className="text-[10px]">{indicator('cost_net_per_base')}</span>
+                </button>
+              </th>
               <th className="px-4 py-3">Acciones</th>
             </tr>
           </thead>
@@ -216,7 +308,7 @@ export function ProductsManager({ initialIngredients, units }: ProductsManagerPr
                 </td>
               </tr>
             ) : (
-              initialIngredients.map((ingredient) => {
+              sortedIngredients.map((ingredient) => {
                 const isEditing = editingId === ingredient.id;
                 const editingValues = isEditing ? editingState : null;
                 const imageUrl = resolveImageUrl(ingredient);
