@@ -1,4 +1,5 @@
 import { notFound } from 'next/navigation';
+import Link from 'next/link';
 
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { requireCheffingAccess } from '@/lib/cheffing/requireCheffing';
@@ -78,6 +79,7 @@ export default async function CheffingElaboracionDetailPage({ params }: { params
   const itemsBySubrecipe = new Map<string, { ingredient_id: string | null; subrecipe_component_id: string | null }[]>();
 
   (subrecipeItems ?? []).forEach((item) => {
+    if (!item?.subrecipe_id) return;
     const list = itemsBySubrecipe.get(item.subrecipe_id) ?? [];
     list.push({ ingredient_id: item.ingredient_id, subrecipe_component_id: item.subrecipe_component_id });
     itemsBySubrecipe.set(item.subrecipe_id, list);
@@ -158,7 +160,7 @@ export default async function CheffingElaboracionDetailPage({ params }: { params
   const subrecipeManual = subrecipeLookup.get(params.id);
   const mergedSubrecipe = {
     ...subrecipe,
-    ...(subrecipeManual ?? {}),
+    ...(subrecipeManual ? normalizeSubrecipe(subrecipeManual as Record<string, unknown>) : {}),
   };
   const inheritedCurrent = resolveEffective(params.id);
   const directCurrentAllergens = sanitizeAllergens(mergedSubrecipe.allergen_codes);
@@ -169,8 +171,17 @@ export default async function CheffingElaboracionDetailPage({ params }: { params
   return (
     <section className="space-y-6">
       <div className="text-sm text-slate-400">
-        <span className="mr-2">Cheffing</span>/
-        <span className="mx-2">Elaboraciones</span>/<span className="ml-2 text-white">{subrecipe.name}</span>
+        <Link href="/cheffing" className="mr-2 underline-offset-2 hover:text-slate-200 hover:underline">
+          Cheffing
+        </Link>
+        /
+        <Link
+          href="/cheffing/elaboraciones"
+          className="mx-2 underline-offset-2 hover:text-slate-200 hover:underline"
+        >
+          Elaboraciones
+        </Link>
+        /<span className="ml-2 text-white">{subrecipe.name}</span>
       </div>
 
       <SubrecipeDetailManager

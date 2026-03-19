@@ -10,10 +10,12 @@ import { createSupabaseBrowserClient } from '@/lib/supabase/browser';
 export type DishCost = Dish & {
   items_cost_total: number | null;
   cost_per_serving?: number | null;
+  family?: string;
 };
 
 type DishesManagerProps = {
   initialDishes: DishCost[];
+  availableFamilies: string[];
 };
 
 type DishFormState = {
@@ -22,12 +24,20 @@ type DishFormState = {
   servings: string;
 };
 
-export function DishesManager({ initialDishes }: DishesManagerProps) {
+type SortDirection = 'asc' | 'desc';
+type DishSortKey = 'name' | 'family' | 'selling_price' | 'servings' | 'items_cost_total' | 'cost_per_serving';
+
+export function DishesManager({ initialDishes, availableFamilies }: DishesManagerProps) {
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingState, setEditingState] = useState<DishFormState | null>(null);
+  const [selectedFamily, setSelectedFamily] = useState('todas');
+  const [sortState, setSortState] = useState<{ key: DishSortKey; direction: SortDirection }>({
+    key: 'name',
+    direction: 'asc',
+  });
 
   const supabase = useMemo(() => createSupabaseBrowserClient(), []);
 
@@ -128,6 +138,48 @@ export function DishesManager({ initialDishes }: DishesManagerProps) {
     }
   };
 
+  const indicator = (key: DishSortKey) => {
+    if (sortState.key !== key) return '↕';
+    return sortState.direction === 'asc' ? '↑' : '↓';
+  };
+
+  const handleSort = (key: DishSortKey) => {
+    setSortState((prev) => ({
+      key,
+      direction: prev.key === key && prev.direction === 'asc' ? 'desc' : 'asc',
+    }));
+  };
+
+  const filteredAndSortedDishes = useMemo(() => {
+    const filtered =
+      selectedFamily === 'todas'
+        ? initialDishes
+        : initialDishes.filter((dish) => (dish.family ?? 'Sin familia') === selectedFamily);
+
+    const directionMultiplier = sortState.direction === 'asc' ? 1 : -1;
+    return [...filtered].sort((a, b) => {
+      let result = 0;
+      switch (sortState.key) {
+        case 'name':
+          result = a.name.localeCompare(b.name, 'es');
+          break;
+        case 'family':
+          result = (a.family ?? 'Sin familia').localeCompare(b.family ?? 'Sin familia', 'es');
+          break;
+        default: {
+          const aValue = a[sortState.key] ?? 0;
+          const bValue = b[sortState.key] ?? 0;
+          result = aValue - bValue;
+          break;
+        }
+      }
+      if (result === 0) {
+        return a.name.localeCompare(b.name, 'es');
+      }
+      return result * directionMultiplier;
+    });
+  }, [initialDishes, selectedFamily, sortState]);
+
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -137,31 +189,83 @@ export function DishesManager({ initialDishes }: DishesManagerProps) {
         >
           Nuevo plato
         </Link>
+        <label className="flex items-center gap-2 text-sm text-slate-300">
+          <span>Familia</span>
+          <select
+            value={selectedFamily}
+            onChange={(event) => setSelectedFamily(event.target.value)}
+            className="rounded-md border border-slate-700 bg-slate-950/70 px-2 py-1 text-white"
+          >
+            <option value="todas">Todas</option>
+            {availableFamilies.map((family) => (
+              <option key={family} value={family}>
+                {family}
+              </option>
+            ))}
+          </select>
+        </label>
         {error ? <p className="text-sm text-rose-400">{error}</p> : null}
       </div>
 
       <div className="overflow-x-auto rounded-2xl border border-slate-800/70">
-        <table className="w-full min-w-[1000px] text-left text-sm text-slate-200">
+        <table className="w-full min-w-[1120px] text-left text-sm text-slate-200">
           <thead className="bg-slate-950/70 text-xs uppercase text-slate-400">
             <tr>
-              <th className="px-4 py-3">Plato</th>
+              <th className="px-4 py-3">
+                <button type="button" className="inline-flex items-center gap-1" onClick={() => handleSort('name')}>
+                  Plato <span className="text-[10px]">{indicator('name')}</span>
+                </button>
+              </th>
+              <th className="px-4 py-3">
+                <button type="button" className="inline-flex items-center gap-1" onClick={() => handleSort('family')}>
+                  Familia <span className="text-[10px]">{indicator('family')}</span>
+                </button>
+              </th>
               <th className="px-4 py-3">Imagen</th>
-              <th className="px-4 py-3">PVP</th>
-              <th className="px-4 py-3">Raciones</th>
-              <th className="px-4 py-3">Coste total</th>
-              <th className="px-4 py-3">Coste ración</th>
+              <th className="px-4 py-3">
+                <button
+                  type="button"
+                  className="inline-flex items-center gap-1"
+                  onClick={() => handleSort('selling_price')}
+                >
+                  PVP <span className="text-[10px]">{indicator('selling_price')}</span>
+                </button>
+              </th>
+              <th className="px-4 py-3">
+                <button type="button" className="inline-flex items-center gap-1" onClick={() => handleSort('servings')}>
+                  Raciones <span className="text-[10px]">{indicator('servings')}</span>
+                </button>
+              </th>
+              <th className="px-4 py-3">
+                <button
+                  type="button"
+                  className="inline-flex items-center gap-1"
+                  onClick={() => handleSort('items_cost_total')}
+                >
+                  Coste total <span className="text-[10px]">{indicator('items_cost_total')}</span>
+                </button>
+              </th>
+              <th className="px-4 py-3">
+                <button
+                  type="button"
+                  className="inline-flex items-center gap-1"
+                  onClick={() => handleSort('cost_per_serving')}
+                >
+                  Coste ración <span className="text-[10px]">{indicator('cost_per_serving')}</span>
+                </button>
+              </th>
               <th className="px-4 py-3">Acciones</th>
             </tr>
           </thead>
           <tbody>
-            {initialDishes.length === 0 ? (
+            {filteredAndSortedDishes.length === 0 ? (
               <tr>
-                <td colSpan={7} className="px-4 py-6 text-center text-sm text-slate-500">
-                  No hay platos todavía.
+                <td colSpan={8} className="px-4 py-6 text-center text-sm text-slate-500">
+                  No hay platos para el filtro seleccionado.
                 </td>
               </tr>
             ) : (
-              initialDishes.map((dish) => {
+              filteredAndSortedDishes.map((dish) => {
                 const isEditing = editingId === dish.id;
                 const editingValues = isEditing ? editingState : null;
                 const imageUrl = resolveImageUrl(dish);
@@ -183,6 +287,7 @@ export function DishesManager({ initialDishes }: DishesManagerProps) {
                         </Link>
                       )}
                     </td>
+                    <td className="px-4 py-3 text-slate-300">{dish.family ?? 'Sin familia'}</td>
                     <td className="px-4 py-3">
                       {imageUrl ? (
                         <img

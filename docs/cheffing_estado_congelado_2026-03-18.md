@@ -204,6 +204,11 @@ Viven en:
 
 Y **no** se heredan automáticamente desde ingredientes o elaboraciones.
 
+#### Semántica de `indicator_codes` (canónica)
+- `cheffing_ingredients.indicator_codes` → catálogo de indicadores de producto.
+- `cheffing_subrecipes.indicator_codes` → catálogo de indicadores de producto.
+- `cheffing_dishes.indicator_codes` → catálogo de indicadores de plato final.
+
 ### 7.3 Catálogo compartido
 Se centralizó el catálogo en código para evitar duplicidades y desajustes.
 
@@ -216,6 +221,31 @@ Se ha decidido posponerlo por ahora.
 ## 8. Menu Engineering
 ### Estado
 Ya es una primera versión seria y alineada con el Excel de referencia.
+
+---
+
+## Actualización incremental (2026-03-19)
+
+Se deja registrada una mejora pequeña-media enfocada a robustez en detalle de elaboraciones y UX transversal de listados:
+
+- **Bugfix en ficha de elaboración (`/cheffing/elaboraciones/[id]`)**:
+  - se endurece la carga server-side para evitar fallo al procesar datos incompletos en relaciones de elaboraciones anidadas;
+  - se mantiene el contrato activo de detalle (notas, alérgenos, indicadores, imagen y líneas de coste) sin abrir cambios de schema.
+- **Breadcrumbs clicables** en fichas de:
+  - productos
+  - elaboraciones
+  - platos
+- **Orden asc/desc por cabecera** añadido en listados principales de:
+  - productos
+  - elaboraciones
+  - platos
+- **Platos: familia en listado + filtro por familia**:
+  - columna `Familia` visible
+  - selector con opción `Todas`
+  - fallback `Sin familia`
+  - derivación reutilizando la base conceptual existente de Menu Engineering (`mycheftool_source_tag_names`).
+- **Alcance explícitamente fuera de este bloque**:
+  - no se toca todavía el trabajo para permitir `0.5` raciones.
 
 ### 8.1 Tabla principal
 La tabla principal ya replica la lógica base validada contra el Excel:

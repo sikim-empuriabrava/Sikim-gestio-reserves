@@ -34,12 +34,24 @@ type SubrecipeFormState = {
   waste_pct: string;
 };
 
+type SortDirection = 'asc' | 'desc';
+type SubrecipeSortKey =
+  | 'name'
+  | 'output_qty'
+  | 'waste_pct'
+  | 'items_cost_total'
+  | 'cost_net_per_base';
+
 export function SubrecipesManager({ initialSubrecipes, units }: SubrecipesManagerProps) {
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingState, setEditingState] = useState<SubrecipeFormState | null>(null);
+  const [sortState, setSortState] = useState<{ key: SubrecipeSortKey; direction: SortDirection }>({
+    key: 'name',
+    direction: 'asc',
+  });
 
   const supabase = useMemo(() => createSupabaseBrowserClient(), []);
 
@@ -199,6 +211,40 @@ export function SubrecipesManager({ initialSubrecipes, units }: SubrecipesManage
     }
   };
 
+  const indicator = (key: SubrecipeSortKey) => {
+    if (sortState.key !== key) return '↕';
+    return sortState.direction === 'asc' ? '↑' : '↓';
+  };
+
+  const handleSort = (key: SubrecipeSortKey) => {
+    setSortState((prev) => ({
+      key,
+      direction: prev.key === key && prev.direction === 'asc' ? 'desc' : 'asc',
+    }));
+  };
+
+  const sortedSubrecipes = useMemo(() => {
+    const directionMultiplier = sortState.direction === 'asc' ? 1 : -1;
+    return [...initialSubrecipes].sort((a, b) => {
+      let result = 0;
+      switch (sortState.key) {
+        case 'name':
+          result = a.name.localeCompare(b.name, 'es');
+          break;
+        default: {
+          const aValue = a[sortState.key] ?? 0;
+          const bValue = b[sortState.key] ?? 0;
+          result = aValue - bValue;
+          break;
+        }
+      }
+      if (result === 0) {
+        return a.name.localeCompare(b.name, 'es');
+      }
+      return result * directionMultiplier;
+    });
+  }, [initialSubrecipes, sortState]);
+
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -215,12 +261,40 @@ export function SubrecipesManager({ initialSubrecipes, units }: SubrecipesManage
         <table className="w-full min-w-[1000px] text-left text-sm text-slate-200">
           <thead className="bg-slate-950/70 text-xs uppercase text-slate-400">
             <tr>
-              <th className="px-4 py-3">Elaboración</th>
+              <th className="px-4 py-3">
+                <button type="button" className="inline-flex items-center gap-1" onClick={() => handleSort('name')}>
+                  Elaboración <span className="text-[10px]">{indicator('name')}</span>
+                </button>
+              </th>
               <th className="px-4 py-3">Imagen</th>
-              <th className="px-4 py-3">Producción</th>
-              <th className="px-4 py-3">Merma</th>
-              <th className="px-4 py-3">Coste total</th>
-              <th className="px-4 py-3">Coste unitario</th>
+              <th className="px-4 py-3">
+                <button type="button" className="inline-flex items-center gap-1" onClick={() => handleSort('output_qty')}>
+                  Producción <span className="text-[10px]">{indicator('output_qty')}</span>
+                </button>
+              </th>
+              <th className="px-4 py-3">
+                <button type="button" className="inline-flex items-center gap-1" onClick={() => handleSort('waste_pct')}>
+                  Merma <span className="text-[10px]">{indicator('waste_pct')}</span>
+                </button>
+              </th>
+              <th className="px-4 py-3">
+                <button
+                  type="button"
+                  className="inline-flex items-center gap-1"
+                  onClick={() => handleSort('items_cost_total')}
+                >
+                  Coste total <span className="text-[10px]">{indicator('items_cost_total')}</span>
+                </button>
+              </th>
+              <th className="px-4 py-3">
+                <button
+                  type="button"
+                  className="inline-flex items-center gap-1"
+                  onClick={() => handleSort('cost_net_per_base')}
+                >
+                  Coste unitario <span className="text-[10px]">{indicator('cost_net_per_base')}</span>
+                </button>
+              </th>
               <th className="px-4 py-3">Acciones</th>
             </tr>
           </thead>
@@ -232,7 +306,7 @@ export function SubrecipesManager({ initialSubrecipes, units }: SubrecipesManage
                 </td>
               </tr>
             ) : (
-              initialSubrecipes.map((subrecipe) => {
+              sortedSubrecipes.map((subrecipe) => {
                 const isEditing = editingId === subrecipe.id;
                 const editingValues = isEditing ? editingState : null;
                 const imageUrl = resolveImageUrl(subrecipe);
