@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 
 import type { Dish } from '@/lib/cheffing/types';
+import { formatEditableMoney, parseEditableMoney } from '@/lib/cheffing/money';
 import { createSupabaseBrowserClient } from '@/lib/supabase/browser';
 
 export type DishCost = Dish & {
@@ -57,7 +58,7 @@ export function DishesManager({ initialDishes, availableFamilies }: DishesManage
     setEditingId(dish.id);
     setEditingState({
       name: dish.name,
-      selling_price: dish.selling_price === null ? '' : String(dish.selling_price),
+      selling_price: formatEditableMoney(dish.selling_price),
       servings: String(dish.servings ?? 1),
     });
   };
@@ -73,11 +74,10 @@ export function DishesManager({ initialDishes, availableFamilies }: DishesManage
     setIsSubmitting(true);
 
     try {
-      const sellingPriceValue =
-        editingState.selling_price.trim() === '' ? null : Number(editingState.selling_price);
+      const sellingPriceValue = parseEditableMoney(editingState.selling_price);
       const servingsValue = Number(editingState.servings);
 
-      if (sellingPriceValue !== null && (!Number.isFinite(sellingPriceValue) || sellingPriceValue < 0)) {
+      if (sellingPriceValue !== null && sellingPriceValue < 0) {
         throw new Error('El PVP debe ser un número válido.');
       }
 

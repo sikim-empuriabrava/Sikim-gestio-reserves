@@ -8,6 +8,7 @@ import type { Ingredient, Unit, UnitDimension } from '@/lib/cheffing/types';
 import { ALLERGENS, PRODUCT_INDICATORS } from '@/lib/cheffing/allergensIndicators';
 import { toAllergenKeys, toProductIndicatorKeys } from '@/lib/cheffing/allergensHelpers';
 import { ImageUploader } from '@/app/(cheffing)/cheffing/components/ImageUploader';
+import { formatEditableMoney, parseEditableMoney } from '@/lib/cheffing/money';
 import { createSupabaseBrowserClient } from '@/lib/supabase/browser';
 
 type ProductFormState = {
@@ -114,7 +115,7 @@ export function ProductsNewForm({ units, initialProduct, productId, canManageIma
     reference: initialProduct?.reference ?? '',
     purchase_unit_code: initialProduct?.purchase_unit_code ?? units[0]?.code ?? '',
     purchase_pack_qty: initialProduct ? String(initialProduct.purchase_pack_qty) : '1',
-    purchase_price: initialProduct ? String(initialProduct.purchase_price) : '0',
+    purchase_price: initialProduct ? formatEditableMoney(initialProduct.purchase_price) : '0.00',
     waste_pct: initialProduct ? String((initialProduct.waste_pct * 100).toFixed(2)) : '0',
     allergens: initialProduct?.allergens ?? [],
     indicators: initialProduct?.indicators ?? [],
@@ -214,7 +215,8 @@ export function ProductsNewForm({ units, initialProduct, productId, canManageIma
         throw new Error('La cantidad del pack debe ser mayor que 0.');
       }
 
-      const priceValue = ensureValidAmount(formState.purchase_price, { allowZero: true });
+      const normalizedPrice = parseEditableMoney(formState.purchase_price);
+      const priceValue = normalizedPrice === null ? null : ensureValidAmount(String(normalizedPrice), { allowZero: true });
       if (priceValue === null) {
         throw new Error('El precio del pack debe ser un número válido.');
       }

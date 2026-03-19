@@ -5,6 +5,7 @@ import type { FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
 
 import type { Unit } from '@/lib/cheffing/types';
+import { parseEditableMoney } from '@/lib/cheffing/money';
 import { ALLERGENS, PRODUCT_INDICATORS } from '@/lib/cheffing/allergensIndicators';
 
 type IngredientFormState = {
@@ -86,7 +87,8 @@ export function IngredientsNewForm({ units }: IngredientsNewFormProps) {
         throw new Error('La cantidad del pack debe ser mayor que 0.');
       }
 
-      const priceValue = ensureValidAmount(formState.purchase_price, { allowZero: true });
+      const normalizedPrice = parseEditableMoney(formState.purchase_price);
+      const priceValue = normalizedPrice === null ? null : ensureValidAmount(String(normalizedPrice), { allowZero: true });
       if (priceValue === null) {
         throw new Error('El precio del pack debe ser un número válido.');
       }
