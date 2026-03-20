@@ -108,3 +108,44 @@ export type DishItem = {
   waste_pct_override: number | null;
   notes: string | null;
 };
+
+export type CheffingMenu = {
+  id: string;
+  name: string;
+  notes: string | null;
+  price_per_person: number | null;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+};
+
+export type CheffingMenuItem = {
+  id: string;
+  menu_id: string;
+  dish_id: string;
+  multiplier: number;
+  sort_order: number;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type CheffingCard = {
+  id: string;
+  name: string;
+  notes: string | null;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+};
+
+export type CheffingCardItem = {
+  id: string;
+  card_id: string;
+  dish_id: string;
+  multiplier: number;
+  sort_order: number;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+};
