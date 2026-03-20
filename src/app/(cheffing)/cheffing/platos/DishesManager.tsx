@@ -10,11 +10,16 @@ import { normalizeSearchText } from '@/lib/cheffing/search';
 import { createSupabaseBrowserClient } from '@/lib/supabase/browser';
 import type { CheffingFamily } from '@/lib/cheffing/families';
 import { SIN_FAMILIA_LABEL } from '@/lib/cheffing/families';
+import type { DishUsageConsumer } from '@/lib/cheffing/dishUsage';
 
 export type DishCost = Dish & {
   items_cost_total: number | null;
   cost_per_serving?: number | null;
   family_name?: string | null;
+  usage_cards?: DishUsageConsumer[];
+  usage_menus?: DishUsageConsumer[];
+  usage_has_any?: boolean;
+  usage_has_active?: boolean;
 };
 
 type DishesManagerProps = {
@@ -35,6 +40,8 @@ type DishFormState = {
 
 type SortDirection = 'asc' | 'desc';
 type DishSortKey = 'name' | 'family' | 'selling_price' | 'servings' | 'items_cost_total' | 'cost_per_serving';
+type UsageFilter = 'all' | 'in_use' | 'unused';
+type UsageScope = 'any' | 'active';
 
 export function DishesManager({
   initialDishes,
@@ -52,6 +59,8 @@ export function DishesManager({
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingState, setEditingState] = useState<DishFormState | null>(null);
   const [selectedFamily, setSelectedFamily] = useState('todas');
+  const [usageFilter, setUsageFilter] = useState<UsageFilter>('all');
+  const [usageScope, setUsageScope] = useState<UsageScope>('any');
   const [searchTerm, setSearchTerm] = useState('');
   const [sortState, setSortState] = useState<{ key: DishSortKey; direction: SortDirection }>({
     key: 'name',
@@ -178,13 +187,20 @@ export function DishesManager({
           ? initialDishes.filter((dish) => !dish.family_id)
           : initialDishes.filter((dish) => dish.family_id === selectedFamily);
     const normalizedQuery = normalizeSearchText(searchTerm);
-    const filteredDishes =
+    const textFilteredDishes =
       normalizedQuery.length === 0
         ? familyFilteredDishes
         : familyFilteredDishes.filter((dish) => normalizeSearchText(dish.name).includes(normalizedQuery));
+    const usageFilteredDishes =
+      usageFilter === 'all'
+        ? textFilteredDishes
+        : textFilteredDishes.filter((dish) => {
+            const inUse = usageScope === 'active' ? (dish.usage_has_active ?? false) : (dish.usage_has_any ?? false);
+            return usageFilter === 'in_use' ? inUse : !inUse;
+          });
 
     const directionMultiplier = sortState.direction === 'asc' ? 1 : -1;
-    return [...filteredDishes].sort((a, b) => {
+    return [...usageFilteredDishes].sort((a, b) => {
       let result = 0;
       switch (sortState.key) {
         case 'name':
@@ -205,7 +221,7 @@ export function DishesManager({
       }
       return result * directionMultiplier;
     });
-  }, [includeFamilylessFilter, initialDishes, searchTerm, selectedFamily, sortState]);
+  }, [includeFamilylessFilter, initialDishes, searchTerm, selectedFamily, sortState, usageFilter, usageScope]);
   const firstColumnLabel = capitalizeFirstLetter(entityLabelSingular);
 
   return (
@@ -233,6 +249,29 @@ export function DishesManager({
             ))}
           </select>
         </label>
+        <label className="flex items-center gap-2 text-sm text-slate-300">
+          <span>Uso</span>
+          <select
+            value={usageFilter}
+            onChange={(event) => setUsageFilter(event.target.value as UsageFilter)}
+            className="rounded-md border border-slate-700 bg-slate-950/70 px-2 py-1 text-white"
+          >
+            <option value="all">Todos</option>
+            <option value="in_use">En uso</option>
+            <option value="unused">Sin uso</option>
+          </select>
+        </label>
+        <label className="flex items-center gap-2 text-sm text-slate-300">
+          <span>Alcance</span>
+          <select
+            value={usageScope}
+            onChange={(event) => setUsageScope(event.target.value as UsageScope)}
+            className="rounded-md border border-slate-700 bg-slate-950/70 px-2 py-1 text-white"
+          >
+            <option value="any">Cualquier carta/menú</option>
+            <option value="active">Solo activos</option>
+          </select>
+        </label>
         <input
           type="search"
           value={searchTerm}
@@ -244,7 +283,7 @@ export function DishesManager({
       </div>
 
       <div className="overflow-x-auto rounded-2xl border border-slate-800/70">
-        <table className="w-full min-w-[1120px] text-left text-sm text-slate-200">
+        <table className="w-full min-w-[1210px] text-left text-sm text-slate-200">
           <thead className="bg-slate-950/70 text-xs uppercase text-slate-400">
             <tr>
               <th className="px-4 py-3">
@@ -258,6 +297,7 @@ export function DishesManager({
                 </button>
               </th>
               <th className="px-4 py-3">Imagen</th>
+              <th className="px-4 py-3">Uso</th>
               <th className="px-4 py-3">
                 <button
                   type="button"
@@ -296,13 +336,13 @@ export function DishesManager({
           <tbody>
             {initialDishes.length === 0 ? (
               <tr>
-                <td colSpan={8} className="px-4 py-6 text-center text-sm text-slate-500">
+                <td colSpan={9} className="px-4 py-6 text-center text-sm text-slate-500">
                   No hay {entityLabelPlural} todavía.
                 </td>
               </tr>
             ) : filteredAndSortedDishes.length === 0 ? (
               <tr>
-                <td colSpan={8} className="px-4 py-6 text-center text-sm text-slate-500">
+                <td colSpan={9} className="px-4 py-6 text-center text-sm text-slate-500">
                   No hay {entityLabelPlural} que coincidan con el filtro actual.
                 </td>
               </tr>
@@ -358,6 +398,58 @@ export function DishesManager({
                         />
                       ) : (
                         <span className="text-xs text-slate-500">—</span>
+                      )}
+                    </td>
+                    <td className="px-4 py-3">
+                      {dish.usage_has_any ? (
+                        <div className="group relative inline-flex">
+                          <span className="rounded-full border border-emerald-500/50 bg-emerald-500/10 px-2 py-0.5 text-xs font-medium text-emerald-200">
+                            En uso
+                          </span>
+                          <div
+                            role="tooltip"
+                            className="pointer-events-none absolute left-0 top-full z-20 mt-2 hidden w-80 rounded-md border border-slate-700 bg-slate-950/95 p-3 text-left text-[11px] normal-case text-slate-200 shadow-lg group-hover:block group-focus-within:block"
+                          >
+                            <div className="space-y-2">
+                              <div>
+                                <p className="font-semibold text-slate-100">Cartas</p>
+                                {dish.usage_cards && dish.usage_cards.length > 0 ? (
+                                  <ul className="mt-1 space-y-1">
+                                    {dish.usage_cards.map((card) => (
+                                      <li key={card.id} className="flex items-center justify-between gap-2">
+                                        <span className="text-slate-300">{card.name}</span>
+                                        <span className={card.is_active ? 'text-emerald-300' : 'text-slate-400'}>
+                                          {card.is_active ? 'Activa' : 'Inactiva'}
+                                        </span>
+                                      </li>
+                                    ))}
+                                  </ul>
+                                ) : (
+                                  <p className="mt-1 text-slate-500">Sin cartas</p>
+                                )}
+                              </div>
+                              <div>
+                                <p className="font-semibold text-slate-100">Menús</p>
+                                {dish.usage_menus && dish.usage_menus.length > 0 ? (
+                                  <ul className="mt-1 space-y-1">
+                                    {dish.usage_menus.map((menu) => (
+                                      <li key={menu.id} className="flex items-center justify-between gap-2">
+                                        <span className="text-slate-300">{menu.name}</span>
+                                        <span className={menu.is_active ? 'text-emerald-300' : 'text-slate-400'}>
+                                          {menu.is_active ? 'Activo' : 'Inactivo'}
+                                        </span>
+                                      </li>
+                                    ))}
+                                  </ul>
+                                ) : (
+                                  <p className="mt-1 text-slate-500">Sin menús</p>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      ) : (
+                        <span className="rounded-full border border-slate-700 px-2 py-0.5 text-xs text-slate-400">Sin uso</span>
                       )}
                     </td>
                     <td className="px-4 py-3 text-slate-300">
