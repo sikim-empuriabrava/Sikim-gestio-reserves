@@ -61,27 +61,29 @@ export const getConsumerConservativeCostTotal = (
     };
   }
 
-  const blockers = items
-    .filter((item) => item.cost === null)
-    .map(
-      (item) =>
-        `No se puede calcular el coste total porque la línea "${item.lineName || item.fallbackLabel || 'Sin nombre'}" no tiene coste base calculable.`,
-    );
+  const diagnostics = items.reduce(
+    (acc, item) => {
+      if (item.cost === null) {
+        acc.blocking_reasons.push(
+          `No se puede calcular el coste total porque la línea "${item.lineName || item.fallbackLabel || 'Sin nombre'}" no tiene coste base calculable.`,
+        );
+        return acc;
+      }
+      acc.runningTotal += item.cost;
+      return acc;
+    },
+    { runningTotal: 0, blocking_reasons: [] as string[] },
+  );
 
-  if (blockers.length > 0) {
+  if (diagnostics.blocking_reasons.length > 0) {
     return {
       calculation_status: 'blocked',
       total: null,
-      blocking_reasons: blockers,
+      blocking_reasons: diagnostics.blocking_reasons,
     };
   }
 
-  const total = Number(
-    items
-      .map((item) => item.cost as number)
-      .reduce((acc, value) => acc + value, 0)
-      .toFixed(4),
-  );
+  const total = Number(diagnostics.runningTotal.toFixed(4));
 
   return {
     calculation_status: 'ok',
