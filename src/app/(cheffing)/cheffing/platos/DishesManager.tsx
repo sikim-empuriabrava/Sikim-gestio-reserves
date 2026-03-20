@@ -44,6 +44,8 @@ export function DishesManager({
   entityLabelPlural = 'platos',
   includeFamilylessFilter = true,
 }: DishesManagerProps) {
+  const capitalizeFirstLetter = (value: string) => value.charAt(0).toUpperCase() + value.slice(1);
+
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -204,6 +206,7 @@ export function DishesManager({
       return result * directionMultiplier;
     });
   }, [includeFamilylessFilter, initialDishes, searchTerm, selectedFamily, sortState]);
+  const firstColumnLabel = capitalizeFirstLetter(entityLabelSingular);
 
   return (
     <div className="space-y-6">
@@ -246,7 +249,7 @@ export function DishesManager({
             <tr>
               <th className="px-4 py-3">
                 <button type="button" className="inline-flex items-center gap-1" onClick={() => handleSort('name')}>
-                  Plato <span className="text-[10px]">{indicator('name')}</span>
+                  {firstColumnLabel} <span className="text-[10px]">{indicator('name')}</span>
                 </button>
               </th>
               <th className="px-4 py-3">
