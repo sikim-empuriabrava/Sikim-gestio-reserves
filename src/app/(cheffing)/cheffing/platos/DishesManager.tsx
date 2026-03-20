@@ -269,7 +269,7 @@ export function DishesManager({
               </th>
               <th className="px-4 py-3">
                 <button type="button" className="inline-flex items-center gap-1" onClick={() => handleSort('servings')}>
-                  Raciones <span className="text-[10px]">{indicator('servings')}</span>
+                  Raciones base <span className="text-[10px]">{indicator('servings')}</span>
                 </button>
               </th>
               <th className="px-4 py-3">

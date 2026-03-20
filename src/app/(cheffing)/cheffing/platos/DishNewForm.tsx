@@ -289,7 +289,7 @@ export function DishNewForm({
             />
           </label>
           <label className="flex flex-col gap-2 text-sm text-slate-300">
-            Raciones
+            Raciones base (yield)
             <input
               type="number"
               min="1"
@@ -299,6 +299,7 @@ export function DishNewForm({
               onChange={(event) => setFormState((prev) => ({ ...prev, servings: event.target.value }))}
               required
             />
+            <span className="text-xs text-slate-500">Unidad canónica del plato/bebida. Los multiplicadores decimales (0.25, 1.33...) vivirán en menús/carta.</span>
           </label>
           <label className="flex flex-col gap-2 text-sm text-slate-300">
             Familia

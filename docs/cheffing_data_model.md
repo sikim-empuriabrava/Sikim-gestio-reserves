@@ -51,16 +51,23 @@ Líneas de subreceta (ingredientes u otras subrecetas).
 > Regla: exactamente uno de `ingredient_id` o `subrecipe_component_id` debe estar presente.
 
 ### `cheffing_dishes`
-Platos de carta (venta).
+Platos/bebidas canónicos de Cheffing (unidad base de reutilización).
 
 - `name`: nombre.
 - `family_id`: FK nullable al catálogo canónico `cheffing_families.id`.
 - `selling_price`: precio de venta (nullable en esta fase).
-- `servings`: número de raciones (mínimo 1).
+- `servings`: número de raciones base de receta (mínimo 1, yield técnico del escandallo).
 - `notes`: notas internas.
 - `indicator_codes`: lista canónica editable de indicadores de plato final.
 - `image_path`: ruta canónica editable de imagen en Storage.
 - `mycheftool_source_tag_names`: dato legacy de importación/histórico (ya no es la fuente principal de familia en UI).
+
+
+Semántica canónica (regla de dominio):
+- Cada plato o bebida representa **1 unidad/ración base canónica**.
+- Los multiplicadores decimales de reutilización (ej. `0.25`, `0.50`, `1.33`) **no viven en `cheffing_dishes`**.
+- Esos multiplicadores deben vivir en la **línea consumidora** (menú/carta/composición futura) cuando ese modelo exista.
+- Ejemplos de negocio: tapa compartida en menú de grupo `0.25`; bebida reforzada/ración ampliada `1.33`.
 
 Regla activa de alérgenos:
 - `allergen_codes` puede existir por legado en DB, pero **no forma parte del flujo editable**.
@@ -166,6 +173,7 @@ Estas derivaciones se exponen en la vista `v_cheffing_ingredients_cost`.
 - **Coste por ración** = `coste_total / servings`.
 - **Importante**: `servings` representa yield/porciones de receta para calcular coste por ración; **no** representa ventas.
 - **Ventas**: usar `units_sold` (POS/SumUp o placeholder temporal) para totales de facturación y margen.
+- Para composiciones futuras (menús/carta), la fórmula esperada por línea es: `importe_linea = importe_base * multiplicador_decimal_linea`.
 - La vista `v_cheffing_dish_items_cost` expone el coste total por línea.
 
 ## Seguridad (RLS)
