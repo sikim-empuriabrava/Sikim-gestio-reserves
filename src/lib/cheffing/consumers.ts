@@ -18,6 +18,12 @@ export type CheffingConsumerItem = {
   dish?: CheffingConsumerDish | null;
 };
 
+export type ConsumerTotalDiagnostics = {
+  calculation_status: 'empty' | 'ok' | 'blocked';
+  total: number | null;
+  blocking_reasons: string[];
+};
+
 export const resolveConsumerDishKind = (dish: CheffingConsumerDish): 'food' | 'drink' => {
   if (dish.family_kind === 'drink') return 'drink';
   return 'food';
@@ -44,8 +50,73 @@ export const getConsumerLineMargin = ({
   return Number((price - cost).toFixed(4));
 };
 
-export const getConsumerTotalCost = (items: Array<{ cost: number | null }>) => {
-  const validCosts = items.map((item) => item.cost).filter((value): value is number => Number.isFinite(value));
-  if (validCosts.length === 0) return 0;
-  return Number(validCosts.reduce((acc, value) => acc + value, 0).toFixed(4));
+export const getConsumerConservativeCostTotal = (
+  items: Array<{ lineName: string; cost: number | null; fallbackLabel?: string }>,
+): ConsumerTotalDiagnostics => {
+  if (items.length === 0) {
+    return {
+      calculation_status: 'empty',
+      total: 0,
+      blocking_reasons: [],
+    };
+  }
+
+  const blockers = items
+    .filter((item) => item.cost === null)
+    .map(
+      (item) =>
+        `No se puede calcular el coste total porque la línea "${item.lineName || item.fallbackLabel || 'Sin nombre'}" no tiene coste base calculable.`,
+    );
+
+  if (blockers.length > 0) {
+    return {
+      calculation_status: 'blocked',
+      total: null,
+      blocking_reasons: blockers,
+    };
+  }
+
+  const total = Number(
+    items
+      .map((item) => item.cost ?? 0)
+      .reduce((acc, value) => acc + value, 0)
+      .toFixed(4),
+  );
+
+  return {
+    calculation_status: 'ok',
+    total,
+    blocking_reasons: [],
+  };
+};
+
+export const getConservativeMarginDiagnostics = ({
+  totalCost,
+  price,
+  totalCostBlockingReasons,
+  label,
+}: {
+  totalCost: number | null;
+  price: number | null;
+  totalCostBlockingReasons: string[];
+  label: string;
+}) => {
+  if (price === null) {
+    return {
+      margin: null,
+      blocking_reasons: [`No se puede calcular el margen porque ${label} no tiene precio configurado.`],
+    };
+  }
+
+  if (totalCost === null) {
+    return {
+      margin: null,
+      blocking_reasons: totalCostBlockingReasons,
+    };
+  }
+
+  return {
+    margin: Number((price - totalCost).toFixed(4)),
+    blocking_reasons: [],
+  };
 };

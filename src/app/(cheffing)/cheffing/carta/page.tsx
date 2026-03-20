@@ -1,7 +1,7 @@
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { requireCheffingAccess } from '@/lib/cheffing/requireCheffing';
 import { loadCheffingConsumerDishes } from '@/lib/cheffing/consumerQueries';
-import { getConsumerLineCost } from '@/lib/cheffing/consumers';
+import { getConsumerConservativeCostTotal, getConsumerLineCost } from '@/lib/cheffing/consumers';
 
 import { CheffingConsumerList } from '@/app/(cheffing)/cheffing/components/CheffingConsumerList';
 
@@ -35,14 +35,17 @@ export default async function CheffingCartaPage() {
 
   const entries = (cards ?? []).map((card) => {
     const cardItems = itemsByCardId.get(card.id) ?? [];
-    const totalCost = cardItems.reduce((acc, item) => {
-      const lineCost = getConsumerLineCost(dishById.get(item.dish_id)?.items_cost_total ?? null, item.multiplier);
-      return acc + (lineCost ?? 0);
-    }, 0);
+    const costDiagnostics = getConsumerConservativeCostTotal(
+      cardItems.map((item) => ({
+        lineName: dishById.get(item.dish_id)?.name ?? 'Línea sin plato/bebida',
+        cost: getConsumerLineCost(dishById.get(item.dish_id)?.items_cost_total ?? null, item.multiplier),
+      })),
+    );
 
     return {
       ...card,
-      total_cost: Number(totalCost.toFixed(2)),
+      total_cost: costDiagnostics.total,
+      calculation_issue: costDiagnostics.blocking_reasons[0] ?? null,
     };
   });
 

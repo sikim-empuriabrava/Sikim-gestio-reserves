@@ -1,7 +1,11 @@
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { requireCheffingAccess } from '@/lib/cheffing/requireCheffing';
 import { loadCheffingConsumerDishes } from '@/lib/cheffing/consumerQueries';
-import { getConsumerLineCost } from '@/lib/cheffing/consumers';
+import {
+  getConservativeMarginDiagnostics,
+  getConsumerConservativeCostTotal,
+  getConsumerLineCost,
+} from '@/lib/cheffing/consumers';
 
 import { CheffingConsumerList } from '@/app/(cheffing)/cheffing/components/CheffingConsumerList';
 
@@ -35,16 +39,24 @@ export default async function CheffingMenusPage() {
 
   const entries = (menus ?? []).map((menu) => {
     const menuItems = itemsByMenuId.get(menu.id) ?? [];
-    const totalCost = menuItems.reduce((acc, item) => {
-      const lineCost = getConsumerLineCost(dishById.get(item.dish_id)?.items_cost_total ?? null, item.multiplier);
-      return acc + (lineCost ?? 0);
-    }, 0);
-    const margin = menu.price_per_person === null ? null : Number((menu.price_per_person - totalCost).toFixed(2));
+    const costDiagnostics = getConsumerConservativeCostTotal(
+      menuItems.map((item) => ({
+        lineName: dishById.get(item.dish_id)?.name ?? 'Línea sin plato/bebida',
+        cost: getConsumerLineCost(dishById.get(item.dish_id)?.items_cost_total ?? null, item.multiplier),
+      })),
+    );
+    const marginDiagnostics = getConservativeMarginDiagnostics({
+      totalCost: costDiagnostics.total,
+      price: menu.price_per_person,
+      totalCostBlockingReasons: costDiagnostics.blocking_reasons,
+      label: `el menú "${menu.name}"`,
+    });
 
     return {
       ...menu,
-      total_cost: Number(totalCost.toFixed(2)),
-      total_margin: margin,
+      total_cost: costDiagnostics.total,
+      total_margin: marginDiagnostics.margin,
+      calculation_issue: costDiagnostics.blocking_reasons[0] ?? marginDiagnostics.blocking_reasons[0] ?? null,
     };
   });
 

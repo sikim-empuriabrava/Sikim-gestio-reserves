@@ -11,9 +11,10 @@ type ConsumerSummary = {
   notes: string | null;
   is_active: boolean;
   price_per_person?: number | null;
-  total_cost: number;
+  total_cost: number | null;
   total_price?: number | null;
   total_margin?: number | null;
+  calculation_issue?: string | null;
 };
 
 export function CheffingConsumerList({
@@ -88,7 +89,10 @@ export function CheffingConsumerList({
                     {entry.notes ? <p className="text-xs text-slate-500">{entry.notes}</p> : null}
                   </td>
                   <td className="px-4 py-3">{entry.is_active ? 'Activo' : 'Inactivo'}</td>
-                  <td className="px-4 py-3">{formatCurrency(entry.total_cost)}</td>
+                  <td className="px-4 py-3">
+                    <p>{formatCurrency(entry.total_cost)}</p>
+                    {entry.calculation_issue ? <p className="text-xs text-amber-300">{entry.calculation_issue}</p> : null}
+                  </td>
                   {showFinancials ? <td className="px-4 py-3">{formatCurrency(entry.price_per_person ?? null)}</td> : null}
                   {showFinancials ? <td className="px-4 py-3">{formatCurrency(entry.total_margin ?? null)}</td> : null}
                   <td className="px-4 py-3">

@@ -7,10 +7,11 @@ import { useRouter } from 'next/navigation';
 import {
   type CheffingConsumerDish,
   type CheffingConsumerItem,
+  getConservativeMarginDiagnostics,
+  getConsumerConservativeCostTotal,
   getConsumerLineCost,
   getConsumerLineMargin,
   getConsumerLinePrice,
-  getConsumerTotalCost,
   resolveConsumerDishKind,
 } from '@/lib/cheffing/consumers';
 import { normalizeSearchText } from '@/lib/cheffing/search';
@@ -60,20 +61,48 @@ export function CheffingConsumerEditor({
         const dish = dishesById.get(item.dish_id) ?? null;
         const lineCost = getConsumerLineCost(dish?.items_cost_total ?? null, item.multiplier);
         const linePrice = getConsumerLinePrice(dish?.selling_price ?? null, item.multiplier);
+
+        const lineIssues: string[] = [];
+        if (!dish) {
+          lineIssues.push('No se encontró el plato/bebida canónico para esta línea.');
+        }
+        if (lineCost === null) {
+          lineIssues.push(`No se puede calcular el coste: "${dish?.name ?? 'Línea sin item'}" no tiene coste base calculable.`);
+        }
+        if (linePrice === null) {
+          lineIssues.push(`No se puede calcular el PVP: "${dish?.name ?? 'Línea sin item'}" no tiene PVP base calculable.`);
+        }
+
         return {
           ...item,
           dish,
           lineCost,
           linePrice,
+          lineIssues,
           lineMargin: getConsumerLineMargin({ cost: lineCost, price: linePrice }),
         };
       })
       .sort((a, b) => a.sort_order - b.sort_order);
   }, [dishesById, items]);
 
-  const totalCost = getConsumerTotalCost(lines.map((line) => ({ cost: line.lineCost })));
+  const costDiagnostics = getConsumerConservativeCostTotal(
+    lines.map((line) => ({
+      lineName: line.dish?.name ?? 'Línea sin item',
+      cost: line.lineCost,
+    })),
+  );
+  const totalCost = costDiagnostics.total;
+
   const menuPrice = isMenu ? parseEditableMoney(headerState.price_per_person ?? '') : null;
-  const menuMargin = isMenu && menuPrice !== null ? Number((menuPrice - totalCost).toFixed(4)) : null;
+  const menuMarginDiagnostics = isMenu
+    ? getConservativeMarginDiagnostics({
+        totalCost,
+        price: menuPrice,
+        totalCostBlockingReasons: costDiagnostics.blocking_reasons,
+        label: `el menú "${headerState.name || 'sin nombre'}"`,
+      })
+    : { margin: null, blocking_reasons: [] as string[] };
+  const menuMargin = menuMarginDiagnostics.margin;
 
   const formatCurrency = (value: number | null | undefined) => {
     if (value === null || value === undefined || Number.isNaN(value)) return '—';
@@ -269,6 +298,12 @@ export function CheffingConsumerEditor({
           {isMenu ? <span>Precio persona: {formatCurrency(menuPrice)}</span> : null}
           {isMenu ? <span>Margen persona: {formatCurrency(menuMargin)}</span> : null}
         </div>
+        {costDiagnostics.blocking_reasons.length > 0 ? (
+          <p className="text-xs text-amber-300">{costDiagnostics.blocking_reasons[0]}</p>
+        ) : null}
+        {isMenu && menuMarginDiagnostics.blocking_reasons.length > 0 ? (
+          <p className="text-xs text-amber-300">{menuMarginDiagnostics.blocking_reasons[0]}</p>
+        ) : null}
 
         <button
           type="submit"
@@ -294,6 +329,7 @@ export function CheffingConsumerEditor({
                 <th className="px-3 py-2">Coste</th>
                 <th className="px-3 py-2">PVP</th>
                 <th className="px-3 py-2">Margen</th>
+                <th className="px-3 py-2">Diagnóstico</th>
                 <th className="px-3 py-2">Notas</th>
                 <th className="px-3 py-2">Acciones</th>
               </tr>
@@ -301,13 +337,13 @@ export function CheffingConsumerEditor({
             <tbody>
               {lines.length === 0 ? (
                 <tr>
-                  <td colSpan={9} className="px-4 py-5 text-center text-slate-500">
+                  <td colSpan={10} className="px-4 py-5 text-center text-slate-500">
                     No hay líneas.
                   </td>
                 </tr>
               ) : (
                 lines.map((line) => (
-                  <tr key={line.id} className="border-t border-slate-800/70">
+                  <tr key={line.id} className={`border-t border-slate-800/70 ${line.lineCost === null ? 'bg-amber-500/5' : ''}`}>
                     <td className="px-3 py-2">{line.dish?.name ?? '—'}</td>
                     <td className="px-3 py-2">{line.dish?.family_name ?? '—'}</td>
                     <td className="px-3 py-2">
@@ -329,6 +365,7 @@ export function CheffingConsumerEditor({
                     <td className="px-3 py-2">{formatCurrency(line.lineCost)}</td>
                     <td className="px-3 py-2">{formatCurrency(line.linePrice)}</td>
                     <td className="px-3 py-2">{formatCurrency(line.lineMargin)}</td>
+                    <td className="px-3 py-2 text-xs text-amber-300">{line.lineIssues[0] ?? "—"}</td>
                     <td className="px-3 py-2">
                       <input
                         value={draftNotesByItemId[line.id] ?? line.notes ?? ''}
