@@ -27,6 +27,8 @@ type DishNewFormProps = {
   units: Unit[];
   families: CheffingFamily[];
   canManageImages: boolean;
+  basePath?: '/cheffing/platos' | '/cheffing/bebidas';
+  entityLabelSingular?: string;
 };
 
 type DraftDishItem = {
@@ -40,7 +42,15 @@ type DraftDishItem = {
   notes: string;
 };
 
-export function DishNewForm({ ingredients, subrecipes, units, families, canManageImages }: DishNewFormProps) {
+export function DishNewForm({
+  ingredients,
+  subrecipes,
+  units,
+  families,
+  canManageImages,
+  basePath = '/cheffing/platos',
+  entityLabelSingular = 'plato',
+}: DishNewFormProps) {
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
   const [imageWarning, setImageWarning] = useState<string | null>(null);
@@ -191,9 +201,9 @@ export function DishNewForm({ ingredients, subrecipes, units, families, canManag
 
       if (!response.ok) {
         if (response.status === 409) {
-          throw new Error('Ya existe un plato con ese nombre.');
+          throw new Error(`Ya existe un ${entityLabelSingular} con ese nombre.`);
         }
-        throw new Error(payload?.error ?? 'Error creando plato');
+        throw new Error(payload?.error ?? `Error creando ${entityLabelSingular}`);
       }
 
       const createdId = typeof payload?.id === 'string' ? payload.id : null;
@@ -207,7 +217,7 @@ export function DishNewForm({ ingredients, subrecipes, units, families, canManag
             .upload(path, imageFile, { upsert: true, contentType: imageFile.type });
 
           if (uploadError) {
-            throw new Error('Error subiendo la imagen del plato.');
+            throw new Error(`Error subiendo la imagen del ${entityLabelSingular}.`);
           }
 
           uploadedPath = path;
@@ -218,7 +228,7 @@ export function DishNewForm({ ingredients, subrecipes, units, families, canManag
           });
 
           if (!patchResponse.ok) {
-            throw new Error('Error guardando la imagen del plato.');
+            throw new Error(`Error guardando la imagen del ${entityLabelSingular}.`);
           }
           setImageFile(null);
         } catch (imageError) {
@@ -226,15 +236,15 @@ export function DishNewForm({ ingredients, subrecipes, units, families, canManag
             await supabase.storage.from('cheffing-images').remove([uploadedPath]);
           }
           setImageWarning(
-            imageError instanceof Error ? imageError.message : 'No se pudo guardar la imagen del plato.',
+            imageError instanceof Error ? imageError.message : `No se pudo guardar la imagen del ${entityLabelSingular}.`,
           );
         }
       }
 
       if (createdId) {
-        router.push(`/cheffing/platos/${createdId}`);
+        router.push(`${basePath}/${createdId}`);
       } else {
-        router.push('/cheffing/platos');
+        router.push(basePath);
       }
       router.refresh();
     } catch (err) {
@@ -251,7 +261,7 @@ export function DishNewForm({ ingredients, subrecipes, units, families, canManag
         className="space-y-4 rounded-2xl border border-slate-800/70 bg-slate-950/60 p-5"
       >
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <h3 className="text-lg font-semibold text-white">Nuevo plato</h3>
+          <h3 className="text-lg font-semibold text-white">Nuevo {entityLabelSingular}</h3>
           {error ? <p className="text-sm text-rose-400">{error}</p> : null}
           {imageWarning ? <p className="text-sm text-amber-300">{imageWarning}</p> : null}
         </div>
@@ -317,7 +327,7 @@ export function DishNewForm({ ingredients, subrecipes, units, families, canManag
           {canManageImages ? (
             <div className="md:col-span-3">
               <ImageUploader
-                label="Imagen del plato"
+                label={`Imagen del ${entityLabelSingular}`}
                 initialUrl={null}
                 onFileReady={setImageFile}
                 disabled={isSubmitting}
@@ -332,11 +342,11 @@ export function DishNewForm({ ingredients, subrecipes, units, families, canManag
             disabled={isSubmitting}
             className="rounded-full border border-emerald-400/60 bg-emerald-500/10 px-4 py-2 text-sm font-semibold text-emerald-200 transition hover:border-emerald-300 hover:text-emerald-100 disabled:cursor-not-allowed disabled:opacity-60"
           >
-            Guardar plato
+            Guardar {entityLabelSingular}
           </button>
           <button
             type="button"
-            onClick={() => router.push('/cheffing/platos')}
+            onClick={() => router.push(basePath)}
             className="rounded-full border border-slate-700 px-4 py-2 text-sm font-semibold text-slate-200"
           >
             Cancelar
@@ -392,7 +402,7 @@ export function DishNewForm({ ingredients, subrecipes, units, families, canManag
                 {draftItems.length === 0 ? (
                   <tr>
                     <td colSpan={6} className="px-4 py-6 text-center text-sm text-slate-500">
-                      Añade productos o elaboraciones para precargar el plato.
+                      Añade productos o elaboraciones para precargar el {entityLabelSingular}.
                     </td>
                   </tr>
                 ) : (

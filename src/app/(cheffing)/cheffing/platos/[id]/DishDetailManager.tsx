@@ -36,6 +36,8 @@ type DishDetailManagerProps = {
   inheritedAllergens: string[];
   inheritedIndicators: string[];
   canManageImages: boolean;
+  basePath?: '/cheffing/platos' | '/cheffing/bebidas';
+  entityLabelSingular?: string;
 };
 
 type DishFormState = {
@@ -68,6 +70,8 @@ export function DishDetailManager({
   inheritedAllergens,
   inheritedIndicators,
   canManageImages,
+  basePath = '/cheffing/platos',
+  entityLabelSingular = 'plato',
 }: DishDetailManagerProps) {
   const router = useRouter();
   const supabase = useMemo(() => createSupabaseBrowserClient(), []);
@@ -179,9 +183,9 @@ export function DishDetailManager({
       if (!response.ok) {
         const payload = await response.json().catch(() => ({}));
         if (response.status === 409) {
-          throw new Error('Ya existe un plato con ese nombre.');
+          throw new Error(`Ya existe un ${entityLabelSingular} con ese nombre.`);
         }
-        throw new Error(payload?.error ?? 'Error actualizando plato');
+        throw new Error(payload?.error ?? `Error actualizando ${entityLabelSingular}`);
       }
       if (imageFile && canManageImages) {
         let uploadedPath: string | null = null;
@@ -193,7 +197,7 @@ export function DishDetailManager({
             .upload(path, imageFile, { upsert: true, contentType: imageFile.type });
 
           if (uploadError) {
-            throw new Error('Error subiendo la imagen del plato.');
+            throw new Error(`Error subiendo la imagen del ${entityLabelSingular}.`);
           }
 
           uploadedPath = path;
@@ -203,7 +207,7 @@ export function DishDetailManager({
             body: JSON.stringify({ image_path: path }),
           });
           if (!patchResponse.ok) {
-            throw new Error('Error guardando la imagen del plato.');
+            throw new Error(`Error guardando la imagen del ${entityLabelSingular}.`);
           }
           if (dish.image_path && dish.image_path !== path) {
             await supabase.storage.from('cheffing-images').remove([dish.image_path]);
@@ -213,7 +217,9 @@ export function DishDetailManager({
           if (uploadedPath) {
             await supabase.storage.from('cheffing-images').remove([uploadedPath]);
           }
-          setImageWarning(imageError instanceof Error ? imageError.message : 'No se pudo guardar la imagen del plato.');
+          setImageWarning(
+            imageError instanceof Error ? imageError.message : `No se pudo guardar la imagen del ${entityLabelSingular}.`,
+          );
         }
       }
 
@@ -235,7 +241,7 @@ export function DishDetailManager({
       if (!confirmed) return;
       const { error: removeError } = await supabase.storage.from('cheffing-images').remove([dish.image_path]);
       if (removeError) {
-        throw new Error('Error eliminando la imagen del plato.');
+        throw new Error(`Error eliminando la imagen del ${entityLabelSingular}.`);
       }
       const patchResponse = await fetch(`/api/cheffing/dishes/${dish.id}`, {
         method: 'PATCH',
@@ -259,7 +265,7 @@ export function DishDetailManager({
     setIsSubmitting(true);
 
     try {
-      const confirmed = window.confirm('¿Seguro que quieres eliminar este plato?');
+      const confirmed = window.confirm(`¿Seguro que quieres eliminar este ${entityLabelSingular}?`);
       if (!confirmed) {
         return;
       }
@@ -269,10 +275,10 @@ export function DishDetailManager({
 
       if (!response.ok) {
         const payload = await response.json().catch(() => ({}));
-        throw new Error(payload?.error ?? 'Error eliminando plato');
+        throw new Error(payload?.error ?? `Error eliminando ${entityLabelSingular}`);
       }
 
-      router.push('/cheffing/platos');
+      router.push(basePath);
       router.refresh();
     } catch (err) {
       setHeaderError(err instanceof Error ? err.message : 'Error desconocido');
@@ -302,7 +308,7 @@ export function DishDetailManager({
       if (!response.ok) {
         const payload = await response.json().catch(() => ({}));
         if (response.status === 409) {
-          throw new Error(payload?.error ?? 'Esta línea ya existe en el plato.');
+          throw new Error(payload?.error ?? `Esta línea ya existe en el ${entityLabelSingular}.`);
         }
         throw new Error(payload?.error ?? 'Error creando línea');
       }
@@ -379,7 +385,7 @@ export function DishDetailManager({
       if (!response.ok) {
         const payload = await response.json().catch(() => ({}));
         if (response.status === 409) {
-          throw new Error(payload?.error ?? 'Esta línea ya existe en el plato.');
+          throw new Error(payload?.error ?? `Esta línea ya existe en el ${entityLabelSingular}.`);
         }
         throw new Error(payload?.error ?? 'Error actualizando línea');
       }
@@ -566,7 +572,7 @@ export function DishDetailManager({
           {canManageImages ? (
             <div className="space-y-3 md:col-span-3">
               <ImageUploader
-                label="Imagen del plato"
+                label={`Imagen del ${entityLabelSingular}`}
                 initialUrl={existingImageUrl}
                 onFileReady={setImageFile}
                 disabled={isSubmitting}
@@ -599,7 +605,7 @@ export function DishDetailManager({
             disabled={isSubmitting}
             className="rounded-full border border-rose-500/70 px-4 py-2 text-sm font-semibold text-rose-200"
           >
-            Eliminar plato
+            Eliminar {entityLabelSingular}
           </button>
         </div>
       </form>
@@ -608,7 +614,7 @@ export function DishDetailManager({
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <h3 className="text-lg font-semibold text-white">Productos y elaboraciones</h3>
-            <p className="text-sm text-slate-400">Define la composición final del plato.</p>
+            <p className="text-sm text-slate-400">Define la composición final del {entityLabelSingular}.</p>
           </div>
           {itemsError ? <p className="text-sm text-rose-400">{itemsError}</p> : null}
         </div>

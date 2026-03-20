@@ -23,9 +23,9 @@ import {
   DishDetailManager,
   type DishCost,
   type DishItemWithDetails,
-} from './DishDetailManager';
+} from '@/app/(cheffing)/cheffing/platos/[id]/DishDetailManager';
 
-export default async function CheffingPlatoDetailPage({ params }: { params: { id: string } }) {
+export default async function CheffingBebidaDetailPage({ params }: { params: { id: string } }) {
   const { allowlistInfo } = await requireCheffingAccess();
   const canManageImages =
     isAdmin(allowlistInfo.role) || Boolean(allowlistInfo.allowedUser?.cheffing_images_manage);
@@ -38,7 +38,7 @@ export default async function CheffingPlatoDetailPage({ params }: { params: { id
     .maybeSingle();
 
   if (dishError || !dish) {
-    console.error('[cheffing/platos] Failed to load dish', dishError);
+    console.error('[cheffing/bebidas] Failed to load drink', dishError);
     notFound();
   }
 
@@ -55,9 +55,11 @@ export default async function CheffingPlatoDetailPage({ params }: { params: { id
       .eq('id', dishMeta.family_id)
       .maybeSingle();
 
-    if (familyData?.kind === 'drink') {
+    if (familyData?.kind !== 'drink') {
       notFound();
     }
+  } else {
+    notFound();
   }
 
   const { data: items, error: itemsError } = await supabase
@@ -87,15 +89,15 @@ export default async function CheffingPlatoDetailPage({ params }: { params: { id
     .from('cheffing_families')
     .select('id, name, slug, sort_order, is_active, kind')
     .eq('is_active', true)
-    .eq('kind', 'food')
+    .eq('kind', 'drink')
     .order('sort_order', { ascending: true })
     .order('name', { ascending: true });
 
   if (dishMetaError || itemsError || ingredientsError || subrecipesError || subrecipeItemsError || unitsError || familiesError) {
     const loadError =
       dishMetaError ?? itemsError ?? ingredientsError ?? subrecipesError ?? subrecipeItemsError ?? unitsError ?? familiesError;
-    console.error('[cheffing/platos] Failed to load dish detail data', loadError);
-    throw new Error('No se pudieron cargar los datos del plato por incompatibilidad de schema.');
+    console.error('[cheffing/bebidas] Failed to load drink detail data', loadError);
+    throw new Error('No se pudieron cargar los datos de la bebida por incompatibilidad de schema.');
   }
 
   const ingredientsTyped = (ingredients ?? []).map((raw) =>
@@ -218,8 +220,8 @@ export default async function CheffingPlatoDetailPage({ params }: { params: { id
           Cheffing
         </Link>
         /
-        <Link href="/cheffing/platos" className="mx-2 underline-offset-2 hover:text-slate-200 hover:underline">
-          Platos
+        <Link href="/cheffing/bebidas" className="mx-2 underline-offset-2 hover:text-slate-200 hover:underline">
+          Bebidas
         </Link>
         /<span className="ml-2 text-white">{dish.name}</span>
       </div>
@@ -234,6 +236,8 @@ export default async function CheffingPlatoDetailPage({ params }: { params: { id
         inheritedAllergens={inheritedAllergens}
         inheritedIndicators={inheritedIndicators}
         canManageImages={canManageImages}
+        basePath="/cheffing/bebidas"
+        entityLabelSingular="bebida"
       />
     </section>
   );

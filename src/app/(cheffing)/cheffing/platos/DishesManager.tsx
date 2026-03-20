@@ -20,6 +20,9 @@ export type DishCost = Dish & {
 type DishesManagerProps = {
   initialDishes: DishCost[];
   families: CheffingFamily[];
+  basePath?: '/cheffing/platos' | '/cheffing/bebidas';
+  entityLabelSingular?: string;
+  entityLabelPlural?: string;
 };
 
 type DishFormState = {
@@ -32,7 +35,13 @@ type DishFormState = {
 type SortDirection = 'asc' | 'desc';
 type DishSortKey = 'name' | 'family' | 'selling_price' | 'servings' | 'items_cost_total' | 'cost_per_serving';
 
-export function DishesManager({ initialDishes, families }: DishesManagerProps) {
+export function DishesManager({
+  initialDishes,
+  families,
+  basePath = '/cheffing/platos',
+  entityLabelSingular = 'plato',
+  entityLabelPlural = 'platos',
+}: DishesManagerProps) {
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -105,9 +114,9 @@ export function DishesManager({ initialDishes, families }: DishesManagerProps) {
       if (!response.ok) {
         const payload = await response.json().catch(() => ({}));
         if (response.status === 409) {
-          throw new Error('Ya existe un plato con ese nombre.');
+          throw new Error(`Ya existe un ${entityLabelSingular} con ese nombre.`);
         }
-        throw new Error(payload?.error ?? 'Error actualizando plato');
+        throw new Error(payload?.error ?? `Error actualizando ${entityLabelSingular}`);
       }
 
       cancelEditing();
@@ -124,7 +133,7 @@ export function DishesManager({ initialDishes, families }: DishesManagerProps) {
     setIsSubmitting(true);
 
     try {
-      const confirmed = window.confirm('¿Seguro que quieres eliminar este plato?');
+      const confirmed = window.confirm(`¿Seguro que quieres eliminar este ${entityLabelSingular}?`);
       if (!confirmed) {
         return;
       }
@@ -134,7 +143,7 @@ export function DishesManager({ initialDishes, families }: DishesManagerProps) {
 
       if (!response.ok) {
         const payload = await response.json().catch(() => ({}));
-        throw new Error(payload?.error ?? 'Error eliminando plato');
+        throw new Error(payload?.error ?? `Error eliminando ${entityLabelSingular}`);
       }
 
       router.refresh();
@@ -198,10 +207,10 @@ export function DishesManager({ initialDishes, families }: DishesManagerProps) {
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <Link
-          href="/cheffing/platos/new"
+          href={`${basePath}/new`}
           className="rounded-full border border-emerald-400/60 bg-emerald-500/10 px-4 py-2 text-sm font-semibold text-emerald-200 transition hover:border-emerald-300 hover:text-emerald-100"
         >
-          Nuevo plato
+          Nuevo {entityLabelSingular}
         </Link>
         <label className="flex items-center gap-2 text-sm text-slate-300">
           <span>Familia</span>
@@ -223,7 +232,7 @@ export function DishesManager({ initialDishes, families }: DishesManagerProps) {
           type="search"
           value={searchTerm}
           onChange={(event) => setSearchTerm(event.target.value)}
-          placeholder="Buscar plato por nombre"
+          placeholder={`Buscar ${entityLabelSingular} por nombre`}
           className="w-full max-w-xs rounded-md border border-slate-700 bg-slate-950/70 px-3 py-2 text-sm text-white placeholder:text-slate-500"
         />
         {error ? <p className="text-sm text-rose-400">{error}</p> : null}
@@ -283,13 +292,13 @@ export function DishesManager({ initialDishes, families }: DishesManagerProps) {
             {initialDishes.length === 0 ? (
               <tr>
                 <td colSpan={8} className="px-4 py-6 text-center text-sm text-slate-500">
-                  No hay platos todavía.
+                  No hay {entityLabelPlural} todavía.
                 </td>
               </tr>
             ) : filteredAndSortedDishes.length === 0 ? (
               <tr>
                 <td colSpan={8} className="px-4 py-6 text-center text-sm text-slate-500">
-                  No hay platos que coincidan con el filtro actual.
+                  No hay {entityLabelPlural} que coincidan con el filtro actual.
                 </td>
               </tr>
             ) : (
@@ -310,7 +319,7 @@ export function DishesManager({ initialDishes, families }: DishesManagerProps) {
                           }
                         />
                       ) : (
-                        <Link href={`/cheffing/platos/${dish.id}`} className="font-semibold text-white">
+                        <Link href={`${basePath}/${dish.id}`} className="font-semibold text-white">
                           {dish.name}
                         </Link>
                       )}
@@ -407,7 +416,7 @@ export function DishesManager({ initialDishes, families }: DishesManagerProps) {
                         ) : (
                           <>
                             <Link
-                              href={`/cheffing/platos/${dish.id}`}
+                              href={`${basePath}/${dish.id}`}
                               className="rounded-full border border-slate-700 px-3 py-1 text-xs font-semibold text-slate-200"
                             >
                               Ver
