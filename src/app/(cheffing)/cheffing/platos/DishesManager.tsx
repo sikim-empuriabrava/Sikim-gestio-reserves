@@ -23,6 +23,7 @@ type DishesManagerProps = {
   basePath?: '/cheffing/platos' | '/cheffing/bebidas';
   entityLabelSingular?: string;
   entityLabelPlural?: string;
+  includeFamilylessFilter?: boolean;
 };
 
 type DishFormState = {
@@ -41,7 +42,10 @@ export function DishesManager({
   basePath = '/cheffing/platos',
   entityLabelSingular = 'plato',
   entityLabelPlural = 'platos',
+  includeFamilylessFilter = true,
 }: DishesManagerProps) {
+  const capitalizeFirstLetter = (value: string) => value.charAt(0).toUpperCase() + value.slice(1);
+
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -170,7 +174,7 @@ export function DishesManager({
     const familyFilteredDishes =
       selectedFamily === 'todas'
         ? initialDishes
-        : selectedFamily === '__none__'
+        : selectedFamily === '__none__' && includeFamilylessFilter
           ? initialDishes.filter((dish) => !dish.family_id)
           : initialDishes.filter((dish) => dish.family_id === selectedFamily);
     const normalizedQuery = normalizeSearchText(searchTerm);
@@ -201,7 +205,8 @@ export function DishesManager({
       }
       return result * directionMultiplier;
     });
-  }, [initialDishes, searchTerm, selectedFamily, sortState]);
+  }, [includeFamilylessFilter, initialDishes, searchTerm, selectedFamily, sortState]);
+  const firstColumnLabel = capitalizeFirstLetter(entityLabelSingular);
 
   return (
     <div className="space-y-6">
@@ -220,7 +225,7 @@ export function DishesManager({
             className="rounded-md border border-slate-700 bg-slate-950/70 px-2 py-1 text-white"
           >
             <option value="todas">Todas</option>
-            <option value="__none__">{SIN_FAMILIA_LABEL}</option>
+            {includeFamilylessFilter ? <option value="__none__">{SIN_FAMILIA_LABEL}</option> : null}
             {families.map((family) => (
               <option key={family.id} value={family.id}>
                 {family.name}
@@ -244,7 +249,7 @@ export function DishesManager({
             <tr>
               <th className="px-4 py-3">
                 <button type="button" className="inline-flex items-center gap-1" onClick={() => handleSort('name')}>
-                  Plato <span className="text-[10px]">{indicator('name')}</span>
+                  {firstColumnLabel} <span className="text-[10px]">{indicator('name')}</span>
                 </button>
               </th>
               <th className="px-4 py-3">

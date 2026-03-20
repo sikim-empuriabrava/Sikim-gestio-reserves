@@ -82,6 +82,7 @@ export default async function CheffingBebidasPage() {
         basePath="/cheffing/bebidas"
         entityLabelSingular="bebida"
         entityLabelPlural="bebidas"
+        includeFamilylessFilter={false}
       />
     </section>
   );
