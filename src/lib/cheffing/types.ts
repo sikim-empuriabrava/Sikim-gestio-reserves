@@ -123,6 +123,7 @@ export type CheffingMenuItem = {
   id: string;
   menu_id: string;
   dish_id: string;
+  section_kind: 'starter' | 'main' | 'drink' | 'dessert';
   multiplier: number;
   sort_order: number;
   notes: string | null;

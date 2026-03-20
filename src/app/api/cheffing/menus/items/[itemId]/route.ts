@@ -4,7 +4,7 @@ import { createSupabaseAdminClient } from '@/lib/supabaseAdmin';
 import { mergeResponseCookies } from '@/lib/supabase/route';
 import { requireCheffingRouteAccess } from '@/lib/cheffing/requireCheffingRoute';
 import { mapCheffingPostgresError } from '@/lib/cheffing/postgresErrors';
-import { cheffingConsumerItemSchema } from '@/lib/cheffing/schemas';
+import { cheffingMenuItemSchema } from '@/lib/cheffing/schemas';
 import { parsePortionMultiplier } from '@/lib/cheffing/portionMultiplier';
 
 export const runtime = 'nodejs';
@@ -15,7 +15,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { itemId: st
   if (access.response) return access.response;
 
   const body = await req.json().catch(() => null);
-  const parsed = cheffingConsumerItemSchema.safeParse(body);
+  const parsed = cheffingMenuItemSchema.safeParse(body);
 
   if (!parsed.success) {
     const invalid = NextResponse.json({ error: 'Invalid payload', issues: parsed.error.issues }, { status: 400 });
@@ -35,6 +35,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { itemId: st
     .from('cheffing_menu_items')
     .update({
       dish_id: parsed.data.dish_id,
+      section_kind: parsed.data.section_kind,
       multiplier,
       sort_order: parsed.data.sort_order ?? 0,
       notes: parsed.data.notes ?? null,

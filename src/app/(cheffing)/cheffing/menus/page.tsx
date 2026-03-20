@@ -1,13 +1,13 @@
+import Link from 'next/link';
+
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { requireCheffingAccess } from '@/lib/cheffing/requireCheffing';
-import { loadCheffingConsumerDishes } from '@/lib/cheffing/consumerQueries';
 import {
   getConservativeMarginDiagnostics,
   getConsumerConservativeCostTotal,
   getConsumerLineCost,
 } from '@/lib/cheffing/consumers';
-
-import { CheffingConsumerList } from '@/app/(cheffing)/cheffing/components/CheffingConsumerList';
+import { loadCheffingConsumerDishes } from '@/lib/cheffing/consumerQueries';
 
 export default async function CheffingMenusPage() {
   await requireCheffingAccess();
@@ -20,7 +20,7 @@ export default async function CheffingMenusPage() {
       .order('name', { ascending: true }),
     supabase
       .from('cheffing_menu_items')
-      .select('id, menu_id, dish_id, multiplier, sort_order, notes, created_at, updated_at')
+      .select('id, menu_id, dish_id, section_kind, multiplier, sort_order, notes, created_at, updated_at')
       .order('sort_order', { ascending: true }),
     loadCheffingConsumerDishes(),
   ]);
@@ -36,6 +36,11 @@ export default async function CheffingMenusPage() {
     list.push(item);
     itemsByMenuId.set(item.menu_id, list);
   });
+
+  const formatCurrency = (value: number | null | undefined) => {
+    if (value === null || value === undefined || Number.isNaN(value)) return '—';
+    return `${value.toFixed(2)} €`;
+  };
 
   const entries = (menus ?? []).map((menu) => {
     const menuItems = itemsByMenuId.get(menu.id) ?? [];
@@ -63,19 +68,65 @@ export default async function CheffingMenusPage() {
     <section className="space-y-6 rounded-2xl border border-slate-800/80 bg-slate-900/70 p-6">
       <header className="space-y-2">
         <h2 className="text-xl font-semibold text-white">Menús</h2>
-        <p className="text-sm text-slate-400">
-          Los menús consumen platos/bebidas canónicos con multiplicador por persona.
-        </p>
+        <p className="text-sm text-slate-400">Consumidor por persona con coste total y margen conservador.</p>
       </header>
 
-      <CheffingConsumerList
-        title="Menú"
-        createHref="/cheffing/menus/new"
-        detailBaseHref="/cheffing/menus"
-        searchPlaceholder="Buscar menú por nombre"
-        showFinancials
-        entries={entries}
-      />
+      <div className="flex items-center justify-end">
+        <Link
+          href="/cheffing/menus/new"
+          className="rounded-full border border-emerald-400/60 bg-emerald-500/10 px-4 py-2 text-sm font-semibold text-emerald-200 transition hover:border-emerald-300 hover:text-emerald-100"
+        >
+          Nuevo menú
+        </Link>
+      </div>
+
+      <div className="overflow-x-auto rounded-2xl border border-slate-800/70">
+        <table className="w-full min-w-[980px] text-left text-sm text-slate-200">
+          <thead className="bg-slate-950/70 text-xs uppercase text-slate-400">
+            <tr>
+              <th className="px-4 py-3">Menú</th>
+              <th className="px-4 py-3">Estado</th>
+              <th className="px-4 py-3">Coste total</th>
+              <th className="px-4 py-3">Precio persona</th>
+              <th className="px-4 py-3">Margen persona</th>
+              <th className="px-4 py-3">Acciones</th>
+            </tr>
+          </thead>
+          <tbody>
+            {entries.length === 0 ? (
+              <tr>
+                <td colSpan={6} className="px-4 py-6 text-center text-slate-500">
+                  No hay menús.
+                </td>
+              </tr>
+            ) : (
+              entries.map((entry) => (
+                <tr key={entry.id} className="border-t border-slate-800/60">
+                  <td className="px-4 py-3">
+                    <p className="font-semibold text-white">{entry.name}</p>
+                    {entry.notes ? <p className="text-xs text-slate-500">{entry.notes}</p> : null}
+                  </td>
+                  <td className="px-4 py-3">{entry.is_active ? 'Activo' : 'Inactivo'}</td>
+                  <td className="px-4 py-3">
+                    <p>{formatCurrency(entry.total_cost)}</p>
+                    {entry.calculation_issue ? <p className="text-xs text-amber-300">{entry.calculation_issue}</p> : null}
+                  </td>
+                  <td className="px-4 py-3">{formatCurrency(entry.price_per_person)}</td>
+                  <td className="px-4 py-3">{formatCurrency(entry.total_margin)}</td>
+                  <td className="px-4 py-3">
+                    <Link
+                      href={`/cheffing/menus/${entry.id}`}
+                      className="rounded-full border border-slate-600 px-3 py-1 text-xs font-semibold text-slate-200 transition hover:border-slate-400"
+                    >
+                      Ver detalle
+                    </Link>
+                  </td>
+                </tr>
+              ))
+            )}
+          </tbody>
+        </table>
+      </div>
     </section>
   );
 }

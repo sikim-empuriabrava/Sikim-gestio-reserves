@@ -86,21 +86,22 @@ Líneas consumidoras de menú.
 
 - `menu_id`: referencia al menú padre.
 - `dish_id`: referencia a `cheffing_dishes` (plato/bebida canónica).
+- `section_kind`: sección de negocio (`starter`, `main`, `drink`, `dessert`).
 - `multiplier`: multiplicador decimal de consumo por persona (`> 0`, ejemplo `0.25`, `1.33`).
 - `sort_order`: orden manual de visualización.
 
 ### `cheffing_cards`
-Cartas de Cheffing (consumidor comercial).
+Cartas de Cheffing (colección comercial, no calculadora).
 
 - `name`: nombre de la carta.
 - `is_active`: estado activo/inactivo.
 
 ### `cheffing_card_items`
-Líneas consumidoras de carta.
+Líneas asociadas de carta.
 
 - `card_id`: referencia a la carta padre.
 - `dish_id`: referencia a `cheffing_dishes` (plato/bebida canónica).
-- `multiplier`: multiplicador decimal de consumo (`> 0`).
+- `multiplier`: se mantiene por compatibilidad técnica, pero en flujo Carta se fija conceptualmente a `1` y no se edita.
 - `sort_order`: orden manual de visualización.
 
 ### `cheffing_families`
@@ -208,7 +209,8 @@ Estas derivaciones se exponen en la vista `v_cheffing_ingredients_cost`.
 - **Coste por ración** = `coste_total / servings`.
 - **Importante**: `servings` representa yield/porciones de receta para calcular coste por ración; **no** representa ventas.
 - **Ventas**: usar `units_sold` (POS/SumUp o placeholder temporal) para totales de facturación y margen.
-- Para composiciones futuras (menús/carta), la fórmula esperada por línea es: `importe_linea = importe_base * multiplicador_decimal_linea`.
+- En **Menús**, la fórmula activa por línea es: `coste_linea = coste_base_plato * multiplicador_decimal_linea`.
+- En **Carta**, el módulo actúa como asociación comercial: muestra datos heredados en solo lectura y no edita economía del plato/bebida.
 - La vista `v_cheffing_dish_items_cost` expone el coste total por línea.
 
 ## Seguridad (RLS)
@@ -258,3 +260,29 @@ La matriz BCM se recalcula con el rango de fechas válido seleccionado, porque `
 - El proceso es overwrite por rango: se borra primero todo lo ya guardado en ese intervalo (rango semiabierto para evitar problemas de milisegundos) y luego se inserta lo del CSV.
 - Esto garantiza que, ante solapes, el último archivo importado sea la verdad para ese periodo.
 - Si los dos CSV cubren rangos distintos de `opened_at`, la API avisa con warning para evitar borrados inesperados en imports siguientes.
+
+
+## SQL incremental aplicado (2026-03-20)
+
+Se añade especialización de secciones en menús de forma conservadora:
+
+```sql
+alter table public.cheffing_menu_items
+  add column if not exists section_kind text;
+
+update public.cheffing_menu_items
+set section_kind = 'starter'
+where section_kind is null;
+
+alter table public.cheffing_menu_items
+  alter column section_kind set default 'starter';
+
+alter table public.cheffing_menu_items
+  alter column section_kind set not null;
+
+alter table public.cheffing_menu_items
+  add constraint cheffing_menu_items_section_kind_check
+  check (section_kind in ('starter', 'main', 'drink', 'dessert'));
+```
+
+No hay cambios destructivos. `public.menus` (módulo reservas) sigue fuera de Cheffing.

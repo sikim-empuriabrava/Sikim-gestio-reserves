@@ -5,7 +5,7 @@ import { requireCheffingAccess } from '@/lib/cheffing/requireCheffing';
 import { loadCheffingConsumerDishes } from '@/lib/cheffing/consumerQueries';
 import type { CheffingCard, CheffingCardItem } from '@/lib/cheffing/types';
 
-import { CheffingConsumerEditor } from '@/app/(cheffing)/cheffing/components/CheffingConsumerEditor';
+import { CheffingCardEditor } from '@/app/(cheffing)/cheffing/components/CheffingCardEditor';
 
 export default async function CheffingCartaDetailPage({ params }: { params: { id: string } }) {
   await requireCheffingAccess();
@@ -43,11 +43,10 @@ export default async function CheffingCartaDetailPage({ params }: { params: { id
     <section className="space-y-6 rounded-2xl border border-slate-800/80 bg-slate-900/70 p-6">
       <header className="space-y-2">
         <h2 className="text-xl font-semibold text-white">Carta · {typedCard.name}</h2>
-        <p className="text-sm text-slate-400">Edita cabecera y líneas consumidoras.</p>
+        <p className="text-sm text-slate-400">Gestión comercial de asociación de platos y bebidas.</p>
       </header>
 
-      <CheffingConsumerEditor
-        mode="card"
+      <CheffingCardEditor
         id={typedCard.id}
         header={{
           name: typedCard.name,

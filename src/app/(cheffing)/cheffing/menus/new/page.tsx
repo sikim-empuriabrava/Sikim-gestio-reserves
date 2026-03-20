@@ -1,7 +1,7 @@
 import { requireCheffingAccess } from '@/lib/cheffing/requireCheffing';
 import { loadCheffingConsumerDishes } from '@/lib/cheffing/consumerQueries';
 
-import { CheffingConsumerEditor, menuHeaderDefaults } from '@/app/(cheffing)/cheffing/components/CheffingConsumerEditor';
+import { CheffingMenuEditor, menuHeaderDefaults } from '@/app/(cheffing)/cheffing/components/CheffingMenuEditor';
 
 export default async function CheffingMenusNewPage() {
   await requireCheffingAccess();
@@ -12,10 +12,10 @@ export default async function CheffingMenusNewPage() {
     <section className="space-y-6 rounded-2xl border border-slate-800/80 bg-slate-900/70 p-6">
       <header className="space-y-2">
         <h2 className="text-xl font-semibold text-white">Nuevo menú</h2>
-        <p className="text-sm text-slate-400">Primero guarda cabecera y luego añade líneas consumidoras.</p>
+        <p className="text-sm text-slate-400">Primero guarda cabecera y luego añade líneas por sección.</p>
       </header>
 
-      <CheffingConsumerEditor mode="menu" id={null} header={menuHeaderDefaults} items={[]} dishes={dishes} />
+      <CheffingMenuEditor id={null} header={menuHeaderDefaults} items={[]} dishes={dishes} />
     </section>
   );
 }
