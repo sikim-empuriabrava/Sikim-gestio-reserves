@@ -78,7 +78,7 @@ export const getConsumerConservativeCostTotal = (
 
   const total = Number(
     items
-      .map((item) => item.cost ?? 0)
+      .map((item) => item.cost as number)
       .reduce((acc, value) => acc + value, 0)
       .toFixed(4),
   );
@@ -93,12 +93,10 @@ export const getConsumerConservativeCostTotal = (
 export const getConservativeMarginDiagnostics = ({
   totalCost,
   price,
-  totalCostBlockingReasons,
   label,
 }: {
   totalCost: number | null;
   price: number | null;
-  totalCostBlockingReasons: string[];
   label: string;
 }) => {
   if (price === null) {
@@ -111,7 +109,7 @@ export const getConservativeMarginDiagnostics = ({
   if (totalCost === null) {
     return {
       margin: null,
-      blocking_reasons: totalCostBlockingReasons,
+      blocking_reasons: [`No se puede calcular el margen porque ${label} tiene líneas sin coste calculable.`],
     };
   }
 
@@ -119,4 +117,10 @@ export const getConservativeMarginDiagnostics = ({
     margin: Number((price - totalCost).toFixed(4)),
     blocking_reasons: [],
   };
+};
+
+export const getNextConsumerSortOrder = (items: Array<{ sort_order: number }>) => {
+  if (items.length === 0) return 0;
+  const maxSortOrder = items.reduce((max, item) => Math.max(max, item.sort_order), Number.NEGATIVE_INFINITY);
+  return maxSortOrder + 1;
 };
