@@ -457,3 +457,25 @@ Los siguientes bloques ya no son de “arreglar lo roto”, sino de:
 En detalle y creación de **platos** y **elaboraciones** se invirtió el orden visual del bloque de composición:
 - primero se muestra **Elementos seleccionados**;
 - debajo se muestra el **selector para añadir productos o elaboraciones**.
+
+
+## Actualización incremental (2026-03-20) — Menús/Carta consumidores canónicos
+
+Se implementó el bloque v1 conservador para consumo comercial dentro de Cheffing:
+
+- Nuevas tablas propias de Cheffing:
+  - `cheffing_menus`
+  - `cheffing_menu_items`
+  - `cheffing_cards`
+  - `cheffing_card_items`
+- Se mantiene la regla canónica:
+  - `cheffing_dishes` = unidad base de plato/bebida;
+  - multiplicador decimal vive en la línea consumidora (`multiplier`).
+- Semántica v1:
+  - Menús: coste y margen por persona.
+  - Carta: coste/PVP/margen por línea con proporcionalidad simple (`base * multiplier`).
+- Navegación y rutas nuevas:
+  - `/cheffing/menus`, `/cheffing/menus/new`, `/cheffing/menus/[id]`
+  - `/cheffing/carta`, `/cheffing/carta/new`, `/cheffing/carta/[id]`
+- Seguridad/RLS alineada con patrón Cheffing (`cheffing_is_allowed` para lectura, `cheffing_is_admin` para escritura).
+- No se toca ni se reutiliza `public.menus` del módulo de reservas/eventos.

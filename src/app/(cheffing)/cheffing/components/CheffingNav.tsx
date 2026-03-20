@@ -12,6 +12,7 @@ const NAV_ITEMS = [
   { href: '/cheffing/platos', label: 'Platos' },
   { href: '/cheffing/bebidas', label: 'Bebidas' },
   { href: '/cheffing/menus', label: 'Menús' },
+  { href: '/cheffing/carta', label: 'Carta' },
   { href: '/cheffing/dashboard', label: 'Dashboard' },
   { href: '/cheffing/menu-engineering', label: 'Menu Engineering' },
   { href: '/cheffing/ventas', label: 'Ventas POS' },

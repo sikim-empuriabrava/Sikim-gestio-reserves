@@ -152,3 +152,53 @@ export type DishUpdateInput = z.infer<typeof dishUpdateSchema>;
 export type DishItemInput = z.infer<typeof dishItemSchema>;
 export type DishItemCreateInput = z.infer<typeof dishItemCreateSchema>;
 export type DishCreateWithItemsInput = z.infer<typeof dishCreateWithItemsSchema>;
+
+const multiplierSchema = z.union([z.number(), z.string(), z.null(), z.undefined()]);
+
+export const cheffingConsumerHeaderSchema = z.object({
+  name: trimmedString.min(1),
+  notes: notesSchema,
+  is_active: z.boolean().optional(),
+});
+
+export const cheffingMenuCreateSchema = cheffingConsumerHeaderSchema.extend({
+  price_per_person: z.number().min(0).nullable().optional(),
+});
+
+export const cheffingMenuUpdateSchema = z
+  .object({
+    name: trimmedString.min(1).optional(),
+    notes: notesSchema,
+    is_active: z.boolean().optional(),
+    price_per_person: z.number().min(0).nullable().optional(),
+  })
+  .partial()
+  .refine((data) => Object.keys(data).length > 0, {
+    message: 'No fields to update',
+  });
+
+export const cheffingCardCreateSchema = cheffingConsumerHeaderSchema;
+
+export const cheffingCardUpdateSchema = z
+  .object({
+    name: trimmedString.min(1).optional(),
+    notes: notesSchema,
+    is_active: z.boolean().optional(),
+  })
+  .partial()
+  .refine((data) => Object.keys(data).length > 0, {
+    message: 'No fields to update',
+  });
+
+export const cheffingConsumerItemSchema = z.object({
+  dish_id: z.string().uuid(),
+  multiplier: multiplierSchema,
+  sort_order: z.number().int().optional(),
+  notes: notesSchema.optional(),
+});
+
+export type CheffingMenuCreateInput = z.infer<typeof cheffingMenuCreateSchema>;
+export type CheffingMenuUpdateInput = z.infer<typeof cheffingMenuUpdateSchema>;
+export type CheffingCardCreateInput = z.infer<typeof cheffingCardCreateSchema>;
+export type CheffingCardUpdateInput = z.infer<typeof cheffingCardUpdateSchema>;
+export type CheffingConsumerItemInput = z.infer<typeof cheffingConsumerItemSchema>;
