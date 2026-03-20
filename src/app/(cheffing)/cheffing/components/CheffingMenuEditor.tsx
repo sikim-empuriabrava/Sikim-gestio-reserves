@@ -115,9 +115,34 @@ export function CheffingMenuEditor({
     return grouped;
   }, [lines]);
 
+  const sectionSummaryByKind = useMemo(() => {
+    return new Map(
+      sectionConfig.map((section) => {
+        const sectionLines = groupedLines.get(section.kind) ?? [];
+        const hasMissingLineCost = sectionLines.some((line) => line.lineCost === null);
+        const sectionCost =
+          hasMissingLineCost || sectionLines.length === 0 ? (hasMissingLineCost ? null : 0) : sectionLines.reduce((sum, line) => sum + (line.lineCost ?? 0), 0);
+        const sectionPct = sectionCost !== null && menuPrice !== null && menuPrice > 0 ? (sectionCost / menuPrice) * 100 : null;
+        return [
+          section.kind,
+          {
+            cost: sectionCost,
+            pct: sectionPct,
+            warning: hasMissingLineCost ? 'Hay líneas sin coste calculable en esta sección.' : null,
+          },
+        ] as const;
+      }),
+    );
+  }, [groupedLines, menuPrice]);
+
   const formatCurrency = (value: number | null | undefined) => {
     if (value === null || value === undefined || Number.isNaN(value)) return '—';
     return `${value.toFixed(2)} €`;
+  };
+
+  const formatPercentage = (value: number | null | undefined) => {
+    if (value === null || value === undefined || Number.isNaN(value)) return '—';
+    return `${value.toFixed(2)} %`;
   };
 
   const saveHeader = async (event: FormEvent<HTMLFormElement>) => {
@@ -267,18 +292,21 @@ export function CheffingMenuEditor({
     }
   };
 
-  const getFilteredDishesForSection = (sectionKind: MenuSectionKind) => {
-    const section = sectionConfig.find((entry) => entry.kind === sectionKind);
-    const normalizedSearch = normalizeSearchText(searchBySection[sectionKind]);
-
-    return dishes.filter((dish) => {
-      const dishKind = resolveConsumerDishKind(dish);
-      if (section?.dishKind === 'food' && dishKind !== 'food') return false;
-      if (section?.dishKind === 'drink' && dishKind !== 'drink') return false;
-      if (!normalizedSearch) return true;
-      return normalizeSearchText(dish.name).includes(normalizedSearch);
-    });
-  };
+  const filteredDishesBySection = useMemo(() => {
+    return new Map(
+      sectionConfig.map((section) => {
+        const normalizedSearch = normalizeSearchText(searchBySection[section.kind]);
+        const filtered = dishes.filter((dish) => {
+          const dishKind = resolveConsumerDishKind(dish);
+          if (section.dishKind === 'food' && dishKind !== 'food') return false;
+          if (section.dishKind === 'drink' && dishKind !== 'drink') return false;
+          if (!normalizedSearch) return true;
+          return normalizeSearchText(dish.name).includes(normalizedSearch);
+        });
+        return [section.kind, filtered] as const;
+      }),
+    );
+  }, [dishes, searchBySection]);
 
   return (
     <div className="space-y-6">
@@ -325,6 +353,7 @@ export function CheffingMenuEditor({
           <p>Coste total por persona: <strong>{formatCurrency(totalDiagnostics.total)}</strong></p>
           <p>Precio por persona: <strong>{formatCurrency(menuPrice)}</strong></p>
           <p>Margen por persona: <strong>{formatCurrency(marginDiagnostics.margin)}</strong></p>
+          <p>Margen %: <strong>{formatPercentage(marginDiagnostics.margin !== null && menuPrice !== null && menuPrice > 0 ? (marginDiagnostics.margin / menuPrice) * 100 : null)}</strong></p>
         </div>
 
         {totalDiagnostics.blocking_reasons.length > 0 ? <p className="text-xs text-amber-300">{totalDiagnostics.blocking_reasons[0]}</p> : null}
@@ -343,7 +372,8 @@ export function CheffingMenuEditor({
 
       {sectionConfig.map((section) => {
         const sectionLines = groupedLines.get(section.kind) ?? [];
-        const filteredDishes = getFilteredDishesForSection(section.kind);
+        const sectionSummary = sectionSummaryByKind.get(section.kind);
+        const filteredDishes = filteredDishesBySection.get(section.kind) ?? [];
 
         return (
           <div key={section.kind} className="space-y-3 rounded-2xl border border-slate-800/70 bg-slate-950/50 p-4">
@@ -361,7 +391,7 @@ export function CheffingMenuEditor({
                     <th className="px-3 py-2">Multiplicador</th>
                     <th className="px-3 py-2">sort_order</th>
                     <th className="px-3 py-2">Coste línea</th>
-                    <th className="px-3 py-2">Diagnóstico</th>
+                    <th className="px-3 py-2">% sobre PVP menú</th>
                     <th className="px-3 py-2">Acciones</th>
                   </tr>
                 </thead>
@@ -392,7 +422,9 @@ export function CheffingMenuEditor({
                           />
                         </td>
                         <td className="px-3 py-2">{formatCurrency(line.lineCost)}</td>
-                        <td className="px-3 py-2 text-xs text-amber-300">{line.lineIssue ?? '—'}</td>
+                        <td className="px-3 py-2">
+                          {formatPercentage(line.lineCost !== null && menuPrice !== null && menuPrice > 0 ? (line.lineCost / menuPrice) * 100 : null)}
+                        </td>
                         <td className="px-3 py-2">
                           <div className="flex gap-2">
                             <button type="button" onClick={() => saveItem(line)} className="rounded-full border border-slate-600 px-3 py-1 text-xs">
@@ -412,6 +444,25 @@ export function CheffingMenuEditor({
                   )}
                 </tbody>
               </table>
+            </div>
+
+            <div className="rounded-xl border border-slate-800/50 bg-slate-950/40 px-3 py-2 text-xs text-slate-300">
+              <div className="flex flex-wrap items-center gap-x-5 gap-y-1">
+                <p>
+                  Coste sección: <strong>{formatCurrency(sectionSummary?.cost ?? null)}</strong>
+                </p>
+                <p>
+                  % sobre PVP menú:{' '}
+                  <strong>
+                    {formatPercentage(
+                      sectionSummary?.cost === 0 && menuPrice !== null && menuPrice > 0
+                        ? 0
+                        : (sectionSummary?.pct ?? null),
+                    )}
+                  </strong>
+                </p>
+              </div>
+              {sectionSummary?.warning ? <p className="mt-1 text-amber-300">{sectionSummary.warning}</p> : null}
             </div>
 
             {id ? (
