@@ -10,6 +10,7 @@ const NAV_ITEMS = [
   { href: '/cheffing/productos', label: 'Productos' },
   { href: '/cheffing/elaboraciones', label: 'Elaboraciones' },
   { href: '/cheffing/platos', label: 'Platos' },
+  { href: '/cheffing/bebidas', label: 'Bebidas' },
   { href: '/cheffing/menus', label: 'Menús' },
   { href: '/cheffing/dashboard', label: 'Dashboard' },
   { href: '/cheffing/menu-engineering', label: 'Menu Engineering' },

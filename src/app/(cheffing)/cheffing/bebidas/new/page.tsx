@@ -4,9 +4,9 @@ import { isAdmin } from '@/lib/auth/requireRole';
 import type { Ingredient, Subrecipe, Unit } from '@/lib/cheffing/types';
 import type { CheffingFamily } from '@/lib/cheffing/families';
 
-import { DishNewForm } from '../DishNewForm';
+import { DishNewForm } from '@/app/(cheffing)/cheffing/platos/DishNewForm';
 
-export default async function CheffingPlatosNewPage() {
+export default async function CheffingBebidasNewPage() {
   const { allowlistInfo } = await requireCheffingAccess();
   const canManageImages =
     isAdmin(allowlistInfo.role) || Boolean(allowlistInfo.allowedUser?.cheffing_images_manage);
@@ -29,13 +29,13 @@ export default async function CheffingPlatosNewPage() {
     .from('cheffing_families')
     .select('id, name, slug, sort_order, is_active, kind')
     .eq('is_active', true)
-    .eq('kind', 'food')
+    .eq('kind', 'drink')
     .order('sort_order', { ascending: true })
     .order('name', { ascending: true });
 
   if (ingredientsError || subrecipesError || unitsError || familiesError) {
     console.error(
-      '[cheffing/platos/new] Failed to load data',
+      '[cheffing/bebidas/new] Failed to load data',
       ingredientsError ?? subrecipesError ?? unitsError ?? familiesError,
     );
   }
@@ -43,9 +43,9 @@ export default async function CheffingPlatosNewPage() {
   return (
     <section className="space-y-6 rounded-2xl border border-slate-800/80 bg-slate-900/70 p-6">
       <header className="space-y-2">
-        <h2 className="text-xl font-semibold text-white">Nuevo plato</h2>
+        <h2 className="text-xl font-semibold text-white">Nueva bebida</h2>
         <p className="text-sm text-slate-400">
-          Crea platos finales y define el PVP para evaluar el margen.
+          Crea bebidas finales y define el PVP para evaluar el margen.
         </p>
       </header>
 
@@ -55,6 +55,8 @@ export default async function CheffingPlatosNewPage() {
         units={(units ?? []) as Unit[]}
         families={(families ?? []) as CheffingFamily[]}
         canManageImages={canManageImages}
+        basePath="/cheffing/bebidas"
+        entityLabelSingular="bebida"
       />
     </section>
   );

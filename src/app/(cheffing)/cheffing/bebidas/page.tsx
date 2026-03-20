@@ -1,6 +1,6 @@
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { requireCheffingAccess } from '@/lib/cheffing/requireCheffing';
-import { DishesManager, type DishCost } from './DishesManager';
+import { DishesManager, type DishCost } from '@/app/(cheffing)/cheffing/platos/DishesManager';
 import type { CheffingFamily } from '@/lib/cheffing/families';
 
 type DishImageRow = {
@@ -11,7 +11,7 @@ type DishImageRow = {
   cheffing_families: { name: string | null; kind: 'food' | 'drink' | null } | null;
 };
 
-export default async function CheffingPlatosPage() {
+export default async function CheffingBebidasPage() {
   await requireCheffingAccess();
 
   const supabase = createSupabaseServerClient();
@@ -26,19 +26,17 @@ export default async function CheffingPlatosPage() {
     .from('cheffing_families')
     .select('id, name, slug, sort_order, is_active, kind')
     .eq('is_active', true)
-    .eq('kind', 'food')
+    .eq('kind', 'drink')
     .order('sort_order', { ascending: true })
     .order('name', { ascending: true });
 
   if (dishesError || dishImagesError || familiesError) {
-    console.error('[cheffing/platos] Failed to load dishes', dishesError ?? dishImagesError ?? familiesError);
+    console.error('[cheffing/bebidas] Failed to load drinks', dishesError ?? dishImagesError ?? familiesError);
   }
 
   const dishImageRows = (dishImages ?? []) as unknown as DishImageRow[];
   const visibleDishIds = new Set(
-    dishImageRows
-      .filter((item) => item.family_id === null || item.cheffing_families?.kind === 'food')
-      .map((item) => item.id),
+    dishImageRows.filter((item) => item.family_id !== null && item.cheffing_families?.kind === 'drink').map((item) => item.id),
   );
   const imageById = new Map<string, { image_path: string | null; updated_at: string }>(
     dishImageRows
@@ -46,13 +44,15 @@ export default async function CheffingPlatosPage() {
       .map((item) => [item.id, { image_path: item.image_path ?? null, updated_at: item.updated_at }]),
   );
   const familyById = new Map<string, { id: string | null; name: string | null }>(
-    dishImageRows.map((item) => [
-      item.id,
-      {
-        id: item.family_id ?? null,
-        name: item.cheffing_families?.name ?? null,
-      },
-    ]),
+    dishImageRows
+      .filter((item) => visibleDishIds.has(item.id))
+      .map((item) => [
+        item.id,
+        {
+          id: item.family_id ?? null,
+          name: item.cheffing_families?.name ?? null,
+        },
+      ]),
   );
 
   const enrichedDishes =
@@ -70,15 +70,18 @@ export default async function CheffingPlatosPage() {
   return (
     <section className="space-y-6 rounded-2xl border border-slate-800/80 bg-slate-900/70 p-6">
       <header className="space-y-2">
-        <h2 className="text-xl font-semibold text-white">Platos</h2>
+        <h2 className="text-xl font-semibold text-white">Bebidas</h2>
         <p className="text-sm text-slate-400">
-          Organiza los platos finales y calcula el coste total a partir de productos y elaboraciones.
+          Gestiona bebidas finales y calcula el coste total a partir de productos y elaboraciones.
         </p>
       </header>
 
       <DishesManager
         initialDishes={enrichedDishes as DishCost[]}
         families={(families ?? []) as CheffingFamily[]}
+        basePath="/cheffing/bebidas"
+        entityLabelSingular="bebida"
+        entityLabelPlural="bebidas"
       />
     </section>
   );
