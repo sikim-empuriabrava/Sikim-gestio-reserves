@@ -5,6 +5,7 @@ import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { requireCheffingAccess } from '@/lib/cheffing/requireCheffing';
 import { isAdmin } from '@/lib/auth/requireRole';
 import type { AllergenKey, ProductIndicatorKey } from '@/lib/cheffing/allergensIndicators';
+import { sanitizeProductIndicators } from '@/lib/cheffing/allergensHelpers';
 import type { Ingredient, Subrecipe, Unit } from '@/lib/cheffing/types';
 import type { CheffingFamily } from '@/lib/cheffing/families';
 import {
@@ -121,9 +122,11 @@ export default async function CheffingPlatoDetailPage({ params }: { params: { id
   const resolveEffective = (subrecipeId: string): EffectiveAI => {
     const cached = effectiveCache.get(subrecipeId);
     if (cached) return cached;
+    const current = subrecipeLookup.get(subrecipeId);
+    const directIndicators = sanitizeProductIndicators(current?.indicator_codes);
 
     if (inProgress.has(subrecipeId)) {
-      const fallback = { allergens: [], indicators: [] };
+      const fallback = { allergens: [], indicators: [...directIndicators] };
       effectiveCache.set(subrecipeId, fallback);
       return fallback;
     }
@@ -148,7 +151,7 @@ export default async function CheffingPlatoDetailPage({ params }: { params: { id
 
     const resolved = {
       allergens: Array.from(inheritedAllergens),
-      indicators: Array.from(inheritedIndicators),
+      indicators: Array.from(new Set([...inheritedIndicators, ...directIndicators])),
     };
 
     effectiveCache.set(subrecipeId, resolved);

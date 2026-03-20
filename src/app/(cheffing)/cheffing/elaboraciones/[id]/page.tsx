@@ -6,6 +6,7 @@ import { requireCheffingAccess } from '@/lib/cheffing/requireCheffing';
 import { isAdmin } from '@/lib/auth/requireRole';
 import type { Ingredient, Subrecipe, Unit } from '@/lib/cheffing/types';
 import type { AllergenKey, ProductIndicatorKey } from '@/lib/cheffing/allergensIndicators';
+import { sanitizeProductIndicators } from '@/lib/cheffing/allergensHelpers';
 import { normalizeIngredient, normalizeSubrecipe } from '@/lib/cheffing/compat';
 import { addAllergens, addIndicators, type EffectiveAI } from '@/lib/cheffing/allergensIndicatorsOps';
 
@@ -114,9 +115,11 @@ export default async function CheffingElaboracionDetailPage({ params }: { params
   const resolveEffective = (subrecipeId: string): EffectiveAI => {
     const cached = effectiveCache.get(subrecipeId);
     if (cached) return cached;
+    const current = subrecipeLookup.get(subrecipeId);
+    const directIndicators = sanitizeProductIndicators(current?.indicator_codes);
 
     if (inProgress.has(subrecipeId)) {
-      const fallback = { allergens: [], indicators: [] };
+      const fallback = { allergens: [], indicators: [...directIndicators] };
       effectiveCache.set(subrecipeId, fallback);
       return fallback;
     }
@@ -141,7 +144,7 @@ export default async function CheffingElaboracionDetailPage({ params }: { params
 
     const resolved = {
       allergens: Array.from(inheritedAllergens),
-      indicators: Array.from(inheritedIndicators),
+      indicators: Array.from(new Set([...inheritedIndicators, ...directIndicators])),
     };
 
     effectiveCache.set(subrecipeId, resolved);
