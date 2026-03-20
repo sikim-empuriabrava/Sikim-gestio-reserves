@@ -181,6 +181,7 @@ export function CheffingMenuEditor({
         throw new Error('El multiplicador debe ser mayor que 0.');
       }
 
+      const sectionLines = groupedLines.get(sectionKind) ?? [];
       const response = await fetch(`/api/cheffing/menus/${id}/items`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -188,7 +189,7 @@ export function CheffingMenuEditor({
           dish_id: dishId,
           section_kind: sectionKind,
           multiplier,
-          sort_order: getNextConsumerSortOrder(lines),
+          sort_order: getNextConsumerSortOrder(sectionLines),
           notes: null,
         }),
       });
