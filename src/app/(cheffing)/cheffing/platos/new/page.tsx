@@ -29,7 +29,6 @@ export default async function CheffingPlatosNewPage() {
     .from('cheffing_families')
     .select('id, name, slug, sort_order, is_active, kind')
     .eq('is_active', true)
-    .eq('kind', 'food')
     .order('sort_order', { ascending: true })
     .order('name', { ascending: true });
 

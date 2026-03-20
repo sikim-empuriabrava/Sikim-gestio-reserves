@@ -55,6 +55,7 @@ export const normalizeDishCompatibilityMeta = (
   raw: Record<string, unknown> | null | undefined,
 ): Pick<
   Dish,
+  | 'family_id'
   | 'allergen_codes'
   | 'indicator_codes'
   | 'allergens_manual_add'
@@ -66,6 +67,7 @@ export const normalizeDishCompatibilityMeta = (
   | 'notes'
   | 'venue_id'
 > => ({
+  family_id: toStringOrNull(raw?.family_id),
   allergen_codes: toStringArray(raw?.allergen_codes ?? raw?.allergens_manual_add),
   indicator_codes: toStringArray(raw?.indicator_codes ?? raw?.indicators_manual_add),
   allergens_manual_add: toStringArray(raw?.allergens_manual_add),
