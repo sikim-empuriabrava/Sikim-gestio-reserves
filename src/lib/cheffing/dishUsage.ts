@@ -67,7 +67,10 @@ export function buildDishUsageIndex({ cards, cardItems, menus, menuItems }: Usag
     if (!card) continue;
 
     const usage = getOrCreateUsage(item.dish_id);
-    usage.cards.push({ id: card.id, name: card.name, is_active: card.is_active });
+    const alreadyIncluded = usage.cards.some((entry) => entry.id === card.id);
+    if (!alreadyIncluded) {
+      usage.cards.push({ id: card.id, name: card.name, is_active: card.is_active });
+    }
   }
 
   for (const item of menuItems) {
@@ -75,7 +78,10 @@ export function buildDishUsageIndex({ cards, cardItems, menus, menuItems }: Usag
     if (!menu) continue;
 
     const usage = getOrCreateUsage(item.dish_id);
-    usage.menus.push({ id: menu.id, name: menu.name, is_active: menu.is_active });
+    const alreadyIncluded = usage.menus.some((entry) => entry.id === menu.id);
+    if (!alreadyIncluded) {
+      usage.menus.push({ id: menu.id, name: menu.name, is_active: menu.is_active });
+    }
   }
 
   usageByDishId.forEach((usage) => {
