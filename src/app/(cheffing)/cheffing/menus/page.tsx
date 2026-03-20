@@ -48,7 +48,6 @@ export default async function CheffingMenusPage() {
     const marginDiagnostics = getConservativeMarginDiagnostics({
       totalCost: costDiagnostics.total,
       price: menu.price_per_person,
-      totalCostBlockingReasons: costDiagnostics.blocking_reasons,
       label: `el menú "${menu.name}"`,
     });
 

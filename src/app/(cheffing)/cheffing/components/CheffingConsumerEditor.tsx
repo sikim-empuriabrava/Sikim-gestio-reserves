@@ -12,6 +12,7 @@ import {
   getConsumerLineCost,
   getConsumerLineMargin,
   getConsumerLinePrice,
+  getNextConsumerSortOrder,
   resolveConsumerDishKind,
 } from '@/lib/cheffing/consumers';
 import { normalizeSearchText } from '@/lib/cheffing/search';
@@ -98,7 +99,6 @@ export function CheffingConsumerEditor({
     ? getConservativeMarginDiagnostics({
         totalCost,
         price: menuPrice,
-        totalCostBlockingReasons: costDiagnostics.blocking_reasons,
         label: `el menú "${headerState.name || 'sin nombre'}"`,
       })
     : { margin: null, blocking_reasons: [] as string[] };
@@ -181,7 +181,7 @@ export function CheffingConsumerEditor({
         body: JSON.stringify({
           dish_id: dishId,
           multiplier,
-          sort_order: lines.length,
+          sort_order: getNextConsumerSortOrder(lines),
           notes: null,
         }),
       });
