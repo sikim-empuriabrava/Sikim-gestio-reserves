@@ -1,0 +1,67 @@
+import { NextRequest, NextResponse } from 'next/server';
+
+import { createSupabaseAdminClient } from '@/lib/supabaseAdmin';
+import { mergeResponseCookies } from '@/lib/supabase/route';
+import { requireCheffingRouteAccess } from '@/lib/cheffing/requireCheffingRoute';
+import { mapCheffingPostgresError } from '@/lib/cheffing/postgresErrors';
+import { cheffingCardCreateSchema } from '@/lib/cheffing/schemas';
+
+export const runtime = 'nodejs';
+export const dynamic = 'force-dynamic';
+
+export async function GET() {
+  const access = await requireCheffingRouteAccess();
+  if (access.response) return access.response;
+
+  const supabase = createSupabaseAdminClient();
+  const { data, error } = await supabase
+    .from('cheffing_cards')
+    .select('id, name, notes, is_active, created_at, updated_at')
+    .order('name', { ascending: true });
+
+  if (error) {
+    const serverError = NextResponse.json({ error: error.message }, { status: 500 });
+    mergeResponseCookies(access.supabaseResponse, serverError);
+    return serverError;
+  }
+
+  const response = NextResponse.json({ data: data ?? [] });
+  mergeResponseCookies(access.supabaseResponse, response);
+  return response;
+}
+
+export async function POST(req: NextRequest) {
+  const access = await requireCheffingRouteAccess();
+  if (access.response) return access.response;
+
+  const body = await req.json().catch(() => null);
+  const parsed = cheffingCardCreateSchema.safeParse(body);
+
+  if (!parsed.success) {
+    const invalid = NextResponse.json({ error: 'Invalid payload', issues: parsed.error.issues }, { status: 400 });
+    mergeResponseCookies(access.supabaseResponse, invalid);
+    return invalid;
+  }
+
+  const supabase = createSupabaseAdminClient();
+  const { data, error } = await supabase
+    .from('cheffing_cards')
+    .insert({
+      name: parsed.data.name,
+      notes: parsed.data.notes ?? null,
+      is_active: parsed.data.is_active ?? true,
+    })
+    .select('id')
+    .maybeSingle();
+
+  if (error) {
+    const mapped = mapCheffingPostgresError(error);
+    const serverError = NextResponse.json({ error: mapped.message }, { status: mapped.status });
+    mergeResponseCookies(access.supabaseResponse, serverError);
+    return serverError;
+  }
+
+  const response = NextResponse.json({ ok: true, id: data?.id ?? null });
+  mergeResponseCookies(access.supabaseResponse, response);
+  return response;
+}

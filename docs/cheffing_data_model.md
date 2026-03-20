@@ -73,6 +73,36 @@ Regla activa de alérgenos:
 - `allergen_codes` puede existir por legado en DB, pero **no forma parte del flujo editable**.
 - Los alérgenos efectivos del plato se calculan por **herencia** (unión de ingredientes directos + elaboraciones incluidas con sus alérgenos efectivos).
 
+
+### `cheffing_menus`
+Menús de Cheffing (consumidor por persona).
+
+- `name`: nombre del menú.
+- `price_per_person`: precio por persona (nullable).
+- `is_active`: estado activo/inactivo.
+
+### `cheffing_menu_items`
+Líneas consumidoras de menú.
+
+- `menu_id`: referencia al menú padre.
+- `dish_id`: referencia a `cheffing_dishes` (plato/bebida canónica).
+- `multiplier`: multiplicador decimal de consumo por persona (`> 0`, ejemplo `0.25`, `1.33`).
+- `sort_order`: orden manual de visualización.
+
+### `cheffing_cards`
+Cartas de Cheffing (consumidor comercial).
+
+- `name`: nombre de la carta.
+- `is_active`: estado activo/inactivo.
+
+### `cheffing_card_items`
+Líneas consumidoras de carta.
+
+- `card_id`: referencia a la carta padre.
+- `dish_id`: referencia a `cheffing_dishes` (plato/bebida canónica).
+- `multiplier`: multiplicador decimal de consumo (`> 0`).
+- `sort_order`: orden manual de visualización.
+
 ### `cheffing_families`
 Catálogo canónico de familias de platos.
 
@@ -133,6 +163,11 @@ Líneas de plato (ingredientes u otras subrecetas).
 - `cheffing_dishes.family_id → cheffing_families.id` (nullable, `on delete set null`).
 - `cheffing_dish_items.ingredient_id → cheffing_ingredients.id`.
 - `cheffing_dish_items.subrecipe_id → cheffing_subrecipes.id`.
+- `cheffing_menus.id ← cheffing_menu_items.menu_id`.
+- `cheffing_cards.id ← cheffing_card_items.card_id`.
+- `cheffing_menu_items.dish_id → cheffing_dishes.id`.
+- `cheffing_card_items.dish_id → cheffing_dishes.id`.
+- **Importante:** `public.menus` (reservas/eventos) queda fuera de Cheffing y no se reutiliza aquí.
 
 ## Reglas de cálculo
 

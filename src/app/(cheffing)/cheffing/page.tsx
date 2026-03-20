@@ -18,8 +18,13 @@ const modules = [
   },
   {
     title: 'Menús',
-    description: 'Planifica menús y servicios semanales.',
+    description: 'Planifica menús y consumo por persona con multiplicadores.',
     href: '/cheffing/menus',
+  },
+  {
+    title: 'Carta',
+    description: 'Construye cartas consumidoras de platos y bebidas canónicas.',
+    href: '/cheffing/carta',
   },
 ];
 
@@ -32,7 +37,7 @@ export default function CheffingPage() {
         </p>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-3">
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
         {modules.map((module) => (
           <Link
             key={module.title}
