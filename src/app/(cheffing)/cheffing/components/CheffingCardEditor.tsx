@@ -43,6 +43,7 @@ export function CheffingCardEditor({
   const [headerState, setHeaderState] = useState(header);
   const [searchTerm, setSearchTerm] = useState('');
   const [activeTab, setActiveTab] = useState<'food' | 'drink'>('food');
+  const [isAddOpen, setIsAddOpen] = useState(false);
   const [draftSortByItemId, setDraftSortByItemId] = useState<Record<string, string>>({});
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -234,7 +235,7 @@ export function CheffingCardEditor({
           disabled={isSubmitting}
           className="rounded-full border border-emerald-400/60 bg-emerald-500/10 px-4 py-2 text-sm font-semibold text-emerald-200 transition hover:border-emerald-300 hover:text-emerald-100 disabled:opacity-60"
         >
-          Guardar cabecera
+          {id ? 'Guardar cambios de la carta' : 'Crear carta'}
         </button>
       </form>
 
@@ -302,55 +303,69 @@ export function CheffingCardEditor({
 
       {id ? (
         <div className="space-y-4 rounded-2xl border border-slate-800/70 bg-slate-950/50 p-4">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <h3 className="text-base font-semibold text-white">Añadir platos o bebidas</h3>
-            <input
-              type="search"
-              value={searchTerm}
-              onChange={(event) => setSearchTerm(event.target.value)}
-              placeholder="Buscar por nombre"
-              className="w-full max-w-xs rounded-md border border-slate-700 bg-slate-950/70 px-3 py-2 text-sm text-white"
-            />
-          </div>
-          <div className="flex rounded-full border border-slate-700 bg-slate-950/70 p-1 text-xs">
-            <button
-              type="button"
-              onClick={() => setActiveTab('food')}
-              className={`rounded-full px-3 py-1 font-semibold transition ${
-                activeTab === 'food' ? 'bg-slate-800 text-white' : 'text-slate-400'
-              }`}
-            >
-              Platos
-            </button>
-            <button
-              type="button"
-              onClick={() => setActiveTab('drink')}
-              className={`rounded-full px-3 py-1 font-semibold transition ${
-                activeTab === 'drink' ? 'bg-slate-800 text-white' : 'text-slate-400'
-              }`}
-            >
-              Bebidas
-            </button>
-          </div>
-          <ul className="max-h-[360px] divide-y divide-slate-800/70 overflow-y-auto rounded-xl border border-slate-800/70">
-            {filteredDishes.map((dish) => (
-              <li key={dish.id} className="flex items-center justify-between gap-3 px-4 py-3">
-                <div>
-                  <p className="font-semibold text-white">{dish.name}</p>
-                  <p className="text-xs text-slate-500">{dish.family_name ?? 'Sin familia'}</p>
-                </div>
+          <button
+            type="button"
+            onClick={() => setIsAddOpen((prev) => !prev)}
+            className="rounded-full border border-slate-600 px-3 py-1 text-xs text-slate-200"
+          >
+            {isAddOpen ? 'Cerrar añadir platos o bebidas' : 'Añadir platos o bebidas'}
+          </button>
+
+          {isAddOpen ? (
+            <>
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <h3 className="text-base font-semibold text-white">Añadir platos o bebidas</h3>
+                <input
+                  type="search"
+                  value={searchTerm}
+                  onChange={(event) => setSearchTerm(event.target.value)}
+                  placeholder="Buscar por nombre"
+                  className="w-full max-w-xs rounded-md border border-slate-700 bg-slate-950/70 px-3 py-2 text-sm text-white"
+                />
+              </div>
+              <div className="flex rounded-full border border-slate-700 bg-slate-950/70 p-1 text-xs">
                 <button
                   type="button"
-                  onClick={() => addItem(dish.id)}
-                  className="rounded-full border border-slate-600 px-3 py-1 text-xs"
+                  onClick={() => setActiveTab('food')}
+                  className={`rounded-full px-3 py-1 font-semibold transition ${
+                    activeTab === 'food' ? 'bg-slate-800 text-white' : 'text-slate-400'
+                  }`}
                 >
-                  Añadir
+                  Platos
                 </button>
-              </li>
-            ))}
-          </ul>
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('drink')}
+                  className={`rounded-full px-3 py-1 font-semibold transition ${
+                    activeTab === 'drink' ? 'bg-slate-800 text-white' : 'text-slate-400'
+                  }`}
+                >
+                  Bebidas
+                </button>
+              </div>
+              <ul className="max-h-[360px] divide-y divide-slate-800/70 overflow-y-auto rounded-xl border border-slate-800/70">
+                {filteredDishes.map((dish) => (
+                  <li key={dish.id} className="flex items-center justify-between gap-3 px-4 py-3">
+                    <div>
+                      <p className="font-semibold text-white">{dish.name}</p>
+                      <p className="text-xs text-slate-500">{dish.family_name ?? 'Sin familia'}</p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => addItem(dish.id)}
+                      className="rounded-full border border-slate-600 px-3 py-1 text-xs"
+                    >
+                      Añadir
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </>
+          ) : null}
         </div>
-      ) : null}
+      ) : (
+        <p className="text-sm text-slate-400">Guarda primero la carta para poder asociar platos y bebidas.</p>
+      )}
     </div>
   );
 }

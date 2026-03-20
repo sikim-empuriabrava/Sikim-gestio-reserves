@@ -62,6 +62,7 @@ export function CheffingMenuEditor({
   const [draftMultiplierByDishAndSection, setDraftMultiplierByDishAndSection] = useState<Record<string, string>>({});
   const [draftMultiplierByItemId, setDraftMultiplierByItemId] = useState<Record<string, string>>({});
   const [draftSortByItemId, setDraftSortByItemId] = useState<Record<string, string>>({});
+  const [openSection, setOpenSection] = useState<MenuSectionKind | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -334,7 +335,7 @@ export function CheffingMenuEditor({
           disabled={isSubmitting}
           className="rounded-full border border-emerald-400/60 bg-emerald-500/10 px-4 py-2 text-sm font-semibold text-emerald-200 transition hover:border-emerald-300 hover:text-emerald-100 disabled:opacity-60"
         >
-          Guardar cabecera
+          {id ? 'Guardar cambios del menú' : 'Crear menú'}
         </button>
       </form>
 
@@ -414,49 +415,63 @@ export function CheffingMenuEditor({
             </div>
 
             {id ? (
-              <div className="space-y-3 rounded-xl border border-slate-800/70 bg-slate-950/70 p-3">
-                <div className="flex flex-wrap items-center justify-between gap-3">
-                  <p className="text-sm text-slate-300">Añadir línea a {section.label.toLowerCase()}</p>
-                  <input
-                    type="search"
-                    value={searchBySection[section.kind]}
-                    onChange={(event) => setSearchBySection((prev) => ({ ...prev, [section.kind]: event.target.value }))}
-                    placeholder="Buscar por nombre"
-                    className="w-full max-w-xs rounded-md border border-slate-700 bg-slate-950/70 px-3 py-2 text-sm text-white"
-                  />
-                </div>
-                <ul className="max-h-[260px] divide-y divide-slate-800/70 overflow-y-auto rounded-xl border border-slate-800/70">
-                  {filteredDishes.map((dish) => {
-                    const draftKey = `${section.kind}:${dish.id}`;
-                    return (
-                      <li key={dish.id} className="flex items-center justify-between gap-3 px-3 py-2">
-                        <div>
-                          <p className="font-semibold text-white">{dish.name}</p>
-                          <p className="text-xs text-slate-500">{dish.family_name ?? 'Sin familia'}</p>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <input
-                            value={draftMultiplierByDishAndSection[draftKey] ?? '1'}
-                            onChange={(event) =>
-                              setDraftMultiplierByDishAndSection((prev) => ({ ...prev, [draftKey]: event.target.value }))
-                            }
-                            className="w-20 rounded-md border border-slate-700 bg-slate-950/70 px-2 py-1 text-white"
-                            aria-label={`Multiplicador ${dish.name}`}
-                          />
-                          <button
-                            type="button"
-                            onClick={() => addItem(dish.id, section.kind)}
-                            className="rounded-full border border-slate-600 px-3 py-1 text-xs"
-                          >
-                            Añadir
-                          </button>
-                        </div>
-                      </li>
-                    );
-                  })}
-                </ul>
-              </div>
-            ) : null}
+              <>
+                <button
+                  type="button"
+                  onClick={() => setOpenSection((prev) => (prev === section.kind ? null : section.kind))}
+                  className="rounded-full border border-slate-600 px-3 py-1 text-xs text-slate-200"
+                >
+                  {openSection === section.kind ? 'Cerrar añadir ítems' : 'Añadir ítems'}
+                </button>
+
+                {openSection === section.kind ? (
+                  <div className="space-y-3 rounded-xl border border-slate-800/70 bg-slate-950/70 p-3">
+                    <div className="flex flex-wrap items-center justify-between gap-3">
+                      <p className="text-sm text-slate-300">Añadir línea a {section.label.toLowerCase()}</p>
+                      <input
+                        type="search"
+                        value={searchBySection[section.kind]}
+                        onChange={(event) => setSearchBySection((prev) => ({ ...prev, [section.kind]: event.target.value }))}
+                        placeholder="Buscar por nombre"
+                        className="w-full max-w-xs rounded-md border border-slate-700 bg-slate-950/70 px-3 py-2 text-sm text-white"
+                      />
+                    </div>
+                    <ul className="max-h-[260px] divide-y divide-slate-800/70 overflow-y-auto rounded-xl border border-slate-800/70">
+                      {filteredDishes.map((dish) => {
+                        const draftKey = `${section.kind}:${dish.id}`;
+                        return (
+                          <li key={dish.id} className="flex items-center justify-between gap-3 px-3 py-2">
+                            <div>
+                              <p className="font-semibold text-white">{dish.name}</p>
+                              <p className="text-xs text-slate-500">{dish.family_name ?? 'Sin familia'}</p>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <input
+                                value={draftMultiplierByDishAndSection[draftKey] ?? '1'}
+                                onChange={(event) =>
+                                  setDraftMultiplierByDishAndSection((prev) => ({ ...prev, [draftKey]: event.target.value }))
+                                }
+                                className="w-20 rounded-md border border-slate-700 bg-slate-950/70 px-2 py-1 text-white"
+                                aria-label={`Multiplicador ${dish.name}`}
+                              />
+                              <button
+                                type="button"
+                                onClick={() => addItem(dish.id, section.kind)}
+                                className="rounded-full border border-slate-600 px-3 py-1 text-xs"
+                              >
+                                Añadir
+                              </button>
+                            </div>
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  </div>
+                ) : null}
+              </>
+            ) : (
+              <p className="text-sm text-slate-400">Guarda primero el menú para poder añadir líneas a esta sección.</p>
+            )}
           </div>
         );
       })}
