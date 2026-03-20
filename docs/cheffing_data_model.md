@@ -31,9 +31,12 @@ Subrecetas/elaboraciones con rendimiento.
 - `output_qty`: cantidad de salida.
 - `waste_pct`: merma de proceso (0..1, UI en porcentaje).
 - `notes`: notas internas.
-- `allergen_codes`: lista canónica editable de alérgenos.
 - `indicator_codes`: lista canónica editable de indicadores de producto.
 - `image_path`: ruta canónica editable de imagen en Storage.
+
+Regla activa de alérgenos:
+- `allergen_codes` puede existir por legado en DB, pero **no forma parte del flujo editable**.
+- Los alérgenos efectivos de la elaboración se calculan por **herencia** (unión recursiva de ingredientes y subelaboraciones hijas).
 
 ### `cheffing_subrecipe_items`
 Líneas de subreceta (ingredientes u otras subrecetas).
@@ -55,10 +58,13 @@ Platos de carta (venta).
 - `selling_price`: precio de venta (nullable en esta fase).
 - `servings`: número de raciones (mínimo 1).
 - `notes`: notas internas.
-- `allergen_codes`: lista canónica editable de alérgenos.
 - `indicator_codes`: lista canónica editable de indicadores de plato final.
 - `image_path`: ruta canónica editable de imagen en Storage.
 - `mycheftool_source_tag_names`: dato legacy de importación/histórico (ya no es la fuente principal de familia en UI).
+
+Regla activa de alérgenos:
+- `allergen_codes` puede existir por legado en DB, pero **no forma parte del flujo editable**.
+- Los alérgenos efectivos del plato se calculan por **herencia** (unión de ingredientes directos + elaboraciones incluidas con sus alérgenos efectivos).
 
 ### `cheffing_families`
 Catálogo canónico de familias de platos.
@@ -74,9 +80,14 @@ Catálogo canónico de familias de platos.
 
 Para el detalle editable de productos, elaboraciones y platos, el contrato principal es:
 
-- `allergen_codes`
 - `indicator_codes`
 - `image_path`
+
+Política conservadora de alérgenos (flujo activo):
+- **Productos (`cheffing_ingredients`)**: `allergen_codes` **sí** es editable y es la fuente de verdad.
+- **Elaboraciones (`cheffing_subrecipes`)**: alérgenos solo heredados, sin add/exclude manual.
+- **Platos (`cheffing_dishes`)**: alérgenos solo heredados, sin add/exclude manual.
+- En API/UI de elaboraciones y platos, `allergen_codes` se ignora/queda fuera de escritura para evitar mezcla de modelos.
 
 Semántica de `indicator_codes` por entidad:
 

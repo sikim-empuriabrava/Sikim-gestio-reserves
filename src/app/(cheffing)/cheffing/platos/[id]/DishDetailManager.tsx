@@ -8,7 +8,7 @@ import { useRouter } from 'next/navigation';
 import { ImageUploader } from '@/app/(cheffing)/cheffing/components/ImageUploader';
 import type { Dish, DishItem, Ingredient, Subrecipe, Unit } from '@/lib/cheffing/types';
 import { ALLERGENS, DISH_INDICATORS, PRODUCT_INDICATORS } from '@/lib/cheffing/allergensIndicators';
-import { toAllergenKeys, toDishIndicatorKeys } from '@/lib/cheffing/allergensHelpers';
+import { toDishIndicatorKeys } from '@/lib/cheffing/allergensHelpers';
 import { CheffingItemPicker } from '@/app/(cheffing)/cheffing/components/CheffingItemPicker';
 import { formatEditableMoney, parseEditableMoney } from '@/lib/cheffing/money';
 import { createSupabaseBrowserClient } from '@/lib/supabase/browser';
@@ -46,7 +46,6 @@ type DishFormState = {
   servings: string;
   family_id: string;
   notes: string;
-  allergen_codes: string[];
   indicator_codes: string[];
 };
 
@@ -88,7 +87,6 @@ export function DishDetailManager({
     servings: String(dish.servings ?? 1),
     family_id: dish.family_id ?? '',
     notes: dish.notes ?? '',
-    allergen_codes: dish.allergen_codes ?? [],
     indicator_codes: dish.indicator_codes ?? [],
   });
 
@@ -99,7 +97,7 @@ export function DishDetailManager({
     return `${data.publicUrl}?v=${encodeURIComponent(cacheKey)}`;
   }, [dish.image_path, dish.updated_at, supabase]);
 
-  const toggleCode = (field: 'allergen_codes' | 'indicator_codes', code: string) => {
+  const toggleCode = (field: 'indicator_codes', code: string) => {
     setFormState((prev) => {
       const next = new Set(prev[field]);
       if (next.has(code)) next.delete(code);
@@ -175,7 +173,6 @@ export function DishDetailManager({
           servings: servingsValue,
           family_id: formState.family_id || null,
           notes: formState.notes.trim() ? formState.notes.trim() : null,
-          allergen_codes: toAllergenKeys(formState.allergen_codes),
           indicator_codes: toDishIndicatorKeys(formState.indicator_codes),
         }),
       });
@@ -502,7 +499,7 @@ export function DishDetailManager({
             />
           </label>
           <div className="space-y-3 md:col-span-3">
-            <p className="text-xs uppercase text-slate-500">Alérgenos heredados (solo lectura)</p>
+            <p className="text-xs uppercase text-slate-500">Alérgenos efectivos heredados (solo lectura)</p>
             {inheritedAllergens.length === 0 ? (
               <p className="text-xs text-slate-500">Sin alérgenos heredados.</p>
             ) : (
@@ -517,22 +514,6 @@ export function DishDetailManager({
                 ))}
               </div>
             )}
-            <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-              {ALLERGENS.map((allergen) => (
-                <label
-                  key={allergen.key}
-                  className="flex items-center gap-2 rounded-lg border border-slate-800/70 bg-slate-950/40 px-3 py-2 text-xs text-slate-200"
-                >
-                  <input
-                    type="checkbox"
-                    className="h-4 w-4 accent-emerald-400"
-                    checked={formState.allergen_codes.includes(allergen.key)}
-                    onChange={() => toggleCode('allergen_codes', allergen.key)}
-                  />
-                  {allergen.label}
-                </label>
-              ))}
-            </div>
           </div>
           <div className="space-y-3 md:col-span-3">
             <p className="text-xs uppercase text-slate-500">Indicadores heredados (solo lectura)</p>

@@ -7,7 +7,7 @@ import { useRouter } from 'next/navigation';
 
 import type { Ingredient, Subrecipe, SubrecipeItem, Unit, UnitDimension } from '@/lib/cheffing/types';
 import { ALLERGENS, PRODUCT_INDICATORS } from '@/lib/cheffing/allergensIndicators';
-import { toAllergenKeys, toProductIndicatorKeys } from '@/lib/cheffing/allergensHelpers';
+import { toProductIndicatorKeys } from '@/lib/cheffing/allergensHelpers';
 import { CheffingItemPicker } from '@/app/(cheffing)/cheffing/components/CheffingItemPicker';
 
 export type SubrecipeCost = Subrecipe & {
@@ -42,7 +42,6 @@ type SubrecipeFormState = {
   output_qty: string;
   waste_pct: string;
   notes: string;
-  allergen_codes: string[];
   indicator_codes: string[];
 };
 
@@ -83,11 +82,10 @@ export function SubrecipeDetailManager({
     output_qty: String(subrecipe.output_qty),
     waste_pct: String((subrecipe.waste_pct * 100).toFixed(2)),
     notes: subrecipe.notes ?? '',
-    allergen_codes: subrecipe.allergen_codes ?? [],
     indicator_codes: subrecipe.indicator_codes ?? [],
   });
 
-  const toggleCode = (field: 'allergen_codes' | 'indicator_codes', code: string) => {
+  const toggleCode = (field: 'indicator_codes', code: string) => {
     setFormState((prev) => {
       const next = new Set(prev[field]);
       if (next.has(code)) next.delete(code);
@@ -190,7 +188,6 @@ export function SubrecipeDetailManager({
           output_qty: outputQtyValue,
           waste_pct: wastePctValue,
           notes: formState.notes.trim() ? formState.notes.trim() : null,
-          allergen_codes: toAllergenKeys(formState.allergen_codes),
           indicator_codes: toProductIndicatorKeys(formState.indicator_codes),
         }),
       });
@@ -487,7 +484,7 @@ export function SubrecipeDetailManager({
             />
           </label>
           <div className="space-y-3 md:col-span-2">
-            <p className="text-xs uppercase text-slate-500">Alérgenos heredados (solo lectura)</p>
+            <p className="text-xs uppercase text-slate-500">Alérgenos efectivos heredados (solo lectura)</p>
             {inheritedAllergens.length === 0 ? (
               <p className="text-xs text-slate-500">Sin alérgenos heredados.</p>
             ) : (
@@ -502,22 +499,6 @@ export function SubrecipeDetailManager({
                 ))}
               </div>
             )}
-            <div className="grid gap-2 sm:grid-cols-2">
-              {ALLERGENS.map((allergen) => (
-                <label
-                  key={allergen.key}
-                  className="flex items-center gap-2 rounded-lg border border-slate-800/70 bg-slate-950/40 px-3 py-2 text-xs text-slate-200"
-                >
-                  <input
-                    type="checkbox"
-                    className="h-4 w-4 accent-emerald-400"
-                    checked={formState.allergen_codes.includes(allergen.key)}
-                    onChange={() => toggleCode('allergen_codes', allergen.key)}
-                  />
-                  {allergen.label}
-                </label>
-              ))}
-            </div>
           </div>
           <div className="space-y-3 md:col-span-2">
             <p className="text-xs uppercase text-slate-500">Indicadores heredados (solo lectura)</p>

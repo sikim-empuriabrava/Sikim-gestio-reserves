@@ -6,7 +6,6 @@ import { requireCheffingAccess } from '@/lib/cheffing/requireCheffing';
 import { isAdmin } from '@/lib/auth/requireRole';
 import type { Ingredient, Subrecipe, Unit } from '@/lib/cheffing/types';
 import type { AllergenKey, ProductIndicatorKey } from '@/lib/cheffing/allergensIndicators';
-import { sanitizeAllergens, sanitizeProductIndicators } from '@/lib/cheffing/allergensHelpers';
 import { normalizeIngredient, normalizeSubrecipe } from '@/lib/cheffing/compat';
 import { addAllergens, addIndicators, type EffectiveAI } from '@/lib/cheffing/allergensIndicatorsOps';
 
@@ -116,15 +115,8 @@ export default async function CheffingElaboracionDetailPage({ params }: { params
     const cached = effectiveCache.get(subrecipeId);
     if (cached) return cached;
 
-    const current = subrecipeLookup.get(subrecipeId);
-    const directAllergens = sanitizeAllergens(current?.allergen_codes);
-    const directIndicators = sanitizeProductIndicators(current?.indicator_codes);
-
     if (inProgress.has(subrecipeId)) {
-      const fallback = {
-        allergens: [...directAllergens],
-        indicators: [...directIndicators],
-      };
+      const fallback = { allergens: [], indicators: [] };
       effectiveCache.set(subrecipeId, fallback);
       return fallback;
     }
@@ -147,12 +139,9 @@ export default async function CheffingElaboracionDetailPage({ params }: { params
       }
     }
 
-    const effectiveAllergens = new Set([...inheritedAllergens, ...directAllergens]);
-    const effectiveIndicators = new Set([...inheritedIndicators, ...directIndicators]);
-
     const resolved = {
-      allergens: Array.from(effectiveAllergens),
-      indicators: Array.from(effectiveIndicators),
+      allergens: Array.from(inheritedAllergens),
+      indicators: Array.from(inheritedIndicators),
     };
 
     effectiveCache.set(subrecipeId, resolved);
@@ -189,10 +178,8 @@ export default async function CheffingElaboracionDetailPage({ params }: { params
     ...(subrecipeManual ? normalizeSubrecipe(subrecipeManual as Record<string, unknown>) : {}),
   };
   const inheritedCurrent = resolveEffective(params.id);
-  const directCurrentAllergens = sanitizeAllergens(mergedSubrecipe.allergen_codes);
-  const directCurrentIndicators = sanitizeProductIndicators(mergedSubrecipe.indicator_codes);
-  const inheritedAllergens = inheritedCurrent.allergens.filter((key) => !directCurrentAllergens.includes(key));
-  const inheritedIndicators = inheritedCurrent.indicators.filter((key) => !directCurrentIndicators.includes(key));
+  const inheritedAllergens = inheritedCurrent.allergens;
+  const inheritedIndicators = inheritedCurrent.indicators;
 
   return (
     <section className="space-y-6">
