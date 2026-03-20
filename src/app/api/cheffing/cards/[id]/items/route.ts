@@ -4,8 +4,7 @@ import { createSupabaseAdminClient } from '@/lib/supabaseAdmin';
 import { mergeResponseCookies } from '@/lib/supabase/route';
 import { requireCheffingRouteAccess } from '@/lib/cheffing/requireCheffingRoute';
 import { mapCheffingPostgresError } from '@/lib/cheffing/postgresErrors';
-import { cheffingConsumerItemSchema } from '@/lib/cheffing/schemas';
-import { parsePortionMultiplier } from '@/lib/cheffing/portionMultiplier';
+import { cheffingCardItemSchema } from '@/lib/cheffing/schemas';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -38,17 +37,10 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   if (access.response) return access.response;
 
   const body = await req.json().catch(() => null);
-  const parsed = cheffingConsumerItemSchema.safeParse(body);
+  const parsed = cheffingCardItemSchema.safeParse(body);
 
   if (!parsed.success) {
     const invalid = NextResponse.json({ error: 'Invalid payload', issues: parsed.error.issues }, { status: 400 });
-    mergeResponseCookies(access.supabaseResponse, invalid);
-    return invalid;
-  }
-
-  const multiplier = parsePortionMultiplier(parsed.data.multiplier);
-  if (multiplier === null) {
-    const invalid = NextResponse.json({ error: 'El multiplicador debe ser mayor que 0.' }, { status: 400 });
     mergeResponseCookies(access.supabaseResponse, invalid);
     return invalid;
   }
@@ -59,9 +51,9 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     .insert({
       card_id: params.id,
       dish_id: parsed.data.dish_id,
-      multiplier,
+      multiplier: 1,
       sort_order: parsed.data.sort_order ?? 0,
-      notes: parsed.data.notes ?? null,
+      notes: null,
     })
     .select('id')
     .maybeSingle();

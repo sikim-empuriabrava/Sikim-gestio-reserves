@@ -479,3 +479,25 @@ Se implementó el bloque v1 conservador para consumo comercial dentro de Cheffin
   - `/cheffing/carta`, `/cheffing/carta/new`, `/cheffing/carta/[id]`
 - Seguridad/RLS alineada con patrón Cheffing (`cheffing_is_allowed` para lectura, `cheffing_is_admin` para escritura).
 - No se toca ni se reutiliza `public.menus` del módulo de reservas/eventos.
+
+## Actualización incremental (2026-03-20) — separación conservadora Carta vs Menús
+
+Se aplica evolución funcional de consumidores `cheffing_*` sin rehacer bloques previos:
+
+- **Carta (`/cheffing/carta`)**
+  - pasa a ser gestor de colección comercial;
+  - listado centrado en nombre/estado/nº de items (no en coste total);
+  - detalle enfocado a asociar/quitar/reordenar platos y bebidas;
+  - se elimina edición de multiplicador/PVP/coste/composición desde Carta.
+  - `cheffing_card_items.multiplier` se mantiene por compatibilidad técnica, pero el flujo de UI/API lo fija en `1`.
+
+- **Menús (`/cheffing/menus`)**
+  - mantiene cálculo conservador de coste total/margen por persona;
+  - detalle reorganizado por secciones de negocio: `starter`, `main`, `drink`, `dessert`;
+  - cada sección permite añadir líneas, editar multiplicador, ordenar y eliminar.
+
+- **DB / SQL**
+  - nueva migración no destructiva para `public.cheffing_menu_items.section_kind` (`text` + `check`), con backfill conservador a `starter` para datos previos.
+
+Recordatorio de alcance:
+- `public.menus` del módulo reservas/eventos **no** se reutiliza para Cheffing.

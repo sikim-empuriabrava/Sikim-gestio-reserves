@@ -15,6 +15,7 @@ export type CheffingConsumerItem = {
   multiplier: number;
   sort_order: number;
   notes: string | null;
+  section_kind?: 'starter' | 'main' | 'drink' | 'dessert';
   dish?: CheffingConsumerDish | null;
 };
 

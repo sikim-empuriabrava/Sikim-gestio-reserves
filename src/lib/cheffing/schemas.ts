@@ -154,6 +154,7 @@ export type DishItemCreateInput = z.infer<typeof dishItemCreateSchema>;
 export type DishCreateWithItemsInput = z.infer<typeof dishCreateWithItemsSchema>;
 
 const multiplierSchema = z.union([z.number(), z.string(), z.null(), z.undefined()]);
+export const cheffingMenuSectionKindSchema = z.enum(['starter', 'main', 'drink', 'dessert']);
 
 export const cheffingConsumerHeaderSchema = z.object({
   name: trimmedString.min(1),
@@ -197,8 +198,23 @@ export const cheffingConsumerItemSchema = z.object({
   notes: notesSchema.optional(),
 });
 
+export const cheffingCardItemSchema = z.object({
+  dish_id: z.string().uuid(),
+  sort_order: z.number().int().optional(),
+});
+
+export const cheffingMenuItemSchema = z.object({
+  dish_id: z.string().uuid(),
+  multiplier: multiplierSchema,
+  sort_order: z.number().int().optional(),
+  section_kind: cheffingMenuSectionKindSchema,
+  notes: notesSchema.optional(),
+});
+
 export type CheffingMenuCreateInput = z.infer<typeof cheffingMenuCreateSchema>;
 export type CheffingMenuUpdateInput = z.infer<typeof cheffingMenuUpdateSchema>;
 export type CheffingCardCreateInput = z.infer<typeof cheffingCardCreateSchema>;
 export type CheffingCardUpdateInput = z.infer<typeof cheffingCardUpdateSchema>;
 export type CheffingConsumerItemInput = z.infer<typeof cheffingConsumerItemSchema>;
+export type CheffingCardItemInput = z.infer<typeof cheffingCardItemSchema>;
+export type CheffingMenuItemInput = z.infer<typeof cheffingMenuItemSchema>;
