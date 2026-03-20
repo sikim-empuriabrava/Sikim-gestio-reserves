@@ -6,7 +6,6 @@ import { requireCheffingRouteAccess } from '@/lib/cheffing/requireCheffingRoute'
 import { mapCheffingPostgresError } from '@/lib/cheffing/postgresErrors';
 import { subrecipeUpdateSchema } from '@/lib/cheffing/schemas';
 import {
-  ALLERGEN_KEYS,
   PRODUCT_INDICATOR_KEYS,
   sanitizeAllergenIndicatorArray,
 } from '@/lib/cheffing/allergensIndicators';
@@ -68,16 +67,6 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   }
 
   const updates: Record<string, unknown> = { ...parsed.data };
-
-  if ('allergen_codes' in updates) {
-    const sanitized = sanitizeAllergenIndicatorArray(updates.allergen_codes, ALLERGEN_KEYS);
-    if (!sanitized) {
-      const invalid = NextResponse.json({ error: 'Invalid allergen_codes' }, { status: 400 });
-      mergeResponseCookies(access.supabaseResponse, invalid);
-      return invalid;
-    }
-    updates.allergen_codes = sanitized;
-  }
 
   if ('indicator_codes' in updates) {
     const sanitized = sanitizeAllergenIndicatorArray(updates.indicator_codes, PRODUCT_INDICATOR_KEYS);

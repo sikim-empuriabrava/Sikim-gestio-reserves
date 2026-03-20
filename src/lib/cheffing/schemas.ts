@@ -46,7 +46,6 @@ export const subrecipeCreateSchema = z.object({
   output_qty: z.number().positive(),
   waste_pct: wastePctSchema,
   notes: notesSchema,
-  allergen_codes: canonicalCodesSchema,
   indicator_codes: canonicalCodesSchema,
 });
 
@@ -86,7 +85,6 @@ export const dishCreateSchema = z.object({
   selling_price: z.number().min(0).nullable().optional(),
   servings: z.number().positive(),
   notes: notesSchema,
-  allergen_codes: canonicalCodesSchema,
   indicator_codes: canonicalCodesSchema,
   image_path: imagePathSchema,
 });
@@ -98,7 +96,6 @@ export const dishUpdateSchema = z
     selling_price: z.number().min(0).nullable().optional(),
     servings: z.number().positive().optional(),
     notes: notesSchema,
-    allergen_codes: canonicalCodesSchema,
     indicator_codes: canonicalCodesSchema,
     image_path: imagePathSchema,
   })

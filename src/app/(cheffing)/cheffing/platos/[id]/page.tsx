@@ -5,7 +5,7 @@ import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { requireCheffingAccess } from '@/lib/cheffing/requireCheffing';
 import { isAdmin } from '@/lib/auth/requireRole';
 import type { AllergenKey, ProductIndicatorKey } from '@/lib/cheffing/allergensIndicators';
-import { sanitizeAllergens, sanitizeProductIndicators } from '@/lib/cheffing/allergensHelpers';
+import { sanitizeProductIndicators } from '@/lib/cheffing/allergensHelpers';
 import type { Ingredient, Subrecipe, Unit } from '@/lib/cheffing/types';
 import type { CheffingFamily } from '@/lib/cheffing/families';
 import {
@@ -122,16 +122,11 @@ export default async function CheffingPlatoDetailPage({ params }: { params: { id
   const resolveEffective = (subrecipeId: string): EffectiveAI => {
     const cached = effectiveCache.get(subrecipeId);
     if (cached) return cached;
-
     const current = subrecipeLookup.get(subrecipeId);
-    const directAllergens = sanitizeAllergens(current?.allergen_codes);
     const directIndicators = sanitizeProductIndicators(current?.indicator_codes);
 
     if (inProgress.has(subrecipeId)) {
-      const fallback = {
-        allergens: [...directAllergens],
-        indicators: [...directIndicators],
-      };
+      const fallback = { allergens: [], indicators: [...directIndicators] };
       effectiveCache.set(subrecipeId, fallback);
       return fallback;
     }
@@ -154,12 +149,9 @@ export default async function CheffingPlatoDetailPage({ params }: { params: { id
       }
     }
 
-    const effectiveAllergens = new Set([...inheritedAllergens, ...directAllergens]);
-    const effectiveIndicators = new Set([...inheritedIndicators, ...directIndicators]);
-
     const resolved = {
-      allergens: Array.from(effectiveAllergens),
-      indicators: Array.from(effectiveIndicators),
+      allergens: Array.from(inheritedAllergens),
+      indicators: Array.from(new Set([...inheritedIndicators, ...directIndicators])),
     };
 
     effectiveCache.set(subrecipeId, resolved);
@@ -205,10 +197,8 @@ export default async function CheffingPlatoDetailPage({ params }: { params: { id
       addIndicators(inheritedIndicatorSet, subrecipeEffective.indicators);
     }
   });
-  const directDishAllergens = sanitizeAllergens(mergedDish.allergen_codes);
-  const directDishIndicators = sanitizeProductIndicators(mergedDish.indicator_codes);
-  const inheritedAllergens = [...inheritedAllergenSet].filter((key) => !directDishAllergens.includes(key));
-  const inheritedIndicators = [...inheritedIndicatorSet].filter((key) => !directDishIndicators.includes(key));
+  const inheritedAllergens = [...inheritedAllergenSet];
+  const inheritedIndicators = [...inheritedIndicatorSet];
 
   return (
     <section className="space-y-6">

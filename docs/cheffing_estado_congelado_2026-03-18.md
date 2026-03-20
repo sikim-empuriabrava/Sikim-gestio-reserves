@@ -272,6 +272,26 @@ Fuera de alcance en este bloque:
 
 Mejora futura (post-MVP general): evaluar búsqueda tolerante a errores ortográficos / similitud fonética si en uso real aporta valor.
 
+## Actualización incremental (2026-03-20) — endurecimiento conservador de alérgenos
+
+Se aplica un ajuste de coherencia extremo a extremo para simplificar el modelo de alérgenos en Cheffing:
+
+- **Productos (`cheffing_ingredients`)**:
+  - mantienen `allergen_codes` como fuente editable.
+- **Elaboraciones (`cheffing_subrecipes`)**:
+  - se elimina edición manual de alérgenos en alta y ficha;
+  - la UI muestra solo alérgenos efectivos heredados (solo lectura);
+  - los alérgenos efectivos se calculan por unión recursiva de ingredientes y subelaboraciones hijas.
+- **Platos (`cheffing_dishes`)**:
+  - se elimina edición manual de alérgenos en alta y ficha;
+  - la UI muestra solo alérgenos efectivos heredados (solo lectura);
+  - los alérgenos efectivos se calculan por unión de ingredientes directos + elaboraciones incluidas (con sus efectivos).
+
+Regla activa a partir de este bloque:
+- no hay add/exclude manual de alérgenos en elaboraciones ni platos;
+- no se usan columnas legacy/manuales en el flujo operativo activo;
+- no se realiza SQL destructivo ni borrado de columnas (compatibilidad legacy conservada).
+
 ### 8.1 Tabla principal
 La tabla principal ya replica la lógica base validada contra el Excel:
 
