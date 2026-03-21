@@ -186,7 +186,7 @@ export function MenuEngineeringSortableMainTable({ rows }: { rows: MenuEngineeri
           <tr>
             <th className="px-4 py-3">
               <button type="button" className={sortButtonClass} onClick={() => setMainSort((prev) => toggleSort(prev, 'name'))}>
-                Plato <span>{indicator(mainSort, 'name')}</span>
+                Ítem <span>{indicator(mainSort, 'name')}</span>
               </button>
             </th>
             <th className="px-4 py-3">
@@ -315,9 +315,15 @@ export function MenuEngineeringSortableMainTable({ rows }: { rows: MenuEngineeri
             sortedMainRows.map((row) => (
               <tr key={row.id}>
                 <td className="px-4 py-3 font-medium">
-                  <Link href={`/cheffing/platos/${row.id}`} className="text-slate-100 transition hover:text-white hover:underline">
-                    {row.name}
-                  </Link>
+                  {row.source === 'menu' ? (
+                    <Link href={`/cheffing/menus/${row.id}`} className="text-slate-100 transition hover:text-white hover:underline">
+                      {row.name}
+                    </Link>
+                  ) : (
+                    <Link href={`/cheffing/platos/${row.id}`} className="text-slate-100 transition hover:text-white hover:underline">
+                      {row.name}
+                    </Link>
+                  )}
                 </td>
                 <td className="px-4 py-3">{row.family || 'Sin familia'}</td>
                 <td className="px-4 py-3">
@@ -335,9 +341,9 @@ export function MenuEngineeringSortableMainTable({ rows }: { rows: MenuEngineeri
                 <td className="px-4 py-3">{formatPercent(row.margin_pct)}</td>
                 <td className="px-4 py-3">{formatCurrency(row.pvp_objetivo_gross)}</td>
                 <td className="px-4 py-3">{formatCurrency(row.dif)}</td>
-                <td className="px-4 py-3">{row.units_sold.toLocaleString('es-ES')}</td>
-                <td className="px-4 py-3">{formatCurrency(row.total_sales_net)}</td>
-                <td className="px-4 py-3">{formatCurrency(row.total_margin)}</td>
+                <td className="px-4 py-3">{row.has_sales_data ? row.units_sold.toLocaleString('es-ES') : 'Sin datos'}</td>
+                <td className="px-4 py-3">{row.has_sales_data ? formatCurrency(row.total_sales_net) : 'Sin datos'}</td>
+                <td className="px-4 py-3">{row.has_sales_data ? formatCurrency(row.total_margin) : 'Sin datos'}</td>
               </tr>
             ))
           )}

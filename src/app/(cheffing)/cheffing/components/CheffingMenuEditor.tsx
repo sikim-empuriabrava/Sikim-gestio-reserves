@@ -8,14 +8,15 @@ import {
   type CheffingConsumerDish,
   type CheffingConsumerItem,
   getConservativeMarginDiagnostics,
-  getConsumerConservativeCostTotal,
   getConsumerLineCost,
   getNextConsumerSortOrder,
   resolveConsumerDishKind,
 } from '@/lib/cheffing/consumers';
+import { getMenuConservativeCostDiagnostics, getNetPriceFromGross, type MenuSectionKind } from '@/lib/cheffing/menuEconomics';
 import { normalizeSearchText } from '@/lib/cheffing/search';
 import { formatEditableMoney, parseEditableMoney } from '@/lib/cheffing/money';
 import { parsePortionMultiplier } from '@/lib/cheffing/portionMultiplier';
+import { normalizeMenuEngineeringVatRate } from '@/lib/cheffing/menuEngineeringVat';
 
 type HeaderState = {
   name: string;
@@ -23,8 +24,6 @@ type HeaderState = {
   is_active: boolean;
   price_per_person: string;
 };
-
-type MenuSectionKind = 'starter' | 'main' | 'drink' | 'dessert';
 
 const sectionConfig: Array<{ kind: MenuSectionKind; label: string; dishKind: 'food' | 'drink' | 'all' }> = [
   { kind: 'starter', label: 'Entrantes', dishKind: 'food' },
@@ -89,17 +88,20 @@ export function CheffingMenuEditor({
     [dishesById, items],
   );
 
-  const totalDiagnostics = getConsumerConservativeCostTotal(
+  const totalDiagnostics = getMenuConservativeCostDiagnostics(
     lines.map((line) => ({
+      section_kind: line.section_kind,
       lineName: line.dish?.name ?? 'Línea sin item',
       cost: line.lineCost,
     })),
   );
 
   const menuPrice = parseEditableMoney(headerState.price_per_person);
+  const vatRate = normalizeMenuEngineeringVatRate(undefined);
+  const netMenuPrice = getNetPriceFromGross(menuPrice, vatRate);
   const marginDiagnostics = getConservativeMarginDiagnostics({
     totalCost: totalDiagnostics.total,
-    price: menuPrice,
+    price: netMenuPrice,
     label: `el menú "${headerState.name || 'sin nombre'}"`,
   });
 
@@ -118,22 +120,20 @@ export function CheffingMenuEditor({
   const sectionSummaryByKind = useMemo(() => {
     return new Map(
       sectionConfig.map((section) => {
-        const sectionLines = groupedLines.get(section.kind) ?? [];
-        const hasMissingLineCost = sectionLines.some((line) => line.lineCost === null);
-        const sectionCost =
-          hasMissingLineCost || sectionLines.length === 0 ? (hasMissingLineCost ? null : 0) : sectionLines.reduce((sum, line) => sum + (line.lineCost ?? 0), 0);
-        const sectionPct = sectionCost !== null && menuPrice !== null && menuPrice > 0 ? (sectionCost / menuPrice) * 100 : null;
+        const sectionDiagnostics = totalDiagnostics.sections[section.kind];
+        const sectionCost = sectionDiagnostics.cost;
+        const sectionPct = sectionCost !== null && netMenuPrice !== null && netMenuPrice > 0 ? (sectionCost / netMenuPrice) * 100 : null;
         return [
           section.kind,
           {
             cost: sectionCost,
             pct: sectionPct,
-            warning: hasMissingLineCost ? 'Hay líneas sin coste calculable en esta sección.' : null,
+            warning: sectionDiagnostics.blocking_reasons[0] ?? null,
           },
         ] as const;
       }),
     );
-  }, [groupedLines, menuPrice]);
+  }, [netMenuPrice, totalDiagnostics.sections]);
 
   const formatCurrency = (value: number | null | undefined) => {
     if (value === null || value === undefined || Number.isNaN(value)) return '—';
@@ -352,8 +352,9 @@ export function CheffingMenuEditor({
         <div className="grid gap-2 rounded-xl border border-slate-800/70 bg-slate-950/70 p-3 text-sm text-slate-200 md:grid-cols-3">
           <p>Coste total por persona: <strong>{formatCurrency(totalDiagnostics.total)}</strong></p>
           <p>Precio por persona: <strong>{formatCurrency(menuPrice)}</strong></p>
+          <p>Precio sin IVA: <strong>{formatCurrency(netMenuPrice)}</strong></p>
           <p>Margen por persona: <strong>{formatCurrency(marginDiagnostics.margin)}</strong></p>
-          <p>Margen %: <strong>{formatPercentage(marginDiagnostics.margin !== null && menuPrice !== null && menuPrice > 0 ? (marginDiagnostics.margin / menuPrice) * 100 : null)}</strong></p>
+          <p>Margen %: <strong>{formatPercentage(marginDiagnostics.margin !== null && netMenuPrice !== null && netMenuPrice > 0 ? (marginDiagnostics.margin / netMenuPrice) * 100 : null)}</strong></p>
         </div>
 
         {totalDiagnostics.blocking_reasons.length > 0 ? <p className="text-xs text-amber-300">{totalDiagnostics.blocking_reasons[0]}</p> : null}
@@ -391,7 +392,7 @@ export function CheffingMenuEditor({
                     <th className="px-3 py-2">Multiplicador</th>
                     <th className="px-3 py-2">sort_order</th>
                     <th className="px-3 py-2">Coste línea</th>
-                    <th className="px-3 py-2">% sobre PVP menú</th>
+                    <th className="px-3 py-2">% s/ PVP neto menú</th>
                     <th className="px-3 py-2">Acciones</th>
                   </tr>
                 </thead>
@@ -423,7 +424,7 @@ export function CheffingMenuEditor({
                         </td>
                         <td className="px-3 py-2">{formatCurrency(line.lineCost)}</td>
                         <td className="px-3 py-2">
-                          {formatPercentage(line.lineCost !== null && menuPrice !== null && menuPrice > 0 ? (line.lineCost / menuPrice) * 100 : null)}
+                          {formatPercentage(line.lineCost !== null && netMenuPrice !== null && netMenuPrice > 0 ? (line.lineCost / netMenuPrice) * 100 : null)}
                         </td>
                         <td className="px-3 py-2">
                           <div className="flex gap-2">
@@ -449,13 +450,13 @@ export function CheffingMenuEditor({
             <div className="rounded-xl border border-slate-800/50 bg-slate-950/40 px-3 py-2 text-xs text-slate-300">
               <div className="flex flex-wrap items-center gap-x-5 gap-y-1">
                 <p>
-                  Coste sección: <strong>{formatCurrency(sectionSummary?.cost ?? null)}</strong>
+                  {section.kind === 'main' ? 'Coste medio sección' : 'Coste sección'}: <strong>{formatCurrency(sectionSummary?.cost ?? null)}</strong>
                 </p>
                 <p>
-                  % sobre PVP menú:{' '}
+                  % s/ PVP neto menú:{' '}
                   <strong>
                     {formatPercentage(
-                      sectionSummary?.cost === 0 && menuPrice !== null && menuPrice > 0
+                      sectionSummary?.cost === 0 && netMenuPrice !== null && netMenuPrice > 0
                         ? 0
                         : (sectionSummary?.pct ?? null),
                     )}

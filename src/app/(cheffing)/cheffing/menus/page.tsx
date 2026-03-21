@@ -4,10 +4,11 @@ import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { requireCheffingAccess } from '@/lib/cheffing/requireCheffing';
 import {
   getConservativeMarginDiagnostics,
-  getConsumerConservativeCostTotal,
   getConsumerLineCost,
 } from '@/lib/cheffing/consumers';
 import { loadCheffingConsumerDishes } from '@/lib/cheffing/consumerQueries';
+import { getMenuConservativeCostDiagnostics, getNetPriceFromGross } from '@/lib/cheffing/menuEconomics';
+import { normalizeMenuEngineeringVatRate } from '@/lib/cheffing/menuEngineeringVat';
 
 export default async function CheffingMenusPage() {
   await requireCheffingAccess();
@@ -30,6 +31,7 @@ export default async function CheffingMenusPage() {
   }
 
   const dishById = new Map(dishes.map((dish) => [dish.id, dish]));
+  const vatRate = normalizeMenuEngineeringVatRate(undefined);
   const itemsByMenuId = new Map<string, typeof items>();
   (items ?? []).forEach((item) => {
     const list = itemsByMenuId.get(item.menu_id) ?? [];
@@ -44,15 +46,17 @@ export default async function CheffingMenusPage() {
 
   const entries = (menus ?? []).map((menu) => {
     const menuItems = itemsByMenuId.get(menu.id) ?? [];
-    const costDiagnostics = getConsumerConservativeCostTotal(
+    const costDiagnostics = getMenuConservativeCostDiagnostics(
       menuItems.map((item) => ({
+        section_kind: (item.section_kind ?? 'starter') as 'starter' | 'main' | 'drink' | 'dessert',
         lineName: dishById.get(item.dish_id)?.name ?? 'Línea sin plato/bebida',
         cost: getConsumerLineCost(dishById.get(item.dish_id)?.items_cost_total ?? null, item.multiplier),
       })),
     );
+    const netPrice = getNetPriceFromGross(menu.price_per_person, vatRate);
     const marginDiagnostics = getConservativeMarginDiagnostics({
       totalCost: costDiagnostics.total,
-      price: menu.price_per_person,
+      price: netPrice,
       label: `el menú "${menu.name}"`,
     });
 
