@@ -10,6 +10,7 @@ import type { Dish, DishItem, Ingredient, Subrecipe, Unit } from '@/lib/cheffing
 import { ALLERGENS, DISH_INDICATORS, PRODUCT_INDICATORS } from '@/lib/cheffing/allergensIndicators';
 import { toDishIndicatorKeys } from '@/lib/cheffing/allergensHelpers';
 import { CheffingItemPicker } from '@/app/(cheffing)/cheffing/components/CheffingItemPicker';
+import { useCheffingToast } from '@/app/(cheffing)/cheffing/components/CheffingToastProvider';
 import { formatEditableMoney, parseEditableMoney } from '@/lib/cheffing/money';
 import { createSupabaseBrowserClient } from '@/lib/supabase/browser';
 import type { CheffingFamily } from '@/lib/cheffing/families';
@@ -78,6 +79,7 @@ export function DishDetailManager({
   const [itemsError, setItemsError] = useState<string | null>(null);
   const [imageWarning, setImageWarning] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const { showToast } = useCheffingToast();
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [editingItemId, setEditingItemId] = useState<string | null>(null);
   const [editingItemState, setEditingItemState] = useState<ItemFormState | null>(null);
@@ -220,10 +222,13 @@ export function DishDetailManager({
         }
       }
 
+      showToast({ type: 'success', title: `${entityLabelSingular === 'bebida' ? 'Bebida' : 'Plato'} guardado` });
       router.refresh();
       // TODO: Auto-select the newly added line for editing once we can identify it reliably.
     } catch (err) {
-      setHeaderError(err instanceof Error ? err.message : 'Error desconocido');
+      const message = err instanceof Error ? err.message : 'Error desconocido';
+      setHeaderError(message);
+      showToast({ type: 'error', title: message });
     } finally {
       setIsSubmitting(false);
     }
@@ -310,9 +315,12 @@ export function DishDetailManager({
         throw new Error(payload?.error ?? 'Error creando línea');
       }
 
+      showToast({ type: 'success', title: 'Línea añadida' });
       router.refresh();
     } catch (err) {
-      setItemsError(err instanceof Error ? err.message : 'Error desconocido');
+      const message = err instanceof Error ? err.message : 'Error desconocido';
+      setItemsError(message);
+      showToast({ type: 'error', title: message });
     } finally {
       setIsSubmitting(false);
     }
@@ -388,9 +396,12 @@ export function DishDetailManager({
       }
 
       cancelEditingItem();
+      showToast({ type: 'success', title: 'Línea guardada' });
       router.refresh();
     } catch (err) {
-      setItemsError(err instanceof Error ? err.message : 'Error desconocido');
+      const message = err instanceof Error ? err.message : 'Error desconocido';
+      setItemsError(message);
+      showToast({ type: 'error', title: message });
     } finally {
       setIsSubmitting(false);
     }
@@ -414,9 +425,12 @@ export function DishDetailManager({
         throw new Error(payload?.error ?? 'Error eliminando línea');
       }
 
+      showToast({ type: 'success', title: 'Línea eliminada' });
       router.refresh();
     } catch (err) {
-      setItemsError(err instanceof Error ? err.message : 'Error desconocido');
+      const message = err instanceof Error ? err.message : 'Error desconocido';
+      setItemsError(message);
+      showToast({ type: 'error', title: message });
     } finally {
       setIsSubmitting(false);
     }
@@ -579,7 +593,7 @@ export function DishDetailManager({
             disabled={isSubmitting}
             className="rounded-full border border-emerald-400/60 bg-emerald-500/10 px-4 py-2 text-sm font-semibold text-emerald-200 transition hover:border-emerald-300 hover:text-emerald-100 disabled:cursor-not-allowed disabled:opacity-60"
           >
-            Guardar cambios
+            {isSubmitting ? 'Guardando...' : 'Guardar cambios'}
           </button>
           <button
             type="button"
@@ -587,7 +601,7 @@ export function DishDetailManager({
             disabled={isSubmitting}
             className="rounded-full border border-rose-500/70 px-4 py-2 text-sm font-semibold text-rose-200"
           >
-            Eliminar {entityLabelSingular}
+            {isSubmitting ? 'Eliminando...' : `Eliminar ${entityLabelSingular}`}
           </button>
         </div>
       </form>
@@ -809,7 +823,7 @@ export function DishDetailManager({
                                 disabled={isSubmitting}
                                 className="rounded-full border border-emerald-400/60 px-3 py-1 text-xs font-semibold text-emerald-200"
                               >
-                                Guardar
+                                {isSubmitting ? 'Guardando...' : 'Guardar'}
                               </button>
                               <button
                                 type="button"
@@ -834,7 +848,7 @@ export function DishDetailManager({
                                 disabled={isSubmitting}
                                 className="rounded-full border border-rose-500/70 px-3 py-1 text-xs font-semibold text-rose-200"
                               >
-                                Eliminar
+                                {isSubmitting ? 'Eliminando...' : 'Eliminar'}
                               </button>
                             </>
                           )}

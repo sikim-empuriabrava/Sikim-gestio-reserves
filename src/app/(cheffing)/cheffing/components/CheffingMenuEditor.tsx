@@ -17,6 +17,7 @@ import { normalizeSearchText } from '@/lib/cheffing/search';
 import { formatEditableMoney, parseEditableMoney } from '@/lib/cheffing/money';
 import { parsePortionMultiplier } from '@/lib/cheffing/portionMultiplier';
 import { normalizeMenuEngineeringVatRate } from '@/lib/cheffing/menuEngineeringVat';
+import { useCheffingToast } from '@/app/(cheffing)/cheffing/components/CheffingToastProvider';
 
 type HeaderState = {
   name: string;
@@ -64,6 +65,8 @@ export function CheffingMenuEditor({
   const [openSection, setOpenSection] = useState<MenuSectionKind | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submittingAction, setSubmittingAction] = useState<string | null>(null);
+  const { showToast } = useCheffingToast();
 
   const dishesById = useMemo(() => new Map(dishes.map((dish) => [dish.id, dish])), [dishes]);
 
@@ -148,6 +151,7 @@ export function CheffingMenuEditor({
   const saveHeader = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setError(null);
+    setSubmittingAction(id ? 'Guardando...' : 'Creando...');
     setIsSubmitting(true);
 
     try {
@@ -187,17 +191,22 @@ export function CheffingMenuEditor({
         router.push(`/cheffing/menus/${body.id}`);
       }
 
+      showToast({ type: 'success', title: id ? 'Cambios del menú guardados' : 'Menú creado' });
       router.refresh();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Error desconocido');
+      const message = err instanceof Error ? err.message : 'Error desconocido';
+      setError(message);
+      showToast({ type: 'error', title: message });
     } finally {
       setIsSubmitting(false);
+      setSubmittingAction(null);
     }
   };
 
   const addItem = async (dishId: string, sectionKind: MenuSectionKind) => {
     if (!id) return;
     setError(null);
+    setSubmittingAction('Añadiendo...');
     setIsSubmitting(true);
 
     try {
@@ -225,16 +234,21 @@ export function CheffingMenuEditor({
         throw new Error(body?.error ?? 'No se pudo añadir la línea.');
       }
 
+      showToast({ type: 'success', title: 'Línea añadida' });
       router.refresh();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Error desconocido');
+      const message = err instanceof Error ? err.message : 'Error desconocido';
+      setError(message);
+      showToast({ type: 'error', title: message });
     } finally {
       setIsSubmitting(false);
+      setSubmittingAction(null);
     }
   };
 
   const saveItem = async (item: CheffingConsumerItem & { section_kind: MenuSectionKind }) => {
     setError(null);
+    setSubmittingAction('Guardando...');
     setIsSubmitting(true);
 
     try {
@@ -265,16 +279,21 @@ export function CheffingMenuEditor({
         throw new Error(body?.error ?? 'No se pudo actualizar la línea.');
       }
 
+      showToast({ type: 'success', title: 'Línea guardada' });
       router.refresh();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Error desconocido');
+      const message = err instanceof Error ? err.message : 'Error desconocido';
+      setError(message);
+      showToast({ type: 'error', title: message });
     } finally {
       setIsSubmitting(false);
+      setSubmittingAction(null);
     }
   };
 
   const removeItem = async (itemId: string) => {
     setError(null);
+    setSubmittingAction('Eliminando...');
     setIsSubmitting(true);
 
     try {
@@ -284,11 +303,15 @@ export function CheffingMenuEditor({
         throw new Error(body?.error ?? 'No se pudo eliminar la línea.');
       }
 
+      showToast({ type: 'success', title: 'Línea eliminada' });
       router.refresh();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Error desconocido');
+      const message = err instanceof Error ? err.message : 'Error desconocido';
+      setError(message);
+      showToast({ type: 'error', title: message });
     } finally {
       setIsSubmitting(false);
+      setSubmittingAction(null);
     }
   };
 
@@ -365,7 +388,7 @@ export function CheffingMenuEditor({
           disabled={isSubmitting}
           className="rounded-full border border-emerald-400/60 bg-emerald-500/10 px-4 py-2 text-sm font-semibold text-emerald-200 transition hover:border-emerald-300 hover:text-emerald-100 disabled:opacity-60"
         >
-          {id ? 'Guardar cambios del menú' : 'Crear menú'}
+          {isSubmitting ? (submittingAction ?? 'Guardando...') : id ? 'Guardar cambios del menú' : 'Crear menú'}
         </button>
       </form>
 
@@ -400,7 +423,7 @@ export function CheffingMenuEditor({
                   {sectionLines.length === 0 ? (
                     <tr>
                       <td colSpan={7} className="px-4 py-5 text-center text-slate-500">
-                        Sin líneas en esta sección.
+                        No hay líneas todavía en esta sección.
                       </td>
                     </tr>
                   ) : (
@@ -428,15 +451,16 @@ export function CheffingMenuEditor({
                         </td>
                         <td className="px-3 py-2">
                           <div className="flex gap-2">
-                            <button type="button" onClick={() => saveItem(line)} className="rounded-full border border-slate-600 px-3 py-1 text-xs">
-                              Guardar
+                            <button type="button" onClick={() => saveItem(line)} disabled={isSubmitting} className="rounded-full border border-slate-600 px-3 py-1 text-xs disabled:opacity-60">
+                              {isSubmitting ? 'Guardando...' : 'Guardar'}
                             </button>
                             <button
                               type="button"
                               onClick={() => removeItem(line.id)}
-                              className="rounded-full border border-rose-500/50 px-3 py-1 text-xs text-rose-200"
+                              disabled={isSubmitting}
+                              className="rounded-full border border-rose-500/50 px-3 py-1 text-xs text-rose-200 disabled:opacity-60"
                             >
-                              Eliminar
+                              {isSubmitting ? 'Eliminando...' : 'Eliminar'}
                             </button>
                           </div>
                         </td>
@@ -509,9 +533,10 @@ export function CheffingMenuEditor({
                               <button
                                 type="button"
                                 onClick={() => addItem(dish.id, section.kind)}
-                                className="rounded-full border border-slate-600 px-3 py-1 text-xs"
+                                disabled={isSubmitting}
+                                className="rounded-full border border-slate-600 px-3 py-1 text-xs disabled:opacity-60"
                               >
-                                Añadir
+                                {isSubmitting ? 'Añadiendo...' : 'Añadir'}
                               </button>
                             </div>
                           </li>

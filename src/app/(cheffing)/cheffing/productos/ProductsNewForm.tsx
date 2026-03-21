@@ -10,6 +10,7 @@ import { toAllergenKeys, toProductIndicatorKeys } from '@/lib/cheffing/allergens
 import { ImageUploader } from '@/app/(cheffing)/cheffing/components/ImageUploader';
 import { formatEditableMoney, parseEditableMoney } from '@/lib/cheffing/money';
 import { createSupabaseBrowserClient } from '@/lib/supabase/browser';
+import { useCheffingToast } from '@/app/(cheffing)/cheffing/components/CheffingToastProvider';
 
 type ProductFormState = {
   name: string;
@@ -56,6 +57,7 @@ export function ProductsNewForm({ units, initialProduct, productId, canManageIma
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [categoryInput, setCategoryInput] = useState('');
   const [imageFile, setImageFile] = useState<File | null>(null);
+  const { showToast } = useCheffingToast();
 
   const supabase = useMemo(() => createSupabaseBrowserClient(), []);
 
@@ -327,10 +329,13 @@ export function ProductsNewForm({ units, initialProduct, productId, canManageIma
         }
       }
 
+      showToast({ type: 'success', title: isEditing ? 'Producto guardado' : 'Producto creado' });
       router.push('/cheffing/productos');
       router.refresh();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Error desconocido');
+      const message = err instanceof Error ? err.message : 'Error desconocido';
+      setError(message);
+      showToast({ type: 'error', title: message });
     } finally {
       setIsSubmitting(false);
     }
@@ -678,7 +683,7 @@ export function ProductsNewForm({ units, initialProduct, productId, canManageIma
           disabled={isSubmitting}
           className="rounded-full border border-emerald-400/60 bg-emerald-500/10 px-4 py-2 text-sm font-semibold text-emerald-200 transition hover:border-emerald-300 hover:text-emerald-100 disabled:cursor-not-allowed disabled:opacity-60"
         >
-          {isEditing ? 'Guardar cambios' : 'Guardar producto'}
+          {isSubmitting ? (isEditing ? 'Guardando...' : 'Creando...') : isEditing ? 'Guardar cambios' : 'Guardar producto'}
         </button>
         <button
           type="button"

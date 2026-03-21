@@ -9,6 +9,7 @@ import type { Ingredient, Subrecipe, SubrecipeItem, Unit, UnitDimension } from '
 import { ALLERGENS, PRODUCT_INDICATORS } from '@/lib/cheffing/allergensIndicators';
 import { toProductIndicatorKeys } from '@/lib/cheffing/allergensHelpers';
 import { CheffingItemPicker } from '@/app/(cheffing)/cheffing/components/CheffingItemPicker';
+import { useCheffingToast } from '@/app/(cheffing)/cheffing/components/CheffingToastProvider';
 
 export type SubrecipeCost = Subrecipe & {
   output_unit_dimension: UnitDimension | null;
@@ -74,6 +75,7 @@ export function SubrecipeDetailManager({
   const [headerError, setHeaderError] = useState<string | null>(null);
   const [itemsError, setItemsError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const { showToast } = useCheffingToast();
   const [editingItemId, setEditingItemId] = useState<string | null>(null);
   const [editingItemState, setEditingItemState] = useState<ItemFormState | null>(null);
   const [formState, setFormState] = useState<SubrecipeFormState>({
@@ -200,6 +202,7 @@ export function SubrecipeDetailManager({
         throw new Error(payload?.error ?? 'Error actualizando elaboración');
       }
 
+      showToast({ type: 'success', title: 'Elaboración guardada' });
       router.refresh();
       // TODO: Auto-select the newly added line for editing once we can identify it reliably.
     } catch (err) {
@@ -207,7 +210,9 @@ export function SubrecipeDetailManager({
         subrecipeId: subrecipe.id,
         error: err,
       });
-      setHeaderError(err instanceof Error ? err.message : 'Error desconocido');
+      const message = err instanceof Error ? err.message : 'Error desconocido';
+      setHeaderError(message);
+      showToast({ type: 'error', title: message });
     } finally {
       setIsSubmitting(false);
     }
@@ -231,10 +236,13 @@ export function SubrecipeDetailManager({
         throw new Error(payload?.error ?? 'Error eliminando elaboración');
       }
 
+      showToast({ type: 'success', title: 'Elaboración eliminada' });
       router.push('/cheffing/elaboraciones');
       router.refresh();
     } catch (err) {
-      setHeaderError(err instanceof Error ? err.message : 'Error desconocido');
+      const message = err instanceof Error ? err.message : 'Error desconocido';
+      setHeaderError(message);
+      showToast({ type: 'error', title: message });
     } finally {
       setIsSubmitting(false);
     }
@@ -265,13 +273,16 @@ export function SubrecipeDetailManager({
         throw new Error(payload?.error ?? 'Error creando línea');
       }
 
+      showToast({ type: 'success', title: 'Línea añadida' });
       router.refresh();
     } catch (err) {
       console.error('[cheffing/elaboraciones][detail][lines] Create failed', {
         subrecipeId: subrecipe.id,
         error: err,
       });
-      setItemsError(err instanceof Error ? err.message : 'Error desconocido');
+      const message = err instanceof Error ? err.message : 'Error desconocido';
+      setItemsError(message);
+      showToast({ type: 'error', title: message });
     } finally {
       setIsSubmitting(false);
     }
@@ -338,6 +349,7 @@ export function SubrecipeDetailManager({
       }
 
       cancelEditingItem();
+      showToast({ type: 'success', title: 'Línea guardada' });
       router.refresh();
     } catch (err) {
       console.error('[cheffing/elaboraciones][detail][lines] Save failed', {
@@ -345,7 +357,9 @@ export function SubrecipeDetailManager({
         lineId: itemId,
         error: err,
       });
-      setItemsError(err instanceof Error ? err.message : 'Error desconocido');
+      const message = err instanceof Error ? err.message : 'Error desconocido';
+      setItemsError(message);
+      showToast({ type: 'error', title: message });
     } finally {
       setIsSubmitting(false);
     }
@@ -369,6 +383,7 @@ export function SubrecipeDetailManager({
         throw new Error(payload?.error ?? 'Error eliminando línea');
       }
 
+      showToast({ type: 'success', title: 'Línea eliminada' });
       router.refresh();
     } catch (err) {
       console.error('[cheffing/elaboraciones][detail][lines] Delete failed', {
@@ -376,7 +391,9 @@ export function SubrecipeDetailManager({
         lineId: itemId,
         error: err,
       });
-      setItemsError(err instanceof Error ? err.message : 'Error desconocido');
+      const message = err instanceof Error ? err.message : 'Error desconocido';
+      setItemsError(message);
+      showToast({ type: 'error', title: message });
     } finally {
       setIsSubmitting(false);
     }
@@ -546,7 +563,7 @@ export function SubrecipeDetailManager({
             disabled={isSubmitting}
             className="rounded-full border border-emerald-400/60 bg-emerald-500/10 px-4 py-2 text-sm font-semibold text-emerald-200 transition hover:border-emerald-300 hover:text-emerald-100 disabled:cursor-not-allowed disabled:opacity-60"
           >
-            Guardar cambios
+            {isSubmitting ? 'Guardando...' : 'Guardar cambios'}
           </button>
           <button
             type="button"
@@ -554,7 +571,7 @@ export function SubrecipeDetailManager({
             disabled={isSubmitting}
             className="rounded-full border border-rose-500/70 px-4 py-2 text-sm font-semibold text-rose-200"
           >
-            Eliminar elaboración
+            {isSubmitting ? 'Eliminando...' : 'Eliminar elaboración'}
           </button>
         </div>
       </form>
@@ -748,7 +765,7 @@ export function SubrecipeDetailManager({
                                 disabled={isSubmitting}
                                 className="rounded-full border border-emerald-400/60 px-3 py-1 text-xs font-semibold text-emerald-200"
                               >
-                                Guardar
+                                {isSubmitting ? 'Guardando...' : 'Guardar'}
                               </button>
                               <button
                                 type="button"
@@ -773,7 +790,7 @@ export function SubrecipeDetailManager({
                                 disabled={isSubmitting}
                                 className="rounded-full border border-rose-500/70 px-3 py-1 text-xs font-semibold text-rose-200"
                               >
-                                Eliminar
+                                {isSubmitting ? 'Eliminando...' : 'Eliminar'}
                               </button>
                             </>
                           )}
