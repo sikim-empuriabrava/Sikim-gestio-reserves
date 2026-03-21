@@ -7,6 +7,7 @@ import { useRouter } from 'next/navigation';
 
 import { CheffingItemPicker } from '@/app/(cheffing)/cheffing/components/CheffingItemPicker';
 import { ImageUploader } from '@/app/(cheffing)/cheffing/components/ImageUploader';
+import { useCheffingToast } from '@/app/(cheffing)/cheffing/components/CheffingToastProvider';
 import type { Ingredient, Subrecipe, Unit } from '@/lib/cheffing/types';
 import type { CheffingFamily } from '@/lib/cheffing/families';
 import { parseEditableMoney } from '@/lib/cheffing/money';
@@ -57,6 +58,7 @@ export function DishNewForm({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [draftItems, setDraftItems] = useState<DraftDishItem[]>([]);
   const [imageFile, setImageFile] = useState<File | null>(null);
+  const { showToast } = useCheffingToast();
   const [formState, setFormState] = useState<DishFormState>({
     name: '',
     selling_price: '',
@@ -82,6 +84,12 @@ export function DishNewForm({
 
   const wasteHelpText =
     'La merma de esta línea sustituye la merma base solo para esta línea, pero no puede ser inferior a la merma base del ingrediente o elaboración. Si se deja vacío, se usa la merma base heredada.';
+  const createdToastTitle =
+    entityLabelSingular.toLowerCase() === 'bebida'
+      ? 'Bebida creada'
+      : entityLabelSingular.toLowerCase() === 'plato'
+        ? 'Plato creado'
+        : `${entityLabelSingular.charAt(0).toUpperCase()}${entityLabelSingular.slice(1)} creado`;
 
   const parseWastePct = (value: string) => {
     const trimmed = value.trim();
@@ -242,13 +250,17 @@ export function DishNewForm({
       }
 
       if (createdId) {
+        showToast({ type: 'success', title: createdToastTitle });
         router.push(`${basePath}/${createdId}`);
       } else {
+        showToast({ type: 'success', title: createdToastTitle });
         router.push(basePath);
       }
       router.refresh();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Error desconocido');
+      const message = err instanceof Error ? err.message : 'Error desconocido';
+      setError(message);
+      showToast({ type: 'error', title: message });
     } finally {
       setIsSubmitting(false);
     }
@@ -343,7 +355,7 @@ export function DishNewForm({
             disabled={isSubmitting}
             className="rounded-full border border-emerald-400/60 bg-emerald-500/10 px-4 py-2 text-sm font-semibold text-emerald-200 transition hover:border-emerald-300 hover:text-emerald-100 disabled:cursor-not-allowed disabled:opacity-60"
           >
-            Guardar {entityLabelSingular}
+            {isSubmitting ? 'Creando...' : `Guardar ${entityLabelSingular}`}
           </button>
           <button
             type="button"

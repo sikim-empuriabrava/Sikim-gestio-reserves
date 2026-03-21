@@ -7,6 +7,7 @@ import { useRouter } from 'next/navigation';
 
 import { CheffingItemPicker } from '@/app/(cheffing)/cheffing/components/CheffingItemPicker';
 import { ImageUploader } from '@/app/(cheffing)/cheffing/components/ImageUploader';
+import { useCheffingToast } from '@/app/(cheffing)/cheffing/components/CheffingToastProvider';
 import type { Ingredient, Subrecipe, Unit } from '@/lib/cheffing/types';
 import { createSupabaseBrowserClient } from '@/lib/supabase/browser';
 
@@ -44,6 +45,7 @@ export function SubrecipeNewForm({ ingredients, subrecipes, units, canManageImag
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [draftItems, setDraftItems] = useState<DraftSubrecipeItem[]>([]);
   const [imageFile, setImageFile] = useState<File | null>(null);
+  const { showToast } = useCheffingToast();
   const [formState, setFormState] = useState<SubrecipeFormState>({
     name: '',
     output_unit_code: units[0]?.code ?? '',
@@ -228,13 +230,17 @@ export function SubrecipeNewForm({ ingredients, subrecipes, units, canManageImag
       }
 
       if (createdId) {
+        showToast({ type: 'success', title: 'Elaboración creada' });
         router.push(`/cheffing/elaboraciones/${createdId}`);
       } else {
+        showToast({ type: 'success', title: 'Elaboración creada' });
         router.push('/cheffing/elaboraciones');
       }
       router.refresh();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Error desconocido');
+      const message = err instanceof Error ? err.message : 'Error desconocido';
+      setError(message);
+      showToast({ type: 'error', title: message });
     } finally {
       setIsSubmitting(false);
     }
@@ -337,7 +343,7 @@ export function SubrecipeNewForm({ ingredients, subrecipes, units, canManageImag
             disabled={isSubmitting || !hasUnits}
             className="rounded-full border border-emerald-400/60 bg-emerald-500/10 px-4 py-2 text-sm font-semibold text-emerald-200 transition hover:border-emerald-300 hover:text-emerald-100 disabled:cursor-not-allowed disabled:opacity-60"
           >
-            Guardar elaboración
+            {isSubmitting ? 'Creando...' : 'Guardar elaboración'}
           </button>
           <button
             type="button"

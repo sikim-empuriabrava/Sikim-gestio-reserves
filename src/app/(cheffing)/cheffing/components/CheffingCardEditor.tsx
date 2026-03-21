@@ -7,6 +7,7 @@ import { useRouter } from 'next/navigation';
 import type { CheffingConsumerDish } from '@/lib/cheffing/consumers';
 import { getNextConsumerSortOrder, resolveConsumerDishKind } from '@/lib/cheffing/consumers';
 import { normalizeSearchText } from '@/lib/cheffing/search';
+import { useCheffingToast } from '@/app/(cheffing)/cheffing/components/CheffingToastProvider';
 
 type HeaderState = {
   name: string;
@@ -47,6 +48,8 @@ export function CheffingCardEditor({
   const [draftSortByItemId, setDraftSortByItemId] = useState<Record<string, string>>({});
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submittingAction, setSubmittingAction] = useState<string | null>(null);
+  const { showToast } = useCheffingToast();
 
   const dishesById = useMemo(() => new Map(dishes.map((dish) => [dish.id, dish])), [dishes]);
 
@@ -78,6 +81,7 @@ export function CheffingCardEditor({
   const saveHeader = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setError(null);
+    setSubmittingAction(id ? 'Guardando...' : 'Creando...');
     setIsSubmitting(true);
 
     try {
@@ -111,17 +115,22 @@ export function CheffingCardEditor({
         router.push(`/cheffing/carta/${body.id}`);
       }
 
+      showToast({ type: 'success', title: id ? 'Cambios de la carta guardados' : 'Carta creada' });
       router.refresh();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Error desconocido');
+      const message = err instanceof Error ? err.message : 'Error desconocido';
+      setError(message);
+      showToast({ type: 'error', title: message });
     } finally {
       setIsSubmitting(false);
+      setSubmittingAction(null);
     }
   };
 
   const addItem = async (dishId: string) => {
     if (!id) return;
     setError(null);
+    setSubmittingAction('Añadiendo...');
     setIsSubmitting(true);
 
     try {
@@ -139,16 +148,21 @@ export function CheffingCardEditor({
         throw new Error(body?.error ?? 'No se pudo añadir el item a la carta.');
       }
 
+      showToast({ type: 'success', title: 'Línea añadida' });
       router.refresh();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Error desconocido');
+      const message = err instanceof Error ? err.message : 'Error desconocido';
+      setError(message);
+      showToast({ type: 'error', title: message });
     } finally {
       setIsSubmitting(false);
+      setSubmittingAction(null);
     }
   };
 
   const saveItem = async (item: CardItem) => {
     setError(null);
+    setSubmittingAction('Guardando...');
     setIsSubmitting(true);
 
     try {
@@ -171,16 +185,21 @@ export function CheffingCardEditor({
         throw new Error(body?.error ?? 'No se pudo guardar el item.');
       }
 
+      showToast({ type: 'success', title: 'Línea guardada' });
       router.refresh();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Error desconocido');
+      const message = err instanceof Error ? err.message : 'Error desconocido';
+      setError(message);
+      showToast({ type: 'error', title: message });
     } finally {
       setIsSubmitting(false);
+      setSubmittingAction(null);
     }
   };
 
   const removeItem = async (itemId: string) => {
     setError(null);
+    setSubmittingAction('Eliminando...');
     setIsSubmitting(true);
 
     try {
@@ -190,11 +209,15 @@ export function CheffingCardEditor({
         throw new Error(body?.error ?? 'No se pudo eliminar el item.');
       }
 
+      showToast({ type: 'success', title: 'Línea eliminada' });
       router.refresh();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Error desconocido');
+      const message = err instanceof Error ? err.message : 'Error desconocido';
+      setError(message);
+      showToast({ type: 'error', title: message });
     } finally {
       setIsSubmitting(false);
+      setSubmittingAction(null);
     }
   };
 
@@ -235,7 +258,7 @@ export function CheffingCardEditor({
           disabled={isSubmitting}
           className="rounded-full border border-emerald-400/60 bg-emerald-500/10 px-4 py-2 text-sm font-semibold text-emerald-200 transition hover:border-emerald-300 hover:text-emerald-100 disabled:opacity-60"
         >
-          {id ? 'Guardar cambios de la carta' : 'Crear carta'}
+          {isSubmitting ? (submittingAction ?? 'Guardando...') : id ? 'Guardar cambios de la carta' : 'Crear carta'}
         </button>
       </form>
 
@@ -281,15 +304,16 @@ export function CheffingCardEditor({
                     </td>
                     <td className="px-3 py-2">
                       <div className="flex gap-2">
-                        <button type="button" onClick={() => saveItem(line)} className="rounded-full border border-slate-600 px-3 py-1 text-xs">
-                          Guardar
+                        <button type="button" onClick={() => saveItem(line)} disabled={isSubmitting} className="rounded-full border border-slate-600 px-3 py-1 text-xs disabled:opacity-60">
+                          {isSubmitting ? 'Guardando...' : 'Guardar'}
                         </button>
                         <button
                           type="button"
                           onClick={() => removeItem(line.id)}
-                          className="rounded-full border border-rose-500/50 px-3 py-1 text-xs text-rose-200"
+                          disabled={isSubmitting}
+                          className="rounded-full border border-rose-500/50 px-3 py-1 text-xs text-rose-200 disabled:opacity-60"
                         >
-                          Quitar
+                          {isSubmitting ? 'Eliminando...' : 'Quitar'}
                         </button>
                       </div>
                     </td>
@@ -353,9 +377,10 @@ export function CheffingCardEditor({
                     <button
                       type="button"
                       onClick={() => addItem(dish.id)}
-                      className="rounded-full border border-slate-600 px-3 py-1 text-xs"
+                      disabled={isSubmitting}
+                      className="rounded-full border border-slate-600 px-3 py-1 text-xs disabled:opacity-60"
                     >
-                      Añadir
+                      {isSubmitting ? 'Añadiendo...' : 'Añadir'}
                     </button>
                   </li>
                 ))}
