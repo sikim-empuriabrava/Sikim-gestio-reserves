@@ -501,3 +501,24 @@ Se aplica evolución funcional de consumidores `cheffing_*` sin rehacer bloques 
 
 Recordatorio de alcance:
 - `public.menus` del módulo reservas/eventos **no** se reutiliza para Cheffing.
+
+## Actualización incremental (2026-03-21) — ajuste conservador Menús + tabs en Menu Engineering
+
+Se aplica una corrección funcional/económica conservadora, sin rehacer Carta:
+
+- **Menús (`/cheffing/menus` y detalle)**
+  - cálculo por secciones:
+    - `starter`: suma de líneas
+    - `main`: **media** de líneas (no suma bruta)
+    - `drink`: suma de líneas
+    - `dessert`: suma de líneas
+  - total menú/persona: `entrantes + media_segundos + bebidas + postres`;
+  - bloqueo conservador: si una sección tiene líneas sin coste calculable, se bloquea la sección y el total/margen;
+  - margen y porcentajes se calculan desde **precio sin IVA** del menú (no desde PVP bruto);
+  - en UI de secciones se prioriza `Coste línea` y `% s/ PVP neto menú`, con resumen de sección (en segundos: **coste medio sección**).
+
+- **Menu Engineering (`/cheffing/menu-engineering`)**
+  - nuevo selector por pestañas: `Platos` / `Bebidas` / `Menús`;
+  - `Platos` y `Bebidas` mantienen comportamiento base y filtros;
+  - pestaña `Menús` añade vista económica (PVP, neto, coste, margen, COGS, objetivo, diferencia) usando la misma lógica de IVA/base imponible;
+  - ventas/popularidad/BCM para menús no se inventan sin source of truth: se muestran como `Sin datos`.

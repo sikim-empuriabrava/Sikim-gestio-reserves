@@ -90,6 +90,15 @@ Líneas consumidoras de menú.
 - `multiplier`: multiplicador decimal de consumo por persona (`> 0`, ejemplo `0.25`, `1.33`).
 - `sort_order`: orden manual de visualización.
 
+Reglas de cálculo económico conservadoras (menús):
+- Entrantes (`starter`) = **suma** de líneas.
+- Segundos (`main`) = **media** de líneas (elección de un segundo por comensal).
+- Bebidas (`drink`) = **suma** de líneas.
+- Postres (`dessert`) = **suma** de líneas.
+- Coste total menú/persona = `starter_sum + main_avg + drink_sum + dessert_sum`.
+- Si una sección tiene alguna línea sin coste calculable, esa sección queda bloqueada y también el total/margen del menú.
+- Margen y porcentajes en menús se calculan contra **precio sin IVA** (`PVP / (1 + IVA)`).
+
 ### `cheffing_cards`
 Cartas de Cheffing (colección comercial, no calculadora).
 
@@ -226,6 +235,13 @@ Todas las tablas `cheffing_*` tienen RLS activado y políticas basadas en `publi
 - UI avanzada de subrecetas, platos, menús y análisis de costes.
 
 ## BCM en Menu Engineering
+
+La pantalla de Menu Engineering se segmenta por pestañas:
+- `Platos`
+- `Bebidas`
+- `Menús`
+
+Para `Menús`, cada menú se trata como unidad vendible a nivel económico (PVP, neto, coste, margen, COGS, PVP objetivo), pero las métricas de ventas/popularidad/BCM solo se muestran si existe una fuente canónica fiable; en ausencia de esa fuente, se muestran como `Sin datos`.
 
 La clasificación BCM segmenta platos en 4 cuadrantes a partir de dos ejes:
 

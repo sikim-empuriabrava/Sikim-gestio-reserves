@@ -7,14 +7,17 @@ import {
   resolveDishFamilyFromSourceTags,
   type MenuEngineeringDishFamily,
 } from '@/lib/cheffing/menuEngineeringFamily';
+import { getMenuConservativeCostDiagnostics, getMenuObjectivePvpGross, getNetPriceFromGross } from '@/lib/cheffing/menuEconomics';
 
 export type MenuEngineeringRow = {
   id: string;
   name: string;
   family: MenuEngineeringDishFamily;
+  source: 'dish' | 'menu';
   selling_price_gross: number | null;
   vat_rate: number;
   units_sold: number;
+  has_sales_data: boolean;
   cost_per_serving: number | null;
   net_price: number | null;
   margin_unit: number | null;
@@ -55,6 +58,7 @@ export type MenuEngineeringBcmStats = {
 };
 
 type NormalizedDateRange = { from: string; to: string };
+export type MenuEngineeringView = 'platos' | 'bebidas' | 'menus';
 
 const toNumber = (value: number | null) => (value === null || Number.isNaN(value) ? null : value);
 
@@ -211,7 +215,12 @@ export async function getMenuEngineeringRows(
   vatRate: MenuEngineeringVatRate,
   range?: { from?: string; to?: string },
   family?: MenuEngineeringDishFamily,
+  view: MenuEngineeringView = 'platos',
 ) {
+  if (view === 'menus') {
+    return getMenuEngineeringMenuRows(vatRate);
+  }
+
   const supabase = createSupabaseAdminClient();
   const { data, error } = await supabase
     .from('v_cheffing_menu_engineering_dish_cost')
@@ -224,11 +233,12 @@ export async function getMenuEngineeringRows(
 
   const dishIds = (data ?? []).map((row) => row.id);
   const familyByDishId = new Map<string, MenuEngineeringDishFamily>();
+  const kindByDishId = new Map<string, 'food' | 'drink' | null>();
 
   if (dishIds.length > 0) {
     const { data: dishesData, error: dishesError } = await supabase
       .from('cheffing_dishes')
-      .select('id, mycheftool_source_tag_names')
+      .select('id, mycheftool_source_tag_names, cheffing_families(kind)')
       .in('id', dishIds);
 
     if (dishesError) {
@@ -236,6 +246,8 @@ export async function getMenuEngineeringRows(
     }
 
     for (const dish of dishesData ?? []) {
+      const relation = Array.isArray(dish.cheffing_families) ? dish.cheffing_families[0] : dish.cheffing_families;
+      kindByDishId.set(dish.id, relation?.kind ?? null);
       familyByDishId.set(
         dish.id,
         resolveDishFamilyFromSourceTags(Array.isArray(dish.mycheftool_source_tag_names) ? dish.mycheftool_source_tag_names : []),
@@ -295,12 +307,11 @@ export async function getMenuEngineeringRows(
       const costPerServing = toNumber(row.cost_per_serving);
       const unitsSoldFromView = parseNumber(row.units_sold);
       const unitsSold = toFiniteNumber(shouldFilterByDate ? unitsSoldByDish.get(row.id) ?? 0 : unitsSoldFromView);
-      const netPrice =
-        sellingPriceGross !== null ? (vatRate === 0 ? sellingPriceGross : sellingPriceGross / (1 + vatRate)) : null;
+      const netPrice = getNetPriceFromGross(sellingPriceGross, vatRate);
       const marginUnit = netPrice !== null && costPerServing !== null ? netPrice - costPerServing : null;
       const cogsPct = netPrice !== null && netPrice > 0 && costPerServing !== null ? costPerServing / netPrice : null;
       const marginPct = netPrice !== null && netPrice > 0 && marginUnit !== null ? marginUnit / netPrice : null;
-      const targetPvpGross25 = costPerServing !== null ? costPerServing * 4 * (1 + vatRate) : null;
+      const targetPvpGross25 = getMenuObjectivePvpGross(costPerServing, vatRate);
       const dif = sellingPriceGross !== null && targetPvpGross25 !== null ? sellingPriceGross - targetPvpGross25 : null;
       const totalSalesGross = sellingPriceGross !== null ? sellingPriceGross * unitsSold : 0;
       const totalSalesNet = netPrice !== null ? netPrice * unitsSold : null;
@@ -310,9 +321,11 @@ export async function getMenuEngineeringRows(
         id: row.id,
         name: row.name,
         family: familyByDishId.get(row.id) ?? 'Sin familia',
+        source: 'dish',
         selling_price_gross: sellingPriceGross,
         vat_rate: vatRate,
         units_sold: unitsSold,
+        has_sales_data: true,
         cost_per_serving: costPerServing,
         net_price: netPrice,
         margin_unit: marginUnit,
@@ -326,11 +339,106 @@ export async function getMenuEngineeringRows(
       };
     }) ?? [];
 
-  const availableFamilies = [...new Set(rows.map((row) => row.family))].sort((a, b) => a.localeCompare(b, 'es'));
+  const kindFilter = view === 'bebidas' ? 'drink' : 'food';
+  const sourceFilteredRows = rows.filter((row) => kindByDishId.get(row.id) === kindFilter);
+  const availableFamilies = [...new Set(sourceFilteredRows.map((row) => row.family))].sort((a, b) => a.localeCompare(b, 'es'));
   const normalizedFamilyFilter = family && MENU_ENGINEERING_FAMILIES.includes(family) ? family : null;
-  const filteredRows = normalizedFamilyFilter ? rows.filter((row) => row.family === normalizedFamilyFilter) : rows;
+  const filteredRows = normalizedFamilyFilter
+    ? sourceFilteredRows.filter((row) => row.family === normalizedFamilyFilter)
+    : sourceFilteredRows;
 
   const { rowsEnriched, pivots, stats } = computeBcm(filteredRows);
 
   return { rows: rowsEnriched, pivots, stats, availableFamilies };
+}
+
+async function getMenuEngineeringMenuRows(vatRate: MenuEngineeringVatRate) {
+  const supabase = createSupabaseAdminClient();
+  const [{ data: menus, error: menusError }, { data: menuItems, error: itemsError }, { data: dishCosts, error: dishCostsError }] =
+    await Promise.all([
+      supabase.from('cheffing_menus').select('id, name, price_per_person').order('name', { ascending: true }),
+      supabase.from('cheffing_menu_items').select('menu_id, dish_id, multiplier, section_kind'),
+      supabase.from('v_cheffing_dish_cost').select('id, name, items_cost_total'),
+    ]);
+
+  if (menusError || itemsError || dishCostsError) {
+    throw new Error((menusError ?? itemsError ?? dishCostsError)?.message ?? 'No se pudo cargar menu engineering de menús.');
+  }
+
+  const dishById = new Map((dishCosts ?? []).map((dish) => [dish.id, dish]));
+  const itemsByMenuId = new Map<string, (typeof menuItems)[number][]>();
+  for (const item of menuItems ?? []) {
+    if (!item.menu_id) continue;
+    const list = itemsByMenuId.get(item.menu_id) ?? [];
+    list.push(item);
+    itemsByMenuId.set(item.menu_id, list);
+  }
+
+  const rows: MenuEngineeringRow[] = (menus ?? []).map((menu) => {
+    const menuLines = (itemsByMenuId.get(menu.id) ?? []).map((item) => {
+      const dish = dishById.get(item.dish_id);
+      const multiplier = typeof item.multiplier === 'number' ? item.multiplier : 1;
+      const dishCost = dish?.items_cost_total ?? null;
+      const lineCost = dishCost === null ? null : Number((dishCost * multiplier).toFixed(4));
+
+      return {
+        section_kind: (item.section_kind ?? 'starter') as 'starter' | 'main' | 'drink' | 'dessert',
+        lineName: dish?.name ?? 'Línea sin plato/bebida',
+        cost: lineCost,
+      };
+    });
+
+    const costDiagnostics = getMenuConservativeCostDiagnostics(menuLines);
+    const sellingPriceGross = toNumber(menu.price_per_person);
+    const netPrice = getNetPriceFromGross(sellingPriceGross, vatRate);
+    const costPerServing = costDiagnostics.total;
+    const marginUnit = netPrice !== null && costPerServing !== null ? netPrice - costPerServing : null;
+    const cogsPct = netPrice !== null && netPrice > 0 && costPerServing !== null ? costPerServing / netPrice : null;
+    const marginPct = netPrice !== null && netPrice > 0 && marginUnit !== null ? marginUnit / netPrice : null;
+    const pvpObjetivo = getMenuObjectivePvpGross(costPerServing, vatRate);
+    const dif = sellingPriceGross !== null && pvpObjetivo !== null ? sellingPriceGross - pvpObjetivo : null;
+
+    return {
+      id: menu.id,
+      name: menu.name,
+      family: 'Sin familia',
+      source: 'menu',
+      selling_price_gross: sellingPriceGross,
+      vat_rate: vatRate,
+      units_sold: 0,
+      has_sales_data: false,
+      cost_per_serving: costPerServing,
+      net_price: netPrice,
+      margin_unit: marginUnit,
+      cogs_pct: cogsPct,
+      margin_pct: marginPct,
+      pvp_objetivo_gross: pvpObjetivo,
+      dif,
+      total_sales_gross: 0,
+      total_sales_net: null,
+      total_margin: null,
+      bcm_margin_g: null,
+      bcm_popularity_index: null,
+      bcm_popularity_g: null,
+      bcm: 'SIN_DATOS',
+      high_popularity: false,
+      high_margin: false,
+    };
+  });
+
+  return {
+    rows,
+    pivots: { popularity: 0, margin: 0 },
+    stats: {
+      totalUnitsSold: 0,
+      totalSales: 0,
+      totalMargin: 0,
+      dishCount: 0,
+      marginAverage: 0,
+      costProductPct: 0,
+      popularityCorrectionPct: 0.7,
+      popularityIndexAverage: 0,
+    },
+    availableFamilies: [] as MenuEngineeringDishFamily[],
+  };
 }

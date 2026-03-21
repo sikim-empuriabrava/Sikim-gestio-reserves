@@ -1,5 +1,10 @@
 import { requireCheffingAccess } from '@/lib/cheffing/requireCheffing';
-import { getMenuEngineeringRows, type MenuEngineeringRow, type MenuEngineeringPivots } from '@/lib/cheffing/menuEngineering';
+import {
+  getMenuEngineeringRows,
+  type MenuEngineeringRow,
+  type MenuEngineeringPivots,
+  type MenuEngineeringView,
+} from '@/lib/cheffing/menuEngineering';
 import { MENU_ENGINEERING_FAMILIES, type MenuEngineeringDishFamily } from '@/lib/cheffing/menuEngineeringFamily';
 import { normalizeMenuEngineeringVatRate } from '@/lib/cheffing/menuEngineeringVat';
 import { MenuEngineeringSortableBcmDetailTable, MenuEngineeringSortableMainTable } from './MenuEngineeringSortableTables';
@@ -158,7 +163,7 @@ const buildBcmSummary = (rows: MenuEngineeringRow[]): BcmSummary => {
 export default async function MenuEngineeringPage({
   searchParams,
 }: {
-  searchParams?: { from?: string; to?: string; iva?: string; family?: string };
+  searchParams?: { from?: string; to?: string; iva?: string; family?: string; view?: string };
 }) {
   await requireCheffingAccess();
 
@@ -168,10 +173,13 @@ export default async function MenuEngineeringPage({
   startDate.setDate(today.getDate() - 30);
   const defaultFrom = formatDateInput(startDate);
 
+  const selectedView: MenuEngineeringView =
+    searchParams?.view === 'bebidas' || searchParams?.view === 'menus' ? searchParams.view : 'platos';
   const selectedFrom = searchParams?.from ?? defaultFrom;
   const selectedTo = searchParams?.to ?? defaultTo;
   const selectedVatRate = normalizeMenuEngineeringVatRate(searchParams?.iva);
-  const selectedFamily = searchParams?.family && MENU_ENGINEERING_FAMILIES.includes(searchParams.family as MenuEngineeringDishFamily)
+  const selectedFamily =
+    searchParams?.family && MENU_ENGINEERING_FAMILIES.includes(searchParams.family as MenuEngineeringDishFamily)
     ? (searchParams.family as MenuEngineeringDishFamily)
     : null;
   const hasValidDateRange = isValidDateRange(selectedFrom, selectedTo);
@@ -192,7 +200,12 @@ export default async function MenuEngineeringPage({
   let loadError: string | null = null;
 
   try {
-    const result = await getMenuEngineeringRows(selectedVatRate, { from: selectedFrom, to: selectedTo }, selectedFamily ?? undefined);
+    const result = await getMenuEngineeringRows(
+      selectedVatRate,
+      { from: selectedFrom, to: selectedTo },
+      selectedFamily ?? undefined,
+      selectedView,
+    );
     rows = result.rows;
     pivots = result.pivots;
     bcmStats = result.stats;
@@ -202,7 +215,7 @@ export default async function MenuEngineeringPage({
   }
 
   const bcmSummary = buildBcmSummary(rows);
-  const hasBcmUsableData = rows.some((row) => row.bcm !== 'SIN_DATOS');
+  const hasBcmUsableData = selectedView !== 'menus' && rows.some((row) => row.bcm !== 'SIN_DATOS');
   const bcmScatterRows = rows.filter(
     (row) => row.bcm !== 'SIN_DATOS' && row.bcm_margin_g !== null && row.bcm_popularity_g !== null,
   );
@@ -224,9 +237,31 @@ export default async function MenuEngineeringPage({
       <header className="space-y-2">
         <h2 className="text-xl font-semibold text-white">Menu Engineering</h2>
         <p className="text-sm text-slate-400">
-          Analiza márgenes por plato diferenciando coste por ración (yield) y ventas reales/unidades vendidas.
+          Analiza márgenes en Platos, Bebidas y Menús con el mismo criterio económico.
         </p>
       </header>
+
+      <div className="inline-flex rounded-xl border border-slate-700 bg-slate-950/50 p-1">
+        {([
+          { value: 'platos', label: 'Platos' },
+          { value: 'bebidas', label: 'Bebidas' },
+          { value: 'menus', label: 'Menús' },
+        ] as const).map((tab) => (
+          <a
+            key={tab.value}
+            href={`?view=${tab.value}&from=${selectedFrom}&to=${selectedTo}&iva=${selectedVatRate.toString()}${
+              selectedFamily && tab.value !== 'menus' ? `&family=${encodeURIComponent(selectedFamily)}` : ''
+            }`}
+            className={`rounded-lg px-3 py-1.5 text-sm transition ${
+              selectedView === tab.value
+                ? 'bg-emerald-500/25 text-emerald-100'
+                : 'text-slate-300 hover:bg-slate-800/60 hover:text-white'
+            }`}
+          >
+            {tab.label}
+          </a>
+        ))}
+      </div>
 
       <form
         method="get"
@@ -234,6 +269,7 @@ export default async function MenuEngineeringPage({
       >
         <label className="space-y-1 text-sm text-slate-300">
           Desde
+          <input type="hidden" name="view" value={selectedView} />
           <input
             type="date"
             name="from"
@@ -263,7 +299,8 @@ export default async function MenuEngineeringPage({
             <option value="0.21">21%</option>
           </select>
         </label>
-        <label className="space-y-1 text-sm text-slate-300">
+        {selectedView !== 'menus' ? (
+          <label className="space-y-1 text-sm text-slate-300">
           Familia
           <select
             name="family"
@@ -277,7 +314,10 @@ export default async function MenuEngineeringPage({
               </option>
             ))}
           </select>
-        </label>
+          </label>
+        ) : (
+          <div />
+        )}
         <div className="flex items-end">
           <button
             type="submit"
@@ -296,6 +336,9 @@ export default async function MenuEngineeringPage({
         {' '}PVP se interpreta como precio final con IVA; “Precio sin IVA” se calcula dividiendo por (1 + IVA
         seleccionado).
       </p>
+      {selectedView === 'menus' ? (
+        <p className="text-sm text-slate-400">Ventas/popularidad de menús: sin fuente canónica disponible, se muestran como “Sin datos”.</p>
+      ) : null}
 
       {loadError ? (
         <div className="rounded-2xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-100">
@@ -305,7 +348,8 @@ export default async function MenuEngineeringPage({
         <>
           <MenuEngineeringSortableMainTable rows={rows} />
 
-          <div className="space-y-3 rounded-2xl border border-slate-800/70 bg-slate-950/40 p-4">
+          {selectedView !== 'menus' ? (
+            <div className="space-y-3 rounded-2xl border border-slate-800/70 bg-slate-950/40 p-4">
             <h3 className="text-sm font-semibold uppercase tracking-wide text-slate-200">Matriz BCM</h3>
             <p className="text-sm text-slate-400">Bloque BCM separado según el Excel validado (tabla + visual).</p>
             {hasBcmUsableData ? (
@@ -434,7 +478,8 @@ export default async function MenuEngineeringPage({
                 Platos sin datos BCM: {bcmSummary.sinDatos} (faltan datos de margen y/o ventas válidas).
               </p>
             ) : null}
-          </div>
+            </div>
+          ) : null}
         </>
       )}
     </section>
