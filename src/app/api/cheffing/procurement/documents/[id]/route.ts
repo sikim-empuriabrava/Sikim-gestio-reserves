@@ -128,3 +128,39 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   mergeResponseCookies(access.supabaseResponse, response);
   return response;
 }
+
+export async function DELETE(_req: NextRequest, { params }: { params: { id: string } }) {
+  const access = await requireCheffingRouteAccess();
+  if (access.response) return access.response;
+
+  const supabase = createSupabaseAdminClient();
+  const { data: current, error: currentError } = await supabase
+    .from('cheffing_purchase_documents')
+    .select('status')
+    .eq('id', params.id)
+    .maybeSingle();
+
+  if (currentError || !current) {
+    const response = NextResponse.json({ error: 'Document not found' }, { status: 404 });
+    mergeResponseCookies(access.supabaseResponse, response);
+    return response;
+  }
+
+  if (current.status === 'applied') {
+    const response = NextResponse.json({ error: 'Applied documents cannot be permanently deleted' }, { status: 400 });
+    mergeResponseCookies(access.supabaseResponse, response);
+    return response;
+  }
+
+  const { error } = await supabase.from('cheffing_purchase_documents').delete().eq('id', params.id);
+  if (error) {
+    const mapped = mapCheffingPostgresError(error);
+    const response = NextResponse.json({ error: mapped.message }, { status: mapped.status });
+    mergeResponseCookies(access.supabaseResponse, response);
+    return response;
+  }
+
+  const response = NextResponse.json({ ok: true });
+  mergeResponseCookies(access.supabaseResponse, response);
+  return response;
+}

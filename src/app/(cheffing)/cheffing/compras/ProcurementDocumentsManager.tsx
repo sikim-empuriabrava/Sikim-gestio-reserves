@@ -79,6 +79,43 @@ export function ProcurementDocumentsManager({
     }
   }
 
+  async function recoverDocument(documentId: string) {
+    setError(null);
+    setIsSubmitting(true);
+    try {
+      const response = await fetch(`/api/cheffing/procurement/documents/${documentId}/recover`, { method: 'POST' });
+      if (!response.ok) {
+        const payload = await response.json().catch(() => ({}));
+        throw new Error(payload?.error ?? 'No se pudo recuperar el documento');
+      }
+      router.refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Error desconocido');
+    } finally {
+      setIsSubmitting(false);
+    }
+  }
+
+  async function deleteDocumentPermanently(documentId: string) {
+    const confirmed = window.confirm('¿Seguro que quieres eliminar este documento?\n\nEsta acción no se puede deshacer.');
+    if (!confirmed) return;
+
+    setError(null);
+    setIsSubmitting(true);
+    try {
+      const response = await fetch(`/api/cheffing/procurement/documents/${documentId}`, { method: 'DELETE' });
+      if (!response.ok) {
+        const payload = await response.json().catch(() => ({}));
+        throw new Error(payload?.error ?? 'No se pudo eliminar el documento');
+      }
+      router.refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Error desconocido');
+    } finally {
+      setIsSubmitting(false);
+    }
+  }
+
   return (
     <div className="space-y-6">
       <div className="space-y-3 rounded-xl border border-slate-800 bg-slate-950/40 p-4">
@@ -121,6 +158,8 @@ export function ProcurementDocumentsManager({
                     <div className="flex items-center gap-2">
                       <Link href={`/cheffing/compras/${document.id}`} className="rounded-full border border-slate-700 px-3 py-1 text-xs">Ver detalle</Link>
                       {document.status === 'draft' ? <button type="button" onClick={() => discardDocument(document.id)} className="rounded-full border border-rose-500/50 px-3 py-1 text-xs text-rose-200">Descartar</button> : null}
+                      {document.status === 'discarded' ? <button type="button" onClick={() => recoverDocument(document.id)} className="rounded-full border border-emerald-500/50 px-3 py-1 text-xs text-emerald-200">Recuperar</button> : null}
+                      {document.status !== 'applied' ? <button type="button" onClick={() => deleteDocumentPermanently(document.id)} className="rounded-full border border-rose-500/60 px-3 py-1 text-xs text-rose-200">Eliminar definitivo</button> : null}
                     </div>
                   </td>
                 </tr>
