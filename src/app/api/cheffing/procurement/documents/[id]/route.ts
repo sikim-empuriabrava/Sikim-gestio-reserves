@@ -100,23 +100,20 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   }
 
   const supabase = createSupabaseAdminClient();
-
-  if (updates.status && updates.status !== 'draft') {
-    const { data: current, error: currentError } = await supabase
-      .from('cheffing_purchase_documents')
-      .select('status')
-      .eq('id', params.id)
-      .maybeSingle();
-    if (currentError || !current) {
-      const response = NextResponse.json({ error: 'Document not found' }, { status: 404 });
-      mergeResponseCookies(access.supabaseResponse, response);
-      return response;
-    }
-    if (current.status !== 'draft') {
-      const response = NextResponse.json({ error: 'Only draft documents can be changed' }, { status: 400 });
-      mergeResponseCookies(access.supabaseResponse, response);
-      return response;
-    }
+  const { data: current, error: currentError } = await supabase
+    .from('cheffing_purchase_documents')
+    .select('status')
+    .eq('id', params.id)
+    .maybeSingle();
+  if (currentError || !current) {
+    const response = NextResponse.json({ error: 'Document not found' }, { status: 404 });
+    mergeResponseCookies(access.supabaseResponse, response);
+    return response;
+  }
+  if (current.status !== 'draft') {
+    const response = NextResponse.json({ error: 'Only draft documents can be changed' }, { status: 400 });
+    mergeResponseCookies(access.supabaseResponse, response);
+    return response;
   }
 
   const { error } = await supabase.from('cheffing_purchase_documents').update(updates).eq('id', params.id);
