@@ -54,7 +54,7 @@ Campos clave:
 - `document_kind` (`invoice`, `delivery_note`, `other`).
 - `document_number`.
 - `document_date`, `document_time`, `effective_at`.
-- `storage_bucket`, `storage_path`, `storage_delete_after`.
+- `storage_bucket`, `storage_path` (nullable), `storage_delete_after`.
 - `status` (`draft`, `pending`, `applied`, `discarded`).
 - `ocr_raw_text` y `interpreted_payload` (jsonb) para futuras fases.
 - `created_by`, `validated_by`, `applied_by` + `validated_at`, `applied_at`, `discarded_at`.
@@ -69,7 +69,7 @@ Campos clave:
 - Raw: `raw_description`, `raw_quantity`, `raw_unit`, `raw_unit_price`, `raw_line_total`.
 - Interpretado/normalizado: `interpreted_*`, `normalized_*`.
 - Enlace ingrediente: `suggested_ingredient_id`, `validated_ingredient_id`.
-- Estado: `line_status` (`unresolved`, `resolved`).
+- Estado: `line_status` (`unresolved`, `resolved`) con regla DB: `resolved` requiere `validated_ingredient_id` no nulo.
 - `warning_notes`, `line_effective_at`, `created_at`, `updated_at`.
 
 ## `cheffing_supplier_product_refs`
@@ -114,7 +114,7 @@ Semántica de negocio visible:
 
 Regla de aplicación:
 
-- En transición a `applied`, si hay alguna línea `unresolved`, la DB bloquea la operación.
+- En inserción o transición a `applied`, si hay alguna línea `unresolved` o no hay líneas, la DB bloquea la operación.
 
 ## Dato bruto vs interpretado vs validado
 
@@ -138,7 +138,7 @@ Criterio funcional objetivo para siguiente PR (sin job de aplicación en esta):
 
 ## Criterio temporal por fecha documental
 
-- `effective_at` se deriva automáticamente de `document_date + document_time` (si falta hora, `00:00:00`).
+- `effective_at` se recalcula automáticamente en cada insert/update como `document_date + coalesce(document_time, 00:00:00)`.
 - Cada línea hereda `line_effective_at` desde el documento si no se informa explícitamente.
 
 ## Política de retención en Supabase Storage

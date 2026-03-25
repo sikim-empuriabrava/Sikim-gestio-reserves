@@ -33,7 +33,7 @@ create table if not exists public.cheffing_purchase_documents (
   document_time time without time zone null,
   effective_at timestamp without time zone null,
   storage_bucket text not null default 'cheffing-procurement-documents',
-  storage_path text not null,
+  storage_path text null,
   storage_delete_after timestamptz null,
   status text not null default 'draft',
   ocr_raw_text text null,
@@ -83,7 +83,10 @@ create table if not exists public.cheffing_purchase_document_lines (
   line_effective_at timestamp without time zone null,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
-  constraint cheffing_purchase_document_lines_status_check check (line_status in ('unresolved', 'resolved'))
+  constraint cheffing_purchase_document_lines_status_check check (line_status in ('unresolved', 'resolved')),
+  constraint cheffing_purchase_document_lines_resolved_requires_validated_ingredient check (
+    line_status <> 'resolved' or validated_ingredient_id is not null
+  )
 );
 
 create index if not exists cheffing_purchase_document_lines_document_idx
@@ -139,9 +142,7 @@ returns trigger
 language plpgsql
 as $$
 begin
-  if new.effective_at is null then
-    new.effective_at := new.document_date::timestamp + coalesce(new.document_time, time '00:00:00');
-  end if;
+  new.effective_at := new.document_date::timestamp + coalesce(new.document_time, time '00:00:00');
 
   return new;
 end;
@@ -167,7 +168,7 @@ returns trigger
 language plpgsql
 as $$
 begin
-  if new.status = 'applied' and old.status is distinct from 'applied' then
+  if new.status = 'applied' and (tg_op = 'INSERT' or old.status is distinct from 'applied') then
     if exists (
       select 1
       from public.cheffing_purchase_document_lines l
@@ -342,7 +343,7 @@ execute function public.cheffing_set_purchase_document_storage_retention();
 
 drop trigger if exists enforce_purchase_document_apply_ready on public.cheffing_purchase_documents;
 create trigger enforce_purchase_document_apply_ready
-before update on public.cheffing_purchase_documents
+before insert or update on public.cheffing_purchase_documents
 for each row
 execute function public.cheffing_enforce_purchase_document_apply_ready();
 
