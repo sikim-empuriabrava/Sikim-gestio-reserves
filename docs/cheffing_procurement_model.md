@@ -25,7 +25,7 @@ Fuera de alcance (intencionadamente):
 4. **Proveedor nullable**: un documento puede existir sin proveedor validado.
 5. **Multiproveedor por ingrediente**: un ingrediente puede tener múltiples referencias en `cheffing_supplier_product_refs`.
 6. **Retención de archivo original por estado**:
-   - `draft` / `pending` / `discarded`: sin fecha de borrado (`storage_delete_after = null`).
+   - `draft` / `discarded`: sin fecha de borrado (`storage_delete_after = null`).
    - `applied`: elegible para borrado a +7 días (`storage_delete_after` se rellena automáticamente).
 
 ## Entidades
@@ -55,7 +55,7 @@ Campos clave:
 - `document_number`.
 - `document_date`, `document_time`, `effective_at`.
 - `storage_bucket`, `storage_path` (nullable), `storage_delete_after`.
-- `status` (`draft`, `pending`, `applied`, `discarded`).
+- `status` (`draft`, `applied`, `discarded`), donde `draft` cubre también el pendiente de validar en términos funcionales.
 - `ocr_raw_text` y `interpreted_payload` (jsonb) para futuras fases.
 - `created_by`, `validated_by`, `applied_by` + `validated_at`, `applied_at`, `discarded_at`.
 - `validation_notes`, `created_at`, `updated_at`.
@@ -107,8 +107,7 @@ Campos clave:
 
 Semántica de negocio visible:
 
-- `draft`: borrador en edición.
-- `pending`: pendiente de validación manual.
+- `draft`: borrador en edición (incluye pendiente de validación manual).
 - `applied`: aplicado/validado a modelo de coste vigente.
 - `discarded`: descartado.
 
@@ -139,7 +138,7 @@ Criterio funcional objetivo para siguiente PR (sin job de aplicación en esta):
 ## Criterio temporal por fecha documental
 
 - `effective_at` se recalcula automáticamente en cada insert/update como `document_date + coalesce(document_time, 00:00:00)`.
-- Cada línea hereda `line_effective_at` desde el documento si no se informa explícitamente.
+- `line_effective_at` se sincroniza automáticamente con `effective_at` de su documento tanto al crear/editar líneas como cuando cambia la cabecera.
 
 ## Política de retención en Supabase Storage
 

@@ -48,7 +48,7 @@ create table if not exists public.cheffing_purchase_documents (
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
   constraint cheffing_purchase_documents_kind_check check (document_kind in ('invoice', 'delivery_note', 'other')),
-  constraint cheffing_purchase_documents_status_check check (status in ('draft', 'pending', 'applied', 'discarded'))
+  constraint cheffing_purchase_documents_status_check check (status in ('draft', 'applied', 'discarded'))
 );
 
 create index if not exists cheffing_purchase_documents_supplier_idx
@@ -196,11 +196,22 @@ returns trigger
 language plpgsql
 as $$
 begin
-  if new.line_effective_at is null then
-    select d.effective_at into new.line_effective_at
-    from public.cheffing_purchase_documents d
-    where d.id = new.document_id;
-  end if;
+  select d.effective_at into new.line_effective_at
+  from public.cheffing_purchase_documents d
+  where d.id = new.document_id;
+
+  return new;
+end;
+$$;
+
+create or replace function public.cheffing_sync_purchase_lines_effective_at()
+returns trigger
+language plpgsql
+as $$
+begin
+  update public.cheffing_purchase_document_lines
+  set line_effective_at = new.effective_at
+  where document_id = new.id;
 
   return new;
 end;
@@ -352,3 +363,11 @@ create trigger set_purchase_line_effective_at
 before insert or update on public.cheffing_purchase_document_lines
 for each row
 execute function public.cheffing_set_purchase_line_effective_at();
+
+
+drop trigger if exists sync_purchase_lines_effective_at on public.cheffing_purchase_documents;
+create trigger sync_purchase_lines_effective_at
+after update of effective_at on public.cheffing_purchase_documents
+for each row
+when (old.effective_at is distinct from new.effective_at)
+execute function public.cheffing_sync_purchase_lines_effective_at();
