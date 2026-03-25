@@ -17,6 +17,40 @@ Fuera de alcance (intencionadamente):
 - UI completa de revisión/aplicación.
 - Job real de borrado en Storage.
 
+## Estado funcional actual (V1 manual)
+
+Además del scaffold de base de datos, ahora existe una **V1 manual usable en UI** para Pau dentro de Cheffing.
+
+Incluye:
+
+- Sección de navegación con `Compras` y `Proveedores`.
+- Gestión manual de proveedores (`/cheffing/proveedores`): listado, alta, edición y búsqueda básica.
+- Gestión manual de documentos (`/cheffing/compras`): listado con estados, creación manual de documento draft y descarte de draft.
+- Detalle de documento (`/cheffing/compras/[id]`):
+  - edición manual de cabecera en borrador,
+  - alta/edición/borrado manual de líneas en borrador,
+  - vinculación de línea a ingrediente validado,
+  - estado visual claro de readiness (líneas pendientes vs resueltas),
+  - warnings explícitos de “Sense proveïdor” y documento no listo.
+
+### Qué queda fuera en esta V1 manual
+
+Se mantiene fuera de alcance en esta PR:
+
+- OCR real.
+- LLM real.
+- Subida real de archivos.
+- Job de limpieza de Storage.
+- Acción de “aplicar documento” desde UI (estado `applied` visible pero sin flujo completo).
+- Aplicación automática de coste vigente a ingredientes.
+- Analítica avanzada.
+
+### Nota de producto sobre el estado `applied`
+
+- El estado `applied` existe en modelo/DB y se muestra en listados para dejar preparado el terreno.
+- En la V1 manual no se habilita el botón de aplicar porque faltan piezas de backend y trazabilidad para hacerlo de forma segura (incluyendo actualización de coste vigente + auditoría consistente).
+
+
 ## Principios funcionales implementados
 
 1. **El histórico se conserva siempre**: no se sobrescriben líneas históricas ni auditoría.
