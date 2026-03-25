@@ -197,6 +197,44 @@ export function ProcurementDocumentDetailManager({ document, suppliers, ingredie
     }
   }
 
+  async function recoverDocument() {
+    setError(null);
+    setIsSubmitting(true);
+    try {
+      const response = await fetch(`/api/cheffing/procurement/documents/${document.id}/recover`, { method: 'POST' });
+      if (!response.ok) {
+        const payload = await response.json().catch(() => ({}));
+        throw new Error(payload?.error ?? 'No se pudo recuperar el documento');
+      }
+      router.refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Error desconocido');
+    } finally {
+      setIsSubmitting(false);
+    }
+  }
+
+  async function deleteDocumentPermanently() {
+    const confirmed = window.confirm('¿Seguro que quieres eliminar este documento?\n\nEsta acción no se puede deshacer.');
+    if (!confirmed) return;
+
+    setError(null);
+    setIsSubmitting(true);
+    try {
+      const response = await fetch(`/api/cheffing/procurement/documents/${document.id}`, { method: 'DELETE' });
+      if (!response.ok) {
+        const payload = await response.json().catch(() => ({}));
+        throw new Error(payload?.error ?? 'No se pudo eliminar el documento');
+      }
+      router.push('/cheffing/compras');
+      router.refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Error desconocido');
+    } finally {
+      setIsSubmitting(false);
+    }
+  }
+
   return (
     <div className="space-y-6">
       <header className="space-y-2">
@@ -209,7 +247,20 @@ export function ProcurementDocumentDetailManager({ document, suppliers, ingredie
             Coste manual V1: <code>raw_unit_price</code>.
           </p>
         ) : null}
+        {document.status === 'discarded' ? <p className="text-xs text-slate-300">Documento descartado: puedes recuperarlo a borrador o eliminarlo definitivamente.</p> : null}
       </header>
+
+      {document.status === 'discarded' ? (
+        <div className="flex flex-wrap gap-2">
+          <button type="button" onClick={recoverDocument} disabled={isSubmitting} className="rounded-full border border-emerald-500/50 px-3 py-1 text-xs text-emerald-200">Recuperar a borrador</button>
+          <button type="button" onClick={deleteDocumentPermanently} disabled={isSubmitting} className="rounded-full border border-rose-500/60 px-3 py-1 text-xs text-rose-200">Eliminar definitivo</button>
+        </div>
+      ) : null}
+      {document.status === 'draft' ? (
+        <div className="flex flex-wrap gap-2">
+          <button type="button" onClick={deleteDocumentPermanently} disabled={isSubmitting} className="rounded-full border border-rose-500/60 px-3 py-1 text-xs text-rose-200">Eliminar definitivo</button>
+        </div>
+      ) : null}
 
       {!header.supplier_id ? <div className="rounded-xl border border-amber-400/50 bg-amber-500/10 p-3 text-sm text-amber-200">⚠ Sense proveïdor: completa el proveedor antes de preparar la aplicación futura.</div> : null}
       {applyBlockingReasons.length > 0 ? (

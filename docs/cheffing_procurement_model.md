@@ -25,7 +25,7 @@ Incluye:
 
 - Sección de navegación con `Compras` y `Proveedores`.
 - Gestión manual de proveedores (`/cheffing/proveedores`): listado, alta, edición y búsqueda básica.
-- Gestión manual de documentos (`/cheffing/compras`): listado con estados, creación manual de documento draft y descarte de draft.
+- Gestión manual de documentos (`/cheffing/compras`): listado con estados, creación manual de documento draft, descarte, recuperación desde `discarded` y borrado definitivo para no aplicados.
 - Detalle de documento (`/cheffing/compras/[id]`):
   - edición manual de cabecera en borrador,
   - alta/edición/borrado manual de líneas en borrador,
@@ -50,6 +50,8 @@ Se mantiene fuera de alcance en esta PR:
 - La actualización de coste vigente se recalcula por cronología documental (`document_effective_at`), no por momento de validación.
 - En empate temporal no resoluble para el mismo ingrediente, se prioriza el `new_cost` más alto.
 - Tras aplicar, el documento queda en solo lectura (cabecera y líneas).
+- Los documentos `discarded` pueden recuperarse a `draft`.
+- El borrado definitivo solo está permitido en `draft` y `discarded` (nunca en `applied`).
 
 
 ## Principios funcionales implementados
@@ -144,7 +146,13 @@ Semántica de negocio visible:
 
 - `draft`: borrador en edición (incluye pendiente de validación manual).
 - `applied`: aplicado/validado a modelo de coste vigente.
-- `discarded`: descartado.
+- `discarded`: descartado temporalmente; no se edita, pero puede recuperarse a `draft` o eliminarse definitivamente.
+
+Reglas de acciones por estado:
+
+- `draft`: permite editar, descartar y eliminar definitivamente.
+- `discarded`: permite recuperar a `draft` y eliminar definitivamente.
+- `applied`: solo lectura; no permite recuperar ni eliminar definitivamente.
 
 Regla de aplicación:
 
