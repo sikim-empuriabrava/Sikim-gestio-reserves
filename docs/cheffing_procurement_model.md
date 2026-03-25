@@ -41,14 +41,15 @@ Se mantiene fuera de alcance en esta PR:
 - LLM real.
 - Subida real de archivos.
 - Job de limpieza de Storage.
-- Acción de “aplicar documento” desde UI (estado `applied` visible pero sin flujo completo).
-- Aplicación automática de coste vigente a ingredientes.
 - Analítica avanzada.
 
-### Nota de producto sobre el estado `applied`
+### Aplicación manual V1 ya habilitada
 
-- El estado `applied` existe en modelo/DB y se muestra en listados para dejar preparado el terreno.
-- En la V1 manual no se habilita el botón de aplicar porque faltan piezas de backend y trazabilidad para hacerlo de forma segura (incluyendo actualización de coste vigente + auditoría consistente).
+- Desde `/cheffing/compras/[id]`, un documento `draft` se puede aplicar completo cuando cumple validaciones.
+- La aplicación crea auditoría por línea en `cheffing_ingredient_cost_audit`.
+- La actualización de coste vigente se recalcula por cronología documental (`document_effective_at`), no por momento de validación.
+- En empate temporal no resoluble para el mismo ingrediente, se prioriza el `new_cost` más alto.
+- Tras aplicar, el documento queda en solo lectura (cabecera y líneas).
 
 
 ## Principios funcionales implementados
@@ -159,15 +160,14 @@ Por diseño se separa en líneas:
 
 Esto evita aplicar automáticamente datos no revisados.
 
-## Política de coste vigente (definición técnica para fases siguientes)
+## Política de coste vigente (V1 manual)
 
-Este scaffold prepara el registro de eventos de coste en `cheffing_ingredient_cost_audit`.
-
-Criterio funcional objetivo para siguiente PR (sin job de aplicación en esta):
+La aplicación manual registra eventos de coste en `cheffing_ingredient_cost_audit` y recalcula el vigente por ingrediente.
 
 1. El coste vigente de un ingrediente será el `new_cost` del último documento aplicado por `document_effective_at`.
 2. Si hay empate temporal no resoluble de forma fiable dentro del mismo día, se priorizará el `new_cost` más alto (histórico intacto).
 3. No se usa media ponderada.
+4. En V1 manual, `new_cost` sale de `raw_unit_price` de la línea (decisión temporal hasta disponer de normalización OCR/LLM).
 
 ## Criterio temporal por fecha documental
 
@@ -204,6 +204,6 @@ Sin introducir un sistema nuevo de auth/autorización.
 ## Decisiones mínimas pendientes
 
 1. **Normalización exacta de NIF/CIF y nombres**: función canónica a reutilizar en ingestas.
-2. **Algoritmo final de resolución de empates de mismo día** en el proceso de aplicación de costes.
+2. **Migrar la fuente de coste** desde `raw_unit_price` a `normalized_unit_price` cuando exista flujo OCR/LLM fiable.
 3. **Job de limpieza Storage** (`storage_delete_after`) con trazabilidad.
 4. **Estrategia de deduplicación documental** (mismo proveedor+número+fecha) cuando llegue la carga real.
