@@ -46,10 +46,13 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     return response;
   }
 
-  const { count } = await supabase
+  const { data: lastLine } = await supabase
     .from('cheffing_purchase_document_lines')
-    .select('id', { count: 'exact', head: true })
-    .eq('document_id', params.id);
+    .select('line_number')
+    .eq('document_id', params.id)
+    .order('line_number', { ascending: false })
+    .limit(1)
+    .maybeSingle();
 
   const quantity = parseNullableNumber(body?.raw_quantity);
   const unitPrice = parseNullableNumber(body?.raw_unit_price);
@@ -63,7 +66,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
 
   const payload = {
     document_id: params.id,
-    line_number: (count ?? 0) + 1,
+    line_number: (lastLine?.line_number ?? 0) + 1,
     raw_description: rawDescription,
     raw_quantity: quantity,
     raw_unit: typeof body?.raw_unit === 'string' ? body.raw_unit.trim() || null : null,
