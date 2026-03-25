@@ -28,8 +28,11 @@ type Doc = {
   document_kind: ProcurementDocumentKind;
   document_number: string | null;
   document_date: string;
+  effective_at: string | null;
   status: 'draft' | 'applied' | 'discarded';
   validation_notes: string | null;
+  applied_at: string | null;
+  applied_by: string | null;
   cheffing_purchase_document_lines: Line[] | null;
 };
 
@@ -58,8 +61,17 @@ export function ProcurementDocumentDetailManager({ document, suppliers, ingredie
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const lines = document.cheffing_purchase_document_lines ?? [];
-  const hasUnresolvedLines = lines.some((line) => line.line_status !== 'resolved' || !line.validated_ingredient_id);
+  const hasUnresolvedLines = lines.some((line) => line.line_status !== 'resolved');
+  const hasLinesWithoutIngredient = lines.some((line) => !line.validated_ingredient_id);
+  const hasLinesWithoutApplicableCost = lines.some((line) => line.raw_unit_price === null);
   const isDraft = document.status === 'draft';
+  const applyBlockingReasons = [
+    !lines.length ? 'No se puede aplicar: el documento no tiene líneas.' : null,
+    hasUnresolvedLines ? 'No se puede aplicar: hay líneas pendientes de resolver.' : null,
+    hasLinesWithoutIngredient ? 'No se puede aplicar: hay líneas sin ingrediente validado.' : null,
+    hasLinesWithoutApplicableCost ? 'No se puede aplicar: hay líneas sin coste manual (raw_unit_price).' : null,
+  ].filter(Boolean) as string[];
+  const canApply = isDraft && applyBlockingReasons.length === 0;
 
   async function saveHeader() {
     setError(null);
@@ -168,17 +180,72 @@ export function ProcurementDocumentDetailManager({ document, suppliers, ingredie
     }
   }
 
+  async function applyDocument() {
+    setError(null);
+    setIsSubmitting(true);
+    try {
+      const response = await fetch(`/api/cheffing/procurement/documents/${document.id}/apply`, { method: 'POST' });
+      if (!response.ok) {
+        const payload = await response.json().catch(() => ({}));
+        throw new Error(payload?.error ?? 'No se pudo aplicar el documento');
+      }
+      router.refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Error desconocido');
+    } finally {
+      setIsSubmitting(false);
+    }
+  }
+
   return (
     <div className="space-y-6">
       <header className="space-y-2">
         <h2 className="text-xl font-semibold text-white">Documento de compra</h2>
         <p className="text-sm text-slate-400">Estado actual: {documentStatusLabel(document.status)} · Tipo: {documentKindLabel(document.document_kind)}</p>
-        {document.status === 'draft' ? <p className="text-xs text-amber-300">Borrador pendiente de completar/validar. Aplicar documento todavía no disponible en V1 manual.</p> : null}
+        {document.status === 'draft' ? <p className="text-xs text-amber-300">Borrador editable. Cuando esté listo se aplica entero y deja el documento en solo lectura.</p> : null}
+        {document.status === 'applied' ? (
+          <p className="text-xs text-emerald-300">
+            Documento aplicado {document.applied_at ? `el ${new Date(document.applied_at).toLocaleString('es-ES')}` : ''} {document.applied_by ? `por ${document.applied_by}` : ''}.
+            Coste manual V1: <code>raw_unit_price</code>.
+          </p>
+        ) : null}
       </header>
 
       {!header.supplier_id ? <div className="rounded-xl border border-amber-400/50 bg-amber-500/10 p-3 text-sm text-amber-200">⚠ Sense proveïdor: completa el proveedor antes de preparar la aplicación futura.</div> : null}
-      {hasUnresolvedLines ? <div className="rounded-xl border border-rose-400/40 bg-rose-500/10 p-3 text-sm text-rose-200">Hay líneas sin ingrediente validado. Este documento no está listo para aplicar.</div> : <div className="rounded-xl border border-emerald-500/40 bg-emerald-500/10 p-3 text-sm text-emerald-200">Todas las líneas tienen ingrediente validado.</div>}
+      {applyBlockingReasons.length > 0 ? (
+        <div className="rounded-xl border border-rose-400/40 bg-rose-500/10 p-3 text-sm text-rose-200">
+          <p className="font-semibold">Documento no listo para aplicar:</p>
+          <ul className="mt-1 list-disc space-y-1 pl-5">
+            {applyBlockingReasons.map((reason) => (
+              <li key={reason}>{reason}</li>
+            ))}
+          </ul>
+        </div>
+      ) : (
+        <div className="rounded-xl border border-emerald-500/40 bg-emerald-500/10 p-3 text-sm text-emerald-200">
+          Documento listo para aplicar. Se usará <code>raw_unit_price</code> como coste manual V1 por línea.
+        </div>
+      )}
       {error ? <p className="text-sm text-rose-400">{error}</p> : null}
+
+      {isDraft ? (
+        <div className="rounded-xl border border-slate-800 bg-slate-950/40 p-4">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <p className="text-sm font-semibold text-white">Aplicar documento</p>
+              <p className="text-xs text-slate-400">Acción irreversible en V1 manual: crea auditoría por línea y recalcula el coste vigente por fecha efectiva.</p>
+            </div>
+            <button
+              type="button"
+              onClick={applyDocument}
+              disabled={!canApply || isSubmitting}
+              className="rounded-full border border-emerald-400/60 px-4 py-2 text-sm font-semibold text-emerald-200 disabled:cursor-not-allowed disabled:border-slate-700 disabled:text-slate-500"
+            >
+              Aplicar documento
+            </button>
+          </div>
+        </div>
+      ) : null}
 
       <div className="space-y-3 rounded-xl border border-slate-800 bg-slate-950/40 p-4">
         <h3 className="text-sm font-semibold text-white">Cabecera</h3>

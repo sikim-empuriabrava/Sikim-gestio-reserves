@@ -16,7 +16,7 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
   const supabase = createSupabaseAdminClient();
   const { data, error } = await supabase
     .from('cheffing_purchase_documents')
-    .select('id, supplier_id, document_kind, document_number, document_date, status, validation_notes, created_at, updated_at, cheffing_suppliers(trade_name), cheffing_purchase_document_lines(id, line_number, raw_description, raw_quantity, raw_unit, raw_unit_price, raw_line_total, validated_ingredient_id, line_status, warning_notes, cheffing_ingredients(name))')
+    .select('id, supplier_id, document_kind, document_number, document_date, effective_at, status, validation_notes, applied_at, applied_by, created_at, updated_at, cheffing_suppliers(trade_name), cheffing_purchase_document_lines(id, line_number, raw_description, raw_quantity, raw_unit, raw_unit_price, raw_line_total, validated_ingredient_id, line_status, warning_notes, cheffing_ingredients(name))')
     .eq('id', params.id)
     .maybeSingle();
 
@@ -59,6 +59,11 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
       mergeResponseCookies(access.supabaseResponse, response);
       return response;
     }
+    if (body.status === 'applied') {
+      const response = NextResponse.json({ error: 'Use apply action to set document as applied' }, { status: 400 });
+      mergeResponseCookies(access.supabaseResponse, response);
+      return response;
+    }
     updates.status = body.status;
   }
 
@@ -95,23 +100,20 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   }
 
   const supabase = createSupabaseAdminClient();
-
-  if (updates.status && updates.status !== 'draft') {
-    const { data: current, error: currentError } = await supabase
-      .from('cheffing_purchase_documents')
-      .select('status')
-      .eq('id', params.id)
-      .maybeSingle();
-    if (currentError || !current) {
-      const response = NextResponse.json({ error: 'Document not found' }, { status: 404 });
-      mergeResponseCookies(access.supabaseResponse, response);
-      return response;
-    }
-    if (current.status !== 'draft') {
-      const response = NextResponse.json({ error: 'Only draft documents can be changed' }, { status: 400 });
-      mergeResponseCookies(access.supabaseResponse, response);
-      return response;
-    }
+  const { data: current, error: currentError } = await supabase
+    .from('cheffing_purchase_documents')
+    .select('status')
+    .eq('id', params.id)
+    .maybeSingle();
+  if (currentError || !current) {
+    const response = NextResponse.json({ error: 'Document not found' }, { status: 404 });
+    mergeResponseCookies(access.supabaseResponse, response);
+    return response;
+  }
+  if (current.status !== 'draft') {
+    const response = NextResponse.json({ error: 'Only draft documents can be changed' }, { status: 400 });
+    mergeResponseCookies(access.supabaseResponse, response);
+    return response;
   }
 
   const { error } = await supabase.from('cheffing_purchase_documents').update(updates).eq('id', params.id);
