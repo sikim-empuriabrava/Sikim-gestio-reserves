@@ -19,7 +19,7 @@ type Line = {
   validated_ingredient_id: string | null;
   line_status: 'unresolved' | 'resolved';
   warning_notes: string | null;
-  cheffing_ingredients: { name: string | null } | { name: string | null }[] | null;
+  validated_ingredient: { name: string | null } | { name: string | null }[] | null;
 };
 
 type Doc = {
@@ -292,9 +292,9 @@ function LineForm({ value, onChange, ingredients }: { value: typeof emptyLine; o
 
 function EditableLineRow({ line, ingredients, isDraft, isEditing, onEdit, onCancel, onSave, onDelete }: { line: Line; ingredients: Ingredient[]; isDraft: boolean; isEditing: boolean; onEdit: () => void; onCancel: () => void; onSave: (line: Line, updates: typeof emptyLine) => void; onDelete: (lineId: string) => void }) {
   const ingredientName = useMemo(() => {
-    const source = line.cheffing_ingredients;
+    const source = line.validated_ingredient;
     return Array.isArray(source) ? source[0]?.name : source?.name;
-  }, [line.cheffing_ingredients]);
+  }, [line.validated_ingredient]);
   const [form, setForm] = useState({
     raw_description: line.raw_description,
     raw_quantity: line.raw_quantity?.toString() ?? '',

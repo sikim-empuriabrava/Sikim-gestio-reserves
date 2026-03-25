@@ -13,7 +13,7 @@ export default async function CheffingCompraDetailPage({ params }: { params: { i
   const [{ data: document, error: documentError }, { data: suppliers }, { data: ingredients }] = await Promise.all([
     supabase
       .from('cheffing_purchase_documents')
-      .select('id, supplier_id, document_kind, document_number, document_date, effective_at, status, validation_notes, applied_at, applied_by, created_at, updated_at, cheffing_suppliers(trade_name), cheffing_purchase_document_lines(id, line_number, raw_description, raw_quantity, raw_unit, raw_unit_price, raw_line_total, validated_ingredient_id, line_status, warning_notes, cheffing_ingredients(name))')
+      .select('id, supplier_id, document_kind, document_number, document_date, effective_at, status, validation_notes, applied_at, applied_by, created_at, updated_at, cheffing_suppliers(trade_name), cheffing_purchase_document_lines(id, line_number, raw_description, raw_quantity, raw_unit, raw_unit_price, raw_line_total, validated_ingredient_id, line_status, warning_notes, validated_ingredient:cheffing_ingredients!cheffing_purchase_document_lines_validated_ingredient_id_fkey(name))')
       .eq('id', params.id)
       .maybeSingle(),
     supabase.from('cheffing_suppliers').select('id, trade_name').eq('is_active', true).order('trade_name', { ascending: true }),
