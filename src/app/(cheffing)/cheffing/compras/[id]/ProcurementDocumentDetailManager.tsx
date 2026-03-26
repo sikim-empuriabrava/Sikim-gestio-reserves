@@ -52,6 +52,18 @@ function formatCurrency(value: number | null): string {
   return new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR' }).format(value);
 }
 
+function normalizeNullableText(value: string): string | null {
+  const normalized = value.trim();
+  return normalized.length ? normalized : null;
+}
+
+function parseNullableNumber(value: string): number | null {
+  const normalized = value.trim();
+  if (!normalized.length) return null;
+  const parsed = Number(normalized);
+  return Number.isNaN(parsed) ? null : parsed;
+}
+
 export function ProcurementDocumentDetailManager({ document, suppliers, ingredients }: { document: Doc; suppliers: Supplier[]; ingredients: Ingredient[] }) {
   const router = useRouter();
   const [header, setHeader] = useState({
@@ -75,14 +87,23 @@ export function ProcurementDocumentDetailManager({ document, suppliers, ingredie
   const hasLinesWithoutIngredient = lines.some((line) => !line.validated_ingredient_id);
   const hasLinesWithoutApplicableCost = lines.some((line) => line.raw_unit_price === null);
 
+  const hasUnsavedHeaderChanges =
+    header.supplier_id !== (document.supplier_id ?? '') ||
+    header.document_kind !== document.document_kind ||
+    normalizeNullableText(header.document_number) !== (document.document_number ?? null) ||
+    header.document_date !== document.document_date ||
+    normalizeNullableText(header.validation_notes) !== (document.validation_notes ?? null) ||
+    parseNullableNumber(header.declared_total) !== (document.declared_total ?? null);
+
   const readinessReasons = [
     !header.supplier_id ? 'Falta proveedor en cabecera.' : null,
     !lines.length ? 'No hay líneas en el documento.' : null,
     hasUnresolvedLines ? 'Hay líneas pendientes de resolver.' : null,
     hasLinesWithoutIngredient ? 'Hay líneas sin ingrediente validado.' : null,
     hasLinesWithoutApplicableCost ? 'Hay líneas sin coste aplicable (raw_unit_price).' : null,
+    hasUnsavedHeaderChanges ? 'Guarda la cabecera antes de aplicar el documento.' : null,
   ].filter(Boolean) as string[];
-  const canApply = isDraft && readinessReasons.length === 0;
+  const canApply = isDraft && readinessReasons.length === 0 && !hasUnsavedHeaderChanges;
 
   const supplierLabel = useMemo(
     () => suppliers.find((supplier) => supplier.id === header.supplier_id)?.trade_name ?? null,
