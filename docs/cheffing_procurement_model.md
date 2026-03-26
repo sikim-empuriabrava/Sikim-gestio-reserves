@@ -14,7 +14,7 @@ Fuera de alcance (intencionadamente):
 
 - OCR real.
 - Extracción/validación por LLM.
-- UI completa de revisión/aplicación.
+- UI completa OCR/LLM y automatizaciones avanzadas.
 - Job real de borrado en Storage.
 
 ## Estado funcional actual (V1 manual)
@@ -26,12 +26,11 @@ Incluye:
 - Sección de navegación con `Compras` y `Proveedores`.
 - Gestión manual de proveedores (`/cheffing/proveedores`): listado, alta, edición y búsqueda básica.
 - Gestión manual de documentos (`/cheffing/compras`): listado con estados, creación manual de documento draft, descarte, recuperación desde `discarded` y borrado definitivo para no aplicados.
-- Detalle de documento (`/cheffing/compras/[id]`):
-  - edición manual de cabecera en borrador,
-  - alta/edición/borrado manual de líneas en borrador,
-  - vinculación de línea a ingrediente validado,
-  - estado visual claro de readiness (líneas pendientes vs resueltas),
-  - warnings explícitos de “Sense proveïdor” y documento no listo.
+- Detalle de documento (`/cheffing/compras/[id]`) rediseñado como **ficha operativa única** para manual + OCR futuro:
+  - cabecera fuerte (proveedor, tipo, número, fecha, estado, notas, total declarado),
+  - sección de líneas como núcleo operativo (descripción, ingrediente, cantidad, unidad, p.unitario, total, warning, estado),
+  - bloque lateral de resumen/readiness con razones legibles de bloqueo para aplicar,
+  - acciones jerarquizadas por estado (`draft`, `applied`, `discarded`) en la misma pantalla.
 
 ### Qué queda fuera en esta V1 manual
 
@@ -61,7 +60,8 @@ Se mantiene fuera de alcance en esta PR:
 3. **No aplicar con líneas sin resolver**: la DB bloquea pasar a `applied` si existe alguna línea en estado distinto de `resolved`.
 4. **Proveedor nullable**: un documento puede existir sin proveedor validado.
 5. **Multiproveedor por ingrediente**: un ingrediente puede tener múltiples referencias en `cheffing_supplier_product_refs`.
-6. **Retención de archivo original por estado**:
+6. **Campo de conciliación documental**: `declared_total` permite comparar más adelante total declarado vs total calculado.
+7. **Retención de archivo original por estado**:
    - `draft` / `discarded`: sin fecha de borrado (`storage_delete_after = null`).
    - `applied`: elegible para borrado a +7 días (`storage_delete_after` se rellena automáticamente).
 
@@ -95,6 +95,7 @@ Campos clave:
 - `status` (`draft`, `applied`, `discarded`), donde `draft` cubre también el pendiente de validar en términos funcionales.
 - `ocr_raw_text` y `interpreted_payload` (jsonb) para futuras fases.
 - `created_by`, `validated_by`, `applied_by` + `validated_at`, `applied_at`, `discarded_at`.
+- `declared_total` (nullable, total declarado por el proveedor para futura comparación con el total calculado por líneas).
 - `validation_notes`, `created_at`, `updated_at`.
 
 ## `cheffing_purchase_document_lines`
@@ -215,3 +216,9 @@ Sin introducir un sistema nuevo de auth/autorización.
 2. **Migrar la fuente de coste** desde `raw_unit_price` a `normalized_unit_price` cuando exista flujo OCR/LLM fiable.
 3. **Job de limpieza Storage** (`storage_delete_after`) con trazabilidad.
 4. **Estrategia de deduplicación documental** (mismo proveedor+número+fecha) cuando llegue la carga real.
+
+## Nota de despliegue Supabase
+
+Esta fase añade la migración `20260326120000_cheffing_procurement_declared_total.sql` para crear `declared_total` en `cheffing_purchase_documents`.
+
+En entornos donde no se ejecutan migraciones automáticas, hay que aplicar ese SQL manualmente en Supabase antes de usar el nuevo campo en UI/API.

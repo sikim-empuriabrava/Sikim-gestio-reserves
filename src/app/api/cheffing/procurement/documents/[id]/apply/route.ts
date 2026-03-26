@@ -16,6 +16,9 @@ function mapApplyError(error: { message: string; code?: string }) {
   if (normalized.includes('only draft documents can be applied')) {
     return { status: 400, message: 'Solo se pueden aplicar documentos en borrador' };
   }
+  if (normalized.includes('document requires supplier before apply')) {
+    return { status: 400, message: 'No se puede aplicar: falta proveedor' };
+  }
   if (normalized.includes('cannot be applied without lines')) {
     return { status: 400, message: 'No se puede aplicar un documento sin líneas' };
   }
