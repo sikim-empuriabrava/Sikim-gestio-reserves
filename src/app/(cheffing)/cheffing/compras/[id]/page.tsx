@@ -1,8 +1,9 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 
-import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { requireCheffingAccess } from '@/lib/cheffing/requireCheffing';
+import { createSupabaseServerClient } from '@/lib/supabase/server';
+import { createSupabaseAdminClient } from '@/lib/supabaseAdmin';
 
 import { ProcurementDocumentDetailManager } from './ProcurementDocumentDetailManager';
 
@@ -13,7 +14,7 @@ export default async function CheffingCompraDetailPage({ params }: { params: { i
   const [{ data: document, error: documentError }, { data: suppliers }, { data: ingredients }] = await Promise.all([
     supabase
       .from('cheffing_purchase_documents')
-      .select('id, supplier_id, document_kind, document_number, document_date, effective_at, status, validation_notes, declared_total, applied_at, applied_by, created_at, updated_at, cheffing_suppliers(trade_name), cheffing_purchase_document_lines(id, line_number, raw_description, raw_quantity, raw_unit, raw_unit_price, raw_line_total, validated_ingredient_id, line_status, warning_notes, validated_ingredient:cheffing_ingredients!cheffing_purchase_document_lines_validated_ingredient_id_fkey(name))')
+      .select('id, supplier_id, document_kind, document_number, document_date, effective_at, status, validation_notes, declared_total, storage_bucket, storage_path, interpreted_payload, applied_at, applied_by, created_at, updated_at, cheffing_suppliers(trade_name), cheffing_purchase_document_lines(id, line_number, raw_description, raw_quantity, raw_unit, raw_unit_price, raw_line_total, validated_ingredient_id, line_status, warning_notes, validated_ingredient:cheffing_ingredients!cheffing_purchase_document_lines_validated_ingredient_id_fkey(name))')
       .eq('id', params.id)
       .maybeSingle(),
     supabase.from('cheffing_suppliers').select('id, trade_name').eq('is_active', true).order('trade_name', { ascending: true }),
@@ -23,6 +24,13 @@ export default async function CheffingCompraDetailPage({ params }: { params: { i
   if (documentError || !document) {
     console.error('[cheffing/compras/:id] Failed to load document', documentError);
     notFound();
+  }
+
+  let sourceFileUrl: string | null = null;
+  if (document.storage_bucket && document.storage_path) {
+    const admin = createSupabaseAdminClient();
+    const { data: signedData, error: signedError } = await admin.storage.from(document.storage_bucket).createSignedUrl(document.storage_path, 60 * 60);
+    if (!signedError) sourceFileUrl = signedData.signedUrl;
   }
 
   return (
@@ -35,7 +43,7 @@ export default async function CheffingCompraDetailPage({ params }: { params: { i
         <span className="text-white">Documento</span>
       </div>
 
-      <ProcurementDocumentDetailManager document={document} suppliers={suppliers ?? []} ingredients={ingredients ?? []} />
+      <ProcurementDocumentDetailManager document={document} suppliers={suppliers ?? []} ingredients={ingredients ?? []} initialSourceFileUrl={sourceFileUrl} />
     </section>
   );
 }

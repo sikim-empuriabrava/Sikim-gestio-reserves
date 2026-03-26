@@ -23,6 +23,10 @@ Además del scaffold de base de datos, ahora existe una **V1 manual usable en UI
 
 Incluye:
 
+- Subida real de archivo original (imagen/PDF) por documento draft a Supabase Storage.
+- Consulta/preview del documento original desde la ficha `/cheffing/compras/[id]`.
+- Distinción UI entre proveedor confirmado y bloque scaffold de proveedor detectado (sin OCR real).
+
 - Sección de navegación con `Compras` y `Proveedores`.
 - Gestión manual de proveedores (`/cheffing/proveedores`): listado, alta, edición y búsqueda básica.
 - Gestión manual de documentos (`/cheffing/compras`): listado con estados, creación manual de documento draft, descarte, recuperación desde `discarded` y borrado definitivo para no aplicados.
@@ -38,7 +42,6 @@ Se mantiene fuera de alcance en esta PR:
 
 - OCR real.
 - LLM real.
-- Subida real de archivos.
 - Job de limpieza de Storage.
 - Analítica avanzada.
 
@@ -199,6 +202,7 @@ Regla automática actual:
 Pendiente en próxima fase:
 
 - Job programado real que purgue objetos vencidos en Storage.
+- OCR real y extracción automática de proveedor/líneas.
 
 ## Seguridad y acceso
 
@@ -219,6 +223,6 @@ Sin introducir un sistema nuevo de auth/autorización.
 
 ## Nota de despliegue Supabase
 
-Esta fase añade la migración `20260326120000_cheffing_procurement_declared_total.sql` para crear `declared_total` en `cheffing_purchase_documents`.
+Además de la migración previa `20260326120000_cheffing_procurement_declared_total.sql`, esta fase añade `20260326170000_cheffing_procurement_storage_bucket.sql` para asegurar el bucket privado `cheffing-procurement-documents` y limitar MIME types permitidos (PDF/JPG/PNG/WEBP).
 
-En entornos donde no se ejecutan migraciones automáticas, hay que aplicar ese SQL manualmente en Supabase antes de usar el nuevo campo en UI/API.
+En entornos donde no se ejecutan migraciones automáticas, hay que aplicar ambas migraciones manualmente en Supabase antes de usar la subida de archivo original desde UI/API.
