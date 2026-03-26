@@ -4,6 +4,7 @@ import { createSupabaseAdminClient } from '@/lib/supabaseAdmin';
 import { mergeResponseCookies } from '@/lib/supabase/route';
 import { requireCheffingRouteAccess } from '@/lib/cheffing/requireCheffingRoute';
 import { mapCheffingPostgresError } from '@/lib/cheffing/postgresErrors';
+import { normalizeProcurementCanonicalUnit } from '@/lib/cheffing/procurement';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -75,6 +76,15 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   if (body?.raw_unit !== undefined) {
     updates.raw_unit = typeof body.raw_unit === 'string' ? body.raw_unit.trim() || null : null;
   }
+  if (body?.validated_unit !== undefined) {
+    const parsed = normalizeProcurementCanonicalUnit(body.validated_unit);
+    if (Number.isNaN(parsed)) {
+      const response = NextResponse.json({ error: 'Invalid validated_unit' }, { status: 400 });
+      mergeResponseCookies(access.supabaseResponse, response);
+      return response;
+    }
+    updates.validated_unit = parsed;
+  }
   if (body?.raw_unit_price !== undefined) {
     const parsed = parseNullableNumber(body.raw_unit_price);
     if (Number.isNaN(parsed)) {
@@ -105,6 +115,9 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
 
   if (body?.warning_notes !== undefined) {
     updates.warning_notes = typeof body.warning_notes === 'string' ? body.warning_notes.trim() || null : null;
+  }
+  if (body?.user_note !== undefined) {
+    updates.user_note = typeof body.user_note === 'string' ? body.user_note.trim() || null : null;
   }
 
   if (body?.line_status !== undefined) {

@@ -8,8 +8,10 @@ import {
   documentStatusLabel,
   inferProcurementSourceFileKind,
   lineStatusLabel,
+  PROCUREMENT_CANONICAL_UNITS,
   PROCUREMENT_SOURCE_FILE_ACCEPTED_MIME_TYPES,
   type ProcurementDocumentKind,
+  type ProcurementCanonicalUnit,
 } from '@/lib/cheffing/procurement';
 
 type Ingredient = { id: string; name: string };
@@ -21,11 +23,13 @@ type Line = {
   raw_description: string;
   raw_quantity: number | null;
   raw_unit: string | null;
+  validated_unit: ProcurementCanonicalUnit | null;
   raw_unit_price: number | null;
   raw_line_total: number | null;
   validated_ingredient_id: string | null;
   line_status: 'unresolved' | 'resolved';
   warning_notes: string | null;
+  user_note: string | null;
   validated_ingredient: { name: string | null } | { name: string | null }[] | null;
 };
 
@@ -51,10 +55,11 @@ const emptyLine = {
   raw_description: '',
   raw_quantity: '',
   raw_unit: '',
+  validated_unit: '',
   raw_unit_price: '',
   raw_line_total: '',
   validated_ingredient_id: '',
-  warning_notes: '',
+  user_note: '',
 };
 
 const emptySupplierForm = {
@@ -175,6 +180,7 @@ export function ProcurementDocumentDetailManager({
   }, [document.interpreted_payload]);
 
   function openNewSupplierForm() {
+    if (hasUnsavedHeaderChanges) return;
     setNewSupplierForm(supplierPrefill);
     setIsCreatingSupplier(true);
     setError(null);
@@ -309,11 +315,12 @@ export function ProcurementDocumentDetailManager({
           raw_description: newLine.raw_description,
           raw_quantity: newLine.raw_quantity ? Number(newLine.raw_quantity) : null,
           raw_unit: newLine.raw_unit,
+          validated_unit: newLine.validated_unit || null,
           raw_unit_price: newLine.raw_unit_price ? Number(newLine.raw_unit_price) : null,
           raw_line_total: newLine.raw_line_total ? Number(newLine.raw_line_total) : null,
           validated_ingredient_id: newLine.validated_ingredient_id || null,
           line_status: newLine.validated_ingredient_id ? 'resolved' : 'unresolved',
-          warning_notes: newLine.warning_notes,
+          user_note: newLine.user_note,
         }),
       });
       if (!response.ok) {
@@ -341,11 +348,12 @@ export function ProcurementDocumentDetailManager({
           raw_description: updates.raw_description,
           raw_quantity: updates.raw_quantity ? Number(updates.raw_quantity) : null,
           raw_unit: updates.raw_unit,
+          validated_unit: updates.validated_unit || null,
           raw_unit_price: updates.raw_unit_price ? Number(updates.raw_unit_price) : null,
           raw_line_total: updates.raw_line_total ? Number(updates.raw_line_total) : null,
           validated_ingredient_id: validatedId,
           line_status: validatedId ? 'resolved' : 'unresolved',
-          warning_notes: updates.warning_notes,
+          user_note: updates.user_note,
         }),
       });
       if (!response.ok) {
@@ -519,7 +527,12 @@ export function ProcurementDocumentDetailManager({
                 {isDraft ? (
                   <div className="space-y-2">
                     {!isCreatingSupplier ? (
-                      <button type="button" onClick={openNewSupplierForm} className="text-xs font-semibold text-emerald-300 underline decoration-dotted underline-offset-4">
+                      <button
+                        type="button"
+                        onClick={openNewSupplierForm}
+                        disabled={hasUnsavedHeaderChanges}
+                        className="text-xs font-semibold text-emerald-300 underline decoration-dotted underline-offset-4 disabled:cursor-not-allowed disabled:text-slate-500"
+                      >
                         Crear nuevo proveedor
                       </button>
                     ) : (
@@ -567,6 +580,9 @@ export function ProcurementDocumentDetailManager({
                         </div>
                       </div>
                     )}
+                    {hasUnsavedHeaderChanges ? (
+                      <p className="text-xs text-amber-300">Guarda primero la cabecera antes de crear y asignar un proveedor nuevo.</p>
+                    ) : null}
                   </div>
                 ) : null}
               </div>
@@ -606,10 +622,11 @@ export function ProcurementDocumentDetailManager({
                   <th className="px-4 py-3">Descripción original</th>
                   <th className="px-4 py-3">Ingrediente vinculado</th>
                   <th className="px-4 py-3">Cantidad</th>
-                  <th className="px-4 py-3">Unidad</th>
+                  <th className="px-4 py-3">Unidad (canónica)</th>
                   <th className="px-4 py-3">Precio unitario</th>
                   <th className="px-4 py-3">Total línea</th>
-                  <th className="px-4 py-3">Warning / nota</th>
+                  <th className="px-4 py-3">Warning sistema</th>
+                  <th className="px-4 py-3">Nota manual</th>
                   <th className="px-4 py-3">Estado</th>
                   <th className="px-4 py-3">Acciones</th>
                 </tr>
@@ -787,10 +804,18 @@ function LineForm({ value, onChange, ingredients }: { value: typeof emptyLine; o
         ))}
       </select>
       <input type="number" step="0.001" value={value.raw_quantity} onChange={(event) => onChange({ ...value, raw_quantity: event.target.value })} placeholder="Cantidad" className="rounded-md border border-slate-700 bg-slate-950/70 px-2 py-1 text-white" />
-      <input value={value.raw_unit} onChange={(event) => onChange({ ...value, raw_unit: event.target.value })} placeholder="Unidad" className="rounded-md border border-slate-700 bg-slate-950/70 px-2 py-1 text-white" />
+      <input value={value.raw_unit} onChange={(event) => onChange({ ...value, raw_unit: event.target.value })} placeholder="Unidad original (traza)" className="rounded-md border border-slate-700 bg-slate-950/70 px-2 py-1 text-white" />
+      <select value={value.validated_unit} onChange={(event) => onChange({ ...value, validated_unit: event.target.value })} className="rounded-md border border-slate-700 bg-slate-950/70 px-2 py-1 text-white">
+        <option value="">Unidad canónica sin validar</option>
+        {PROCUREMENT_CANONICAL_UNITS.map((unit) => (
+          <option key={unit} value={unit}>
+            {unit}
+          </option>
+        ))}
+      </select>
       <input type="number" step="0.0001" value={value.raw_unit_price} onChange={(event) => onChange({ ...value, raw_unit_price: event.target.value })} placeholder="Precio unitario" className="rounded-md border border-slate-700 bg-slate-950/70 px-2 py-1 text-white" />
       <input type="number" step="0.0001" value={value.raw_line_total} onChange={(event) => onChange({ ...value, raw_line_total: event.target.value })} placeholder="Total línea" className="rounded-md border border-slate-700 bg-slate-950/70 px-2 py-1 text-white" />
-      <input value={value.warning_notes} onChange={(event) => onChange({ ...value, warning_notes: event.target.value })} placeholder="Warning / nota" className="rounded-md border border-slate-700 bg-slate-950/70 px-2 py-1 text-white md:col-span-4" />
+      <input value={value.user_note} onChange={(event) => onChange({ ...value, user_note: event.target.value })} placeholder="Nota manual (opcional)" className="rounded-md border border-slate-700 bg-slate-950/70 px-2 py-1 text-white md:col-span-4" />
     </div>
   );
 }
@@ -804,10 +829,11 @@ function EditableLineRow({ line, ingredients, isDraft, isEditing, onEdit, onCanc
     raw_description: line.raw_description,
     raw_quantity: line.raw_quantity?.toString() ?? '',
     raw_unit: line.raw_unit ?? '',
+    validated_unit: line.validated_unit ?? '',
     raw_unit_price: line.raw_unit_price?.toString() ?? '',
     raw_line_total: line.raw_line_total?.toString() ?? '',
     validated_ingredient_id: line.validated_ingredient_id ?? '',
-    warning_notes: line.warning_notes ?? '',
+    user_note: line.user_note ?? '',
   });
 
   return (
@@ -816,10 +842,27 @@ function EditableLineRow({ line, ingredients, isDraft, isEditing, onEdit, onCanc
       <td className="px-4 py-3">{isEditing ? <input value={form.raw_description} onChange={(event) => setForm({ ...form, raw_description: event.target.value })} className="w-full rounded-md border border-slate-700 bg-slate-950/70 px-2 py-1" /> : line.raw_description}</td>
       <td className="px-4 py-3">{isEditing ? <select value={form.validated_ingredient_id} onChange={(event) => setForm({ ...form, validated_ingredient_id: event.target.value })} className="rounded-md border border-slate-700 bg-slate-950/70 px-2 py-1"><option value="">Sin validar</option>{ingredients.map((ingredient) => <option key={ingredient.id} value={ingredient.id}>{ingredient.name}</option>)}</select> : (ingredientName ?? '—')}</td>
       <td className="px-4 py-3">{isEditing ? <input type="number" value={form.raw_quantity} onChange={(event) => setForm({ ...form, raw_quantity: event.target.value })} className="w-24 rounded-md border border-slate-700 bg-slate-950/70 px-2 py-1" /> : (line.raw_quantity ?? '—')}</td>
-      <td className="px-4 py-3">{isEditing ? <input value={form.raw_unit} onChange={(event) => setForm({ ...form, raw_unit: event.target.value })} className="w-24 rounded-md border border-slate-700 bg-slate-950/70 px-2 py-1" /> : (line.raw_unit ?? '—')}</td>
+      <td className="px-4 py-3">
+        {isEditing ? (
+          <select value={form.validated_unit} onChange={(event) => setForm({ ...form, validated_unit: event.target.value })} className="w-24 rounded-md border border-slate-700 bg-slate-950/70 px-2 py-1">
+            <option value="">—</option>
+            {PROCUREMENT_CANONICAL_UNITS.map((unit) => (
+              <option key={unit} value={unit}>
+                {unit}
+              </option>
+            ))}
+          </select>
+        ) : (
+          <div className="space-y-1">
+            <p>{line.validated_unit ?? '—'}</p>
+            <p className="text-xs text-slate-500">Original: {line.raw_unit ?? '—'}</p>
+          </div>
+        )}
+      </td>
       <td className="px-4 py-3">{isEditing ? <input type="number" value={form.raw_unit_price} onChange={(event) => setForm({ ...form, raw_unit_price: event.target.value })} className="w-24 rounded-md border border-slate-700 bg-slate-950/70 px-2 py-1" /> : (line.raw_unit_price ?? '—')}</td>
       <td className="px-4 py-3">{isEditing ? <input type="number" value={form.raw_line_total} onChange={(event) => setForm({ ...form, raw_line_total: event.target.value })} className="w-24 rounded-md border border-slate-700 bg-slate-950/70 px-2 py-1" /> : (line.raw_line_total ?? '—')}</td>
-      <td className="px-4 py-3">{isEditing ? <input value={form.warning_notes} onChange={(event) => setForm({ ...form, warning_notes: event.target.value })} className="w-full rounded-md border border-slate-700 bg-slate-950/70 px-2 py-1" /> : (line.warning_notes ?? '—')}</td>
+      <td className="px-4 py-3 text-xs text-slate-400">{line.warning_notes ?? '—'}</td>
+      <td className="px-4 py-3">{isEditing ? <input value={form.user_note} onChange={(event) => setForm({ ...form, user_note: event.target.value })} className="w-full rounded-md border border-slate-700 bg-slate-950/70 px-2 py-1" /> : (line.user_note ?? '—')}</td>
       <td className="px-4 py-3">{lineStatusLabel(line.line_status)}</td>
       <td className="px-4 py-3">
         {isDraft ? (

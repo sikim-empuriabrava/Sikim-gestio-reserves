@@ -7,6 +7,9 @@ export type ProcurementDocumentKind = (typeof PROCUREMENT_DOCUMENT_KINDS)[number
 export const PROCUREMENT_LINE_STATUSES = ['unresolved', 'resolved'] as const;
 export type ProcurementLineStatus = (typeof PROCUREMENT_LINE_STATUSES)[number];
 
+export const PROCUREMENT_CANONICAL_UNITS = ['ud', 'kg', 'g', 'l', 'ml', 'caja', 'pack'] as const;
+export type ProcurementCanonicalUnit = (typeof PROCUREMENT_CANONICAL_UNITS)[number];
+
 export const PROCUREMENT_SOURCE_FILE_BUCKET = 'cheffing-procurement-documents';
 export const PROCUREMENT_SOURCE_FILE_ACCEPTED_MIME_TYPES = ['application/pdf', 'image/jpeg', 'image/png', 'image/webp'] as const;
 
@@ -32,6 +35,17 @@ export function inferProcurementSourceFileKind(storagePath: string | null | unde
 export function normalizeProcurementText(value: string | null | undefined): string | null {
   const normalized = value?.trim().toLowerCase() ?? '';
   return normalized.length > 0 ? normalized : null;
+}
+
+export function normalizeProcurementCanonicalUnit(value: unknown): ProcurementCanonicalUnit | null | typeof Number.NaN {
+  if (value === null || value === undefined || value === '') return null;
+  if (typeof value !== 'string') return Number.NaN;
+  const normalized = value.trim().toLowerCase();
+  if (!normalized.length) return null;
+  if (PROCUREMENT_CANONICAL_UNITS.includes(normalized as ProcurementCanonicalUnit)) {
+    return normalized as ProcurementCanonicalUnit;
+  }
+  return Number.NaN;
 }
 
 export function documentStatusLabel(status: ProcurementDocumentStatus): string {
