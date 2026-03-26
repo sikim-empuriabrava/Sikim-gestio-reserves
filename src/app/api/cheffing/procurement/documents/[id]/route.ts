@@ -16,7 +16,7 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
   const supabase = createSupabaseAdminClient();
   const { data, error } = await supabase
     .from('cheffing_purchase_documents')
-    .select('id, supplier_id, document_kind, document_number, document_date, effective_at, status, validation_notes, applied_at, applied_by, created_at, updated_at, cheffing_suppliers(trade_name), cheffing_purchase_document_lines(id, line_number, raw_description, raw_quantity, raw_unit, raw_unit_price, raw_line_total, validated_ingredient_id, line_status, warning_notes, validated_ingredient:cheffing_ingredients!cheffing_purchase_document_lines_validated_ingredient_id_fkey(name))')
+    .select('id, supplier_id, document_kind, document_number, document_date, effective_at, status, validation_notes, declared_total, applied_at, applied_by, created_at, updated_at, cheffing_suppliers(trade_name), cheffing_purchase_document_lines(id, line_number, raw_description, raw_quantity, raw_unit, raw_unit_price, raw_line_total, validated_ingredient_id, line_status, warning_notes, validated_ingredient:cheffing_ingredients!cheffing_purchase_document_lines_validated_ingredient_id_fkey(name))')
     .eq('id', params.id)
     .maybeSingle();
 
@@ -36,7 +36,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   if (access.response) return access.response;
 
   const body = await req.json().catch(() => null);
-  const updates: Record<string, string | null> = {};
+  const updates: Record<string, string | number | null> = {};
 
   if (body?.document_kind !== undefined) {
     if (
@@ -91,6 +91,15 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
 
   if (body?.validation_notes !== undefined) {
     updates.validation_notes = typeof body.validation_notes === 'string' ? body.validation_notes.trim() || null : null;
+  }
+
+  if (body?.declared_total !== undefined) {
+    if (body.declared_total !== null && (typeof body.declared_total !== 'number' || Number.isNaN(body.declared_total) || body.declared_total < 0)) {
+      const response = NextResponse.json({ error: 'Invalid declared_total' }, { status: 400 });
+      mergeResponseCookies(access.supabaseResponse, response);
+      return response;
+    }
+    updates.declared_total = body.declared_total;
   }
 
   if (Object.keys(updates).length === 0) {
