@@ -16,7 +16,7 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
   const supabase = createSupabaseAdminClient();
   const { data, error } = await supabase
     .from('cheffing_purchase_documents')
-    .select('id, supplier_id, document_kind, document_number, document_date, effective_at, status, validation_notes, declared_total, applied_at, applied_by, created_at, updated_at, cheffing_suppliers(trade_name), cheffing_purchase_document_lines(id, line_number, raw_description, raw_quantity, raw_unit, raw_unit_price, raw_line_total, validated_ingredient_id, line_status, warning_notes, validated_ingredient:cheffing_ingredients!cheffing_purchase_document_lines_validated_ingredient_id_fkey(name))')
+    .select('id, supplier_id, document_kind, document_number, document_date, effective_at, status, validation_notes, declared_total, applied_at, applied_by, storage_bucket, storage_path, interpreted_payload, created_at, updated_at, cheffing_suppliers(trade_name), cheffing_purchase_document_lines(id, line_number, raw_description, raw_quantity, raw_unit, raw_unit_price, raw_line_total, validated_ingredient_id, line_status, warning_notes, validated_ingredient:cheffing_ingredients!cheffing_purchase_document_lines_validated_ingredient_id_fkey(name))')
     .eq('id', params.id)
     .maybeSingle();
 
@@ -26,7 +26,13 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
     return response;
   }
 
-  const response = NextResponse.json({ document: data });
+  let sourceFileUrl: string | null = null;
+  if (data.storage_bucket && data.storage_path) {
+    const { data: signedData, error: signedError } = await supabase.storage.from(data.storage_bucket).createSignedUrl(data.storage_path, 60 * 60);
+    if (!signedError) sourceFileUrl = signedData.signedUrl;
+  }
+
+  const response = NextResponse.json({ document: data, sourceFileUrl });
   mergeResponseCookies(access.supabaseResponse, response);
   return response;
 }

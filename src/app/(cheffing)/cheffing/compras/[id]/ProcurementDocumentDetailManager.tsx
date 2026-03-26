@@ -3,7 +3,14 @@
 import { useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 
-import { documentKindLabel, documentStatusLabel, lineStatusLabel, type ProcurementDocumentKind } from '@/lib/cheffing/procurement';
+import {
+  documentKindLabel,
+  documentStatusLabel,
+  inferProcurementSourceFileKind,
+  lineStatusLabel,
+  PROCUREMENT_SOURCE_FILE_ACCEPTED_MIME_TYPES,
+  type ProcurementDocumentKind,
+} from '@/lib/cheffing/procurement';
 
 type Ingredient = { id: string; name: string };
 type Supplier = { id: string; trade_name: string };
@@ -32,6 +39,9 @@ type Doc = {
   status: 'draft' | 'applied' | 'discarded';
   validation_notes: string | null;
   declared_total: number | null;
+  storage_bucket: string | null;
+  storage_path: string | null;
+  interpreted_payload: Record<string, unknown> | null;
   applied_at: string | null;
   applied_by: string | null;
   cheffing_purchase_document_lines: Line[] | null;
@@ -64,7 +74,17 @@ function parseNullableNumber(value: string): number | null {
   return Number.isNaN(parsed) ? null : parsed;
 }
 
-export function ProcurementDocumentDetailManager({ document, suppliers, ingredients }: { document: Doc; suppliers: Supplier[]; ingredients: Ingredient[] }) {
+export function ProcurementDocumentDetailManager({
+  document,
+  suppliers,
+  ingredients,
+  initialSourceFileUrl,
+}: {
+  document: Doc;
+  suppliers: Supplier[];
+  ingredients: Ingredient[];
+  initialSourceFileUrl: string | null;
+}) {
   const router = useRouter();
   const [header, setHeader] = useState({
     document_kind: document.document_kind,
@@ -77,6 +97,8 @@ export function ProcurementDocumentDetailManager({ document, suppliers, ingredie
   const [newLine, setNewLine] = useState(emptyLine);
   const [editingLineId, setEditingLineId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [sourceFileUrl, setSourceFileUrl] = useState<string | null>(initialSourceFileUrl);
+  const [fileToUpload, setFileToUpload] = useState<File | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const lines = document.cheffing_purchase_document_lines ?? [];
@@ -86,6 +108,7 @@ export function ProcurementDocumentDetailManager({ document, suppliers, ingredie
   const hasUnresolvedLines = lines.some((line) => line.line_status !== 'resolved');
   const hasLinesWithoutIngredient = lines.some((line) => !line.validated_ingredient_id);
   const hasLinesWithoutApplicableCost = lines.some((line) => line.raw_unit_price === null);
+  const sourceFileKind = inferProcurementSourceFileKind(document.storage_path);
 
   const hasUnsavedHeaderChanges =
     header.supplier_id !== (document.supplier_id ?? '') ||
@@ -96,7 +119,7 @@ export function ProcurementDocumentDetailManager({ document, suppliers, ingredie
     parseNullableNumber(header.declared_total) !== (document.declared_total ?? null);
 
   const readinessReasons = [
-    !header.supplier_id ? 'Falta proveedor en cabecera.' : null,
+    !header.supplier_id ? 'Falta proveedor confirmado en cabecera.' : null,
     !lines.length ? 'No hay líneas en el documento.' : null,
     hasUnresolvedLines ? 'Hay líneas pendientes de resolver.' : null,
     hasLinesWithoutIngredient ? 'Hay líneas sin ingrediente validado.' : null,
@@ -109,6 +132,19 @@ export function ProcurementDocumentDetailManager({ document, suppliers, ingredie
     () => suppliers.find((supplier) => supplier.id === header.supplier_id)?.trade_name ?? null,
     [header.supplier_id, suppliers],
   );
+
+  const detectedSupplier = useMemo(() => {
+    const supplier = document.interpreted_payload && typeof document.interpreted_payload === 'object' ? (document.interpreted_payload.supplier as Record<string, unknown> | undefined) : undefined;
+    if (!supplier || typeof supplier !== 'object') return null;
+
+    return {
+      name: typeof supplier.name === 'string' ? supplier.name : null,
+      taxId: typeof supplier.tax_id === 'string' ? supplier.tax_id : null,
+      email: typeof supplier.email === 'string' ? supplier.email : null,
+      phone: typeof supplier.phone === 'string' ? supplier.phone : null,
+      matchHint: typeof supplier.match_hint === 'string' ? supplier.match_hint : null,
+    };
+  }, [document.interpreted_payload]);
 
   async function saveHeader() {
     setError(null);
@@ -130,6 +166,37 @@ export function ProcurementDocumentDetailManager({ document, suppliers, ingredie
         const payload = await response.json().catch(() => ({}));
         throw new Error(payload?.error ?? 'No se pudo guardar cabecera');
       }
+      router.refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Error desconocido');
+    } finally {
+      setIsSubmitting(false);
+    }
+  }
+
+  async function uploadSourceFile() {
+    if (!fileToUpload) return;
+
+    setError(null);
+    setIsSubmitting(true);
+    try {
+      const formData = new FormData();
+      formData.set('file', fileToUpload);
+
+      const response = await fetch(`/api/cheffing/procurement/documents/${document.id}/source-file`, {
+        method: 'POST',
+        body: formData,
+      });
+
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(payload?.error ?? 'No se pudo subir el archivo original');
+      }
+
+      if (typeof payload.sourceFileUrl === 'string') {
+        setSourceFileUrl(payload.sourceFileUrl);
+      }
+      setFileToUpload(null);
       router.refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Error desconocido');
@@ -235,7 +302,6 @@ export function ProcurementDocumentDetailManager({ document, suppliers, ingredie
     }
   }
 
-
   async function discardDocument() {
     setError(null);
     setIsSubmitting(true);
@@ -307,9 +373,21 @@ export function ProcurementDocumentDetailManager({ document, suppliers, ingredie
 
         <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
           <div className="rounded-xl border border-slate-800 bg-slate-900/60 p-3 xl:col-span-2">
-            <p className="text-xs uppercase tracking-wide text-slate-400">Proveedor</p>
+            <p className="text-xs uppercase tracking-wide text-slate-400">Proveedor confirmado</p>
             <p className="mt-1 text-base font-semibold text-white">{supplierLabel ?? 'Sin proveedor asignado'}</p>
-            {!header.supplier_id ? <p className="mt-2 text-xs text-amber-300">⚠ Completa proveedor para dejar el documento listo para aplicar.</p> : null}
+            {!header.supplier_id ? <p className="mt-2 text-xs text-amber-300">⚠ Completa proveedor confirmado para dejar el documento listo para aplicar.</p> : null}
+          </div>
+          <div className="rounded-xl border border-dashed border-slate-700 bg-slate-900/30 p-3 xl:col-span-2">
+            <p className="text-xs uppercase tracking-wide text-slate-400">Proveedor detectado (scaffold OCR)</p>
+            {detectedSupplier ? (
+              <div className="mt-1 space-y-1 text-sm text-slate-200">
+                <p>{detectedSupplier.name ?? 'Sin nombre detectado'}</p>
+                <p className="text-xs text-slate-400">NIF/CIF: {detectedSupplier.taxId ?? '—'} · Email: {detectedSupplier.email ?? '—'} · Tel: {detectedSupplier.phone ?? '—'}</p>
+                <p className="text-xs text-slate-400">Match sugerido: {detectedSupplier.matchHint ?? 'Pendiente (sin OCR real en esta fase)'}</p>
+              </div>
+            ) : (
+              <p className="mt-1 text-sm text-slate-400">Sin datos detectados todavía. Este bloque queda preparado para OCR + matching futuro.</p>
+            )}
           </div>
           <HeaderDatum label="Tipo" value={documentKindLabel(header.document_kind)} />
           <HeaderDatum label="Número" value={header.document_number || '—'} />
@@ -335,19 +413,25 @@ export function ProcurementDocumentDetailManager({ document, suppliers, ingredie
             </div>
 
             <div className="grid gap-3 md:grid-cols-2">
-              <select disabled={!isDraft} value={header.supplier_id} onChange={(event) => setHeader({ ...header, supplier_id: event.target.value })} className="rounded-md border border-slate-700 bg-slate-950/70 px-3 py-2 text-white">
-                <option value="">Sense proveïdor</option>
-                {suppliers.map((supplier) => (
-                  <option key={supplier.id} value={supplier.id}>
-                    {supplier.trade_name}
-                  </option>
-                ))}
-              </select>
-              <select disabled={!isDraft} value={header.document_kind} onChange={(event) => setHeader({ ...header, document_kind: event.target.value as ProcurementDocumentKind })} className="rounded-md border border-slate-700 bg-slate-950/70 px-3 py-2 text-white">
-                <option value="invoice">Factura</option>
-                <option value="delivery_note">Albarán</option>
-                <option value="other">Otro</option>
-              </select>
+              <div className="space-y-1">
+                <label className="text-xs uppercase tracking-wide text-slate-400">Proveedor confirmado</label>
+                <select disabled={!isDraft} value={header.supplier_id} onChange={(event) => setHeader({ ...header, supplier_id: event.target.value })} className="w-full rounded-md border border-slate-700 bg-slate-950/70 px-3 py-2 text-white">
+                  <option value="">Sense proveïdor</option>
+                  {suppliers.map((supplier) => (
+                    <option key={supplier.id} value={supplier.id}>
+                      {supplier.trade_name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="space-y-1">
+                <label className="text-xs uppercase tracking-wide text-slate-400">Tipo de documento</label>
+                <select disabled={!isDraft} value={header.document_kind} onChange={(event) => setHeader({ ...header, document_kind: event.target.value as ProcurementDocumentKind })} className="w-full rounded-md border border-slate-700 bg-slate-950/70 px-3 py-2 text-white">
+                  <option value="invoice">Factura</option>
+                  <option value="delivery_note">Albarán</option>
+                  <option value="other">Otro</option>
+                </select>
+              </div>
               <input disabled={!isDraft} value={header.document_number} onChange={(event) => setHeader({ ...header, document_number: event.target.value })} placeholder="Número de documento" className="rounded-md border border-slate-700 bg-slate-950/70 px-3 py-2 text-white" />
               <input disabled={!isDraft} type="date" value={header.document_date} onChange={(event) => setHeader({ ...header, document_date: event.target.value })} className="rounded-md border border-slate-700 bg-slate-950/70 px-3 py-2 text-white" />
               <input disabled={!isDraft} type="number" step="0.01" min="0" value={header.declared_total} onChange={(event) => setHeader({ ...header, declared_total: event.target.value })} placeholder="Total declarado" className="rounded-md border border-slate-700 bg-slate-950/70 px-3 py-2 text-white" />
@@ -404,6 +488,56 @@ export function ProcurementDocumentDetailManager({ document, suppliers, ingredie
         </div>
 
         <aside className="space-y-4">
+          <section className="space-y-3 rounded-xl border border-slate-800 bg-slate-950/40 p-4">
+            <h3 className="text-sm font-semibold text-white">Documento original</h3>
+            <p className="text-xs text-slate-400">Sube imagen o PDF para revisión lado a lado con cabecera y líneas. No se procesa OCR en esta fase.</p>
+
+            {document.storage_path ? (
+              <p className="text-xs text-slate-500 break-all">{document.storage_path}</p>
+            ) : (
+              <p className="text-xs text-slate-500">Aún no hay archivo asociado.</p>
+            )}
+
+            {isDraft ? (
+              <div className="space-y-2">
+                <input
+                  type="file"
+                  accept="application/pdf,image/jpeg,image/png,image/webp"
+                  onChange={(event) => setFileToUpload(event.target.files?.[0] ?? null)}
+                  className="block w-full text-xs text-slate-300 file:mr-4 file:rounded-full file:border file:border-slate-700 file:bg-slate-900 file:px-3 file:py-1 file:text-slate-200"
+                />
+                <p className="text-[11px] text-slate-500">Tipos permitidos: {PROCUREMENT_SOURCE_FILE_ACCEPTED_MIME_TYPES.join(', ')}.</p>
+                <button
+                  type="button"
+                  disabled={!fileToUpload || isSubmitting}
+                  onClick={uploadSourceFile}
+                  className="w-full rounded-full border border-emerald-400/60 px-4 py-2 text-sm font-semibold text-emerald-200 disabled:cursor-not-allowed disabled:border-slate-700 disabled:text-slate-500"
+                >
+                  {document.storage_path ? 'Reemplazar archivo original' : 'Subir archivo original'}
+                </button>
+              </div>
+            ) : (
+              <p className="text-xs text-slate-500">Documento en solo lectura: no se permite reemplazar archivo fuera de draft.</p>
+            )}
+
+            {sourceFileUrl && sourceFileKind === 'image' ? (
+              <a href={sourceFileUrl} target="_blank" rel="noreferrer" className="block overflow-hidden rounded-lg border border-slate-700">
+                <img src={sourceFileUrl} alt="Documento original" className="max-h-[26rem] w-full object-contain bg-slate-950" />
+              </a>
+            ) : null}
+
+            {sourceFileUrl && sourceFileKind === 'pdf' ? (
+              <div className="space-y-2">
+                <iframe src={sourceFileUrl} title="Documento original PDF" className="h-[26rem] w-full rounded-lg border border-slate-700 bg-slate-950" />
+                <a href={sourceFileUrl} target="_blank" rel="noreferrer" className="text-xs text-emerald-300 underline">Abrir PDF en pestaña nueva</a>
+              </div>
+            ) : null}
+
+            {sourceFileUrl && sourceFileKind === 'unknown' ? (
+              <a href={sourceFileUrl} target="_blank" rel="noreferrer" className="text-xs text-emerald-300 underline">Abrir archivo original</a>
+            ) : null}
+          </section>
+
           <section className="space-y-3 rounded-xl border border-slate-800 bg-slate-950/40 p-4">
             <h3 className="text-sm font-semibold text-white">Resumen y readiness</h3>
             <dl className="space-y-2 text-sm">

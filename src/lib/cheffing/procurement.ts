@@ -7,6 +7,28 @@ export type ProcurementDocumentKind = (typeof PROCUREMENT_DOCUMENT_KINDS)[number
 export const PROCUREMENT_LINE_STATUSES = ['unresolved', 'resolved'] as const;
 export type ProcurementLineStatus = (typeof PROCUREMENT_LINE_STATUSES)[number];
 
+export const PROCUREMENT_SOURCE_FILE_BUCKET = 'cheffing-procurement-documents';
+export const PROCUREMENT_SOURCE_FILE_ACCEPTED_MIME_TYPES = ['application/pdf', 'image/jpeg', 'image/png', 'image/webp'] as const;
+
+const MIME_TO_EXTENSION: Record<(typeof PROCUREMENT_SOURCE_FILE_ACCEPTED_MIME_TYPES)[number], string> = {
+  'application/pdf': 'pdf',
+  'image/jpeg': 'jpg',
+  'image/png': 'png',
+  'image/webp': 'webp',
+};
+
+export function procurementMimeToExtension(mimeType: string): string | null {
+  return MIME_TO_EXTENSION[mimeType as keyof typeof MIME_TO_EXTENSION] ?? null;
+}
+
+export function inferProcurementSourceFileKind(storagePath: string | null | undefined): 'image' | 'pdf' | 'unknown' {
+  const path = storagePath?.toLowerCase() ?? '';
+  if (!path.length) return 'unknown';
+  if (path.endsWith('.pdf')) return 'pdf';
+  if (path.endsWith('.jpg') || path.endsWith('.jpeg') || path.endsWith('.png') || path.endsWith('.webp')) return 'image';
+  return 'unknown';
+}
+
 export function normalizeProcurementText(value: string | null | undefined): string | null {
   const normalized = value?.trim().toLowerCase() ?? '';
   return normalized.length > 0 ? normalized : null;
