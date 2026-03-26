@@ -57,6 +57,14 @@ const emptyLine = {
   warning_notes: '',
 };
 
+const emptySupplierForm = {
+  trade_name: '',
+  legal_name: '',
+  tax_id: '',
+  phone: '',
+  email: '',
+};
+
 function formatCurrency(value: number | null): string {
   if (value === null || Number.isNaN(value)) return '—';
   return new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR' }).format(value);
@@ -100,6 +108,8 @@ export function ProcurementDocumentDetailManager({
   const [sourceFileUrl, setSourceFileUrl] = useState<string | null>(initialSourceFileUrl);
   const [fileToUpload, setFileToUpload] = useState<File | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isCreatingSupplier, setIsCreatingSupplier] = useState(false);
+  const [newSupplierForm, setNewSupplierForm] = useState(emptySupplierForm);
 
   const lines = document.cheffing_purchase_document_lines ?? [];
   const isDraft = document.status === 'draft';
@@ -146,6 +156,35 @@ export function ProcurementDocumentDetailManager({
     };
   }, [document.interpreted_payload]);
 
+  const supplierPrefill = useMemo(() => {
+    const supplier = document.interpreted_payload && typeof document.interpreted_payload === 'object' ? (document.interpreted_payload.supplier as Record<string, unknown> | undefined) : undefined;
+    if (!supplier || typeof supplier !== 'object') return emptySupplierForm;
+
+    return {
+      trade_name:
+        typeof supplier.trade_name === 'string'
+          ? supplier.trade_name
+          : typeof supplier.name === 'string'
+            ? supplier.name
+            : '',
+      legal_name: typeof supplier.legal_name === 'string' ? supplier.legal_name : '',
+      tax_id: typeof supplier.tax_id === 'string' ? supplier.tax_id : '',
+      phone: typeof supplier.phone === 'string' ? supplier.phone : '',
+      email: typeof supplier.email === 'string' ? supplier.email : '',
+    };
+  }, [document.interpreted_payload]);
+
+  function openNewSupplierForm() {
+    setNewSupplierForm(supplierPrefill);
+    setIsCreatingSupplier(true);
+    setError(null);
+  }
+
+  function cancelNewSupplierForm() {
+    setIsCreatingSupplier(false);
+    setNewSupplierForm(emptySupplierForm);
+  }
+
   async function saveHeader() {
     setError(null);
     setIsSubmitting(true);
@@ -166,6 +205,60 @@ export function ProcurementDocumentDetailManager({
         const payload = await response.json().catch(() => ({}));
         throw new Error(payload?.error ?? 'No se pudo guardar cabecera');
       }
+      router.refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Error desconocido');
+    } finally {
+      setIsSubmitting(false);
+    }
+  }
+
+  async function createAndAssignSupplier() {
+    const tradeName = newSupplierForm.trade_name.trim();
+    if (!tradeName) {
+      setError('El nombre comercial (trade_name) es obligatorio.');
+      return;
+    }
+
+    setError(null);
+    setIsSubmitting(true);
+    try {
+      const createResponse = await fetch('/api/cheffing/procurement/suppliers', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          trade_name: tradeName,
+          legal_name: newSupplierForm.legal_name,
+          tax_id: newSupplierForm.tax_id,
+          phone: newSupplierForm.phone,
+          email: newSupplierForm.email,
+        }),
+      });
+
+      const createPayload = await createResponse.json().catch(() => ({}));
+      if (!createResponse.ok) {
+        throw new Error(createPayload?.error ?? 'No se pudo crear proveedor');
+      }
+
+      const newSupplierId = typeof createPayload?.id === 'string' ? createPayload.id : null;
+      if (!newSupplierId) {
+        throw new Error('No se recibió id del proveedor creado.');
+      }
+
+      const assignResponse = await fetch(`/api/cheffing/procurement/documents/${document.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ supplier_id: newSupplierId }),
+      });
+
+      const assignPayload = await assignResponse.json().catch(() => ({}));
+      if (!assignResponse.ok) {
+        throw new Error(assignPayload?.error ?? 'No se pudo asignar el proveedor al documento');
+      }
+
+      setHeader((current) => ({ ...current, supplier_id: newSupplierId }));
+      setIsCreatingSupplier(false);
+      setNewSupplierForm(emptySupplierForm);
       router.refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Error desconocido');
@@ -423,6 +516,59 @@ export function ProcurementDocumentDetailManager({
                     </option>
                   ))}
                 </select>
+                {isDraft ? (
+                  <div className="space-y-2">
+                    {!isCreatingSupplier ? (
+                      <button type="button" onClick={openNewSupplierForm} className="text-xs font-semibold text-emerald-300 underline decoration-dotted underline-offset-4">
+                        Crear nuevo proveedor
+                      </button>
+                    ) : (
+                      <div className="space-y-2 rounded-lg border border-slate-700 bg-slate-900/40 p-3">
+                        <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Nuevo proveedor</p>
+                        <div className="grid gap-2">
+                          <input
+                            value={newSupplierForm.trade_name}
+                            onChange={(event) => setNewSupplierForm((current) => ({ ...current, trade_name: event.target.value }))}
+                            placeholder="Nombre comercial *"
+                            className="rounded-md border border-slate-700 bg-slate-950/70 px-3 py-2 text-white"
+                          />
+                          <input
+                            value={newSupplierForm.legal_name}
+                            onChange={(event) => setNewSupplierForm((current) => ({ ...current, legal_name: event.target.value }))}
+                            placeholder="Razón social"
+                            className="rounded-md border border-slate-700 bg-slate-950/70 px-3 py-2 text-white"
+                          />
+                          <input
+                            value={newSupplierForm.tax_id}
+                            onChange={(event) => setNewSupplierForm((current) => ({ ...current, tax_id: event.target.value }))}
+                            placeholder="NIF/CIF"
+                            className="rounded-md border border-slate-700 bg-slate-950/70 px-3 py-2 text-white"
+                          />
+                          <input
+                            value={newSupplierForm.phone}
+                            onChange={(event) => setNewSupplierForm((current) => ({ ...current, phone: event.target.value }))}
+                            placeholder="Teléfono"
+                            className="rounded-md border border-slate-700 bg-slate-950/70 px-3 py-2 text-white"
+                          />
+                          <input
+                            value={newSupplierForm.email}
+                            onChange={(event) => setNewSupplierForm((current) => ({ ...current, email: event.target.value }))}
+                            placeholder="Email"
+                            className="rounded-md border border-slate-700 bg-slate-950/70 px-3 py-2 text-white"
+                          />
+                        </div>
+                        <div className="flex gap-2">
+                          <button type="button" onClick={createAndAssignSupplier} disabled={isSubmitting} className="rounded-full border border-emerald-400/60 px-3 py-1 text-xs font-semibold text-emerald-200">
+                            Guardar y asignar
+                          </button>
+                          <button type="button" onClick={cancelNewSupplierForm} disabled={isSubmitting} className="rounded-full border border-slate-700 px-3 py-1 text-xs text-slate-300">
+                            Cancelar
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                ) : null}
               </div>
               <div className="space-y-1">
                 <label className="text-xs uppercase tracking-wide text-slate-400">Tipo de documento</label>
