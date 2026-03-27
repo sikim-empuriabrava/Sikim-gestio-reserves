@@ -45,6 +45,7 @@ type Doc = {
   declared_total: number | null;
   storage_bucket: string | null;
   storage_path: string | null;
+  ocr_raw_text: string | null;
   interpreted_payload: Record<string, unknown> | null;
   applied_at: string | null;
   applied_by: string | null;
@@ -114,6 +115,8 @@ export function ProcurementDocumentDetailManager({
   const [fileToUpload, setFileToUpload] = useState<File | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isCreatingSupplier, setIsCreatingSupplier] = useState(false);
+  const [isProcessingOcr, setIsProcessingOcr] = useState(false);
+  const [ocrMessage, setOcrMessage] = useState<{ kind: 'success' | 'error'; text: string } | null>(null);
   const [newSupplierForm, setNewSupplierForm] = useState(emptySupplierForm);
 
   const lines = document.cheffing_purchase_document_lines ?? [];
@@ -149,7 +152,10 @@ export function ProcurementDocumentDetailManager({
   );
 
   const detectedSupplier = useMemo(() => {
-    const supplier = document.interpreted_payload && typeof document.interpreted_payload === 'object' ? (document.interpreted_payload.supplier as Record<string, unknown> | undefined) : undefined;
+    const supplier =
+      document.interpreted_payload && typeof document.interpreted_payload === 'object'
+        ? (document.interpreted_payload.supplier_detected as Record<string, unknown> | undefined)
+        : undefined;
     if (!supplier || typeof supplier !== 'object') return null;
 
     return {
@@ -162,7 +168,10 @@ export function ProcurementDocumentDetailManager({
   }, [document.interpreted_payload]);
 
   const supplierPrefill = useMemo(() => {
-    const supplier = document.interpreted_payload && typeof document.interpreted_payload === 'object' ? (document.interpreted_payload.supplier as Record<string, unknown> | undefined) : undefined;
+    const supplier =
+      document.interpreted_payload && typeof document.interpreted_payload === 'object'
+        ? (document.interpreted_payload.supplier_detected as Record<string, unknown> | undefined)
+        : undefined;
     if (!supplier || typeof supplier !== 'object') return emptySupplierForm;
 
     return {
@@ -458,6 +467,36 @@ export function ProcurementDocumentDetailManager({
     }
   }
 
+  async function processOcrWithMistral() {
+    setError(null);
+    setOcrMessage(null);
+    setIsProcessingOcr(true);
+    try {
+      const response = await fetch(`/api/cheffing/procurement/documents/${document.id}/ocr`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ allow_override_lines: false }),
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(payload?.error ?? 'No se pudo procesar OCR con Mistral');
+      }
+
+      const insertedLines = typeof payload?.inserted_lines === 'number' ? payload.inserted_lines : 0;
+      setOcrMessage({
+        kind: 'success',
+        text: `OCR procesado correctamente. Líneas sugeridas creadas: ${insertedLines}.`,
+      });
+      router.refresh();
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Error desconocido al procesar OCR';
+      setError(message);
+      setOcrMessage({ kind: 'error', text: message });
+    } finally {
+      setIsProcessingOcr(false);
+    }
+  }
+
   return (
     <div className="space-y-6">
       <header className="rounded-2xl border border-slate-800 bg-slate-950/40 p-5">
@@ -479,15 +518,15 @@ export function ProcurementDocumentDetailManager({
             {!header.supplier_id ? <p className="mt-2 text-xs text-amber-300">⚠ Completa proveedor confirmado para dejar el documento listo para aplicar.</p> : null}
           </div>
           <div className="rounded-xl border border-dashed border-slate-700 bg-slate-900/30 p-3 xl:col-span-2">
-            <p className="text-xs uppercase tracking-wide text-slate-400">Proveedor detectado (scaffold OCR)</p>
+            <p className="text-xs uppercase tracking-wide text-slate-400">Proveedor detectado (OCR Mistral)</p>
             {detectedSupplier ? (
               <div className="mt-1 space-y-1 text-sm text-slate-200">
                 <p>{detectedSupplier.name ?? 'Sin nombre detectado'}</p>
                 <p className="text-xs text-slate-400">NIF/CIF: {detectedSupplier.taxId ?? '—'} · Email: {detectedSupplier.email ?? '—'} · Tel: {detectedSupplier.phone ?? '—'}</p>
-                <p className="text-xs text-slate-400">Match sugerido: {detectedSupplier.matchHint ?? 'Pendiente (sin OCR real en esta fase)'}</p>
+                <p className="text-xs text-slate-400">Match sugerido: {detectedSupplier.matchHint ?? 'Sugerencia OCR sin confirmación automática'}</p>
               </div>
             ) : (
-              <p className="mt-1 text-sm text-slate-400">Sin datos detectados todavía. Este bloque queda preparado para OCR + matching futuro.</p>
+              <p className="mt-1 text-sm text-slate-400">Sin datos detectados todavía.</p>
             )}
           </div>
           <HeaderDatum label="Tipo" value={documentKindLabel(header.document_kind)} />
@@ -653,7 +692,7 @@ export function ProcurementDocumentDetailManager({
         <aside className="space-y-4">
           <section className="space-y-3 rounded-xl border border-slate-800 bg-slate-950/40 p-4">
             <h3 className="text-sm font-semibold text-white">Documento original</h3>
-            <p className="text-xs text-slate-400">Sube imagen o PDF para revisión lado a lado con cabecera y líneas. No se procesa OCR en esta fase.</p>
+            <p className="text-xs text-slate-400">Sube imagen o PDF para revisión lado a lado con cabecera y líneas.</p>
 
             {document.storage_path ? (
               <p className="text-xs text-slate-500 break-all">{document.storage_path}</p>
@@ -672,7 +711,7 @@ export function ProcurementDocumentDetailManager({
                 <p className="text-[11px] text-slate-500">Tipos permitidos: {PROCUREMENT_SOURCE_FILE_ACCEPTED_MIME_TYPES.join(', ')}.</p>
                 <button
                   type="button"
-                  disabled={!fileToUpload || isSubmitting}
+                  disabled={!fileToUpload || isSubmitting || isProcessingOcr}
                   onClick={uploadSourceFile}
                   className="w-full rounded-full border border-emerald-400/60 px-4 py-2 text-sm font-semibold text-emerald-200 disabled:cursor-not-allowed disabled:border-slate-700 disabled:text-slate-500"
                 >
@@ -682,6 +721,26 @@ export function ProcurementDocumentDetailManager({
             ) : (
               <p className="text-xs text-slate-500">Documento en solo lectura: no se permite reemplazar archivo fuera de draft.</p>
             )}
+
+            {isDraft && document.storage_path ? (
+              <button
+                type="button"
+                onClick={processOcrWithMistral}
+                disabled={isSubmitting || isProcessingOcr || linesCount > 0}
+                className="w-full rounded-full border border-sky-400/60 px-4 py-2 text-sm font-semibold text-sky-200 disabled:cursor-not-allowed disabled:border-slate-700 disabled:text-slate-500"
+                title={linesCount > 0 ? 'Bloqueado: el documento ya tiene líneas y no se permite re-ejecutar OCR en esta fase.' : undefined}
+              >
+                {isProcessingOcr ? 'Procesando OCR…' : 'Procesar OCR con Mistral'}
+              </button>
+            ) : null}
+            {isDraft && document.storage_path && linesCount > 0 ? (
+              <p className="text-xs text-amber-300">
+                OCR bloqueado en re-ejecución: este documento ya tiene líneas y no se sobrescribe trabajo manual sin confirmación fuerte.
+              </p>
+            ) : null}
+            {ocrMessage ? (
+              <p className={ocrMessage.kind === 'success' ? 'text-xs text-emerald-300' : 'text-xs text-rose-300'}>{ocrMessage.text}</p>
+            ) : null}
 
             {sourceFileUrl && sourceFileKind === 'image' ? (
               <a href={sourceFileUrl} target="_blank" rel="noreferrer" className="block overflow-hidden rounded-lg border border-slate-700">
@@ -732,7 +791,7 @@ export function ProcurementDocumentDetailManager({
               <button
                 type="button"
                 onClick={applyDocument}
-                disabled={!canApply || isSubmitting}
+                disabled={!canApply || isSubmitting || isProcessingOcr}
                 className="w-full rounded-full border border-emerald-400/60 px-4 py-2 text-sm font-semibold text-emerald-200 disabled:cursor-not-allowed disabled:border-slate-700 disabled:text-slate-500"
               >
                 Aplicar documento
@@ -740,13 +799,13 @@ export function ProcurementDocumentDetailManager({
             ) : null}
 
             {document.status === 'draft' ? (
-              <button type="button" onClick={discardDocument} disabled={isSubmitting} className="w-full rounded-full border border-amber-500/60 px-4 py-2 text-sm text-amber-200">
+              <button type="button" onClick={discardDocument} disabled={isSubmitting || isProcessingOcr} className="w-full rounded-full border border-amber-500/60 px-4 py-2 text-sm text-amber-200">
                 Descartar documento
               </button>
             ) : null}
 
             {document.status === 'draft' ? (
-              <button type="button" onClick={deleteDocumentPermanently} disabled={isSubmitting} className="w-full rounded-full border border-rose-500/60 px-4 py-2 text-sm text-rose-200">
+              <button type="button" onClick={deleteDocumentPermanently} disabled={isSubmitting || isProcessingOcr} className="w-full rounded-full border border-rose-500/60 px-4 py-2 text-sm text-rose-200">
                 Eliminar definitivo
               </button>
             ) : null}
