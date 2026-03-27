@@ -311,16 +311,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     .flat();
 
   const mergedRows = [...rowsFromTables, ...rowsFromMarkdown];
-  const uniqueRowsByDescription = new Map<string, Record<string, string>>();
-  for (const row of mergedRows) {
-    const description = pickFirstValue(row, ['descrip', 'producto', 'concept', 'item', 'article', 'artículo']) ?? pickFirstValue(row, ['column_1']);
-    if (!description) continue;
-    if (!uniqueRowsByDescription.has(description.toLowerCase())) {
-      uniqueRowsByDescription.set(description.toLowerCase(), row);
-    }
-  }
-
-  const linesDetected = deriveDetectedLines([...uniqueRowsByDescription.values()], ingredientCandidates ?? []);
+  const linesDetected = deriveDetectedLines(mergedRows, ingredientCandidates ?? []);
   const supplierDetected = detectSupplierFromText(rawText);
   const declaredTotalDetected = detectDeclaredTotal(rawText);
 
