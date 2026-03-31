@@ -42,6 +42,12 @@ type OcrLineDetected = {
     reason: string;
   } | null;
   source_confidence: number | null;
+  extraction_source: 'items' | 'table' | 'items+table';
+  extraction_hints: {
+    boxes_from?: 'items' | 'table';
+    units_from?: 'items' | 'table';
+    product_code_from?: 'items' | 'table';
+  } | null;
 };
 
 type AzureFieldValue = {
@@ -68,6 +74,11 @@ type AzureAnalyzeResult = {
   analyzeResult?: {
     content?: string;
     documents?: AzureAnalyzedDocument[];
+    keyValuePairs?: Array<{
+      key?: { content?: string };
+      value?: { content?: string };
+      confidence?: number;
+    }>;
     tables?: Array<{
       rowCount?: number;
       columnCount?: number;
@@ -107,6 +118,12 @@ function parseStrictTableInteger(value: string | null, min: number, max: number)
   if (!Number.isInteger(parsed)) return null;
   if (parsed < min || parsed > max) return null;
   return parsed;
+}
+
+function parseTaxId(value: string | null): string | null {
+  if (!value) return null;
+  const match = value.match(/\b([A-Z]\d{7}[A-Z0-9]|[A-Z0-9]{1,2}\d{6,10}[A-Z0-9])\b/i);
+  return match?.[1] ?? null;
 }
 
 function detectUnit(rawValue: string | null): ProcurementCanonicalUnit | null {
@@ -242,6 +259,12 @@ function deriveDetectedLinesFromItems(itemFields: AzureFieldValue[] | undefined,
         user_note: '',
         ingredient_match: ingredientMatch,
         source_confidence: sourceConfidence,
+        extraction_source: 'items',
+        extraction_hints: {
+          boxes_from: boxes !== null ? 'items' : undefined,
+          units_from: units !== null ? 'items' : undefined,
+          product_code_from: productCode ? 'items' : undefined,
+        },
       } satisfies OcrLineDetected;
     })
     .filter((entry): entry is OcrLineDetected => Boolean(entry))
@@ -255,30 +278,44 @@ function tableCellToText(content?: string): string {
 function parseTableRows(table: AzureTable): Array<Record<string, string>> {
   if (!table.cells?.length) return [];
 
-  const byRow = new Map<number, Map<number, string>>();
-  for (const cell of table.cells) {
-    if (typeof cell.rowIndex !== 'number' || typeof cell.columnIndex !== 'number') continue;
-    const row = byRow.get(cell.rowIndex) ?? new Map<number, string>();
-    const span = Math.max(1, cell.columnSpan ?? 1);
-    for (let offset = 0; offset < span; offset += 1) {
-      row.set(cell.columnIndex + offset, tableCellToText(cell.content));
+  const normalizedCells = table.cells
+    .filter((cell) => typeof cell.rowIndex === 'number' && typeof cell.columnIndex === 'number')
+    .map((cell) => ({
+      rowIndex: cell.rowIndex as number,
+      columnIndex: cell.columnIndex as number,
+      rowSpan: Math.max(1, cell.rowSpan ?? 1),
+      columnSpan: Math.max(1, cell.columnSpan ?? 1),
+      content: tableCellToText(cell.content),
+    }))
+    .sort((a, b) => (a.rowIndex - b.rowIndex) || (a.columnIndex - b.columnIndex));
+
+  if (normalizedCells.length === 0) return [];
+
+  const computedRowCount = table.rowCount ?? Math.max(...normalizedCells.map((cell) => cell.rowIndex + cell.rowSpan));
+  const computedColumnCount = table.columnCount ?? Math.max(...normalizedCells.map((cell) => cell.columnIndex + cell.columnSpan));
+
+  const grid: string[][] = Array.from({ length: computedRowCount }, () => Array.from({ length: computedColumnCount }, () => ''));
+  for (const cell of normalizedCells) {
+    for (let rowOffset = 0; rowOffset < cell.rowSpan; rowOffset += 1) {
+      for (let colOffset = 0; colOffset < cell.columnSpan; colOffset += 1) {
+        const row = cell.rowIndex + rowOffset;
+        const col = cell.columnIndex + colOffset;
+        if (row >= computedRowCount || col >= computedColumnCount) continue;
+        if (!grid[row][col]) grid[row][col] = cell.content;
+      }
     }
-    byRow.set(cell.rowIndex, row);
   }
 
-  const headerCells = (table.cells ?? [])
-    .filter((cell) => cell.rowIndex === 0 && typeof cell.columnIndex === 'number')
-    .sort((a, b) => (a.columnIndex ?? 0) - (b.columnIndex ?? 0));
+  const headerCells = normalizedCells.filter((cell) => cell.rowIndex === 0);
 
   if (headerCells.length === 0) return [];
 
-  const headerCount = table.columnCount ?? Math.max(...headerCells.map((cell) => (cell.columnIndex ?? 0) + Math.max(1, cell.columnSpan ?? 1)));
-  const headers: string[] = Array.from({ length: headerCount }, (_, idx) => `column_${idx + 1}`);
+  const headers: string[] = Array.from({ length: computedColumnCount }, (_, idx) => `column_${idx + 1}`);
 
   for (const cell of headerCells) {
-    const start = cell.columnIndex ?? 0;
-    const span = Math.max(1, cell.columnSpan ?? 1);
-    const normalizedHeader = normalizeProcurementText(tableCellToText(cell.content)) || `column_${start + 1}`;
+    const start = cell.columnIndex;
+    const span = cell.columnSpan;
+    const normalizedHeader = normalizeProcurementText(cell.content) || `column_${start + 1}`;
     for (let offset = 0; offset < span; offset += 1) {
       headers[start + offset] = normalizedHeader;
     }
@@ -292,13 +329,13 @@ function parseTableRows(table: AzureTable): Array<Record<string, string>> {
   });
 
   const out: Array<Record<string, string>> = [];
-  for (let rowIndex = 1; rowIndex < (table.rowCount ?? byRow.size); rowIndex += 1) {
-    const row = byRow.get(rowIndex);
-    if (!row) continue;
+  for (let rowIndex = 1; rowIndex < computedRowCount; rowIndex += 1) {
+    const row = grid[rowIndex];
+    if (!row || row.every((value) => !value.trim())) continue;
 
     const record: Record<string, string> = {};
     for (let col = 0; col < uniqueHeaders.length; col += 1) {
-      record[uniqueHeaders[col] || `column_${col + 1}`] = row.get(col) ?? '';
+      record[uniqueHeaders[col] || `column_${col + 1}`] = row[col] ?? '';
     }
     out.push(record);
   }
@@ -319,6 +356,58 @@ function pickStrictIntegerByAliases(record: Record<string, string>, aliases: str
     if (parsed !== null) return parsed;
   }
   return null;
+}
+
+function pickBestDescription(values: string[]): string | null {
+  const candidates = values
+    .map((value) => value.trim())
+    .filter((value) => value.length > 2)
+    .filter((value) => !looksLikeNoiseRow(value));
+  if (candidates.length === 0) return null;
+
+  return candidates
+    .map((value) => ({
+      value,
+      score: value.length + (/\d/.test(value) ? 2 : 0) - (/^[\d\s.,/-]+$/.test(value) ? 10 : 0),
+    }))
+    .sort((a, b) => b.score - a.score)[0]?.value ?? null;
+}
+
+function pickBestProductCode(values: string[]): string | null {
+  const candidates = values
+    .map((value) => value.trim())
+    .filter((value) => value.length > 0)
+    .filter((value) => /^[A-Z0-9][A-Z0-9\-/.]{1,24}$/i.test(value))
+    .sort((a, b) => a.length - b.length);
+  return candidates[0] ?? null;
+}
+
+function firstParsedNumber(values: string[]): number | null {
+  for (const value of values) {
+    const parsed = parseNumber(value);
+    if (parsed !== null) return parsed;
+  }
+  return null;
+}
+
+function findSupplierValueFromKvPairs(
+  pairs: NonNullable<NonNullable<AzureAnalyzeResult['analyzeResult']>['keyValuePairs']> | undefined,
+  aliases: string[],
+  sanitizer?: (value: string | null) => string | null,
+): { value: string | null; source: 'vendor_fields' | 'key_value_pairs' | 'none' } {
+  if (!Array.isArray(pairs)) return { value: null, source: 'none' };
+
+  for (const pair of pairs) {
+    const keyText = normalizeProcurementText(pair.key?.content ?? '');
+    if (!keyText) continue;
+    if (!aliases.some((alias) => keyText.includes(alias))) continue;
+
+    const rawValue = pair.value?.content?.trim() ?? null;
+    const normalized = sanitizer ? sanitizer(rawValue) : rawValue;
+    if (normalized) return { value: normalized, source: 'key_value_pairs' };
+  }
+
+  return { value: null, source: 'none' };
 }
 
 function isLikelyMainItemsTable(table: AzureTable): boolean {
@@ -343,22 +432,16 @@ function deriveDetectedLinesFromTables(tables: AzureTable[] | undefined, ingredi
 
   return rows
     .map((row) => {
-      const rawDescription = pickValuesByAliases(row, ['descripcio', 'descrip', 'producto', 'producte', 'item', 'article'])[0] ?? '';
-      const productCode = pickValuesByAliases(row, ['referencia', 'ref', 'codi', 'codigo', 'code'])[0] ?? null;
+      const rawDescriptionCandidates = pickValuesByAliases(row, ['descripcio', 'descrip', 'producto', 'producte', 'item', 'article']);
+      const rawDescription = pickBestDescription(rawDescriptionCandidates) ?? '';
+      const productCode = pickBestProductCode(pickValuesByAliases(row, ['referencia', 'ref', 'codi', 'codigo', 'code']));
       const rawBoxesValues = pickValuesByAliases(row, ['caixes', 'cajas']);
       const rawUnitsValues = pickValuesByAliases(row, ['ampolles', 'botellas']);
       const boxes = pickStrictIntegerByAliases(row, ['caixes', 'cajas'], 0, 200);
       const units = pickStrictIntegerByAliases(row, ['ampolles', 'botellas'], 0, 1000);
-      const quantity =
-        pickValuesByAliases(row, ['quantitat', 'cantidad', 'qty']).map((value) => parseNumber(value)).find((value) => value !== null) ??
-        boxes ??
-        units;
-      const rawUnitPrice = pickValuesByAliases(row, ['preu', 'precio', 'unitari', 'unitario'])
-        .map((value) => parseNumber(value))
-        .find((value) => value !== null) ?? null;
-      const rawLineTotal = pickValuesByAliases(row, ['import', 'importe', 'total'])
-        .map((value) => parseNumber(value))
-        .find((value) => value !== null) ?? null;
+      const quantity = firstParsedNumber(pickValuesByAliases(row, ['quantitat', 'cantidad', 'qty'])) ?? boxes ?? units;
+      const rawUnitPrice = firstParsedNumber(pickValuesByAliases(row, ['preu', 'precio', 'unitari', 'unitario']));
+      const rawLineTotal = firstParsedNumber(pickValuesByAliases(row, ['import', 'importe', 'total']));
 
       const line: OcrLineDetected = {
         raw_description: rawDescription,
@@ -374,6 +457,12 @@ function deriveDetectedLinesFromTables(tables: AzureTable[] | undefined, ingredi
         user_note: '',
         ingredient_match: null,
         source_confidence: null,
+        extraction_source: 'table',
+        extraction_hints: {
+          boxes_from: boxes !== null ? 'table' : undefined,
+          units_from: units !== null ? 'table' : undefined,
+          product_code_from: productCode ? 'table' : undefined,
+        },
       };
       const suspiciousSignals: string[] = [];
       if (rawBoxesValues.some((value) => parseStrictTableInteger(value, 0, 200) === null)) {
@@ -432,6 +521,12 @@ function enrichItemsWithTableQuantities(items: OcrLineDetected[], tableLines: Oc
       boxes: item.boxes ?? tableMatch.boxes,
       units: item.units ?? tableMatch.units,
       warning_notes: mergedWarnings,
+      extraction_source: (item.boxes === null && tableMatch.boxes !== null) || (item.units === null && tableMatch.units !== null) ? 'items+table' : item.extraction_source,
+      extraction_hints: {
+        boxes_from: item.boxes !== null ? 'items' : tableMatch.boxes !== null ? 'table' : item.extraction_hints?.boxes_from,
+        units_from: item.units !== null ? 'items' : tableMatch.units !== null ? 'table' : item.extraction_hints?.units_from,
+        product_code_from: item.product_code ? 'items' : tableMatch.product_code ? 'table' : item.extraction_hints?.product_code_from,
+      },
     };
   });
 }
@@ -518,7 +613,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   }
 
   const azureBase = azureEndpoint.replace(/\/+$/, '');
-  const analyzeUrl = `${azureBase}/documentintelligence/documentModels/${AZURE_MODEL_ID}:analyze?api-version=${AZURE_API_VERSION}`;
+  const analyzeUrl = `${azureBase}/documentintelligence/documentModels/${AZURE_MODEL_ID}:analyze?api-version=${AZURE_API_VERSION}&features=keyValuePairs`;
   const azureStartResponse = await fetch(analyzeUrl, {
     method: 'POST',
     headers: {
@@ -595,16 +690,34 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
 
   const firstDocument = analyzePayload.analyzeResult.documents?.[0];
   const fields = firstDocument?.fields ?? {};
+  const keyValuePairs = analyzePayload.analyzeResult.keyValuePairs;
   const rawText = analyzePayload.analyzeResult.content ?? '';
+
+  const kvEmail = findSupplierValueFromKvPairs(keyValuePairs, ['email', 'e-mail', 'mail', 'correu']);
+  const kvPhone = findSupplierValueFromKvPairs(keyValuePairs, ['tel', 'telefono', 'phone', 'tlf']);
+  const kvTaxId = findSupplierValueFromKvPairs(keyValuePairs, ['cif', 'nif', 'vat', 'tax id'], parseTaxId);
+
+  const vendorEmail = getFieldString(fields.VendorEmail);
+  const vendorPhone = getFieldString(fields.VendorPhoneNumber);
+  const vendorTaxIdRaw = getFieldString(fields.VendorTaxId);
+  const vendorTaxId = vendorTaxIdRaw ? parseTaxId(vendorTaxIdRaw) ?? vendorTaxIdRaw : null;
+
+  const supplierTrace = {
+    email_source: (vendorEmail ? 'vendor_fields' : kvEmail.source) as 'vendor_fields' | 'key_value_pairs' | 'none',
+    phone_source: (vendorPhone ? 'vendor_fields' : kvPhone.source) as 'vendor_fields' | 'key_value_pairs' | 'none',
+    tax_id_source: (vendorTaxId ? 'vendor_fields' : kvTaxId.source) as 'vendor_fields' | 'key_value_pairs' | 'none',
+  };
 
   const supplierDetected = {
     name: getFieldString(fields.VendorName),
     trade_name: getFieldString(fields.VendorName),
     legal_name: getFieldString(fields.VendorName),
-    tax_id: getFieldString(fields.VendorTaxId),
-    email: getFieldString(fields.VendorEmail),
-    phone: getFieldString(fields.VendorPhoneNumber),
-    match_hint: 'Sugerencia OCR: confirmar manualmente antes de asignar proveedor.',
+    tax_id: vendorTaxId ?? kvTaxId.value,
+    email: vendorEmail ?? kvEmail.value,
+    phone: vendorPhone ?? kvPhone.value,
+    match_hint:
+      'Sugerencia OCR: confirmar manualmente antes de asignar proveedor. ' +
+      `Fuentes proveedor -> email:${supplierTrace.email_source}, phone:${supplierTrace.phone_source}, tax_id:${supplierTrace.tax_id_source}.`,
   } satisfies OcrSupplierDetected;
 
   const linesFromItems = deriveDetectedLinesFromItems(fields.Items?.valueArray, ingredientCandidates ?? []);
@@ -629,6 +742,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       source: 'signed_url',
       processed_at: new Date().toISOString(),
       rerun_blocked_if_lines_exist: true as const,
+      supplier_trace: supplierTrace,
     },
   };
 
