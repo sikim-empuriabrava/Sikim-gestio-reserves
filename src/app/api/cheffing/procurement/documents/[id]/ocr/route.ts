@@ -74,6 +74,8 @@ type AzureAnalyzeResult = {
       cells?: Array<{
         rowIndex?: number;
         columnIndex?: number;
+        columnSpan?: number;
+        rowSpan?: number;
         content?: string;
       }>;
     }>;
@@ -257,16 +259,29 @@ function parseTableRows(table: AzureTable): Array<Record<string, string>> {
   for (const cell of table.cells) {
     if (typeof cell.rowIndex !== 'number' || typeof cell.columnIndex !== 'number') continue;
     const row = byRow.get(cell.rowIndex) ?? new Map<number, string>();
-    row.set(cell.columnIndex, tableCellToText(cell.content));
+    const span = Math.max(1, cell.columnSpan ?? 1);
+    for (let offset = 0; offset < span; offset += 1) {
+      row.set(cell.columnIndex + offset, tableCellToText(cell.content));
+    }
     byRow.set(cell.rowIndex, row);
   }
 
-  const headerRow = byRow.get(0);
-  if (!headerRow) return [];
+  const headerCells = (table.cells ?? [])
+    .filter((cell) => cell.rowIndex === 0 && typeof cell.columnIndex === 'number')
+    .sort((a, b) => (a.columnIndex ?? 0) - (b.columnIndex ?? 0));
 
-  const headers: string[] = [];
-  for (let col = 0; col < (table.columnCount ?? 0); col += 1) {
-    headers.push(normalizeProcurementText(headerRow.get(col) ?? `column_${col + 1}`));
+  if (headerCells.length === 0) return [];
+
+  const headerCount = table.columnCount ?? Math.max(...headerCells.map((cell) => (cell.columnIndex ?? 0) + Math.max(1, cell.columnSpan ?? 1)));
+  const headers: string[] = Array.from({ length: headerCount }, (_, idx) => `column_${idx + 1}`);
+
+  for (const cell of headerCells) {
+    const start = cell.columnIndex ?? 0;
+    const span = Math.max(1, cell.columnSpan ?? 1);
+    const normalizedHeader = normalizeProcurementText(tableCellToText(cell.content)) || `column_${start + 1}`;
+    for (let offset = 0; offset < span; offset += 1) {
+      headers[start + offset] = normalizedHeader;
+    }
   }
 
   const out: Array<Record<string, string>> = [];
