@@ -10,8 +10,8 @@ export const dynamic = 'force-dynamic';
 
 const AZURE_API_VERSION = '2024-11-30';
 const AZURE_MODEL_ID = 'prebuilt-invoice';
-const AZURE_POLL_INTERVAL_MS = 1500;
-const AZURE_POLL_TIMEOUT_MS = 90_000;
+const DEFAULT_AZURE_POLL_INTERVAL_MS = 1500;
+const DEFAULT_AZURE_POLL_TIMEOUT_MS = 90_000;
 
 type OcrSupplierDetected = {
   name: string | null;
@@ -174,48 +174,41 @@ function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-function hasStrongProductSignal(line: Pick<OcrLineDetected, 'product_code' | 'raw_quantity' | 'raw_unit_price' | 'raw_line_total'>): boolean {
-  return Boolean(line.product_code || line.raw_quantity || line.raw_unit_price || line.raw_line_total);
+function parsePositiveIntEnv(value: string | undefined, fallback: number, min: number): number {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) return fallback;
+  return Math.max(min, Math.floor(parsed));
 }
 
 function looksLikeNoiseRow(description: string): boolean {
   const normalized = normalizeProcurementText(description);
   if (!normalized || normalized.length < 2) return true;
 
-  const blockedTokens = [
-    'ramon bilbao',
-    'lolea',
-    'mediterranean aperitif',
-    'vins i licors grau',
-    'recargo',
-    'importe total punto verde',
-  ];
-  if (blockedTokens.some((token) => normalized.includes(token))) return true;
-
-  if (/^(pagina|page|subtotal|total|base imponible|iva|descuento|albaran|factura)\b/i.test(description.trim())) return true;
+  if (/^(pagina|page|subtotal|total|base imponible|iva|descuento|albaran|factura|observaciones|notes?)\b/i.test(description.trim())) return true;
+  if (/^(banco|iban|swift|bic|vencimiento|forma de pago|metodo de pago)\b/i.test(normalized)) return true;
+  if (normalized.includes('registro mercantil') || normalized.includes('punto verde')) return true;
   if (normalized.includes('www.') || normalized.includes('http')) return true;
 
   return false;
 }
 
 function isUsefulProductLine(line: OcrLineDetected): boolean {
-  const hasDescription = line.raw_description.trim().length > 2;
+  const hasDescription = line.raw_description.trim().length > 1;
   if (!hasDescription) return false;
   if (looksLikeNoiseRow(line.raw_description)) return false;
-  return hasStrongProductSignal(line);
+  return true;
 }
 
 function deriveDetectedLinesFromItems(itemFields: AzureFieldValue[] | undefined, ingredientCandidates: { id: string; name: string }[]): OcrLineDetected[] {
   if (!Array.isArray(itemFields)) return [];
 
-  return itemFields
-    .map((item) => {
+  const parsedLines: OcrLineDetected[] = itemFields.flatMap((item) => {
       const record = item.valueObject;
-      if (!record) return null;
+      if (!record) return [];
 
       const rawDescription =
         getFieldString(record.Description) ?? getFieldString(record.ProductCode) ?? getFieldString(record.ItemCode) ?? '';
-      if (!rawDescription.trim()) return null;
+      if (!rawDescription.trim()) return [];
 
       const rawQuantity = getFieldNumber(record.Quantity);
       const rawUnit = getFieldString(record.Unit);
@@ -245,7 +238,7 @@ function deriveDetectedLinesFromItems(itemFields: AzureFieldValue[] | undefined,
       if (!validatedUnit && rawUnit) warnings.push(`Unidad OCR sin mapear a canónica: "${rawUnit}".`);
       if (exactMatches.length > 1) warnings.push('Coincidencia de ingrediente ambigua: varias opciones posibles.');
 
-      return {
+      const line = {
         raw_description: rawDescription,
         boxes,
         units,
@@ -266,9 +259,10 @@ function deriveDetectedLinesFromItems(itemFields: AzureFieldValue[] | undefined,
           product_code_from: productCode ? 'items' : undefined,
         },
       } satisfies OcrLineDetected;
-    })
-    .filter((entry): entry is OcrLineDetected => Boolean(entry))
-    .filter(isUsefulProductLine);
+      return [line];
+    });
+
+  return parsedLines.filter(isUsefulProductLine);
 }
 
 function tableCellToText(content?: string): string {
@@ -396,10 +390,14 @@ function findSupplierValueFromKvPairs(
   sanitizer?: (value: string | null) => string | null,
 ): { value: string | null; source: 'vendor_fields' | 'key_value_pairs' | 'none' } {
   if (!Array.isArray(pairs)) return { value: null, source: 'none' };
+  const supplierContextTokens = ['proveedor', 'vendor', 'supplier', 'emisor', 'seller', 'expedidor'];
+  const ambiguousContextTokens = ['cliente', 'customer', 'buyer', 'comprador', 'billing', 'bill to', 'ship to', 'delivery', 'destinatario'];
 
   for (const pair of pairs) {
     const keyText = normalizeProcurementText(pair.key?.content ?? '');
     if (!keyText) continue;
+    if (!supplierContextTokens.some((token) => keyText.includes(token))) continue;
+    if (ambiguousContextTokens.some((token) => keyText.includes(token))) continue;
     if (!aliases.some((alias) => keyText.includes(alias))) continue;
 
     const rawValue = pair.value?.content?.trim() ?? null;
@@ -414,12 +412,20 @@ function isLikelyMainItemsTable(table: AzureTable): boolean {
   const firstRowHeaders = (table.cells ?? [])
     .filter((cell) => cell.rowIndex === 0)
     .map((cell) => normalizeProcurementText(cell.content ?? ''))
-    .filter(Boolean);
+    .filter((header): header is string => typeof header === 'string' && header.length > 0);
   if (firstRowHeaders.length === 0) return false;
 
-  const targetHeaders = ['caixes', 'ampolles', 'descripcio', 'referencia', 'preu', 'import'];
-  const matches = targetHeaders.filter((target) => firstRowHeaders.some((header) => header.includes(target)));
-  return matches.length >= 2;
+  const groups = [
+    ['descripcio', 'descripcion', 'desc', 'item', 'article', 'product'],
+    ['quantitat', 'cantidad', 'qty', 'quantity'],
+    ['preu', 'precio', 'unitari', 'unitario', 'unit price'],
+    ['import', 'importe', 'total', 'amount'],
+    ['referencia', 'codigo', 'codi', 'code', 'sku', 'ref'],
+    ['caixes', 'cajas', 'boxes'],
+    ['ampolles', 'botellas', 'units'],
+  ];
+  const matchedGroups = groups.filter((group) => group.some((target) => firstRowHeaders.some((header) => header.includes(target))));
+  return matchedGroups.length >= 2;
 }
 
 function deriveDetectedLinesFromTables(tables: AzureTable[] | undefined, ingredientCandidates: { id: string; name: string }[]): OcrLineDetected[] {
@@ -504,22 +510,28 @@ function matchKeysFromLine(line: Pick<OcrLineDetected, 'raw_description' | 'prod
 }
 
 function enrichItemsWithTableQuantities(items: OcrLineDetected[], tableLines: OcrLineDetected[]): OcrLineDetected[] {
-  if (items.length === 0 || tableLines.length === 0) return items;
+  if (items.length === 0) return tableLines;
+  if (tableLines.length === 0) return items;
 
-  const tableByKey = new Map<string, OcrLineDetected>();
-  for (const line of tableLines) {
+  const tableByKey = new Map<string, { index: number; line: OcrLineDetected }>();
+  for (const [index, line] of tableLines.entries()) {
     const keys = matchKeysFromLine(line);
     for (const key of keys) {
       if (tableByKey.has(key)) continue;
-      tableByKey.set(key, line);
+      tableByKey.set(key, { index, line });
     }
   }
 
-  return items.map((item) => {
+  const matchedTableIndexes = new Set<number>();
+  const mergedItems = items.map((item) => {
     const lookupKeys = matchKeysFromLine(item);
     if (lookupKeys.length === 0) return item;
-    const tableMatch = lookupKeys.map((key) => tableByKey.get(key)).find((entry): entry is OcrLineDetected => Boolean(entry));
-    if (!tableMatch) return item;
+    const tableMatchEntry = lookupKeys
+      .map((key) => tableByKey.get(key))
+      .find((entry): entry is { index: number; line: OcrLineDetected } => Boolean(entry));
+    if (!tableMatchEntry) return item;
+    matchedTableIndexes.add(tableMatchEntry.index);
+    const tableMatch = tableMatchEntry.line;
 
     const mergedWarnings = [item.warning_notes, tableMatch.warning_notes].filter(Boolean).join(' ') || null;
     const didFillBoxes = item.boxes === null && tableMatch.boxes !== null;
@@ -539,6 +551,9 @@ function enrichItemsWithTableQuantities(items: OcrLineDetected[], tableLines: Oc
       },
     };
   });
+
+  const unmatchedTableLines = tableLines.filter((_, index) => !matchedTableIndexes.has(index));
+  return [...mergedItems, ...unmatchedTableLines];
 }
 
 function mapDocumentKind(docType?: string): 'invoice' | 'delivery_note' | 'other' {
@@ -555,6 +570,16 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
 
   const azureEndpoint = process.env.AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT?.trim();
   const azureKey = process.env.AZURE_DOCUMENT_INTELLIGENCE_KEY?.trim();
+  const azurePollIntervalMs = parsePositiveIntEnv(
+    process.env.AZURE_DOCUMENT_INTELLIGENCE_POLL_INTERVAL_MS,
+    DEFAULT_AZURE_POLL_INTERVAL_MS,
+    250,
+  );
+  const azurePollTimeoutMs = parsePositiveIntEnv(
+    process.env.AZURE_DOCUMENT_INTELLIGENCE_POLL_TIMEOUT_MS,
+    DEFAULT_AZURE_POLL_TIMEOUT_MS,
+    5_000,
+  );
   if (!azureEndpoint || !azureKey) {
     const response = NextResponse.json(
       { error: 'Missing server env AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT or AZURE_DOCUMENT_INTELLIGENCE_KEY' },
@@ -656,9 +681,11 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
 
   const pollStartedAt = Date.now();
   let analyzePayload: AzureAnalyzeResult | null = null;
+  let nextPollDelayMs = azurePollIntervalMs;
 
-  while (Date.now() - pollStartedAt < AZURE_POLL_TIMEOUT_MS) {
-    await sleep(AZURE_POLL_INTERVAL_MS);
+  while (Date.now() - pollStartedAt < azurePollTimeoutMs) {
+    await sleep(nextPollDelayMs);
+    nextPollDelayMs = azurePollIntervalMs;
     const pollResponse = await fetch(operationLocation, {
       method: 'GET',
       headers: {
@@ -668,6 +695,14 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
 
     const payload = (await pollResponse.json().catch(() => null)) as AzureAnalyzeResult | null;
     if (!pollResponse.ok) {
+      if (pollResponse.status === 429 || pollResponse.status >= 500) {
+        const retryAfterHeader = pollResponse.headers.get('Retry-After');
+        const retryAfterSeconds = retryAfterHeader ? Number(retryAfterHeader) : Number.NaN;
+        if (Number.isFinite(retryAfterSeconds) && retryAfterSeconds > 0) {
+          nextPollDelayMs = Math.max(azurePollIntervalMs, retryAfterSeconds * 1000);
+        }
+        continue;
+      }
       const azureError = toRecord(payload);
       const message =
         (typeof azureError?.message === 'string' && azureError.message) ||
