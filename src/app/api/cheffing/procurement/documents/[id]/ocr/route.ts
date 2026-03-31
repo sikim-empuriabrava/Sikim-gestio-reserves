@@ -499,14 +499,27 @@ function matchKeyFromLine(line: Pick<OcrLineDetected, 'raw_description' | 'produ
   return `desc:${normalizedDescription.slice(0, 48)}`;
 }
 
+function matchKeysFromLine(line: Pick<OcrLineDetected, 'raw_description' | 'product_code'>): string[] {
+  const keys: string[] = [];
+  if (line.product_code) {
+    const normalizedCode = normalizeProcurementText(line.product_code);
+    if (normalizedCode) keys.push(`code:${normalizedCode}`);
+  }
+  const normalizedDescription = normalizeProcurementText(line.raw_description);
+  if (normalizedDescription) keys.push(`desc:${normalizedDescription.slice(0, 48)}`);
+  return keys;
+}
+
 function enrichItemsWithTableQuantities(items: OcrLineDetected[], tableLines: OcrLineDetected[]): OcrLineDetected[] {
   if (items.length === 0 || tableLines.length === 0) return items;
 
   const tableByKey = new Map<string, OcrLineDetected>();
   for (const line of tableLines) {
-    const key = matchKeyFromLine(line);
-    if (!key || tableByKey.has(key)) continue;
-    tableByKey.set(key, line);
+    const keys = matchKeysFromLine(line);
+    for (const key of keys) {
+      if (tableByKey.has(key)) continue;
+      tableByKey.set(key, line);
+    }
   }
 
   return items.map((item) => {
