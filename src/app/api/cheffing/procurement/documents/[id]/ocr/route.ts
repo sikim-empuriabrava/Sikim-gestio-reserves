@@ -492,13 +492,6 @@ function deriveDetectedLinesFromTables(tables: AzureTable[] | undefined, ingredi
     .filter(isUsefulProductLine);
 }
 
-function matchKeyFromLine(line: Pick<OcrLineDetected, 'raw_description' | 'product_code'>): string | null {
-  if (line.product_code) return `code:${normalizeProcurementText(line.product_code)}`;
-  const normalizedDescription = normalizeProcurementText(line.raw_description);
-  if (!normalizedDescription) return null;
-  return `desc:${normalizedDescription.slice(0, 48)}`;
-}
-
 function matchKeysFromLine(line: Pick<OcrLineDetected, 'raw_description' | 'product_code'>): string[] {
   const keys: string[] = [];
   if (line.product_code) {
@@ -523,9 +516,9 @@ function enrichItemsWithTableQuantities(items: OcrLineDetected[], tableLines: Oc
   }
 
   return items.map((item) => {
-    const key = matchKeyFromLine(item);
-    if (!key) return item;
-    const tableMatch = tableByKey.get(key);
+    const lookupKeys = matchKeysFromLine(item);
+    if (lookupKeys.length === 0) return item;
+    const tableMatch = lookupKeys.map((key) => tableByKey.get(key)).find((entry): entry is OcrLineDetected => Boolean(entry));
     if (!tableMatch) return item;
 
     const mergedWarnings = [item.warning_notes, tableMatch.warning_notes].filter(Boolean).join(' ') || null;
