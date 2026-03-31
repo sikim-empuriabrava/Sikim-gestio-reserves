@@ -68,12 +68,23 @@ type AzureAnalyzeResult = {
   analyzeResult?: {
     content?: string;
     documents?: AzureAnalyzedDocument[];
+    tables?: Array<{
+      rowCount?: number;
+      columnCount?: number;
+      cells?: Array<{
+        rowIndex?: number;
+        columnIndex?: number;
+        content?: string;
+      }>;
+    }>;
   };
   error?: {
     code?: string;
     message?: string;
   };
 };
+
+type AzureTable = NonNullable<NonNullable<AzureAnalyzeResult['analyzeResult']>['tables']>[number];
 
 function parseNumber(value: string | number | null | undefined): number | null {
   if (typeof value === 'number') return Number.isFinite(value) ? value : null;
@@ -132,7 +143,38 @@ function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-function deriveDetectedLines(itemFields: AzureFieldValue[] | undefined, ingredientCandidates: { id: string; name: string }[]): OcrLineDetected[] {
+function hasStrongProductSignal(line: Pick<OcrLineDetected, 'product_code' | 'raw_quantity' | 'raw_unit_price' | 'raw_line_total'>): boolean {
+  return Boolean(line.product_code || line.raw_quantity || line.raw_unit_price || line.raw_line_total);
+}
+
+function looksLikeNoiseRow(description: string): boolean {
+  const normalized = normalizeProcurementText(description);
+  if (!normalized || normalized.length < 2) return true;
+
+  const blockedTokens = [
+    'ramon bilbao',
+    'lolea',
+    'mediterranean aperitif',
+    'vins i licors grau',
+    'recargo',
+    'importe total punto verde',
+  ];
+  if (blockedTokens.some((token) => normalized.includes(token))) return true;
+
+  if (/^(pagina|page|subtotal|total|base imponible|iva|descuento|albaran|factura)\b/i.test(description.trim())) return true;
+  if (normalized.includes('www.') || normalized.includes('http')) return true;
+
+  return false;
+}
+
+function isUsefulProductLine(line: OcrLineDetected): boolean {
+  const hasDescription = line.raw_description.trim().length > 2;
+  if (!hasDescription) return false;
+  if (looksLikeNoiseRow(line.raw_description)) return false;
+  return hasStrongProductSignal(line);
+}
+
+function deriveDetectedLinesFromItems(itemFields: AzureFieldValue[] | undefined, ingredientCandidates: { id: string; name: string }[]): OcrLineDetected[] {
   if (!Array.isArray(itemFields)) return [];
 
   return itemFields
@@ -149,6 +191,8 @@ function deriveDetectedLines(itemFields: AzureFieldValue[] | undefined, ingredie
       const rawUnitPrice = getFieldNumber(record.UnitPrice);
       const rawLineTotal = getFieldNumber(record.Amount);
       const productCode = getFieldString(record.ProductCode) ?? getFieldString(record.ItemCode);
+      const boxes = getFieldNumber(record.Caixes);
+      const units = getFieldNumber(record.Ampolles);
       const validatedUnit = detectUnit(rawUnit);
       const sourceConfidence = typeof item.confidence === 'number' ? item.confidence : null;
 
@@ -172,8 +216,8 @@ function deriveDetectedLines(itemFields: AzureFieldValue[] | undefined, ingredie
 
       return {
         raw_description: rawDescription,
-        boxes: null,
-        units: null,
+        boxes,
+        units,
         raw_quantity: rawQuantity,
         raw_unit: rawUnit,
         raw_unit_price: rawUnitPrice,
@@ -186,7 +230,117 @@ function deriveDetectedLines(itemFields: AzureFieldValue[] | undefined, ingredie
         source_confidence: sourceConfidence,
       } satisfies OcrLineDetected;
     })
-    .filter((entry): entry is OcrLineDetected => Boolean(entry));
+    .filter((entry): entry is OcrLineDetected => Boolean(entry))
+    .filter(isUsefulProductLine);
+}
+
+function tableCellToText(content?: string): string {
+  return (content ?? '').trim();
+}
+
+function parseTableRows(table: AzureTable): Array<Record<string, string>> {
+  if (!table.cells?.length) return [];
+
+  const byRow = new Map<number, Map<number, string>>();
+  for (const cell of table.cells) {
+    if (typeof cell.rowIndex !== 'number' || typeof cell.columnIndex !== 'number') continue;
+    const row = byRow.get(cell.rowIndex) ?? new Map<number, string>();
+    row.set(cell.columnIndex, tableCellToText(cell.content));
+    byRow.set(cell.rowIndex, row);
+  }
+
+  const headerRow = byRow.get(0);
+  if (!headerRow) return [];
+
+  const headers: string[] = [];
+  for (let col = 0; col < (table.columnCount ?? 0); col += 1) {
+    headers.push(normalizeProcurementText(headerRow.get(col) ?? `column_${col + 1}`));
+  }
+
+  const out: Array<Record<string, string>> = [];
+  for (let rowIndex = 1; rowIndex < (table.rowCount ?? byRow.size); rowIndex += 1) {
+    const row = byRow.get(rowIndex);
+    if (!row) continue;
+
+    const record: Record<string, string> = {};
+    for (let col = 0; col < headers.length; col += 1) {
+      record[headers[col] || `column_${col + 1}`] = row.get(col) ?? '';
+    }
+    out.push(record);
+  }
+  return out;
+}
+
+function pickByAliases(record: Record<string, string>, aliases: string[]): string | null {
+  const key = Object.keys(record).find((entry) => aliases.some((alias) => entry.includes(alias)));
+  if (!key) return null;
+  const value = record[key]?.trim();
+  return value?.length ? value : null;
+}
+
+function isLikelyMainItemsTable(table: AzureTable): boolean {
+  const firstRowHeaders = (table.cells ?? [])
+    .filter((cell) => cell.rowIndex === 0)
+    .map((cell) => normalizeProcurementText(cell.content ?? ''))
+    .filter(Boolean);
+  if (firstRowHeaders.length === 0) return false;
+
+  const targetHeaders = ['caixes', 'ampolles', 'descripcio', 'referencia', 'preu', 'import'];
+  const matches = targetHeaders.filter((target) => firstRowHeaders.some((header) => header.includes(target)));
+  return matches.length >= 2;
+}
+
+function deriveDetectedLinesFromTables(tables: AzureTable[] | undefined, ingredientCandidates: { id: string; name: string }[]): OcrLineDetected[] {
+  if (!Array.isArray(tables)) return [];
+
+  const candidateTables = tables.filter(isLikelyMainItemsTable);
+  if (candidateTables.length === 0) return [];
+
+  const rows = candidateTables.flatMap(parseTableRows);
+
+  return rows
+    .map((row) => {
+      const rawDescription = pickByAliases(row, ['descripcio', 'descrip', 'producto', 'producte', 'item', 'article']) ?? '';
+      const productCode = pickByAliases(row, ['referencia', 'ref', 'codi', 'codigo', 'code']);
+      const boxes = parseNumber(pickByAliases(row, ['caixes', 'cajas']));
+      const units = parseNumber(pickByAliases(row, ['ampolles', 'botellas']));
+      const quantity = parseNumber(pickByAliases(row, ['quantitat', 'cantidad', 'qty'])) ?? boxes ?? units;
+      const rawUnitPrice = parseNumber(pickByAliases(row, ['preu', 'precio', 'unitari', 'unitario']));
+      const rawLineTotal = parseNumber(pickByAliases(row, ['import', 'importe', 'total']));
+
+      const line: OcrLineDetected = {
+        raw_description: rawDescription,
+        boxes,
+        units,
+        raw_quantity: quantity,
+        raw_unit: null,
+        raw_unit_price: rawUnitPrice,
+        raw_line_total: rawLineTotal,
+        product_code: productCode,
+        validated_unit: null,
+        warning_notes: null,
+        user_note: '',
+        ingredient_match: null,
+        source_confidence: null,
+      };
+
+      const lowerDescription = rawDescription.toLowerCase();
+      const exactMatches = ingredientCandidates.filter((ingredient) => lowerDescription.includes(ingredient.name.toLowerCase()));
+      if (exactMatches.length === 1) {
+        line.ingredient_match = {
+          ingredient_id: exactMatches[0].id,
+          ingredient_name: exactMatches[0].name,
+          confidence: 'high',
+          reason: 'Coincidencia textual exacta en descripción OCR.',
+        };
+      }
+      if (exactMatches.length > 1) {
+        line.warning_notes = 'Coincidencia de ingrediente ambigua: varias opciones posibles.';
+      }
+
+      return line;
+    })
+    .filter(isUsefulProductLine);
 }
 
 function mapDocumentKind(docType?: string): 'invoice' | 'delivery_note' | 'other' {
@@ -351,16 +505,21 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   const rawText = analyzePayload.analyzeResult.content ?? '';
 
   const supplierDetected = {
-    name: getFieldString(fields.VendorName) ?? getFieldString(fields.CustomerName),
+    name: getFieldString(fields.VendorName),
     trade_name: getFieldString(fields.VendorName),
     legal_name: getFieldString(fields.VendorName),
-    tax_id: getFieldString(fields.VendorTaxId) ?? getFieldString(fields.CustomerTaxId),
-    email: getFieldString(fields.VendorEmail) ?? getFieldString(fields.CustomerEmail),
-    phone: getFieldString(fields.VendorPhoneNumber) ?? getFieldString(fields.CustomerPhoneNumber),
+    tax_id: getFieldString(fields.VendorTaxId),
+    email: getFieldString(fields.VendorEmail),
+    phone: getFieldString(fields.VendorPhoneNumber),
     match_hint: 'Sugerencia OCR: confirmar manualmente antes de asignar proveedor.',
   } satisfies OcrSupplierDetected;
 
-  const linesDetected = deriveDetectedLines(fields.Items?.valueArray, ingredientCandidates ?? []);
+  const linesFromItems = deriveDetectedLinesFromItems(fields.Items?.valueArray, ingredientCandidates ?? []);
+  const missingBoxUnitData = linesFromItems.some((line) => line.boxes === null && line.units === null);
+  const lowSignalLines = linesFromItems.filter((line) => hasStrongProductSignal(line)).length < Math.max(1, Math.floor(linesFromItems.length / 2));
+  const shouldFallbackToTables = linesFromItems.length < 2 || lowSignalLines || missingBoxUnitData;
+  const linesFromTables = shouldFallbackToTables ? deriveDetectedLinesFromTables(analyzePayload.analyzeResult.tables, ingredientCandidates ?? []) : [];
+  const linesDetected = linesFromTables.length > linesFromItems.length ? linesFromTables : linesFromItems;
 
   const interpretedPayload = {
     supplier_detected: supplierDetected,
