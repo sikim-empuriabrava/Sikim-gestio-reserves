@@ -284,25 +284,41 @@ function parseTableRows(table: AzureTable): Array<Record<string, string>> {
     }
   }
 
+  const headerOccurrences = new Map<string, number>();
+  const uniqueHeaders = headers.map((header) => {
+    const count = (headerOccurrences.get(header) ?? 0) + 1;
+    headerOccurrences.set(header, count);
+    return count === 1 ? header : `${header}__${count}`;
+  });
+
   const out: Array<Record<string, string>> = [];
   for (let rowIndex = 1; rowIndex < (table.rowCount ?? byRow.size); rowIndex += 1) {
     const row = byRow.get(rowIndex);
     if (!row) continue;
 
     const record: Record<string, string> = {};
-    for (let col = 0; col < headers.length; col += 1) {
-      record[headers[col] || `column_${col + 1}`] = row.get(col) ?? '';
+    for (let col = 0; col < uniqueHeaders.length; col += 1) {
+      record[uniqueHeaders[col] || `column_${col + 1}`] = row.get(col) ?? '';
     }
     out.push(record);
   }
   return out;
 }
 
-function pickByAliases(record: Record<string, string>, aliases: string[]): string | null {
-  const key = Object.keys(record).find((entry) => aliases.some((alias) => entry.includes(alias)));
-  if (!key) return null;
-  const value = record[key]?.trim();
-  return value?.length ? value : null;
+function pickValuesByAliases(record: Record<string, string>, aliases: string[]): string[] {
+  return Object.keys(record)
+    .filter((entry) => aliases.some((alias) => entry.includes(alias)))
+    .map((key) => record[key]?.trim() ?? '')
+    .filter((value) => value.length > 0);
+}
+
+function pickStrictIntegerByAliases(record: Record<string, string>, aliases: string[], min: number, max: number): number | null {
+  const values = pickValuesByAliases(record, aliases);
+  for (const value of values) {
+    const parsed = parseStrictTableInteger(value, min, max);
+    if (parsed !== null) return parsed;
+  }
+  return null;
 }
 
 function isLikelyMainItemsTable(table: AzureTable): boolean {
@@ -327,15 +343,22 @@ function deriveDetectedLinesFromTables(tables: AzureTable[] | undefined, ingredi
 
   return rows
     .map((row) => {
-      const rawDescription = pickByAliases(row, ['descripcio', 'descrip', 'producto', 'producte', 'item', 'article']) ?? '';
-      const productCode = pickByAliases(row, ['referencia', 'ref', 'codi', 'codigo', 'code']);
-      const rawBoxesValue = pickByAliases(row, ['caixes', 'cajas']);
-      const rawUnitsValue = pickByAliases(row, ['ampolles', 'botellas']);
-      const boxes = parseStrictTableInteger(rawBoxesValue, 0, 200);
-      const units = parseStrictTableInteger(rawUnitsValue, 0, 1000);
-      const quantity = parseNumber(pickByAliases(row, ['quantitat', 'cantidad', 'qty'])) ?? boxes ?? units;
-      const rawUnitPrice = parseNumber(pickByAliases(row, ['preu', 'precio', 'unitari', 'unitario']));
-      const rawLineTotal = parseNumber(pickByAliases(row, ['import', 'importe', 'total']));
+      const rawDescription = pickValuesByAliases(row, ['descripcio', 'descrip', 'producto', 'producte', 'item', 'article'])[0] ?? '';
+      const productCode = pickValuesByAliases(row, ['referencia', 'ref', 'codi', 'codigo', 'code'])[0] ?? null;
+      const rawBoxesValues = pickValuesByAliases(row, ['caixes', 'cajas']);
+      const rawUnitsValues = pickValuesByAliases(row, ['ampolles', 'botellas']);
+      const boxes = pickStrictIntegerByAliases(row, ['caixes', 'cajas'], 0, 200);
+      const units = pickStrictIntegerByAliases(row, ['ampolles', 'botellas'], 0, 1000);
+      const quantity =
+        pickValuesByAliases(row, ['quantitat', 'cantidad', 'qty']).map((value) => parseNumber(value)).find((value) => value !== null) ??
+        boxes ??
+        units;
+      const rawUnitPrice = pickValuesByAliases(row, ['preu', 'precio', 'unitari', 'unitario'])
+        .map((value) => parseNumber(value))
+        .find((value) => value !== null) ?? null;
+      const rawLineTotal = pickValuesByAliases(row, ['import', 'importe', 'total'])
+        .map((value) => parseNumber(value))
+        .find((value) => value !== null) ?? null;
 
       const line: OcrLineDetected = {
         raw_description: rawDescription,
@@ -353,8 +376,12 @@ function deriveDetectedLinesFromTables(tables: AzureTable[] | undefined, ingredi
         source_confidence: null,
       };
       const suspiciousSignals: string[] = [];
-      if (rawBoxesValue && boxes === null) suspiciousSignals.push(`Valor Caixes descartado por formato/rango: "${rawBoxesValue}".`);
-      if (rawUnitsValue && units === null) suspiciousSignals.push(`Valor Ampolles descartado por formato/rango: "${rawUnitsValue}".`);
+      if (rawBoxesValues.some((value) => parseStrictTableInteger(value, 0, 200) === null)) {
+        suspiciousSignals.push(`Valor(es) Caixes descartado(s) por formato/rango: "${rawBoxesValues.join(' | ')}".`);
+      }
+      if (rawUnitsValues.some((value) => parseStrictTableInteger(value, 0, 1000) === null)) {
+        suspiciousSignals.push(`Valor(es) Ampolles descartado(s) por formato/rango: "${rawUnitsValues.join(' | ')}".`);
+      }
       if (suspiciousSignals.length > 0) line.warning_notes = suspiciousSignals.join(' ');
 
       const lowerDescription = rawDescription.toLowerCase();
