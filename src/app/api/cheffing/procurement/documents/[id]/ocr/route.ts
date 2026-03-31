@@ -516,12 +516,16 @@ function enrichItemsWithTableQuantities(items: OcrLineDetected[], tableLines: Oc
     if (!tableMatch) return item;
 
     const mergedWarnings = [item.warning_notes, tableMatch.warning_notes].filter(Boolean).join(' ') || null;
+    const didFillBoxes = item.boxes === null && tableMatch.boxes !== null;
+    const didFillUnits = item.units === null && tableMatch.units !== null;
+    const didFillProductCode = !item.product_code && Boolean(tableMatch.product_code);
     return {
       ...item,
       boxes: item.boxes ?? tableMatch.boxes,
       units: item.units ?? tableMatch.units,
+      product_code: item.product_code ?? tableMatch.product_code,
       warning_notes: mergedWarnings,
-      extraction_source: (item.boxes === null && tableMatch.boxes !== null) || (item.units === null && tableMatch.units !== null) ? 'items+table' : item.extraction_source,
+      extraction_source: didFillBoxes || didFillUnits || didFillProductCode ? 'items+table' : item.extraction_source,
       extraction_hints: {
         boxes_from: item.boxes !== null ? 'items' : tableMatch.boxes !== null ? 'table' : item.extraction_hints?.boxes_from,
         units_from: item.units !== null ? 'items' : tableMatch.units !== null ? 'table' : item.extraction_hints?.units_from,
