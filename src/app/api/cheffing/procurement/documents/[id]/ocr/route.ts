@@ -8,7 +8,10 @@ import { mergeResponseCookies } from '@/lib/supabase/route';
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-const MISTRAL_OCR_URL = 'https://api.mistral.ai/v1/ocr';
+const AZURE_API_VERSION = '2024-11-30';
+const AZURE_MODEL_ID = 'prebuilt-invoice';
+const AZURE_POLL_INTERVAL_MS = 1500;
+const AZURE_POLL_TIMEOUT_MS = 90_000;
 
 type OcrSupplierDetected = {
   name: string | null;
@@ -22,10 +25,13 @@ type OcrSupplierDetected = {
 
 type OcrLineDetected = {
   raw_description: string;
+  boxes: number | null;
+  units: number | null;
   raw_quantity: number | null;
   raw_unit: string | null;
   raw_unit_price: number | null;
   raw_line_total: number | null;
+  product_code: string | null;
   validated_unit: ProcurementCanonicalUnit | null;
   warning_notes: string | null;
   user_note: string;
@@ -35,16 +41,42 @@ type OcrLineDetected = {
     confidence: 'high';
     reason: string;
   } | null;
+  source_confidence: number | null;
 };
 
-type OcrPage = {
-  markdown?: unknown;
-  tables?: unknown;
-  header?: unknown;
-  footer?: unknown;
+type AzureFieldValue = {
+  type?: string;
+  valueString?: string;
+  valueNumber?: number;
+  valueDate?: string;
+  valueCurrency?: { amount?: number; currencySymbol?: string; currencyCode?: string };
+  valuePhoneNumber?: string;
+  valueArray?: AzureFieldValue[];
+  valueObject?: Record<string, AzureFieldValue>;
+  content?: string;
+  confidence?: number;
 };
 
-function parseNumber(value: string | null | undefined): number | null {
+type AzureAnalyzedDocument = {
+  docType?: string;
+  fields?: Record<string, AzureFieldValue>;
+  confidence?: number;
+};
+
+type AzureAnalyzeResult = {
+  status?: string;
+  analyzeResult?: {
+    content?: string;
+    documents?: AzureAnalyzedDocument[];
+  };
+  error?: {
+    code?: string;
+    message?: string;
+  };
+};
+
+function parseNumber(value: string | number | null | undefined): number | null {
+  if (typeof value === 'number') return Number.isFinite(value) ? value : null;
   if (!value) return null;
   const normalized = value.replace(/[^\d,.-]/g, '').replace(/\.(?=\d{3}(\D|$))/g, '').replace(',', '.').trim();
   if (!normalized) return null;
@@ -75,128 +107,107 @@ function toRecord(value: unknown): Record<string, unknown> | null {
   return value as Record<string, unknown>;
 }
 
-function markdownTableRows(markdown: string): string[] {
-  return markdown
-    .split('\n')
-    .map((line) => line.trim())
-    .filter((line) => line.startsWith('|') && line.endsWith('|'));
+function getFieldString(field?: AzureFieldValue): string | null {
+  if (!field) return null;
+  const value = field.valueString ?? field.valuePhoneNumber ?? field.content;
+  if (typeof value !== 'string') return null;
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : null;
 }
 
-function parseMarkdownTable(markdown: string): Array<Record<string, string>> {
-  const rows = markdownTableRows(markdown);
-  if (rows.length < 3) return [];
-
-  const headers = rows[0]
-    .slice(1, -1)
-    .split('|')
-    .map((value) => value.trim().toLowerCase());
-
-  return rows
-    .slice(2)
-    .map((row) => row.slice(1, -1).split('|').map((value) => value.trim()))
-    .filter((columns) => columns.some((value) => value.length > 0))
-    .map((columns) => {
-      const out: Record<string, string> = {};
-      headers.forEach((header, index) => {
-        out[header || `column_${index + 1}`] = columns[index] ?? '';
-      });
-      return out;
-    });
+function getFieldNumber(field?: AzureFieldValue): number | null {
+  if (!field) return null;
+  if (typeof field.valueNumber === 'number') return parseNumber(field.valueNumber);
+  if (typeof field.valueCurrency?.amount === 'number') return parseNumber(field.valueCurrency.amount);
+  return parseNumber(field.content ?? null);
 }
 
-function pickFirstValue(record: Record<string, string>, aliases: string[]): string | null {
-  const key = Object.keys(record).find((entry) => aliases.some((alias) => entry.includes(alias)));
-  if (!key) return null;
-  const value = record[key]?.trim();
-  return value?.length ? value : null;
+function getFieldDate(field?: AzureFieldValue): string | null {
+  if (!field) return null;
+  if (typeof field.valueDate === 'string') return field.valueDate;
+  return getFieldString(field);
 }
 
-function deriveDetectedLines(rawRows: Array<Record<string, string>>, ingredientCandidates: { id: string; name: string }[]): OcrLineDetected[] {
-  return rawRows
-    .map((row) => {
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function deriveDetectedLines(itemFields: AzureFieldValue[] | undefined, ingredientCandidates: { id: string; name: string }[]): OcrLineDetected[] {
+  if (!Array.isArray(itemFields)) return [];
+
+  return itemFields
+    .map((item) => {
+      const record = item.valueObject;
+      if (!record) return null;
+
       const rawDescription =
-        pickFirstValue(row, ['descrip', 'producto', 'concept', 'item', 'article', 'artículo']) ??
-        pickFirstValue(row, ['column_1']) ??
-        '';
-
+        getFieldString(record.Description) ?? getFieldString(record.ProductCode) ?? getFieldString(record.ItemCode) ?? '';
       if (!rawDescription.trim()) return null;
 
-      const rawQuantityValue = pickFirstValue(row, ['cantidad', 'qty', 'quant', 'uds', 'unid']);
-      const rawUnitValue = pickFirstValue(row, ['unidad', 'unit', 'udm']);
-      const rawUnitPriceValue = pickFirstValue(row, ['precio', 'unitario', 'pvp']);
-      const rawLineTotalValue = pickFirstValue(row, ['importe', 'total', 'subtotal']);
-
-      const rawQuantity = parseNumber(rawQuantityValue);
-      const rawUnitPrice = parseNumber(rawUnitPriceValue);
-      const rawLineTotal = parseNumber(rawLineTotalValue);
-      const validatedUnit = detectUnit(rawUnitValue);
+      const rawQuantity = getFieldNumber(record.Quantity);
+      const rawUnit = getFieldString(record.Unit);
+      const rawUnitPrice = getFieldNumber(record.UnitPrice);
+      const rawLineTotal = getFieldNumber(record.Amount);
+      const productCode = getFieldString(record.ProductCode) ?? getFieldString(record.ItemCode);
+      const validatedUnit = detectUnit(rawUnit);
+      const sourceConfidence = typeof item.confidence === 'number' ? item.confidence : null;
 
       const lowerDescription = rawDescription.toLowerCase();
       const exactMatches = ingredientCandidates.filter((ingredient) => lowerDescription.includes(ingredient.name.toLowerCase()));
-      const ingredientMatch = exactMatches.length === 1
-        ? {
-            ingredient_id: exactMatches[0].id,
-            ingredient_name: exactMatches[0].name,
-            confidence: 'high' as const,
-            reason: 'Coincidencia textual exacta en descripción OCR.',
-          }
-        : null;
+      const ingredientMatch =
+        exactMatches.length === 1
+          ? {
+              ingredient_id: exactMatches[0].id,
+              ingredient_name: exactMatches[0].name,
+              confidence: 'high' as const,
+              reason: 'Coincidencia textual exacta en descripción OCR.',
+            }
+          : null;
 
       const warnings: string[] = [];
       if (!rawQuantity) warnings.push('Cantidad no detectada con suficiente fiabilidad.');
       if (!rawUnitPrice && !rawLineTotal) warnings.push('No se detectó precio unitario ni total de línea con fiabilidad.');
-      if (!validatedUnit && rawUnitValue) warnings.push(`Unidad OCR sin mapear a canónica: "${rawUnitValue}".`);
+      if (!validatedUnit && rawUnit) warnings.push(`Unidad OCR sin mapear a canónica: "${rawUnit}".`);
       if (exactMatches.length > 1) warnings.push('Coincidencia de ingrediente ambigua: varias opciones posibles.');
 
       return {
         raw_description: rawDescription,
+        boxes: null,
+        units: null,
         raw_quantity: rawQuantity,
-        raw_unit: rawUnitValue,
+        raw_unit: rawUnit,
         raw_unit_price: rawUnitPrice,
         raw_line_total: rawLineTotal,
+        product_code: productCode,
         validated_unit: validatedUnit,
         warning_notes: warnings.length ? warnings.join(' ') : null,
         user_note: '',
         ingredient_match: ingredientMatch,
+        source_confidence: sourceConfidence,
       } satisfies OcrLineDetected;
     })
     .filter((entry): entry is OcrLineDetected => Boolean(entry));
 }
 
-function detectSupplierFromText(rawText: string): OcrSupplierDetected {
-  const lines = rawText
-    .split('\n')
-    .map((line) => line.trim())
-    .filter(Boolean);
-
-  const nameCandidate = lines.find((line) => line.length > 3 && line.length < 120 && !/[0-9]{3,}/.test(line)) ?? null;
-  const taxIdMatch = rawText.match(/\b([A-Z]\d{7}[A-Z0-9]|[A-Z0-9]{1,2}\d{6,10}[A-Z0-9])\b/i);
-  const emailMatch = rawText.match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i);
-  const phoneMatch = rawText.match(/(?:\+34\s?)?(?:\d[\s.-]?){9,12}/);
-
-  return {
-    name: nameCandidate,
-    trade_name: nameCandidate,
-    legal_name: null,
-    tax_id: taxIdMatch?.[1] ?? null,
-    email: emailMatch?.[0] ?? null,
-    phone: phoneMatch?.[0]?.trim() ?? null,
-    match_hint: 'Sugerencia OCR: confirmar manualmente antes de asignar proveedor.',
-  };
-}
-
-function detectDeclaredTotal(rawText: string): number | null {
-  const totalMatch = rawText.match(/(?:total\s*(?:factura|documento)?|importe\s*total)\s*[:€]?\s*([\d.,]+)/i);
-  return parseNumber(totalMatch?.[1] ?? null);
+function mapDocumentKind(docType?: string): 'invoice' | 'delivery_note' | 'other' {
+  if (!docType) return 'other';
+  const normalized = docType.toLowerCase();
+  if (normalized.includes('invoice')) return 'invoice';
+  if (normalized.includes('delivery') || normalized.includes('albaran')) return 'delivery_note';
+  return 'other';
 }
 
 export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
   const access = await requireCheffingRouteAccess();
   if (access.response) return access.response;
 
-  const mistralApiKey = process.env.MISTRAL_API_KEY?.trim();
-  if (!mistralApiKey) {
-    const response = NextResponse.json({ error: 'Missing server env MISTRAL_API_KEY' }, { status: 500 });
+  const azureEndpoint = process.env.AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT?.trim();
+  const azureKey = process.env.AZURE_DOCUMENT_INTELLIGENCE_KEY?.trim();
+  if (!azureEndpoint || !azureKey) {
+    const response = NextResponse.json(
+      { error: 'Missing server env AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT or AZURE_DOCUMENT_INTELLIGENCE_KEY' },
+      { status: 500 },
+    );
     mergeResponseCookies(access.supabaseResponse, response);
     return response;
   }
@@ -205,18 +216,19 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   const allowOverride = body?.allow_override_lines === true;
 
   const supabase = createSupabaseAdminClient();
-  const [{ data: document, error: documentError }, { count: currentLinesCount, error: linesError }, { data: ingredientCandidates, error: ingredientsError }] = await Promise.all([
-    supabase
-      .from('cheffing_purchase_documents')
-      .select('id, status, storage_bucket, storage_path')
-      .eq('id', params.id)
-      .maybeSingle(),
-    supabase
-      .from('cheffing_purchase_document_lines')
-      .select('id', { count: 'exact', head: true })
-      .eq('document_id', params.id),
-    supabase.from('cheffing_ingredients').select('id, name').order('name', { ascending: true }),
-  ]);
+  const [{ data: document, error: documentError }, { count: currentLinesCount, error: linesError }, { data: ingredientCandidates, error: ingredientsError }] =
+    await Promise.all([
+      supabase
+        .from('cheffing_purchase_documents')
+        .select('id, status, storage_bucket, storage_path')
+        .eq('id', params.id)
+        .maybeSingle(),
+      supabase
+        .from('cheffing_purchase_document_lines')
+        .select('id', { count: 'exact', head: true })
+        .eq('document_id', params.id),
+      supabase.from('cheffing_ingredients').select('id, name').order('name', { ascending: true }),
+    ]);
 
   if (documentError || !document) {
     const response = NextResponse.json({ error: 'Document not found' }, { status: 404 });
@@ -258,78 +270,115 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     return response;
   }
 
-  const mistralResponse = await fetch(MISTRAL_OCR_URL, {
+  const azureBase = azureEndpoint.replace(/\/+$/, '');
+  const analyzeUrl = `${azureBase}/documentintelligence/documentModels/${AZURE_MODEL_ID}:analyze?api-version=${AZURE_API_VERSION}`;
+  const azureStartResponse = await fetch(analyzeUrl, {
     method: 'POST',
     headers: {
-      Authorization: `Bearer ${mistralApiKey}`,
       'Content-Type': 'application/json',
+      'Ocp-Apim-Subscription-Key': azureKey,
     },
     body: JSON.stringify({
-      model: 'mistral-ocr-2512',
-      document: {
-        type: 'document_url',
-        document_url: signedData.signedUrl,
-      },
-      table_format: 'markdown',
-      extract_header: true,
-      extract_footer: true,
+      urlSource: signedData.signedUrl,
     }),
   });
 
-  const mistralPayload = await mistralResponse.json().catch(() => null);
-  if (!mistralResponse.ok) {
-    const mistralError = toRecord(mistralPayload);
+  const azureStartPayload = await azureStartResponse.json().catch(() => null);
+  if (!azureStartResponse.ok) {
+    const azureError = toRecord(azureStartPayload);
     const message =
-      (typeof mistralError?.message === 'string' && mistralError.message) ||
-      (typeof mistralError?.error === 'string' && mistralError.error) ||
-      `Mistral OCR failed with status ${mistralResponse.status}`;
+      (typeof azureError?.message === 'string' && azureError.message) ||
+      (typeof toRecord(azureError?.error)?.message === 'string' && (toRecord(azureError?.error)?.message as string)) ||
+      `Azure Document Intelligence analyze start failed with status ${azureStartResponse.status}`;
     const response = NextResponse.json({ error: message }, { status: 502 });
     mergeResponseCookies(access.supabaseResponse, response);
     return response;
   }
 
-  const payloadRecord = toRecord(mistralPayload);
-  const pages = Array.isArray(payloadRecord?.pages) ? (payloadRecord.pages as OcrPage[]) : [];
+  const operationLocation = azureStartResponse.headers.get('Operation-Location');
+  if (!operationLocation) {
+    const response = NextResponse.json({ error: 'Azure response missing Operation-Location header' }, { status: 502 });
+    mergeResponseCookies(access.supabaseResponse, response);
+    return response;
+  }
 
-  const rawText = pages
-    .map((page) => (typeof page.markdown === 'string' ? page.markdown : null))
-    .filter((page): page is string => Boolean(page))
-    .join('\n\n');
+  const pollStartedAt = Date.now();
+  let analyzePayload: AzureAnalyzeResult | null = null;
 
-  const rowsFromMarkdown = pages
-    .map((page) => (typeof page.markdown === 'string' ? parseMarkdownTable(page.markdown) : []))
-    .flat();
+  while (Date.now() - pollStartedAt < AZURE_POLL_TIMEOUT_MS) {
+    await sleep(AZURE_POLL_INTERVAL_MS);
+    const pollResponse = await fetch(operationLocation, {
+      method: 'GET',
+      headers: {
+        'Ocp-Apim-Subscription-Key': azureKey,
+      },
+    });
 
-  const rowsFromTables = pages
-    .flatMap((page) => (Array.isArray(page.tables) ? page.tables : []))
-    .map((table) => {
-      const tableRecord = toRecord(table);
-      if (!tableRecord) return [] as Array<Record<string, string>>;
-      if (typeof tableRecord.markdown === 'string') return parseMarkdownTable(tableRecord.markdown);
-      return [] as Array<Record<string, string>>;
-    })
-    .flat();
+    const payload = (await pollResponse.json().catch(() => null)) as AzureAnalyzeResult | null;
+    if (!pollResponse.ok) {
+      const azureError = toRecord(payload);
+      const message =
+        (typeof azureError?.message === 'string' && azureError.message) ||
+        (typeof toRecord(azureError?.error)?.message === 'string' && (toRecord(azureError?.error)?.message as string)) ||
+        `Azure Document Intelligence polling failed with status ${pollResponse.status}`;
+      const response = NextResponse.json({ error: message }, { status: 502 });
+      mergeResponseCookies(access.supabaseResponse, response);
+      return response;
+    }
 
-  const mergedRows = [...rowsFromTables, ...rowsFromMarkdown];
-  const linesDetected = deriveDetectedLines(mergedRows, ingredientCandidates ?? []);
-  const supplierDetected = detectSupplierFromText(rawText);
-  const declaredTotalDetected = detectDeclaredTotal(rawText);
+    const status = payload?.status?.toLowerCase();
+    if (status === 'succeeded') {
+      analyzePayload = payload;
+      break;
+    }
+
+    if (status === 'failed') {
+      const failureMessage = payload?.error?.message || 'Azure Document Intelligence analysis failed';
+      const response = NextResponse.json({ error: failureMessage }, { status: 502 });
+      mergeResponseCookies(access.supabaseResponse, response);
+      return response;
+    }
+  }
+
+  if (!analyzePayload?.analyzeResult) {
+    const response = NextResponse.json({ error: 'Azure Document Intelligence timeout while waiting for OCR result' }, { status: 504 });
+    mergeResponseCookies(access.supabaseResponse, response);
+    return response;
+  }
+
+  const firstDocument = analyzePayload.analyzeResult.documents?.[0];
+  const fields = firstDocument?.fields ?? {};
+  const rawText = analyzePayload.analyzeResult.content ?? '';
+
+  const supplierDetected = {
+    name: getFieldString(fields.VendorName) ?? getFieldString(fields.CustomerName),
+    trade_name: getFieldString(fields.VendorName),
+    legal_name: getFieldString(fields.VendorName),
+    tax_id: getFieldString(fields.VendorTaxId) ?? getFieldString(fields.CustomerTaxId),
+    email: getFieldString(fields.VendorEmail) ?? getFieldString(fields.CustomerEmail),
+    phone: getFieldString(fields.VendorPhoneNumber) ?? getFieldString(fields.CustomerPhoneNumber),
+    match_hint: 'Sugerencia OCR: confirmar manualmente antes de asignar proveedor.',
+  } satisfies OcrSupplierDetected;
+
+  const linesDetected = deriveDetectedLines(fields.Items?.valueArray, ingredientCandidates ?? []);
 
   const interpretedPayload = {
     supplier_detected: supplierDetected,
+    document_detected: {
+      document_kind: mapDocumentKind(firstDocument?.docType),
+      document_number: getFieldString(fields.InvoiceId),
+      document_date: getFieldDate(fields.InvoiceDate),
+      due_date: getFieldDate(fields.DueDate),
+      declared_total: getFieldNumber(fields.InvoiceTotal) ?? getFieldNumber(fields.AmountDue),
+    },
     lines_detected: linesDetected,
-    declared_total_detected: declaredTotalDetected,
     ocr_meta: {
-      provider: 'mistral',
-      model: 'mistral-ocr-2512',
-      table_format: 'markdown',
-      extract_header: true,
-      extract_footer: true,
+      provider: 'azure_document_intelligence',
+      model: AZURE_MODEL_ID,
+      api_version: AZURE_API_VERSION,
       source: 'signed_url',
-      page_count: pages.length,
       processed_at: new Date().toISOString(),
-      rerun_blocked_if_lines_exist: true,
-      note: 'Prepared to support upload/base64 flow in future iterations if signed URL strategy changes.',
+      rerun_blocked_if_lines_exist: true as const,
     },
   };
 
