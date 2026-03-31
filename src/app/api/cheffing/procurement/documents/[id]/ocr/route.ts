@@ -95,6 +95,18 @@ function parseNumber(value: string | number | null | undefined): number | null {
   return Number.isFinite(parsed) ? parsed : null;
 }
 
+function parseStrictTableInteger(value: string | null, min: number, max: number): number | null {
+  if (!value) return null;
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+  if (!/^\d+$/.test(trimmed)) return null;
+
+  const parsed = Number(trimmed);
+  if (!Number.isInteger(parsed)) return null;
+  if (parsed < min || parsed > max) return null;
+  return parsed;
+}
+
 function detectUnit(rawValue: string | null): ProcurementCanonicalUnit | null {
   if (!rawValue) return null;
   const normalized = normalizeProcurementText(rawValue);
@@ -302,8 +314,10 @@ function deriveDetectedLinesFromTables(tables: AzureTable[] | undefined, ingredi
     .map((row) => {
       const rawDescription = pickByAliases(row, ['descripcio', 'descrip', 'producto', 'producte', 'item', 'article']) ?? '';
       const productCode = pickByAliases(row, ['referencia', 'ref', 'codi', 'codigo', 'code']);
-      const boxes = parseNumber(pickByAliases(row, ['caixes', 'cajas']));
-      const units = parseNumber(pickByAliases(row, ['ampolles', 'botellas']));
+      const rawBoxesValue = pickByAliases(row, ['caixes', 'cajas']);
+      const rawUnitsValue = pickByAliases(row, ['ampolles', 'botellas']);
+      const boxes = parseStrictTableInteger(rawBoxesValue, 0, 200);
+      const units = parseStrictTableInteger(rawUnitsValue, 0, 1000);
       const quantity = parseNumber(pickByAliases(row, ['quantitat', 'cantidad', 'qty'])) ?? boxes ?? units;
       const rawUnitPrice = parseNumber(pickByAliases(row, ['preu', 'precio', 'unitari', 'unitario']));
       const rawLineTotal = parseNumber(pickByAliases(row, ['import', 'importe', 'total']));
@@ -323,6 +337,10 @@ function deriveDetectedLinesFromTables(tables: AzureTable[] | undefined, ingredi
         ingredient_match: null,
         source_confidence: null,
       };
+      const suspiciousSignals: string[] = [];
+      if (rawBoxesValue && boxes === null) suspiciousSignals.push(`Valor Caixes descartado por formato/rango: "${rawBoxesValue}".`);
+      if (rawUnitsValue && units === null) suspiciousSignals.push(`Valor Ampolles descartado por formato/rango: "${rawUnitsValue}".`);
+      if (suspiciousSignals.length > 0) line.warning_notes = suspiciousSignals.join(' ');
 
       const lowerDescription = rawDescription.toLowerCase();
       const exactMatches = ingredientCandidates.filter((ingredient) => lowerDescription.includes(ingredient.name.toLowerCase()));
@@ -335,12 +353,45 @@ function deriveDetectedLinesFromTables(tables: AzureTable[] | undefined, ingredi
         };
       }
       if (exactMatches.length > 1) {
-        line.warning_notes = 'Coincidencia de ingrediente ambigua: varias opciones posibles.';
+        line.warning_notes = [line.warning_notes, 'Coincidencia de ingrediente ambigua: varias opciones posibles.'].filter(Boolean).join(' ');
       }
 
       return line;
     })
     .filter(isUsefulProductLine);
+}
+
+function matchKeyFromLine(line: Pick<OcrLineDetected, 'raw_description' | 'product_code'>): string | null {
+  if (line.product_code) return `code:${normalizeProcurementText(line.product_code)}`;
+  const normalizedDescription = normalizeProcurementText(line.raw_description);
+  if (!normalizedDescription) return null;
+  return `desc:${normalizedDescription.slice(0, 48)}`;
+}
+
+function enrichItemsWithTableQuantities(items: OcrLineDetected[], tableLines: OcrLineDetected[]): OcrLineDetected[] {
+  if (items.length === 0 || tableLines.length === 0) return items;
+
+  const tableByKey = new Map<string, OcrLineDetected>();
+  for (const line of tableLines) {
+    const key = matchKeyFromLine(line);
+    if (!key || tableByKey.has(key)) continue;
+    tableByKey.set(key, line);
+  }
+
+  return items.map((item) => {
+    const key = matchKeyFromLine(item);
+    if (!key) return item;
+    const tableMatch = tableByKey.get(key);
+    if (!tableMatch) return item;
+
+    const mergedWarnings = [item.warning_notes, tableMatch.warning_notes].filter(Boolean).join(' ') || null;
+    return {
+      ...item,
+      boxes: item.boxes ?? tableMatch.boxes,
+      units: item.units ?? tableMatch.units,
+      warning_notes: mergedWarnings,
+    };
+  });
 }
 
 function mapDocumentKind(docType?: string): 'invoice' | 'delivery_note' | 'other' {
@@ -515,11 +566,9 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   } satisfies OcrSupplierDetected;
 
   const linesFromItems = deriveDetectedLinesFromItems(fields.Items?.valueArray, ingredientCandidates ?? []);
-  const missingBoxUnitData = linesFromItems.some((line) => line.boxes === null && line.units === null);
-  const lowSignalLines = linesFromItems.filter((line) => hasStrongProductSignal(line)).length < Math.max(1, Math.floor(linesFromItems.length / 2));
-  const shouldFallbackToTables = linesFromItems.length < 2 || lowSignalLines || missingBoxUnitData;
-  const linesFromTables = shouldFallbackToTables ? deriveDetectedLinesFromTables(analyzePayload.analyzeResult.tables, ingredientCandidates ?? []) : [];
-  const linesDetected = linesFromTables.length > linesFromItems.length ? linesFromTables : linesFromItems;
+  const linesFromTables = deriveDetectedLinesFromTables(analyzePayload.analyzeResult.tables, ingredientCandidates ?? []);
+  const linesDetected =
+    linesFromItems.length === 0 ? linesFromTables : enrichItemsWithTableQuantities(linesFromItems, linesFromTables);
 
   const interpretedPayload = {
     supplier_detected: supplierDetected,
