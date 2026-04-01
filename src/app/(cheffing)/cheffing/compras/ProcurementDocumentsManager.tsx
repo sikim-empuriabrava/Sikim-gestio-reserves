@@ -28,16 +28,23 @@ export function ProcurementDocumentsManager({
 }) {
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
+  const [uploadCreatedDocumentId, setUploadCreatedDocumentId] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isUploadingDocument, setIsUploadingDocument] = useState(false);
   const [form, setForm] = useState({
     document_kind: 'invoice' as ProcurementDocumentKind,
     document_number: '',
     document_date: new Date().toISOString().slice(0, 10),
     supplier_id: '',
   });
+  const [uploadForm, setUploadForm] = useState({
+    document_kind: 'invoice' as ProcurementDocumentKind,
+    file: null as File | null,
+  });
 
   async function createDocument() {
     setError(null);
+    setUploadCreatedDocumentId(null);
     setIsSubmitting(true);
     try {
       const response = await fetch('/api/cheffing/procurement/documents', {
@@ -64,6 +71,7 @@ export function ProcurementDocumentsManager({
 
   async function discardDocument(documentId: string) {
     setError(null);
+    setUploadCreatedDocumentId(null);
     setIsSubmitting(true);
     try {
       const response = await fetch(`/api/cheffing/procurement/documents/${documentId}/discard`, { method: 'POST' });
@@ -81,6 +89,7 @@ export function ProcurementDocumentsManager({
 
   async function recoverDocument(documentId: string) {
     setError(null);
+    setUploadCreatedDocumentId(null);
     setIsSubmitting(true);
     try {
       const response = await fetch(`/api/cheffing/procurement/documents/${documentId}/recover`, { method: 'POST' });
@@ -101,6 +110,7 @@ export function ProcurementDocumentsManager({
     if (!confirmed) return;
 
     setError(null);
+    setUploadCreatedDocumentId(null);
     setIsSubmitting(true);
     try {
       const response = await fetch(`/api/cheffing/procurement/documents/${documentId}`, { method: 'DELETE' });
@@ -113,6 +123,67 @@ export function ProcurementDocumentsManager({
       setError(err instanceof Error ? err.message : 'Error desconocido');
     } finally {
       setIsSubmitting(false);
+    }
+  }
+
+  async function uploadDocumentAndProcessOcr() {
+    if (!uploadForm.file) {
+      setError('Selecciona un archivo (PDF o imagen) antes de subirlo.');
+      setUploadCreatedDocumentId(null);
+      return;
+    }
+
+    setError(null);
+    setUploadCreatedDocumentId(null);
+    setIsUploadingDocument(true);
+    try {
+      const today = new Date().toISOString().slice(0, 10);
+      const createResponse = await fetch('/api/cheffing/procurement/documents', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          document_kind: uploadForm.document_kind,
+          document_number: '',
+          document_date: today,
+          supplier_id: null,
+        }),
+      });
+      const createdPayload = await createResponse.json().catch(() => ({}));
+      const documentId = typeof createdPayload?.id === 'string' ? createdPayload.id : null;
+      if (!createResponse.ok || !documentId) {
+        throw new Error(createdPayload?.error ?? 'No se pudo crear el borrador del documento');
+      }
+
+      const formData = new FormData();
+      formData.set('file', uploadForm.file);
+      const uploadResponse = await fetch(`/api/cheffing/procurement/documents/${documentId}/source-file`, {
+        method: 'POST',
+        body: formData,
+      });
+      const uploadPayload = await uploadResponse.json().catch(() => ({}));
+      if (!uploadResponse.ok) {
+        setUploadCreatedDocumentId(documentId);
+        throw new Error(uploadPayload?.error ?? 'No se pudo subir el archivo original');
+      }
+
+      const ocrResponse = await fetch(`/api/cheffing/procurement/documents/${documentId}/ocr`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ allow_override_lines: false }),
+      });
+      const ocrPayload = await ocrResponse.json().catch(() => ({}));
+      if (!ocrResponse.ok) {
+        setUploadCreatedDocumentId(documentId);
+        throw new Error(ocrPayload?.error ?? 'OCR no disponible para este documento');
+      }
+
+      setUploadForm({ document_kind: uploadForm.document_kind, file: null });
+      router.push(`/cheffing/compras/${documentId}`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Error desconocido');
+      router.refresh();
+    } finally {
+      setIsUploadingDocument(false);
     }
   }
 
@@ -134,7 +205,49 @@ export function ProcurementDocumentsManager({
           </select>
         </div>
         <button type="button" onClick={createDocument} disabled={isSubmitting} className="rounded-full border border-emerald-400/60 px-4 py-2 text-sm font-semibold text-emerald-200">Crear documento</button>
-        {error ? <p className="text-sm text-rose-400">{error}</p> : null}
+      </div>
+
+      <div className="space-y-3 rounded-xl border border-slate-800 bg-slate-950/40 p-4">
+        <h3 className="text-sm font-semibold text-white">Pase 1 OCR (factura/albarán)</h3>
+        <div className="grid gap-3 md:grid-cols-[minmax(180px,220px)_1fr]">
+          <select
+            value={uploadForm.document_kind}
+            onChange={(event) => setUploadForm((current) => ({ ...current, document_kind: event.target.value as ProcurementDocumentKind }))}
+            className="rounded-md border border-slate-700 bg-slate-950/70 px-3 py-2 text-white"
+          >
+            <option value="invoice">Factura</option>
+            <option value="delivery_note">Albarán</option>
+          </select>
+          <input
+            type="file"
+            accept="application/pdf,image/jpeg,image/png,image/webp"
+            onChange={(event) => setUploadForm((current) => ({ ...current, file: event.target.files?.[0] ?? null }))}
+            className="block w-full text-xs text-slate-300 file:mr-4 file:rounded-full file:border file:border-slate-700 file:bg-slate-900 file:px-3 file:py-1 file:text-slate-200"
+          />
+        </div>
+        <button
+          type="button"
+          onClick={uploadDocumentAndProcessOcr}
+          disabled={isSubmitting || isUploadingDocument || !uploadForm.file}
+          className="rounded-full border border-sky-400/60 px-4 py-2 text-sm font-semibold text-sky-200 disabled:cursor-not-allowed disabled:border-slate-700 disabled:text-slate-500"
+        >
+          {isUploadingDocument ? 'Subiendo y procesando OCR…' : 'Subir factura/albarán'}
+        </button>
+        {error ? (
+          <p className="text-sm text-rose-400">
+            {error}
+            {uploadCreatedDocumentId ? (
+              <>
+                {' '}
+                El borrador se ha creado igualmente:{' '}
+                <Link href={`/cheffing/compras/${uploadCreatedDocumentId}`} className="underline">
+                  abrir documento
+                </Link>
+                .
+              </>
+            ) : null}
+          </p>
+        ) : null}
       </div>
 
       <div className="overflow-x-auto rounded-2xl border border-slate-800/70">
