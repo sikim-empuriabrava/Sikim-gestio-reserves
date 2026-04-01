@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 
 import { createSupabaseAdminClient } from '@/lib/supabaseAdmin';
 import { normalizeProcurementCanonicalUnit, normalizeProcurementText, type ProcurementCanonicalUnit } from '@/lib/cheffing/procurement';
+import { runOpenAiOcrCleanup, shouldRunOpenAiOcrCleanup } from '@/lib/cheffing/procurement/openaiOcrCleanup';
 import { requireCheffingRouteAccess } from '@/lib/cheffing/requireCheffingRoute';
 import { mergeResponseCookies } from '@/lib/supabase/route';
 
@@ -48,6 +49,15 @@ type OcrLineDetected = {
     units_from?: 'items' | 'table';
     product_code_from?: 'items' | 'table';
   } | null;
+};
+
+type OcrCleanupMeta = {
+  provider: 'openai';
+  status: 'applied' | 'skipped' | 'failed';
+  model: string | null;
+  processed_at: string;
+  affected_lines: number;
+  warning: string | null;
 };
 
 type AzureFieldValue = {
@@ -593,7 +603,13 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   const allowOverride = body?.allow_override_lines === true;
 
   const supabase = createSupabaseAdminClient();
-  const [{ data: document, error: documentError }, { count: currentLinesCount, error: linesError }, { data: ingredientCandidates, error: ingredientsError }] =
+  const [
+    { data: document, error: documentError },
+    { count: currentLinesCount, error: linesError },
+    { data: ingredientCandidates, error: ingredientsError },
+    { data: supplierCandidates, error: suppliersError },
+    { data: supplierProductRefs, error: refsError },
+  ] =
     await Promise.all([
       supabase
         .from('cheffing_purchase_documents')
@@ -605,6 +621,11 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
         .select('id', { count: 'exact', head: true })
         .eq('document_id', params.id),
       supabase.from('cheffing_ingredients').select('id, name').order('name', { ascending: true }),
+      supabase.from('cheffing_suppliers').select('id, trade_name, tax_id').order('trade_name', { ascending: true }),
+      supabase
+        .from('cheffing_supplier_product_refs')
+        .select('supplier_id, ingredient_id, supplier_product_description, supplier_product_alias, reference_unit_code, reference_format_qty')
+        .limit(1000),
     ]);
 
   if (documentError || !document) {
@@ -753,7 +774,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     tax_id_source: (vendorTaxId ? 'vendor_fields' : kvTaxId.source) as 'vendor_fields' | 'key_value_pairs' | 'none',
   };
 
-  const supplierDetected = {
+  const supplierDetectedRaw = {
     name: getFieldString(fields.VendorName),
     trade_name: getFieldString(fields.VendorName),
     legal_name: getFieldString(fields.VendorName),
@@ -765,21 +786,168 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       `Fuentes proveedor -> email:${supplierTrace.email_source}, phone:${supplierTrace.phone_source}, tax_id:${supplierTrace.tax_id_source}.`,
   } satisfies OcrSupplierDetected;
 
+  const documentDetectedRaw = {
+    document_kind: mapDocumentKind(firstDocument?.docType),
+    document_number: getFieldString(fields.InvoiceId),
+    document_date: getFieldDate(fields.InvoiceDate),
+    due_date: getFieldDate(fields.DueDate),
+    declared_total: getFieldNumber(fields.InvoiceTotal) ?? getFieldNumber(fields.AmountDue),
+  };
+
   const linesFromItems = deriveDetectedLinesFromItems(fields.Items?.valueArray, ingredientCandidates ?? []);
   const linesFromTables = deriveDetectedLinesFromTables(analyzePayload.analyzeResult.tables, ingredientCandidates ?? []);
-  const linesDetected =
+  const linesDetectedRaw =
     linesFromItems.length === 0 ? linesFromTables : enrichItemsWithTableQuantities(linesFromItems, linesFromTables);
+
+  const cleanupStartedAt = new Date().toISOString();
+  let openAiCleanupPayload: Awaited<ReturnType<typeof runOpenAiOcrCleanup>> | null = null;
+  let openAiCleanupMeta: OcrCleanupMeta = {
+    provider: 'openai',
+    status: 'skipped',
+    model: null,
+    processed_at: cleanupStartedAt,
+    affected_lines: 0,
+    warning: 'OpenAI cleanup disabled or missing OPENAI_API_KEY.',
+  };
+
+  if (shouldRunOpenAiOcrCleanup()) {
+    console.info('[procurement OCR] OpenAI cleanup started', { document_id: params.id, line_count: linesDetectedRaw.length });
+    try {
+      openAiCleanupPayload = await runOpenAiOcrCleanup({
+        documentKind: mapDocumentKind(firstDocument?.docType),
+        ocrRawText: rawText,
+        lines: linesDetectedRaw.map((line, index) => ({
+          line_number: index + 1,
+          raw_description: line.raw_description,
+          raw_quantity: line.raw_quantity,
+          raw_unit: line.raw_unit,
+          raw_unit_price: line.raw_unit_price,
+          raw_line_total: line.raw_line_total,
+          boxes: line.boxes,
+          units: line.units,
+          product_code: line.product_code,
+          warning_notes: line.warning_notes,
+        })),
+        ingredientCandidates: ingredientCandidates ?? [],
+        supplierCandidates: supplierCandidates ?? [],
+        supplierProductRefs: supplierProductRefs ?? [],
+      });
+      openAiCleanupMeta = {
+        provider: 'openai',
+        status: 'applied',
+        model: openAiCleanupPayload.cleanup_meta.model,
+        processed_at: openAiCleanupPayload.cleanup_meta.processed_at || new Date().toISOString(),
+        affected_lines: openAiCleanupPayload.lines_cleanup.length,
+        warning: openAiCleanupPayload.global_warnings.length ? openAiCleanupPayload.global_warnings.join(' ') : null,
+      };
+      console.info('[procurement OCR] OpenAI cleanup applied', {
+        document_id: params.id,
+        affected_lines: openAiCleanupMeta.affected_lines,
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'OpenAI cleanup failed';
+      openAiCleanupMeta = {
+        provider: 'openai',
+        status: 'failed',
+        model: process.env.OPENAI_OCR_CLEANUP_MODEL?.trim() || null,
+        processed_at: new Date().toISOString(),
+        affected_lines: 0,
+        warning: message,
+      };
+      console.warn('[procurement OCR] OpenAI cleanup failed, degraded to Azure-only', {
+        document_id: params.id,
+        message,
+      });
+    }
+  } else {
+    console.info('[procurement OCR] OpenAI cleanup skipped by config', { document_id: params.id });
+  }
+
+  const cleanupByLine = new Map((openAiCleanupPayload?.lines_cleanup ?? []).map((line) => [line.line_number, line]));
+  const supplierCleanup = openAiCleanupPayload?.supplier_cleanup;
+  const documentCleanup = openAiCleanupPayload?.document_cleanup;
+  const hasReliableSupplierCleanup = (supplierCleanup?.confidence ?? 0) >= 0.75;
+  const hasReliableDocumentCleanup = (documentCleanup?.confidence ?? 0) >= 0.75;
+
+  const linesDetected = linesDetectedRaw.map((line, index) => {
+    const cleanup = cleanupByLine.get(index + 1);
+    if (!cleanup) return line;
+
+    const nextWarnings = [
+      line.warning_notes,
+      cleanup.warnings.length ? cleanup.warnings.join(' ') : null,
+      cleanup.reasoning_short ? `OpenAI: ${cleanup.reasoning_short}` : null,
+    ]
+      .filter(Boolean)
+      .join(' ')
+      .trim();
+
+    return {
+      ...line,
+      warning_notes: nextWarnings.length ? nextWarnings : line.warning_notes,
+      ingredient_match:
+        cleanup.ingredient_match &&
+        cleanup.ingredient_match.ingredient_id &&
+        cleanup.ingredient_match.confidence === 'high' &&
+        !cleanup.ingredient_match.ambiguous
+          ? {
+              ingredient_id: cleanup.ingredient_match.ingredient_id,
+              ingredient_name: cleanup.ingredient_match.ingredient_name ?? '',
+              confidence: 'high',
+              reason: cleanup.ingredient_match.match_basis ?? 'OpenAI cleanup match de alta confianza.',
+            }
+          : line.ingredient_match,
+      extraction_source: cleanup.source_trace === 'azure+openai' ? 'items+table' : line.extraction_source,
+    };
+  });
+
+  const supplierDetected = {
+    ...supplierDetectedRaw,
+    name:
+      hasReliableSupplierCleanup && supplierCleanup?.cleaned_name
+        ? supplierCleanup.cleaned_name
+        : supplierDetectedRaw.name,
+    trade_name:
+      hasReliableSupplierCleanup && supplierCleanup?.cleaned_name
+        ? supplierCleanup.cleaned_name
+        : supplierDetectedRaw.trade_name,
+    legal_name:
+      hasReliableSupplierCleanup && supplierCleanup?.cleaned_name
+        ? supplierCleanup.cleaned_name
+        : supplierDetectedRaw.legal_name,
+    tax_id:
+      hasReliableSupplierCleanup && supplierCleanup?.cleaned_tax_id
+        ? supplierCleanup.cleaned_tax_id
+        : supplierDetectedRaw.tax_id,
+    email:
+      hasReliableSupplierCleanup && supplierCleanup?.cleaned_email
+        ? supplierCleanup.cleaned_email
+        : supplierDetectedRaw.email,
+    phone:
+      hasReliableSupplierCleanup && supplierCleanup?.cleaned_phone
+        ? supplierCleanup.cleaned_phone
+        : supplierDetectedRaw.phone,
+  } satisfies OcrSupplierDetected;
+
+  const documentDetected = {
+    ...documentDetectedRaw,
+    document_number:
+      hasReliableDocumentCleanup && documentCleanup?.cleaned_document_number
+        ? documentCleanup.cleaned_document_number
+        : documentDetectedRaw.document_number,
+    document_date:
+      hasReliableDocumentCleanup && documentCleanup?.cleaned_document_date
+        ? documentCleanup.cleaned_document_date
+        : documentDetectedRaw.document_date,
+  };
 
   const interpretedPayload = {
     supplier_detected: supplierDetected,
-    document_detected: {
-      document_kind: mapDocumentKind(firstDocument?.docType),
-      document_number: getFieldString(fields.InvoiceId),
-      document_date: getFieldDate(fields.InvoiceDate),
-      due_date: getFieldDate(fields.DueDate),
-      declared_total: getFieldNumber(fields.InvoiceTotal) ?? getFieldNumber(fields.AmountDue),
-    },
+    supplier_detected_raw: supplierDetectedRaw,
+    document_detected: documentDetected,
+    document_detected_raw: documentDetectedRaw,
     lines_detected: linesDetected,
+    lines_detected_raw: linesDetectedRaw,
     ocr_meta: {
       provider: 'azure_document_intelligence',
       model: AZURE_MODEL_ID,
@@ -789,6 +957,8 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       rerun_blocked_if_lines_exist: true as const,
       supplier_trace: supplierTrace,
     },
+    openai_cleanup: openAiCleanupPayload,
+    cleanup_meta: openAiCleanupMeta,
   };
 
   const { error: updateError } = await supabase
@@ -807,19 +977,47 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
 
   let insertedLines = 0;
   if ((currentLinesCount ?? 0) === 0 && linesDetected.length > 0) {
-    const rows = linesDetected.map((line, index) => ({
-      document_id: params.id,
-      line_number: index + 1,
-      raw_description: line.raw_description,
-      raw_quantity: line.raw_quantity,
-      raw_unit: line.raw_unit,
-      validated_unit: line.validated_unit,
-      raw_unit_price: line.raw_unit_price,
-      raw_line_total: line.raw_line_total,
-      line_status: 'unresolved' as const,
-      warning_notes: line.warning_notes,
-      user_note: null,
-    }));
+    const rows = linesDetected.map((line, index) => {
+      const cleanup = cleanupByLine.get(index + 1);
+      const interpretedDescription = cleanup?.cleaned_description?.trim() || line.raw_description;
+      const interpretedQuantity = cleanup?.quantity_interpreted ?? line.raw_quantity;
+      const interpretedUnit = cleanup?.unit_interpreted?.trim() || line.raw_unit;
+      const normalizedUnitCode = cleanup?.canonical_unit ?? line.validated_unit;
+      const normalizedUnitPrice = cleanup?.unit_price_interpreted ?? line.raw_unit_price;
+      const normalizedLineTotal = cleanup?.line_total_interpreted ?? line.raw_line_total;
+      const openAiSuggestedIngredientId =
+        cleanup?.ingredient_match &&
+        cleanup.ingredient_match.ingredient_id &&
+        cleanup.ingredient_match.confidence === 'high' &&
+        !cleanup.ingredient_match.ambiguous
+          ? cleanup.ingredient_match.ingredient_id
+          : null;
+
+      return {
+        document_id: params.id,
+        line_number: index + 1,
+        raw_description: line.raw_description,
+        raw_quantity: line.raw_quantity,
+        raw_unit: line.raw_unit,
+        validated_unit: line.validated_unit,
+        raw_unit_price: line.raw_unit_price,
+        raw_line_total: line.raw_line_total,
+        interpreted_description: interpretedDescription,
+        interpreted_quantity: interpretedQuantity,
+        interpreted_unit: interpretedUnit,
+        normalized_quantity: interpretedQuantity,
+        normalized_unit_code: normalizedUnitCode,
+        normalized_unit_price: normalizedUnitPrice,
+        normalized_line_total: normalizedLineTotal,
+        suggested_ingredient_id:
+          line.ingredient_match?.confidence === 'high'
+            ? line.ingredient_match.ingredient_id
+            : openAiSuggestedIngredientId,
+        line_status: 'unresolved' as const,
+        warning_notes: line.warning_notes,
+        user_note: null,
+      };
+    });
 
     const { error: insertError } = await supabase.from('cheffing_purchase_document_lines').insert(rows);
     if (insertError) {
@@ -833,12 +1031,19 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   if (ingredientsError) {
     console.warn('[procurement OCR] ingredients list not available for suggestion hints', ingredientsError.message);
   }
+  if (suppliersError) {
+    console.warn('[procurement OCR] suppliers list not available for OpenAI cleanup context', suppliersError.message);
+  }
+  if (refsError) {
+    console.warn('[procurement OCR] supplier refs not available for OpenAI cleanup context', refsError.message);
+  }
 
   const response = NextResponse.json({
     ok: true,
     inserted_lines: insertedLines,
     lines_detected_count: linesDetected.length,
     supplier_detected: supplierDetected,
+    cleanup_meta: openAiCleanupMeta,
   });
   mergeResponseCookies(access.supabaseResponse, response);
   return response;
