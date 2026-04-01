@@ -27,7 +27,8 @@ export function ProcurementDocumentsManager({
   suppliers: SupplierOption[];
 }) {
   const router = useRouter();
-  const [error, setError] = useState<string | null>(null);
+  const [manualError, setManualError] = useState<string | null>(null);
+  const [uploadError, setUploadError] = useState<string | null>(null);
   const [uploadCreatedDocumentId, setUploadCreatedDocumentId] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isUploadingDocument, setIsUploadingDocument] = useState(false);
@@ -43,7 +44,8 @@ export function ProcurementDocumentsManager({
   });
 
   async function createDocument() {
-    setError(null);
+    setManualError(null);
+    setUploadError(null);
     setUploadCreatedDocumentId(null);
     setIsSubmitting(true);
     try {
@@ -63,14 +65,15 @@ export function ProcurementDocumentsManager({
       }
       router.push(`/cheffing/compras/${payload.id}`);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Error desconocido');
+      setManualError(err instanceof Error ? err.message : 'Error desconocido');
     } finally {
       setIsSubmitting(false);
     }
   }
 
   async function discardDocument(documentId: string) {
-    setError(null);
+    setManualError(null);
+    setUploadError(null);
     setUploadCreatedDocumentId(null);
     setIsSubmitting(true);
     try {
@@ -81,14 +84,15 @@ export function ProcurementDocumentsManager({
       }
       router.refresh();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Error desconocido');
+      setManualError(err instanceof Error ? err.message : 'Error desconocido');
     } finally {
       setIsSubmitting(false);
     }
   }
 
   async function recoverDocument(documentId: string) {
-    setError(null);
+    setManualError(null);
+    setUploadError(null);
     setUploadCreatedDocumentId(null);
     setIsSubmitting(true);
     try {
@@ -99,7 +103,7 @@ export function ProcurementDocumentsManager({
       }
       router.refresh();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Error desconocido');
+      setManualError(err instanceof Error ? err.message : 'Error desconocido');
     } finally {
       setIsSubmitting(false);
     }
@@ -109,7 +113,8 @@ export function ProcurementDocumentsManager({
     const confirmed = window.confirm('¿Seguro que quieres eliminar este documento?\n\nEsta acción no se puede deshacer.');
     if (!confirmed) return;
 
-    setError(null);
+    setManualError(null);
+    setUploadError(null);
     setUploadCreatedDocumentId(null);
     setIsSubmitting(true);
     try {
@@ -120,7 +125,7 @@ export function ProcurementDocumentsManager({
       }
       router.refresh();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Error desconocido');
+      setManualError(err instanceof Error ? err.message : 'Error desconocido');
     } finally {
       setIsSubmitting(false);
     }
@@ -128,12 +133,13 @@ export function ProcurementDocumentsManager({
 
   async function uploadDocumentAndProcessOcr() {
     if (!uploadForm.file) {
-      setError('Selecciona un archivo (PDF o imagen) antes de subirlo.');
+      setUploadError('Selecciona un archivo (PDF o imagen) antes de subirlo.');
       setUploadCreatedDocumentId(null);
       return;
     }
 
-    setError(null);
+    setUploadError(null);
+    setManualError(null);
     setUploadCreatedDocumentId(null);
     setIsUploadingDocument(true);
     try {
@@ -180,7 +186,7 @@ export function ProcurementDocumentsManager({
       setUploadForm({ document_kind: uploadForm.document_kind, file: null });
       router.push(`/cheffing/compras/${documentId}`);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Error desconocido');
+      setUploadError(err instanceof Error ? err.message : 'Error desconocido');
       router.refresh();
     } finally {
       setIsUploadingDocument(false);
@@ -205,6 +211,7 @@ export function ProcurementDocumentsManager({
           </select>
         </div>
         <button type="button" onClick={createDocument} disabled={isSubmitting} className="rounded-full border border-emerald-400/60 px-4 py-2 text-sm font-semibold text-emerald-200">Crear documento</button>
+        {manualError ? <p className="text-sm text-rose-400">{manualError}</p> : null}
       </div>
 
       <div className="space-y-3 rounded-xl border border-slate-800 bg-slate-950/40 p-4">
@@ -233,9 +240,9 @@ export function ProcurementDocumentsManager({
         >
           {isUploadingDocument ? 'Subiendo y procesando OCR…' : 'Subir factura/albarán'}
         </button>
-        {error ? (
+        {uploadError ? (
           <p className="text-sm text-rose-400">
-            {error}
+            {uploadError}
             {uploadCreatedDocumentId ? (
               <>
                 {' '}
