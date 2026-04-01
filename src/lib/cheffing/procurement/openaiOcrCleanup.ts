@@ -83,6 +83,29 @@ type CleanupInputLine = {
 };
 
 type IngredientCandidate = { id: string; name: string };
+type RetrievedSupplierCandidate = {
+  id: string;
+  trade_name: string;
+  tax_id: string | null;
+  score_hint: number;
+  match_reasons: string[];
+};
+type RetrievedLineCandidate = {
+  line_number: number;
+  candidates: Array<{
+    ingredient_id: string;
+    ingredient_name: string;
+    supplier_ref_context: {
+      supplier_id: string;
+      supplier_product_description: string;
+      supplier_product_alias: string | null;
+      reference_unit_code: string | null;
+      reference_format_qty: number | null;
+    } | null;
+    score_hint: number;
+    match_reasons: string[];
+  }>;
+};
 type SupplierRefCandidate = {
   supplier_id: string;
   ingredient_id: string;
@@ -114,9 +137,11 @@ export async function runOpenAiOcrCleanup(input: {
   documentKind: ProcurementDocumentKind;
   ocrRawText: string;
   lines: CleanupInputLine[];
-  ingredientCandidates: IngredientCandidate[];
-  supplierCandidates?: SupplierCandidate[];
-  supplierProductRefs?: SupplierRefCandidate[];
+  supplierCandidates: RetrievedSupplierCandidate[];
+  lineCandidatesByLineNumber: RetrievedLineCandidate[];
+  ingredientCandidatesFallback?: IngredientCandidate[];
+  supplierCandidatesFallback?: SupplierCandidate[];
+  supplierProductRefsFallback?: SupplierRefCandidate[];
 }): Promise<OpenAiOcrCleanupResult> {
   const apiKey = process.env.OPENAI_API_KEY?.trim();
   if (!apiKey) throw new Error('Missing OPENAI_API_KEY');
@@ -132,9 +157,14 @@ export async function runOpenAiOcrCleanup(input: {
     document_kind: input.documentKind,
     ocr_raw_text: input.ocrRawText.slice(0, 28_000),
     lines: input.lines,
-    ingredient_candidates: input.ingredientCandidates.slice(0, 200),
-    supplier_candidates: (input.supplierCandidates ?? []).slice(0, 80),
-    supplier_product_refs: (input.supplierProductRefs ?? []).slice(0, 250),
+    supplier_candidates: input.supplierCandidates.slice(0, 5),
+    line_candidates_by_line_number: input.lineCandidatesByLineNumber.map((entry) => ({
+      line_number: entry.line_number,
+      candidates: entry.candidates.slice(0, 8),
+    })),
+    ingredient_candidates_fallback: (input.ingredientCandidatesFallback ?? []).slice(0, 200),
+    supplier_candidates_fallback: (input.supplierCandidatesFallback ?? []).slice(0, 80),
+    supplier_product_refs_fallback: (input.supplierProductRefsFallback ?? []).slice(0, 250),
   };
 
   const response = await client.responses.create({
@@ -150,6 +180,7 @@ export async function runOpenAiOcrCleanup(input: {
         content:
           'Devuelve salida estructurada estricta para cleanup OCR. Mantén trazabilidad azure/openai.\n' +
           'Reglas: no inventar valores si no hay señal clara; ante ambigüedad añade warning; ingrediente_match solo high si evidencia fuerte.\n' +
+          'supplier_id y validated_ingredient_id nunca se autoconfirman en este paso; solo sugerencias conservadoras.\n' +
           'No incluyas razonamiento largo, solo reasoning_short breve.\n\n' +
           JSON.stringify(promptPayload),
       },
