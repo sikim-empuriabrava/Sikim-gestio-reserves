@@ -63,6 +63,24 @@ const openAiCleanupSchema = z.object({
 
 type OpenAiCleanupSchema = z.infer<typeof openAiCleanupSchema>;
 
+type OpenAiResponsesOutput = {
+  type?: string;
+  content?: Array<{
+    type?: string;
+    text?: string;
+  }>;
+};
+
+type OpenAiResponsesPayload = {
+  output_text?: string;
+  output?: OpenAiResponsesOutput[];
+  error?: {
+    message?: string;
+    type?: string;
+    code?: string;
+  };
+};
+
 export type OpenAiOcrCleanupLine = Omit<z.infer<typeof cleanupLineSchema>, 'canonical_unit'> & {
   canonical_unit: ProcurementCanonicalUnit | null;
 };
@@ -135,6 +153,45 @@ export function getOpenAiOcrCleanupModel(): string {
   return model || DEFAULT_OPENAI_OCR_CLEANUP_MODEL;
 }
 
+function extractResponseText(payload: OpenAiResponsesPayload): string {
+  const directText = typeof payload.output_text === 'string' ? payload.output_text.trim() : '';
+  if (directText) return directText;
+
+  const outputText = payload.output
+    ?.flatMap((entry) => entry.content ?? [])
+    .filter((entry) => entry.type === 'output_text' && typeof entry.text === 'string')
+    .map((entry) => entry.text?.trim() ?? '')
+    .find((text) => text.length > 0);
+
+  if (outputText) return outputText;
+
+  throw new Error('OpenAI response did not contain parseable structured output');
+}
+
+function buildHttpErrorMessage(status: number, model: string, responseBodyDetail: string | null): string {
+  if (status === 401) return 'OpenAI API key rejected (401 Unauthorized).';
+  if (status === 404) return `OpenAI model not found or unavailable: "${model}".`;
+  if (status === 400) return `OpenAI request rejected for model "${model}" (400 Bad Request).`;
+  if (status === 429) return `OpenAI rate-limit exceeded for model "${model}" (429 Too Many Requests).`;
+
+  const detailSuffix = responseBodyDetail ? ` Detail: ${responseBodyDetail}` : '';
+  return `OpenAI request failed for model "${model}" (${status}).${detailSuffix}`;
+}
+
+async function readResponseBodyDetail(response: Response): Promise<string | null> {
+  const rawBody = await response.text();
+  if (!rawBody.trim()) return null;
+
+  try {
+    const parsed = JSON.parse(rawBody) as OpenAiResponsesPayload;
+    const errorMessage = parsed.error?.message?.trim();
+    if (errorMessage) return errorMessage;
+    return rawBody.slice(0, 400);
+  } catch {
+    return rawBody.slice(0, 400);
+  }
+}
+
 export async function runOpenAiOcrCleanup(input: {
   documentKind: ProcurementDocumentKind;
   ocrRawText: string;
@@ -147,16 +204,6 @@ export async function runOpenAiOcrCleanup(input: {
 }): Promise<OpenAiOcrCleanupResult> {
   const apiKey = process.env.OPENAI_API_KEY?.trim();
   if (!apiKey) throw new Error('Missing OPENAI_API_KEY');
-  const imported = await new Function('return import("openai")')().catch(() => null);
-  const OpenAI = imported?.default as
-    | (new (options: { apiKey: string }) => {
-        responses: { create: (payload: Record<string, unknown>) => Promise<{ output_text?: string | null }> };
-      })
-    | undefined;
-  if (!OpenAI) throw new Error('OpenAI SDK is not resolvable at runtime. Ensure dependency "openai" is installed in deployment and lockfile is up to date.');
-  const client = new OpenAI({ apiKey }) as {
-    responses: { create: (payload: Record<string, unknown>) => Promise<{ output_text?: string | null }> };
-  };
   const model = getOpenAiOcrCleanupModel();
 
   const promptPayload = {
@@ -173,9 +220,13 @@ export async function runOpenAiOcrCleanup(input: {
     supplier_product_refs_fallback: (input.supplierProductRefsFallback ?? []).slice(0, 250),
   };
 
-  let response: { output_text?: string | null };
-  try {
-    response = await client.responses.create({
+  const response = await fetch('https://api.openai.com/v1/responses', {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
       model,
       input: [
         {
@@ -300,24 +351,18 @@ export async function runOpenAiOcrCleanup(input: {
           },
         },
       },
-    });
-  } catch (error) {
-    const status = typeof error === 'object' && error && 'status' in error ? (error.status as number | undefined) : undefined;
-    if (status === 401) throw new Error('OpenAI API key rejected (401 Unauthorized).');
-    if (status === 404) throw new Error(`OpenAI model not found or unavailable: "${model}".`);
-    if (status === 400) throw new Error(`OpenAI request rejected for model "${model}" (400 Bad Request).`);
-    if (status === 429) {
-      throw new Error(`OpenAI rate-limit exceeded for model "${model}" (429 Too Many Requests).`);
-    }
-    throw error;
+    }),
+  });
+
+  if (!response.ok) {
+    const responseBodyDetail = await readResponseBodyDetail(response);
+    throw new Error(buildHttpErrorMessage(response.status, model, responseBodyDetail));
   }
 
-  const payloadText = response.output_text;
-  if (!payloadText) {
-    throw new Error('OpenAI response returned empty output_text');
-  }
-
+  const responsePayload = (await response.json()) as OpenAiResponsesPayload;
+  const payloadText = extractResponseText(responsePayload);
   const parsed = openAiCleanupSchema.parse(JSON.parse(payloadText));
+
   return {
     ...parsed,
     lines_cleanup: parsed.lines_cleanup.map((line) => {
