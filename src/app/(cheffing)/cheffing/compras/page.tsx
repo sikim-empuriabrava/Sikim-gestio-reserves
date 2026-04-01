@@ -28,7 +28,7 @@ export default async function CheffingComprasPage() {
     <section className="space-y-6 rounded-2xl border border-slate-800/80 bg-slate-900/70 p-6">
       <header className="space-y-2">
         <h2 className="text-xl font-semibold text-white">Compras</h2>
-        <p className="text-sm text-slate-400">Documentos de compra en gestión manual V1 (sin OCR/LLM ni aplicación automática).</p>
+        <p className="text-sm text-slate-400">Documentos de compra en flujo draft revisable, con entrada manual y pase inicial OCR.</p>
       </header>
 
       <ProcurementDocumentsManager initialDocuments={documents ?? []} suppliers={suppliers ?? []} />
