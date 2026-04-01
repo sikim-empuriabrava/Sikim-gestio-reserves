@@ -536,7 +536,7 @@ export function ProcurementDocumentDetailManager({
             {!header.supplier_id ? <p className="mt-2 text-xs text-amber-300">⚠ Completa proveedor confirmado para dejar el documento listo para aplicar.</p> : null}
           </div>
           <div className="rounded-xl border border-dashed border-slate-700 bg-slate-900/30 p-3 xl:col-span-2">
-            <p className="text-xs uppercase tracking-wide text-slate-400">Proveedor detectado (OCR Azure)</p>
+            <p className="text-xs uppercase tracking-wide text-slate-400">Proveedor detectado (base Azure + cleanup OpenAI)</p>
             {detectedSupplier ? (
               <div className="mt-1 space-y-1 text-sm text-slate-200">
                 <p>{detectedSupplier.name ?? 'Sin nombre detectado'}</p>
@@ -684,7 +684,7 @@ export function ProcurementDocumentDetailManager({
               <thead className="bg-slate-950/70 text-xs uppercase text-slate-400">
                 <tr>
                   <th className="px-4 py-3">#</th>
-                  <th className="px-4 py-3">Descripción original</th>
+                  <th className="px-4 py-3">Descripción original (raw Azure)</th>
                   <th className="px-4 py-3">Ingrediente vinculado</th>
                   <th className="px-4 py-3">Cantidad</th>
                   <th className="px-4 py-3">Unidad (canónica)</th>

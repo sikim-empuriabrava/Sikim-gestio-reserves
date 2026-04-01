@@ -774,7 +774,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     tax_id_source: (vendorTaxId ? 'vendor_fields' : kvTaxId.source) as 'vendor_fields' | 'key_value_pairs' | 'none',
   };
 
-  const supplierDetected = {
+  const supplierDetectedRaw = {
     name: getFieldString(fields.VendorName),
     trade_name: getFieldString(fields.VendorName),
     legal_name: getFieldString(fields.VendorName),
@@ -786,9 +786,17 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       `Fuentes proveedor -> email:${supplierTrace.email_source}, phone:${supplierTrace.phone_source}, tax_id:${supplierTrace.tax_id_source}.`,
   } satisfies OcrSupplierDetected;
 
+  const documentDetectedRaw = {
+    document_kind: mapDocumentKind(firstDocument?.docType),
+    document_number: getFieldString(fields.InvoiceId),
+    document_date: getFieldDate(fields.InvoiceDate),
+    due_date: getFieldDate(fields.DueDate),
+    declared_total: getFieldNumber(fields.InvoiceTotal) ?? getFieldNumber(fields.AmountDue),
+  };
+
   const linesFromItems = deriveDetectedLinesFromItems(fields.Items?.valueArray, ingredientCandidates ?? []);
   const linesFromTables = deriveDetectedLinesFromTables(analyzePayload.analyzeResult.tables, ingredientCandidates ?? []);
-  let linesDetected =
+  const linesDetectedRaw =
     linesFromItems.length === 0 ? linesFromTables : enrichItemsWithTableQuantities(linesFromItems, linesFromTables);
 
   const cleanupStartedAt = new Date().toISOString();
@@ -803,12 +811,12 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   };
 
   if (shouldRunOpenAiOcrCleanup()) {
-    console.info('[procurement OCR] OpenAI cleanup started', { document_id: params.id, line_count: linesDetected.length });
+    console.info('[procurement OCR] OpenAI cleanup started', { document_id: params.id, line_count: linesDetectedRaw.length });
     try {
       openAiCleanupPayload = await runOpenAiOcrCleanup({
         documentKind: mapDocumentKind(firstDocument?.docType),
         ocrRawText: rawText,
-        lines: linesDetected.map((line, index) => ({
+        lines: linesDetectedRaw.map((line, index) => ({
           line_number: index + 1,
           raw_description: line.raw_description,
           raw_quantity: line.raw_quantity,
@@ -824,49 +832,6 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
         supplierCandidates: supplierCandidates ?? [],
         supplierProductRefs: supplierProductRefs ?? [],
       });
-
-      const cleanupByLine = new Map(openAiCleanupPayload.lines_cleanup.map((line) => [line.line_number, line]));
-      linesDetected = linesDetected.map((line, index) => {
-        const cleanup = cleanupByLine.get(index + 1);
-        if (!cleanup) return line;
-
-        const nextWarnings = [
-          line.warning_notes,
-          cleanup.warnings.length ? cleanup.warnings.join(' ') : null,
-          cleanup.reasoning_short ? `OpenAI: ${cleanup.reasoning_short}` : null,
-        ]
-          .filter(Boolean)
-          .join(' ')
-          .trim();
-
-        return {
-          ...line,
-          raw_description: cleanup.cleaned_description?.trim() || line.raw_description,
-          boxes: cleanup.boxes ?? line.boxes,
-          units: cleanup.units ?? line.units,
-          raw_quantity: cleanup.quantity_interpreted ?? line.raw_quantity,
-          raw_unit: cleanup.unit_interpreted?.trim() || line.raw_unit,
-          validated_unit: cleanup.canonical_unit ?? line.validated_unit,
-          raw_unit_price: cleanup.unit_price_interpreted ?? line.raw_unit_price,
-          raw_line_total: cleanup.line_total_interpreted ?? line.raw_line_total,
-          product_code: cleanup.product_code?.trim() || line.product_code,
-          warning_notes: nextWarnings.length ? nextWarnings : null,
-          ingredient_match:
-            cleanup.ingredient_match &&
-            cleanup.ingredient_match.ingredient_id &&
-            cleanup.ingredient_match.confidence === 'high' &&
-            !cleanup.ingredient_match.ambiguous
-              ? {
-                  ingredient_id: cleanup.ingredient_match.ingredient_id,
-                  ingredient_name: cleanup.ingredient_match.ingredient_name ?? '',
-                  confidence: 'high',
-                  reason: cleanup.ingredient_match.match_basis ?? 'OpenAI cleanup match de alta confianza.',
-                }
-              : line.ingredient_match,
-          extraction_source: cleanup.source_trace === 'azure+openai' ? 'items+table' : line.extraction_source,
-        };
-      });
-
       openAiCleanupMeta = {
         provider: 'openai',
         status: 'applied',
@@ -898,16 +863,91 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     console.info('[procurement OCR] OpenAI cleanup skipped by config', { document_id: params.id });
   }
 
+  const cleanupByLine = new Map((openAiCleanupPayload?.lines_cleanup ?? []).map((line) => [line.line_number, line]));
+  const supplierCleanup = openAiCleanupPayload?.supplier_cleanup;
+  const documentCleanup = openAiCleanupPayload?.document_cleanup;
+  const hasReliableSupplierCleanup = (supplierCleanup?.confidence ?? 0) >= 0.75;
+  const hasReliableDocumentCleanup = (documentCleanup?.confidence ?? 0) >= 0.75;
+
+  const linesDetected = linesDetectedRaw.map((line, index) => {
+    const cleanup = cleanupByLine.get(index + 1);
+    if (!cleanup) return line;
+
+    const nextWarnings = [
+      line.warning_notes,
+      cleanup.warnings.length ? cleanup.warnings.join(' ') : null,
+      cleanup.reasoning_short ? `OpenAI: ${cleanup.reasoning_short}` : null,
+    ]
+      .filter(Boolean)
+      .join(' ')
+      .trim();
+
+    return {
+      ...line,
+      warning_notes: nextWarnings.length ? nextWarnings : line.warning_notes,
+      ingredient_match:
+        cleanup.ingredient_match &&
+        cleanup.ingredient_match.ingredient_id &&
+        cleanup.ingredient_match.confidence === 'high' &&
+        !cleanup.ingredient_match.ambiguous
+          ? {
+              ingredient_id: cleanup.ingredient_match.ingredient_id,
+              ingredient_name: cleanup.ingredient_match.ingredient_name ?? '',
+              confidence: 'high',
+              reason: cleanup.ingredient_match.match_basis ?? 'OpenAI cleanup match de alta confianza.',
+            }
+          : line.ingredient_match,
+      extraction_source: cleanup.source_trace === 'azure+openai' ? 'items+table' : line.extraction_source,
+    };
+  });
+
+  const supplierDetected = {
+    ...supplierDetectedRaw,
+    name:
+      hasReliableSupplierCleanup && supplierCleanup?.cleaned_name
+        ? supplierCleanup.cleaned_name
+        : supplierDetectedRaw.name,
+    trade_name:
+      hasReliableSupplierCleanup && supplierCleanup?.cleaned_name
+        ? supplierCleanup.cleaned_name
+        : supplierDetectedRaw.trade_name,
+    legal_name:
+      hasReliableSupplierCleanup && supplierCleanup?.cleaned_name
+        ? supplierCleanup.cleaned_name
+        : supplierDetectedRaw.legal_name,
+    tax_id:
+      hasReliableSupplierCleanup && supplierCleanup?.cleaned_tax_id
+        ? supplierCleanup.cleaned_tax_id
+        : supplierDetectedRaw.tax_id,
+    email:
+      hasReliableSupplierCleanup && supplierCleanup?.cleaned_email
+        ? supplierCleanup.cleaned_email
+        : supplierDetectedRaw.email,
+    phone:
+      hasReliableSupplierCleanup && supplierCleanup?.cleaned_phone
+        ? supplierCleanup.cleaned_phone
+        : supplierDetectedRaw.phone,
+  } satisfies OcrSupplierDetected;
+
+  const documentDetected = {
+    ...documentDetectedRaw,
+    document_number:
+      hasReliableDocumentCleanup && documentCleanup?.cleaned_document_number
+        ? documentCleanup.cleaned_document_number
+        : documentDetectedRaw.document_number,
+    document_date:
+      hasReliableDocumentCleanup && documentCleanup?.cleaned_document_date
+        ? documentCleanup.cleaned_document_date
+        : documentDetectedRaw.document_date,
+  };
+
   const interpretedPayload = {
     supplier_detected: supplierDetected,
-    document_detected: {
-      document_kind: mapDocumentKind(firstDocument?.docType),
-      document_number: getFieldString(fields.InvoiceId),
-      document_date: getFieldDate(fields.InvoiceDate),
-      due_date: getFieldDate(fields.DueDate),
-      declared_total: getFieldNumber(fields.InvoiceTotal) ?? getFieldNumber(fields.AmountDue),
-    },
+    supplier_detected_raw: supplierDetectedRaw,
+    document_detected: documentDetected,
+    document_detected_raw: documentDetectedRaw,
     lines_detected: linesDetected,
+    lines_detected_raw: linesDetectedRaw,
     ocr_meta: {
       provider: 'azure_document_intelligence',
       model: AZURE_MODEL_ID,
@@ -937,27 +977,47 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
 
   let insertedLines = 0;
   if ((currentLinesCount ?? 0) === 0 && linesDetected.length > 0) {
-    const rows = linesDetected.map((line, index) => ({
-      document_id: params.id,
-      line_number: index + 1,
-      raw_description: line.raw_description,
-      raw_quantity: line.raw_quantity,
-      raw_unit: line.raw_unit,
-      validated_unit: line.validated_unit,
-      raw_unit_price: line.raw_unit_price,
-      raw_line_total: line.raw_line_total,
-      interpreted_description: line.raw_description,
-      interpreted_quantity: line.raw_quantity,
-      interpreted_unit: line.raw_unit,
-      normalized_quantity: line.raw_quantity,
-      normalized_unit_code: line.validated_unit,
-      normalized_unit_price: line.raw_unit_price,
-      normalized_line_total: line.raw_line_total,
-      suggested_ingredient_id: line.ingredient_match?.confidence === 'high' ? line.ingredient_match.ingredient_id : null,
-      line_status: 'unresolved' as const,
-      warning_notes: line.warning_notes,
-      user_note: null,
-    }));
+    const rows = linesDetected.map((line, index) => {
+      const cleanup = cleanupByLine.get(index + 1);
+      const interpretedDescription = cleanup?.cleaned_description?.trim() || line.raw_description;
+      const interpretedQuantity = cleanup?.quantity_interpreted ?? line.raw_quantity;
+      const interpretedUnit = cleanup?.unit_interpreted?.trim() || line.raw_unit;
+      const normalizedUnitCode = cleanup?.canonical_unit ?? line.validated_unit;
+      const normalizedUnitPrice = cleanup?.unit_price_interpreted ?? line.raw_unit_price;
+      const normalizedLineTotal = cleanup?.line_total_interpreted ?? line.raw_line_total;
+      const openAiSuggestedIngredientId =
+        cleanup?.ingredient_match &&
+        cleanup.ingredient_match.ingredient_id &&
+        cleanup.ingredient_match.confidence === 'high' &&
+        !cleanup.ingredient_match.ambiguous
+          ? cleanup.ingredient_match.ingredient_id
+          : null;
+
+      return {
+        document_id: params.id,
+        line_number: index + 1,
+        raw_description: line.raw_description,
+        raw_quantity: line.raw_quantity,
+        raw_unit: line.raw_unit,
+        validated_unit: line.validated_unit,
+        raw_unit_price: line.raw_unit_price,
+        raw_line_total: line.raw_line_total,
+        interpreted_description: interpretedDescription,
+        interpreted_quantity: interpretedQuantity,
+        interpreted_unit: interpretedUnit,
+        normalized_quantity: interpretedQuantity,
+        normalized_unit_code: normalizedUnitCode,
+        normalized_unit_price: normalizedUnitPrice,
+        normalized_line_total: normalizedLineTotal,
+        suggested_ingredient_id:
+          line.ingredient_match?.confidence === 'high'
+            ? line.ingredient_match.ingredient_id
+            : openAiSuggestedIngredientId,
+        line_status: 'unresolved' as const,
+        warning_notes: line.warning_notes,
+        user_note: null,
+      };
+    });
 
     const { error: insertError } = await supabase.from('cheffing_purchase_document_lines').insert(rows);
     if (insertError) {
