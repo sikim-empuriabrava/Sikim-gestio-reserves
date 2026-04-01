@@ -68,6 +68,32 @@ RLS: deshabilitado
 | `source_waste_pct_raw` | `numeric` | Sí |  |
 | `source_price_unit_raw` | `numeric` | Sí |  |
 
+### cheffing_card_items
+RLS: habilitado
+
+| Columna | Tipo | Nullable | Default |
+| --- | --- | --- | --- |
+| `id` | `uuid` | No | `gen_random_uuid()` |
+| `card_id` | `uuid` | No |  |
+| `dish_id` | `uuid` | No |  |
+| `multiplier` | `numeric` | No | `1` |
+| `sort_order` | `integer` | No | `0` |
+| `notes` | `text` | Sí |  |
+| `created_at` | `timestamp with time zone` | No | `now()` |
+| `updated_at` | `timestamp with time zone` | No | `now()` |
+
+### cheffing_cards
+RLS: habilitado
+
+| Columna | Tipo | Nullable | Default |
+| --- | --- | --- | --- |
+| `id` | `uuid` | No | `gen_random_uuid()` |
+| `name` | `text` | No |  |
+| `notes` | `text` | Sí |  |
+| `is_active` | `boolean` | No | `true` |
+| `created_at` | `timestamp with time zone` | No | `now()` |
+| `updated_at` | `timestamp with time zone` | No | `now()` |
+
 ### cheffing_dish_items
 RLS: habilitado
 
@@ -159,6 +185,38 @@ RLS: habilitado
 | `allergen_codes` | `text[]` | No | `'{}'::text[]` |
 | `indicator_codes` | `text[]` | No | `'{}'::text[]` |
 | `image_path` | `text` | Sí |  |
+| `family_id` | `uuid` | Sí |  |
+
+### cheffing_families
+RLS: habilitado
+
+| Columna | Tipo | Nullable | Default |
+| --- | --- | --- | --- |
+| `id` | `uuid` | No | `gen_random_uuid()` |
+| `name` | `text` | No |  |
+| `slug` | `text` | No |  |
+| `sort_order` | `integer` | No | `0` |
+| `is_active` | `boolean` | No | `true` |
+| `created_at` | `timestamp with time zone` | No | `now()` |
+| `updated_at` | `timestamp with time zone` | No | `now()` |
+| `kind` | `text` | No | `'food'::text` |
+
+### cheffing_ingredient_cost_audit
+RLS: habilitado
+
+| Columna | Tipo | Nullable | Default |
+| --- | --- | --- | --- |
+| `id` | `uuid` | No | `gen_random_uuid()` |
+| `ingredient_id` | `uuid` | No |  |
+| `purchase_document_id` | `uuid` | No |  |
+| `purchase_document_line_id` | `uuid` | No |  |
+| `supplier_id` | `uuid` | Sí |  |
+| `previous_cost` | `numeric` | Sí |  |
+| `new_cost` | `numeric` | No |  |
+| `document_effective_at` | `timestamp without time zone` | No |  |
+| `applied_by` | `text` | Sí |  |
+| `applied_at` | `timestamp with time zone` | No | `now()` |
+| `created_at` | `timestamp with time zone` | No | `now()` |
 
 ### cheffing_ingredient_tags
 RLS: deshabilitado
@@ -211,6 +269,34 @@ RLS: habilitado
 | `mycheftool_foodcost_items_count` | `integer` | Sí |  |
 | `mycheftool_updated_at_source` | `timestamp with time zone` | Sí |  |
 | `mycheftool_updated_by_name` | `text` | Sí |  |
+
+### cheffing_menu_items
+RLS: habilitado
+
+| Columna | Tipo | Nullable | Default |
+| --- | --- | --- | --- |
+| `id` | `uuid` | No | `gen_random_uuid()` |
+| `menu_id` | `uuid` | No |  |
+| `dish_id` | `uuid` | No |  |
+| `multiplier` | `numeric` | No | `1` |
+| `sort_order` | `integer` | No | `0` |
+| `notes` | `text` | Sí |  |
+| `created_at` | `timestamp with time zone` | No | `now()` |
+| `updated_at` | `timestamp with time zone` | No | `now()` |
+| `section_kind` | `text` | No | `'starter'::text` |
+
+### cheffing_menus
+RLS: habilitado
+
+| Columna | Tipo | Nullable | Default |
+| --- | --- | --- | --- |
+| `id` | `uuid` | No | `gen_random_uuid()` |
+| `name` | `text` | No |  |
+| `notes` | `text` | Sí |  |
+| `price_per_person` | `numeric` | Sí |  |
+| `is_active` | `boolean` | No | `true` |
+| `created_at` | `timestamp with time zone` | No | `now()` |
+| `updated_at` | `timestamp with time zone` | No | `now()` |
 
 ### cheffing_pos_order_items
 RLS: habilitado
@@ -286,6 +372,65 @@ RLS: habilitado
 | `source` | `text` | No | `'pos'::text` |
 | `created_at` | `timestamp with time zone` | No | `now()` |
 | `updated_at` | `timestamp with time zone` | No | `now()` |
+
+### cheffing_purchase_document_lines
+RLS: habilitado
+
+| Columna | Tipo | Nullable | Default |
+| --- | --- | --- | --- |
+| `id` | `uuid` | No | `gen_random_uuid()` |
+| `document_id` | `uuid` | No |  |
+| `line_number` | `integer` | No | `1` |
+| `raw_description` | `text` | No |  |
+| `raw_quantity` | `numeric` | Sí |  |
+| `raw_unit` | `text` | Sí |  |
+| `raw_unit_price` | `numeric` | Sí |  |
+| `raw_line_total` | `numeric` | Sí |  |
+| `interpreted_description` | `text` | Sí |  |
+| `interpreted_quantity` | `numeric` | Sí |  |
+| `interpreted_unit` | `text` | Sí |  |
+| `normalized_quantity` | `numeric` | Sí |  |
+| `normalized_unit_code` | `text` | Sí |  |
+| `normalized_unit_price` | `numeric` | Sí |  |
+| `normalized_line_total` | `numeric` | Sí |  |
+| `suggested_ingredient_id` | `uuid` | Sí |  |
+| `validated_ingredient_id` | `uuid` | Sí |  |
+| `line_status` | `text` | No | `'unresolved'::text` |
+| `warning_notes` | `text` | Sí |  |
+| `line_effective_at` | `timestamp without time zone` | Sí |  |
+| `created_at` | `timestamp with time zone` | No | `now()` |
+| `updated_at` | `timestamp with time zone` | No | `now()` |
+| `validated_unit` | `text` | Sí |  |
+| `user_note` | `text` | Sí |  |
+
+### cheffing_purchase_documents
+RLS: habilitado
+
+| Columna | Tipo | Nullable | Default |
+| --- | --- | --- | --- |
+| `id` | `uuid` | No | `gen_random_uuid()` |
+| `supplier_id` | `uuid` | Sí |  |
+| `document_kind` | `text` | No |  |
+| `document_number` | `text` | Sí |  |
+| `document_date` | `date` | No |  |
+| `document_time` | `time without time zone` | Sí |  |
+| `effective_at` | `timestamp without time zone` | Sí |  |
+| `storage_bucket` | `text` | No | `'cheffing-procurement-documents'::text` |
+| `storage_path` | `text` | Sí |  |
+| `storage_delete_after` | `timestamp with time zone` | Sí |  |
+| `status` | `text` | No | `'draft'::text` |
+| `ocr_raw_text` | `text` | Sí |  |
+| `interpreted_payload` | `jsonb` | Sí |  |
+| `validation_notes` | `text` | Sí |  |
+| `created_by` | `text` | Sí |  |
+| `validated_by` | `text` | Sí |  |
+| `applied_by` | `text` | Sí |  |
+| `validated_at` | `timestamp with time zone` | Sí |  |
+| `applied_at` | `timestamp with time zone` | Sí |  |
+| `discarded_at` | `timestamp with time zone` | Sí |  |
+| `created_at` | `timestamp with time zone` | No | `now()` |
+| `updated_at` | `timestamp with time zone` | No | `now()` |
+| `declared_total` | `numeric` | Sí |  |
 
 ### cheffing_source_labels
 RLS: deshabilitado
@@ -367,6 +512,42 @@ RLS: habilitado
 | `mycheftool_foodcost_items_count` | `integer` | Sí |  |
 | `mycheftool_updated_at_source` | `timestamp with time zone` | Sí |  |
 | `mycheftool_updated_by_name` | `text` | Sí |  |
+
+### cheffing_supplier_product_refs
+RLS: habilitado
+
+| Columna | Tipo | Nullable | Default |
+| --- | --- | --- | --- |
+| `id` | `uuid` | No | `gen_random_uuid()` |
+| `supplier_id` | `uuid` | No |  |
+| `supplier_product_description` | `text` | No |  |
+| `supplier_product_alias` | `text` | Sí |  |
+| `normalized_supplier_product_name` | `text` | Sí |  |
+| `ingredient_id` | `uuid` | No |  |
+| `reference_unit_code` | `text` | Sí |  |
+| `reference_format_qty` | `numeric` | Sí |  |
+| `notes` | `text` | Sí |  |
+| `created_at` | `timestamp with time zone` | No | `now()` |
+| `updated_at` | `timestamp with time zone` | No | `now()` |
+
+### cheffing_suppliers
+RLS: habilitado
+
+| Columna | Tipo | Nullable | Default |
+| --- | --- | --- | --- |
+| `id` | `uuid` | No | `gen_random_uuid()` |
+| `trade_name` | `text` | No |  |
+| `legal_name` | `text` | Sí |  |
+| `tax_id` | `text` | Sí |  |
+| `normalized_tax_id` | `text` | Sí |  |
+| `normalized_name` | `text` | Sí |  |
+| `phone` | `text` | Sí |  |
+| `email` | `text` | Sí |  |
+| `address` | `text` | Sí |  |
+| `notes` | `text` | Sí |  |
+| `is_active` | `boolean` | No | `true` |
+| `created_at` | `timestamp with time zone` | No | `now()` |
+| `updated_at` | `timestamp with time zone` | No | `now()` |
 
 ### cheffing_tags
 RLS: deshabilitado
@@ -609,6 +790,10 @@ RLS: deshabilitado
 | Tabla | Política | Comando | Roles | USING | WITH CHECK |
 | --- | --- | --- | --- | --- | --- |
 | `app_allowed_users` | `read own allowlist row` | SELECT | authenticated | `((is_active = true) AND (lower(email) = lower(COALESCE((auth.jwt() ->> 'email'::text), current_setting('request.jwt.claim.email'::text, true)))))` | `` |
+| `cheffing_card_items` | `cheffing_card_items_select` | SELECT | public | `cheffing_is_allowed()` | `` |
+| `cheffing_card_items` | `cheffing_card_items_write` | ALL | public | `cheffing_is_admin()` | `cheffing_is_admin()` |
+| `cheffing_cards` | `cheffing_cards_select` | SELECT | public | `cheffing_is_allowed()` | `` |
+| `cheffing_cards` | `cheffing_cards_write` | ALL | public | `cheffing_is_admin()` | `cheffing_is_admin()` |
 | `cheffing_dish_items` | `cheffing_dish_items_delete` | DELETE | public | `cheffing_is_allowed()` | `` |
 | `cheffing_dish_items` | `cheffing_dish_items_insert` | INSERT | public | `` | `cheffing_is_allowed()` |
 | `cheffing_dish_items` | `cheffing_dish_items_select` | SELECT | public | `cheffing_is_allowed()` | `` |
@@ -617,16 +802,28 @@ RLS: deshabilitado
 | `cheffing_dishes` | `cheffing_dishes_insert` | INSERT | public | `` | `cheffing_is_allowed()` |
 | `cheffing_dishes` | `cheffing_dishes_select` | SELECT | public | `cheffing_is_allowed()` | `` |
 | `cheffing_dishes` | `cheffing_dishes_update` | UPDATE | public | `cheffing_is_allowed()` | `cheffing_is_allowed()` |
+| `cheffing_families` | `cheffing_families_select` | SELECT | public | `cheffing_is_allowed()` | `` |
+| `cheffing_families` | `cheffing_families_write` | ALL | public | `cheffing_is_admin()` | `cheffing_is_admin()` |
+| `cheffing_ingredient_cost_audit` | `cheffing_ingredient_cost_audit_select` | SELECT | public | `cheffing_is_allowed()` | `` |
+| `cheffing_ingredient_cost_audit` | `cheffing_ingredient_cost_audit_write` | ALL | public | `cheffing_is_admin()` | `cheffing_is_admin()` |
 | `cheffing_ingredients` | `cheffing_ingredients_delete` | DELETE | public | `cheffing_is_allowed()` | `` |
 | `cheffing_ingredients` | `cheffing_ingredients_insert` | INSERT | public | `` | `cheffing_is_allowed()` |
 | `cheffing_ingredients` | `cheffing_ingredients_select` | SELECT | public | `cheffing_is_allowed()` | `` |
 | `cheffing_ingredients` | `cheffing_ingredients_update` | UPDATE | public | `cheffing_is_allowed()` | `cheffing_is_allowed()` |
+| `cheffing_menu_items` | `cheffing_menu_items_select` | SELECT | public | `cheffing_is_allowed()` | `` |
+| `cheffing_menu_items` | `cheffing_menu_items_write` | ALL | public | `cheffing_is_admin()` | `cheffing_is_admin()` |
+| `cheffing_menus` | `cheffing_menus_select` | SELECT | public | `cheffing_is_allowed()` | `` |
+| `cheffing_menus` | `cheffing_menus_write` | ALL | public | `cheffing_is_admin()` | `cheffing_is_admin()` |
 | `cheffing_pos_order_items` | `cheffing_pos_order_items_all` | ALL | public | `cheffing_is_allowed()` | `cheffing_is_allowed()` |
 | `cheffing_pos_orders` | `cheffing_pos_orders_all` | ALL | public | `cheffing_is_allowed()` | `cheffing_is_allowed()` |
 | `cheffing_pos_product_links` | `cheffing_pos_product_links_select` | SELECT | public | `cheffing_is_allowed()` | `` |
 | `cheffing_pos_product_links` | `cheffing_pos_product_links_write` | ALL | public | `cheffing_is_admin()` | `cheffing_is_admin()` |
 | `cheffing_pos_sales_daily` | `cheffing_pos_sales_daily_select` | SELECT | public | `cheffing_is_allowed()` | `` |
 | `cheffing_pos_sales_daily` | `cheffing_pos_sales_daily_write` | ALL | public | `cheffing_is_admin()` | `cheffing_is_admin()` |
+| `cheffing_purchase_document_lines` | `cheffing_purchase_document_lines_select` | SELECT | public | `cheffing_is_allowed()` | `` |
+| `cheffing_purchase_document_lines` | `cheffing_purchase_document_lines_write` | ALL | public | `cheffing_is_admin()` | `cheffing_is_admin()` |
+| `cheffing_purchase_documents` | `cheffing_purchase_documents_select` | SELECT | public | `cheffing_is_allowed()` | `` |
+| `cheffing_purchase_documents` | `cheffing_purchase_documents_write` | ALL | public | `cheffing_is_admin()` | `cheffing_is_admin()` |
 | `cheffing_subrecipe_items` | `cheffing_subrecipe_items_delete` | DELETE | public | `cheffing_is_allowed()` | `` |
 | `cheffing_subrecipe_items` | `cheffing_subrecipe_items_insert` | INSERT | public | `` | `cheffing_is_allowed()` |
 | `cheffing_subrecipe_items` | `cheffing_subrecipe_items_select` | SELECT | public | `cheffing_is_allowed()` | `` |
@@ -635,6 +832,10 @@ RLS: deshabilitado
 | `cheffing_subrecipes` | `cheffing_subrecipes_insert` | INSERT | public | `` | `cheffing_is_allowed()` |
 | `cheffing_subrecipes` | `cheffing_subrecipes_select` | SELECT | public | `cheffing_is_allowed()` | `` |
 | `cheffing_subrecipes` | `cheffing_subrecipes_update` | UPDATE | public | `cheffing_is_allowed()` | `cheffing_is_allowed()` |
+| `cheffing_supplier_product_refs` | `cheffing_supplier_product_refs_select` | SELECT | public | `cheffing_is_allowed()` | `` |
+| `cheffing_supplier_product_refs` | `cheffing_supplier_product_refs_write` | ALL | public | `cheffing_is_admin()` | `cheffing_is_admin()` |
+| `cheffing_suppliers` | `cheffing_suppliers_select` | SELECT | public | `cheffing_is_allowed()` | `` |
+| `cheffing_suppliers` | `cheffing_suppliers_write` | ALL | public | `cheffing_is_admin()` | `cheffing_is_admin()` |
 | `cheffing_units` | `cheffing_units_delete` | DELETE | public | `cheffing_is_admin()` | `` |
 | `cheffing_units` | `cheffing_units_insert` | INSERT | public | `` | `cheffing_is_admin()` |
 | `cheffing_units` | `cheffing_units_select` | SELECT | public | `cheffing_is_allowed()` | `` |
@@ -645,19 +846,33 @@ RLS: deshabilitado
 | --- | --- | --- | --- |
 | `app_allowed_users` | `normalize_allowed_user_email` | BEFORE | INSERT, UPDATE |
 | `app_allowed_users` | `trg_app_allowed_users_email_lowercase` | BEFORE | INSERT, UPDATE |
+| `cheffing_card_items` | `set_updated_at_cheffing_card_items` | BEFORE | UPDATE |
+| `cheffing_cards` | `set_updated_at_cheffing_cards` | BEFORE | UPDATE |
 | `cheffing_dish_items` | `set_updated_at_cheffing_dish_items` | BEFORE | UPDATE |
 | `cheffing_dish_items` | `trg_cheffing_dish_items_updated_at` | BEFORE | UPDATE |
 | `cheffing_dishes` | `set_updated_at_cheffing_dishes` | BEFORE | UPDATE |
 | `cheffing_dishes` | `trg_cheffing_dishes_updated_at` | BEFORE | UPDATE |
+| `cheffing_families` | `set_updated_at_cheffing_families` | BEFORE | UPDATE |
 | `cheffing_ingredients` | `set_updated_at_cheffing_ingredients` | BEFORE | UPDATE |
 | `cheffing_ingredients` | `trg_cheffing_ingredients_updated_at` | BEFORE | UPDATE |
+| `cheffing_menu_items` | `set_updated_at_cheffing_menu_items` | BEFORE | UPDATE |
+| `cheffing_menus` | `set_updated_at_cheffing_menus` | BEFORE | UPDATE |
 | `cheffing_pos_product_links` | `set_updated_at_cheffing_pos_product_links` | BEFORE | UPDATE |
 | `cheffing_pos_sales_daily` | `set_updated_at_cheffing_pos_sales_daily` | BEFORE | UPDATE |
 | `cheffing_pos_sales_daily` | `trg_cheffing_pos_sales_daily_updated_at` | BEFORE | UPDATE |
+| `cheffing_purchase_document_lines` | `set_purchase_line_effective_at` | BEFORE | INSERT, UPDATE |
+| `cheffing_purchase_document_lines` | `set_updated_at_cheffing_purchase_document_lines` | BEFORE | UPDATE |
+| `cheffing_purchase_documents` | `enforce_purchase_document_apply_ready` | BEFORE | INSERT, UPDATE |
+| `cheffing_purchase_documents` | `set_purchase_document_effective_at` | BEFORE | INSERT, UPDATE |
+| `cheffing_purchase_documents` | `set_purchase_document_storage_retention` | BEFORE | INSERT, UPDATE |
+| `cheffing_purchase_documents` | `set_updated_at_cheffing_purchase_documents` | BEFORE | UPDATE |
+| `cheffing_purchase_documents` | `sync_purchase_lines_effective_at` | AFTER | UPDATE |
 | `cheffing_subrecipe_items` | `set_updated_at_cheffing_subrecipe_items` | BEFORE | UPDATE |
 | `cheffing_subrecipe_items` | `trg_cheffing_subrecipe_items_updated_at` | BEFORE | UPDATE |
 | `cheffing_subrecipes` | `set_updated_at_cheffing_subrecipes` | BEFORE | UPDATE |
 | `cheffing_subrecipes` | `trg_cheffing_subrecipes_updated_at` | BEFORE | UPDATE |
+| `cheffing_supplier_product_refs` | `set_updated_at_cheffing_supplier_product_refs` | BEFORE | UPDATE |
+| `cheffing_suppliers` | `set_updated_at_cheffing_suppliers` | BEFORE | UPDATE |
 | `cheffing_units` | `set_updated_at_cheffing_units` | BEFORE | UPDATE |
 | `cheffing_units` | `trg_cheffing_units_updated_at` | BEFORE | UPDATE |
 | `day_status` | `trg_day_status_sync_legacy_columns` | BEFORE | INSERT, UPDATE |
@@ -676,11 +891,17 @@ RLS: deshabilitado
 | Función | Args | Devuelve |
 | --- | --- | --- |
 | `app_allowed_users_email_lowercase` | `` | `trigger` |
+| `cheffing_apply_purchase_document` | `p_document_id uuid, p_applied_by text DEFAULT NULL::text` | `TABLE(applied_lines integer, updated_ingredients integer)` |
+| `cheffing_enforce_purchase_document_apply_ready` | `` | `trigger` |
 | `cheffing_is_admin` | `` | `boolean` |
 | `cheffing_is_allowed` | `` | `boolean` |
 | `cheffing_menu_engineering_dish_cost` | `p_from date DEFAULT NULL::date, p_to date DEFAULT NULL::date` | `TABLE(id uuid, name text, selling_price numeric, cost_per_serving numeric, created_at timestamp with time zone, updated_at timestamp with time zone, units_sold integer)` |
 | `cheffing_pos_import_status` | `` | `TABLE(last_order_id text, last_opened_at timestamp without time zone, range_from date, range_to date)` |
 | `cheffing_pos_refresh_sales_daily` | `p_from date DEFAULT NULL::date, p_to date DEFAULT NULL::date` | `void` |
+| `cheffing_set_purchase_document_effective_at` | `` | `trigger` |
+| `cheffing_set_purchase_document_storage_retention` | `` | `trigger` |
+| `cheffing_set_purchase_line_effective_at` | `` | `trigger` |
+| `cheffing_sync_purchase_lines_effective_at` | `` | `trigger` |
 | `day_status_sync_legacy_columns` | `` | `trigger` |
 | `delete_routine_pack` | `p_pack_id uuid, p_mode text DEFAULT 'keep_all'::text, p_cutoff_week_start date DEFAULT NULL::date` | `TABLE(deleted_pack boolean, deleted_routines integer, deleted_tasks integer, unlinked_tasks integer)` |
 | `delete_routine_template` | `p_routine_id uuid, p_mode text DEFAULT 'keep_all'::text, p_cutoff_week_start date DEFAULT NULL::date` | `TABLE(deleted boolean, deleted_tasks integer, unlinked_tasks integer)` |
