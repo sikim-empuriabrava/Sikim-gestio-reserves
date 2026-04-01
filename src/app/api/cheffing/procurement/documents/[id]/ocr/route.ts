@@ -60,6 +60,46 @@ type OcrCleanupMeta = {
   warning: string | null;
 };
 
+type SupplierCandidateRow = {
+  id: string;
+  trade_name: string;
+  tax_id: string | null;
+  email: string | null;
+  phone: string | null;
+};
+
+type SupplierCandidateHint = {
+  id: string;
+  trade_name: string;
+  tax_id: string | null;
+  score_hint: number;
+  match_reasons: string[];
+};
+
+type IngredientCandidateRow = { id: string; name: string; reference: string | null };
+type SupplierProductRefRow = {
+  supplier_id: string;
+  ingredient_id: string;
+  supplier_product_description: string;
+  supplier_product_alias: string | null;
+  reference_unit_code: string | null;
+  reference_format_qty: number | null;
+};
+
+type LineCandidateHint = {
+  ingredient_id: string;
+  ingredient_name: string;
+  supplier_ref_context: {
+    supplier_id: string;
+    supplier_product_description: string;
+    supplier_product_alias: string | null;
+    reference_unit_code: string | null;
+    reference_format_qty: number | null;
+  } | null;
+  score_hint: number;
+  match_reasons: string[];
+};
+
 type AzureFieldValue = {
   type?: string;
   valueString?: string;
@@ -134,6 +174,193 @@ function parseTaxId(value: string | null): string | null {
   if (!value) return null;
   const match = value.match(/\b([A-Z]\d{7}[A-Z0-9]|[A-Z0-9]{1,2}\d{6,10}[A-Z0-9])\b/i);
   return match?.[1] ?? null;
+}
+
+function normalizePhone(value: string | null): string | null {
+  if (!value) return null;
+  const digits = value.replace(/[^\d+]/g, '');
+  if (!digits) return null;
+  if (digits.startsWith('+')) {
+    const compact = `+${digits.slice(1).replace(/\D/g, '')}`;
+    return compact.length > 4 ? compact : null;
+  }
+  const compact = digits.replace(/\D/g, '');
+  return compact.length >= 7 ? compact : null;
+}
+
+function includesNormalizedText(haystack: string | null, needle: string | null): boolean {
+  const normalizedHaystack = normalizeProcurementText(haystack);
+  const normalizedNeedle = normalizeProcurementText(needle);
+  if (!normalizedHaystack || !normalizedNeedle) return false;
+  return normalizedHaystack.includes(normalizedNeedle) || normalizedNeedle.includes(normalizedHaystack);
+}
+
+function hasCompatibleUnit(rawUnit: string | null, referenceUnitCode: string | null): boolean {
+  const normalizedRaw = normalizeProcurementCanonicalUnit(rawUnit);
+  const normalizedRef = normalizeProcurementCanonicalUnit(referenceUnitCode);
+  return typeof normalizedRaw === 'string' && typeof normalizedRef === 'string' && normalizedRaw === normalizedRef;
+}
+
+function isCompatibleFormatQuantity(
+  rawQuantity: number | null,
+  boxes: number | null,
+  units: number | null,
+  referenceFormatQty: number | null,
+): boolean {
+  if (referenceFormatQty === null || referenceFormatQty <= 0) return false;
+  const signals = [rawQuantity, boxes, units].filter((value): value is number => typeof value === 'number' && Number.isFinite(value) && value > 0);
+  return signals.some((value) => Math.abs(value - referenceFormatQty) <= 0.001);
+}
+
+function buildSupplierCandidates(input: {
+  supplierDetectedRaw: OcrSupplierDetected;
+  suppliers: SupplierCandidateRow[];
+}): SupplierCandidateHint[] {
+  const taxId = parseTaxId(input.supplierDetectedRaw.tax_id);
+  const email = input.supplierDetectedRaw.email?.trim().toLowerCase() || null;
+  const phone = normalizePhone(input.supplierDetectedRaw.phone);
+  const detectedNames = [
+    input.supplierDetectedRaw.trade_name,
+    input.supplierDetectedRaw.name,
+    input.supplierDetectedRaw.legal_name,
+  ]
+    .map((entry) => normalizeProcurementText(entry))
+    .filter((entry): entry is string => Boolean(entry));
+
+  return input.suppliers
+    .map((supplier) => {
+      const reasons: string[] = [];
+      let score = 0;
+      const supplierTaxId = parseTaxId(supplier.tax_id);
+      const supplierTradeName = normalizeProcurementText(supplier.trade_name);
+      const supplierEmail = supplier.email?.trim().toLowerCase() || null;
+      const supplierPhone = normalizePhone(supplier.phone);
+
+      if (taxId && supplierTaxId && taxId === supplierTaxId) {
+        score += 80;
+        reasons.push('tax_id_exact');
+      }
+      if (email && supplierEmail && email === supplierEmail) {
+        score += 65;
+        reasons.push('email_exact');
+      }
+      if (phone && supplierPhone && phone === supplierPhone) {
+        score += 55;
+        reasons.push('phone_exact_normalized');
+      }
+
+      for (const detectedName of detectedNames) {
+        if (!detectedName || !supplierTradeName) continue;
+        if (detectedName === supplierTradeName) {
+          score += 45;
+          reasons.push('trade_name_exact_normalized');
+          continue;
+        }
+        if (detectedName.includes(supplierTradeName) || supplierTradeName.includes(detectedName)) {
+          score += 25;
+          reasons.push('trade_name_substring');
+        }
+      }
+
+      return {
+        id: supplier.id,
+        trade_name: supplier.trade_name,
+        tax_id: supplier.tax_id,
+        score_hint: score,
+        match_reasons: Array.from(new Set(reasons)),
+      } satisfies SupplierCandidateHint;
+    })
+    .filter((candidate) => candidate.score_hint > 0)
+    .sort((a, b) => b.score_hint - a.score_hint)
+    .slice(0, 5);
+}
+
+function buildLineCandidates(input: {
+  lineNumber: number;
+  line: OcrLineDetected;
+  ingredients: IngredientCandidateRow[];
+  supplierProductRefs: SupplierProductRefRow[];
+  supplierCandidates: SupplierCandidateHint[];
+}): { line_number: number; candidates: LineCandidateHint[] } {
+  const normalizedDescription = normalizeProcurementText(input.line.raw_description);
+  const normalizedProductCode = normalizeProcurementText(input.line.product_code);
+  const topSupplierIds = new Set(input.supplierCandidates.map((candidate) => candidate.id));
+
+  const candidates = input.ingredients
+    .map((ingredient) => {
+      const reasons: string[] = [];
+      let score = 0;
+      const ingredientName = normalizeProcurementText(ingredient.name);
+      const ingredientReference = normalizeProcurementText(ingredient.reference);
+      const refs = input.supplierProductRefs.filter((ref) => ref.ingredient_id === ingredient.id);
+      let bestRefContext: LineCandidateHint['supplier_ref_context'] = null;
+      let bestRefScore = 0;
+
+      if (normalizedDescription && ingredientName && includesNormalizedText(normalizedDescription, ingredientName)) {
+        score += 45;
+        reasons.push('ingredient_name_text_match');
+      }
+      if (normalizedProductCode && ingredientReference && normalizedProductCode === ingredientReference) {
+        score += 55;
+        reasons.push('ingredient_reference_exact');
+      }
+
+      for (const ref of refs) {
+        let refScore = 0;
+        const refReasons: string[] = [];
+        const refDescription = normalizeProcurementText(ref.supplier_product_description);
+        const refAlias = normalizeProcurementText(ref.supplier_product_alias);
+        const refMatchesText =
+          (normalizedDescription && refDescription && includesNormalizedText(normalizedDescription, refDescription)) ||
+          (normalizedDescription && refAlias && includesNormalizedText(normalizedDescription, refAlias));
+        if (refMatchesText) {
+          refScore += 38;
+          refReasons.push('supplier_ref_description_match');
+        }
+        if (topSupplierIds.has(ref.supplier_id)) {
+          refScore += 22;
+          refReasons.push('supplier_candidate_bonus');
+        }
+        if (hasCompatibleUnit(input.line.raw_unit, ref.reference_unit_code)) {
+          refScore += 10;
+          refReasons.push('compatible_unit_bonus');
+        }
+        if (isCompatibleFormatQuantity(input.line.raw_quantity, input.line.boxes, input.line.units, ref.reference_format_qty)) {
+          refScore += 8;
+          refReasons.push('compatible_format_qty_bonus');
+        }
+
+        score += refScore;
+        reasons.push(...refReasons);
+
+        if (refScore > bestRefScore) {
+          bestRefScore = refScore;
+          bestRefContext = {
+            supplier_id: ref.supplier_id,
+            supplier_product_description: ref.supplier_product_description,
+            supplier_product_alias: ref.supplier_product_alias,
+            reference_unit_code: ref.reference_unit_code,
+            reference_format_qty: ref.reference_format_qty,
+          };
+        }
+      }
+
+      return {
+        ingredient_id: ingredient.id,
+        ingredient_name: ingredient.name,
+        supplier_ref_context: bestRefContext,
+        score_hint: score,
+        match_reasons: Array.from(new Set(reasons)),
+      } satisfies LineCandidateHint;
+    })
+    .filter((candidate) => candidate.score_hint > 0)
+    .sort((a, b) => b.score_hint - a.score_hint)
+    .slice(0, 8);
+
+  return {
+    line_number: input.lineNumber,
+    candidates,
+  };
 }
 
 function detectUnit(rawValue: string | null): ProcurementCanonicalUnit | null {
@@ -620,8 +847,8 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
         .from('cheffing_purchase_document_lines')
         .select('id', { count: 'exact', head: true })
         .eq('document_id', params.id),
-      supabase.from('cheffing_ingredients').select('id, name').order('name', { ascending: true }),
-      supabase.from('cheffing_suppliers').select('id, trade_name, tax_id').order('trade_name', { ascending: true }),
+      supabase.from('cheffing_ingredients').select('id, name, reference').order('name', { ascending: true }),
+      supabase.from('cheffing_suppliers').select('id, trade_name, tax_id, email, phone').order('trade_name', { ascending: true }),
       supabase
         .from('cheffing_supplier_product_refs')
         .select('supplier_id, ingredient_id, supplier_product_description, supplier_product_alias, reference_unit_code, reference_format_qty')
@@ -798,6 +1025,19 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   const linesFromTables = deriveDetectedLinesFromTables(analyzePayload.analyzeResult.tables, ingredientCandidates ?? []);
   const linesDetectedRaw =
     linesFromItems.length === 0 ? linesFromTables : enrichItemsWithTableQuantities(linesFromItems, linesFromTables);
+  const supplierCandidatesRetrieved = buildSupplierCandidates({
+    supplierDetectedRaw,
+    suppliers: (supplierCandidates ?? []) as SupplierCandidateRow[],
+  });
+  const lineCandidatesByLineNumber = linesDetectedRaw.map((line, index) =>
+    buildLineCandidates({
+      lineNumber: index + 1,
+      line,
+      ingredients: (ingredientCandidates ?? []) as IngredientCandidateRow[],
+      supplierProductRefs: (supplierProductRefs ?? []) as SupplierProductRefRow[],
+      supplierCandidates: supplierCandidatesRetrieved,
+    }),
+  );
 
   const cleanupStartedAt = new Date().toISOString();
   let openAiCleanupPayload: Awaited<ReturnType<typeof runOpenAiOcrCleanup>> | null = null;
@@ -828,9 +1068,11 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
           product_code: line.product_code,
           warning_notes: line.warning_notes,
         })),
-        ingredientCandidates: ingredientCandidates ?? [],
-        supplierCandidates: supplierCandidates ?? [],
-        supplierProductRefs: supplierProductRefs ?? [],
+        supplierCandidates: supplierCandidatesRetrieved,
+        lineCandidatesByLineNumber,
+        ingredientCandidatesFallback: (ingredientCandidates ?? []) as IngredientCandidateRow[],
+        supplierCandidatesFallback: (supplierCandidates ?? []) as SupplierCandidateRow[],
+        supplierProductRefsFallback: (supplierProductRefs ?? []) as SupplierProductRefRow[],
       });
       openAiCleanupMeta = {
         provider: 'openai',
