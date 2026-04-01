@@ -1,3 +1,5 @@
+import 'server-only';
+
 import { z } from 'zod';
 
 import { normalizeProcurementCanonicalUnit, type ProcurementCanonicalUnit, type ProcurementDocumentKind } from '@/lib/cheffing/procurement';
@@ -146,8 +148,12 @@ export async function runOpenAiOcrCleanup(input: {
   const apiKey = process.env.OPENAI_API_KEY?.trim();
   if (!apiKey) throw new Error('Missing OPENAI_API_KEY');
   const imported = await new Function('return import("openai")')().catch(() => null);
-  const OpenAI = imported?.default;
-  if (!OpenAI) throw new Error('OpenAI SDK is not installed. Add dependency "openai" to enable OCR cleanup.');
+  const OpenAI = imported?.default as
+    | (new (options: { apiKey: string }) => {
+        responses: { create: (payload: Record<string, unknown>) => Promise<{ output_text?: string | null }> };
+      })
+    | undefined;
+  if (!OpenAI) throw new Error('OpenAI SDK is not resolvable at runtime. Ensure dependency "openai" is installed in deployment and lockfile is up to date.');
   const client = new OpenAI({ apiKey }) as {
     responses: { create: (payload: Record<string, unknown>) => Promise<{ output_text?: string | null }> };
   };
@@ -167,132 +173,144 @@ export async function runOpenAiOcrCleanup(input: {
     supplier_product_refs_fallback: (input.supplierProductRefsFallback ?? []).slice(0, 250),
   };
 
-  const response = await client.responses.create({
-    model,
-    input: [
-      {
-        role: 'system',
-        content:
-          'Eres un limpiador OCR para compras de restauración. NO validas de forma final. Solo limpias, interpretas y normalizas conservadoramente.',
-      },
-      {
-        role: 'user',
-        content:
-          'Devuelve salida estructurada estricta para cleanup OCR. Mantén trazabilidad azure/openai.\n' +
-          'Reglas: no inventar valores si no hay señal clara; ante ambigüedad añade warning; ingrediente_match solo high si evidencia fuerte.\n' +
-          'supplier_id y validated_ingredient_id nunca se autoconfirman en este paso; solo sugerencias conservadoras.\n' +
-          'No incluyas razonamiento largo, solo reasoning_short breve.\n\n' +
-          JSON.stringify(promptPayload),
-      },
-    ],
-    text: {
-      format: {
-        type: 'json_schema',
-        name: 'ocr_cleanup_output',
-        strict: true,
-        schema: {
-          type: 'object',
-          additionalProperties: false,
-          properties: {
-            supplier_cleanup: {
-              type: 'object',
-              additionalProperties: false,
-              properties: {
-                cleaned_name: { type: ['string', 'null'] },
-                cleaned_tax_id: { type: ['string', 'null'] },
-                cleaned_email: { type: ['string', 'null'] },
-                cleaned_phone: { type: ['string', 'null'] },
-                confidence: { type: ['number', 'null'], minimum: 0, maximum: 1 },
-                warnings: { type: 'array', items: { type: 'string' } },
-                source_trace: { type: 'string', enum: ['azure', 'openai', 'azure+openai'] },
-              },
-              required: ['cleaned_name', 'cleaned_tax_id', 'cleaned_email', 'cleaned_phone', 'confidence', 'warnings', 'source_trace'],
-            },
-            document_cleanup: {
-              type: 'object',
-              additionalProperties: false,
-              properties: {
-                cleaned_document_number: { type: ['string', 'null'] },
-                cleaned_document_date: { type: ['string', 'null'] },
-                detected_currency: { type: ['string', 'null'] },
-                confidence: { type: ['number', 'null'], minimum: 0, maximum: 1 },
-                warnings: { type: 'array', items: { type: 'string' } },
-                source_trace: { type: 'string', enum: ['azure', 'openai', 'azure+openai'] },
-              },
-              required: ['cleaned_document_number', 'cleaned_document_date', 'detected_currency', 'confidence', 'warnings', 'source_trace'],
-            },
-            lines_cleanup: {
-              type: 'array',
-              items: {
+  let response: { output_text?: string | null };
+  try {
+    response = await client.responses.create({
+      model,
+      input: [
+        {
+          role: 'system',
+          content:
+            'Eres un limpiador OCR para compras de restauración. NO validas de forma final. Solo limpias, interpretas y normalizas conservadoramente.',
+        },
+        {
+          role: 'user',
+          content:
+            'Devuelve salida estructurada estricta para cleanup OCR. Mantén trazabilidad azure/openai.\n' +
+            'Reglas: no inventar valores si no hay señal clara; ante ambigüedad añade warning; ingrediente_match solo high si evidencia fuerte.\n' +
+            'supplier_id y validated_ingredient_id nunca se autoconfirman en este paso; solo sugerencias conservadoras.\n' +
+            'No incluyas razonamiento largo, solo reasoning_short breve.\n\n' +
+            JSON.stringify(promptPayload),
+        },
+      ],
+      text: {
+        format: {
+          type: 'json_schema',
+          name: 'ocr_cleanup_output',
+          strict: true,
+          schema: {
+            type: 'object',
+            additionalProperties: false,
+            properties: {
+              supplier_cleanup: {
                 type: 'object',
                 additionalProperties: false,
                 properties: {
-                  line_number: { type: 'integer', minimum: 1 },
-                  raw_description: { type: 'string' },
-                  cleaned_description: { type: ['string', 'null'] },
-                  product_code: { type: ['string', 'null'] },
-                  boxes: { type: ['number', 'null'] },
-                  units: { type: ['number', 'null'] },
-                  quantity_interpreted: { type: ['number', 'null'] },
-                  unit_interpreted: { type: ['string', 'null'] },
-                  canonical_unit: { type: ['string', 'null'] },
-                  unit_price_interpreted: { type: ['number', 'null'] },
-                  line_total_interpreted: { type: ['number', 'null'] },
-                  ingredient_match: {
-                    type: ['object', 'null'],
-                    additionalProperties: false,
-                    properties: {
-                      ingredient_id: { type: ['string', 'null'] },
-                      ingredient_name: { type: ['string', 'null'] },
-                      confidence: { type: 'string', enum: ['high', 'medium', 'low'] },
-                      match_basis: { type: ['string', 'null'] },
-                      ambiguous: { type: 'boolean' },
-                    },
-                    required: ['ingredient_id', 'ingredient_name', 'confidence', 'match_basis', 'ambiguous'],
-                  },
+                  cleaned_name: { type: ['string', 'null'] },
+                  cleaned_tax_id: { type: ['string', 'null'] },
+                  cleaned_email: { type: ['string', 'null'] },
+                  cleaned_phone: { type: ['string', 'null'] },
                   confidence: { type: ['number', 'null'], minimum: 0, maximum: 1 },
                   warnings: { type: 'array', items: { type: 'string' } },
-                  reasoning_short: { type: ['string', 'null'] },
                   source_trace: { type: 'string', enum: ['azure', 'openai', 'azure+openai'] },
                 },
-                required: [
-                  'line_number',
-                  'raw_description',
-                  'cleaned_description',
-                  'product_code',
-                  'boxes',
-                  'units',
-                  'quantity_interpreted',
-                  'unit_interpreted',
-                  'canonical_unit',
-                  'unit_price_interpreted',
-                  'line_total_interpreted',
-                  'ingredient_match',
-                  'confidence',
-                  'warnings',
-                  'reasoning_short',
-                  'source_trace',
-                ],
+                required: ['cleaned_name', 'cleaned_tax_id', 'cleaned_email', 'cleaned_phone', 'confidence', 'warnings', 'source_trace'],
               },
-            },
-            cleanup_meta: {
-              type: 'object',
-              additionalProperties: false,
-              properties: {
-                model: { type: 'string' },
-                version: { type: 'string' },
-                processed_at: { type: 'string' },
-                notes: { type: 'array', items: { type: 'string' } },
+              document_cleanup: {
+                type: 'object',
+                additionalProperties: false,
+                properties: {
+                  cleaned_document_number: { type: ['string', 'null'] },
+                  cleaned_document_date: { type: ['string', 'null'] },
+                  detected_currency: { type: ['string', 'null'] },
+                  confidence: { type: ['number', 'null'], minimum: 0, maximum: 1 },
+                  warnings: { type: 'array', items: { type: 'string' } },
+                  source_trace: { type: 'string', enum: ['azure', 'openai', 'azure+openai'] },
+                },
+                required: ['cleaned_document_number', 'cleaned_document_date', 'detected_currency', 'confidence', 'warnings', 'source_trace'],
               },
-              required: ['model', 'version', 'processed_at', 'notes'],
+              lines_cleanup: {
+                type: 'array',
+                items: {
+                  type: 'object',
+                  additionalProperties: false,
+                  properties: {
+                    line_number: { type: 'integer', minimum: 1 },
+                    raw_description: { type: 'string' },
+                    cleaned_description: { type: ['string', 'null'] },
+                    product_code: { type: ['string', 'null'] },
+                    boxes: { type: ['number', 'null'] },
+                    units: { type: ['number', 'null'] },
+                    quantity_interpreted: { type: ['number', 'null'] },
+                    unit_interpreted: { type: ['string', 'null'] },
+                    canonical_unit: { type: ['string', 'null'] },
+                    unit_price_interpreted: { type: ['number', 'null'] },
+                    line_total_interpreted: { type: ['number', 'null'] },
+                    ingredient_match: {
+                      type: ['object', 'null'],
+                      additionalProperties: false,
+                      properties: {
+                        ingredient_id: { type: ['string', 'null'] },
+                        ingredient_name: { type: ['string', 'null'] },
+                        confidence: { type: 'string', enum: ['high', 'medium', 'low'] },
+                        match_basis: { type: ['string', 'null'] },
+                        ambiguous: { type: 'boolean' },
+                      },
+                      required: ['ingredient_id', 'ingredient_name', 'confidence', 'match_basis', 'ambiguous'],
+                    },
+                    confidence: { type: ['number', 'null'], minimum: 0, maximum: 1 },
+                    warnings: { type: 'array', items: { type: 'string' } },
+                    reasoning_short: { type: ['string', 'null'] },
+                    source_trace: { type: 'string', enum: ['azure', 'openai', 'azure+openai'] },
+                  },
+                  required: [
+                    'line_number',
+                    'raw_description',
+                    'cleaned_description',
+                    'product_code',
+                    'boxes',
+                    'units',
+                    'quantity_interpreted',
+                    'unit_interpreted',
+                    'canonical_unit',
+                    'unit_price_interpreted',
+                    'line_total_interpreted',
+                    'ingredient_match',
+                    'confidence',
+                    'warnings',
+                    'reasoning_short',
+                    'source_trace',
+                  ],
+                },
+              },
+              cleanup_meta: {
+                type: 'object',
+                additionalProperties: false,
+                properties: {
+                  model: { type: 'string' },
+                  version: { type: 'string' },
+                  processed_at: { type: 'string' },
+                  notes: { type: 'array', items: { type: 'string' } },
+                },
+                required: ['model', 'version', 'processed_at', 'notes'],
+              },
+              global_warnings: { type: 'array', items: { type: 'string' } },
             },
-            global_warnings: { type: 'array', items: { type: 'string' } },
+            required: ['supplier_cleanup', 'document_cleanup', 'lines_cleanup', 'cleanup_meta', 'global_warnings'],
           },
-          required: ['supplier_cleanup', 'document_cleanup', 'lines_cleanup', 'cleanup_meta', 'global_warnings'],
         },
       },
-    },
-  });
+    });
+  } catch (error) {
+    const status = typeof error === 'object' && error && 'status' in error ? (error.status as number | undefined) : undefined;
+    if (status === 401) throw new Error('OpenAI API key rejected (401 Unauthorized).');
+    if (status === 404) throw new Error(`OpenAI model not found or unavailable: "${model}".`);
+    if (status === 400) throw new Error(`OpenAI request rejected for model "${model}" (400 Bad Request).`);
+    if (status === 429) {
+      throw new Error(`OpenAI rate-limit exceeded for model "${model}" (429 Too Many Requests).`);
+    }
+    throw error;
+  }
 
   const payloadText = response.output_text;
   if (!payloadText) {
