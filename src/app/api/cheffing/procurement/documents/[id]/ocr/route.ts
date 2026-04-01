@@ -294,6 +294,7 @@ function buildLineCandidates(input: {
       const ingredientReference = normalizeProcurementText(ingredient.reference);
       const refs = input.supplierProductRefs.filter((ref) => ref.ingredient_id === ingredient.id);
       let bestRefContext: LineCandidateHint['supplier_ref_context'] = null;
+      let bestRefScore = 0;
 
       if (normalizedDescription && ingredientName && includesNormalizedText(normalizedDescription, ingredientName)) {
         score += 45;
@@ -305,28 +306,35 @@ function buildLineCandidates(input: {
       }
 
       for (const ref of refs) {
+        let refScore = 0;
+        const refReasons: string[] = [];
         const refDescription = normalizeProcurementText(ref.supplier_product_description);
         const refAlias = normalizeProcurementText(ref.supplier_product_alias);
         const refMatchesText =
           (normalizedDescription && refDescription && includesNormalizedText(normalizedDescription, refDescription)) ||
           (normalizedDescription && refAlias && includesNormalizedText(normalizedDescription, refAlias));
         if (refMatchesText) {
-          score += 38;
-          reasons.push('supplier_ref_description_match');
+          refScore += 38;
+          refReasons.push('supplier_ref_description_match');
         }
         if (topSupplierIds.has(ref.supplier_id)) {
-          score += 22;
-          reasons.push('supplier_candidate_bonus');
+          refScore += 22;
+          refReasons.push('supplier_candidate_bonus');
         }
         if (hasCompatibleUnit(input.line.raw_unit, ref.reference_unit_code)) {
-          score += 10;
-          reasons.push('compatible_unit_bonus');
+          refScore += 10;
+          refReasons.push('compatible_unit_bonus');
         }
         if (isCompatibleFormatQuantity(input.line.raw_quantity, input.line.boxes, input.line.units, ref.reference_format_qty)) {
-          score += 8;
-          reasons.push('compatible_format_qty_bonus');
+          refScore += 8;
+          refReasons.push('compatible_format_qty_bonus');
         }
-        if (score > 0 && !bestRefContext) {
+
+        score += refScore;
+        reasons.push(...refReasons);
+
+        if (refScore > bestRefScore) {
+          bestRefScore = refScore;
           bestRefContext = {
             supplier_id: ref.supplier_id,
             supplier_product_description: ref.supplier_product_description,
@@ -1030,7 +1038,6 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       supplierCandidates: supplierCandidatesRetrieved,
     }),
   );
-  const hasAnyLineCandidates = lineCandidatesByLineNumber.some((entry) => entry.candidates.length > 0);
 
   const cleanupStartedAt = new Date().toISOString();
   let openAiCleanupPayload: Awaited<ReturnType<typeof runOpenAiOcrCleanup>> | null = null;
@@ -1063,10 +1070,9 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
         })),
         supplierCandidates: supplierCandidatesRetrieved,
         lineCandidatesByLineNumber,
-        ingredientCandidatesFallback: hasAnyLineCandidates ? [] : ((ingredientCandidates ?? []) as IngredientCandidateRow[]),
-        supplierCandidatesFallback:
-          supplierCandidatesRetrieved.length > 0 ? [] : ((supplierCandidates ?? []) as SupplierCandidateRow[]),
-        supplierProductRefsFallback: hasAnyLineCandidates ? [] : ((supplierProductRefs ?? []) as SupplierProductRefRow[]),
+        ingredientCandidatesFallback: (ingredientCandidates ?? []) as IngredientCandidateRow[],
+        supplierCandidatesFallback: (supplierCandidates ?? []) as SupplierCandidateRow[],
+        supplierProductRefsFallback: (supplierProductRefs ?? []) as SupplierProductRefRow[],
       });
       openAiCleanupMeta = {
         provider: 'openai',
