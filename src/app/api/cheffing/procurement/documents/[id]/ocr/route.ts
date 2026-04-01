@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 
 import { createSupabaseAdminClient } from '@/lib/supabaseAdmin';
 import { normalizeProcurementCanonicalUnit, normalizeProcurementText, type ProcurementCanonicalUnit } from '@/lib/cheffing/procurement';
+import { runOpenAiOcrCleanup, shouldRunOpenAiOcrCleanup } from '@/lib/cheffing/procurement/openaiOcrCleanup';
 import { requireCheffingRouteAccess } from '@/lib/cheffing/requireCheffingRoute';
 import { mergeResponseCookies } from '@/lib/supabase/route';
 
@@ -48,6 +49,15 @@ type OcrLineDetected = {
     units_from?: 'items' | 'table';
     product_code_from?: 'items' | 'table';
   } | null;
+};
+
+type OcrCleanupMeta = {
+  provider: 'openai';
+  status: 'applied' | 'skipped' | 'failed';
+  model: string | null;
+  processed_at: string;
+  affected_lines: number;
+  warning: string | null;
 };
 
 type AzureFieldValue = {
@@ -593,7 +603,13 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   const allowOverride = body?.allow_override_lines === true;
 
   const supabase = createSupabaseAdminClient();
-  const [{ data: document, error: documentError }, { count: currentLinesCount, error: linesError }, { data: ingredientCandidates, error: ingredientsError }] =
+  const [
+    { data: document, error: documentError },
+    { count: currentLinesCount, error: linesError },
+    { data: ingredientCandidates, error: ingredientsError },
+    { data: supplierCandidates, error: suppliersError },
+    { data: supplierProductRefs, error: refsError },
+  ] =
     await Promise.all([
       supabase
         .from('cheffing_purchase_documents')
@@ -605,6 +621,11 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
         .select('id', { count: 'exact', head: true })
         .eq('document_id', params.id),
       supabase.from('cheffing_ingredients').select('id, name').order('name', { ascending: true }),
+      supabase.from('cheffing_suppliers').select('id, trade_name, tax_id').order('trade_name', { ascending: true }),
+      supabase
+        .from('cheffing_supplier_product_refs')
+        .select('supplier_id, ingredient_id, supplier_product_description, supplier_product_alias, reference_unit_code, reference_format_qty')
+        .limit(1000),
     ]);
 
   if (documentError || !document) {
@@ -767,8 +788,115 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
 
   const linesFromItems = deriveDetectedLinesFromItems(fields.Items?.valueArray, ingredientCandidates ?? []);
   const linesFromTables = deriveDetectedLinesFromTables(analyzePayload.analyzeResult.tables, ingredientCandidates ?? []);
-  const linesDetected =
+  let linesDetected =
     linesFromItems.length === 0 ? linesFromTables : enrichItemsWithTableQuantities(linesFromItems, linesFromTables);
+
+  const cleanupStartedAt = new Date().toISOString();
+  let openAiCleanupPayload: Awaited<ReturnType<typeof runOpenAiOcrCleanup>> | null = null;
+  let openAiCleanupMeta: OcrCleanupMeta = {
+    provider: 'openai',
+    status: 'skipped',
+    model: null,
+    processed_at: cleanupStartedAt,
+    affected_lines: 0,
+    warning: 'OpenAI cleanup disabled or missing OPENAI_API_KEY.',
+  };
+
+  if (shouldRunOpenAiOcrCleanup()) {
+    console.info('[procurement OCR] OpenAI cleanup started', { document_id: params.id, line_count: linesDetected.length });
+    try {
+      openAiCleanupPayload = await runOpenAiOcrCleanup({
+        documentKind: mapDocumentKind(firstDocument?.docType),
+        ocrRawText: rawText,
+        lines: linesDetected.map((line, index) => ({
+          line_number: index + 1,
+          raw_description: line.raw_description,
+          raw_quantity: line.raw_quantity,
+          raw_unit: line.raw_unit,
+          raw_unit_price: line.raw_unit_price,
+          raw_line_total: line.raw_line_total,
+          boxes: line.boxes,
+          units: line.units,
+          product_code: line.product_code,
+          warning_notes: line.warning_notes,
+        })),
+        ingredientCandidates: ingredientCandidates ?? [],
+        supplierCandidates: supplierCandidates ?? [],
+        supplierProductRefs: supplierProductRefs ?? [],
+      });
+
+      const cleanupByLine = new Map(openAiCleanupPayload.lines_cleanup.map((line) => [line.line_number, line]));
+      linesDetected = linesDetected.map((line, index) => {
+        const cleanup = cleanupByLine.get(index + 1);
+        if (!cleanup) return line;
+
+        const nextWarnings = [
+          line.warning_notes,
+          cleanup.warnings.length ? cleanup.warnings.join(' ') : null,
+          cleanup.reasoning_short ? `OpenAI: ${cleanup.reasoning_short}` : null,
+        ]
+          .filter(Boolean)
+          .join(' ')
+          .trim();
+
+        return {
+          ...line,
+          raw_description: cleanup.cleaned_description?.trim() || line.raw_description,
+          boxes: cleanup.boxes ?? line.boxes,
+          units: cleanup.units ?? line.units,
+          raw_quantity: cleanup.quantity_interpreted ?? line.raw_quantity,
+          raw_unit: cleanup.unit_interpreted?.trim() || line.raw_unit,
+          validated_unit: cleanup.canonical_unit ?? line.validated_unit,
+          raw_unit_price: cleanup.unit_price_interpreted ?? line.raw_unit_price,
+          raw_line_total: cleanup.line_total_interpreted ?? line.raw_line_total,
+          product_code: cleanup.product_code?.trim() || line.product_code,
+          warning_notes: nextWarnings.length ? nextWarnings : null,
+          ingredient_match:
+            cleanup.ingredient_match &&
+            cleanup.ingredient_match.ingredient_id &&
+            cleanup.ingredient_match.confidence === 'high' &&
+            !cleanup.ingredient_match.ambiguous
+              ? {
+                  ingredient_id: cleanup.ingredient_match.ingredient_id,
+                  ingredient_name: cleanup.ingredient_match.ingredient_name ?? '',
+                  confidence: 'high',
+                  reason: cleanup.ingredient_match.match_basis ?? 'OpenAI cleanup match de alta confianza.',
+                }
+              : line.ingredient_match,
+          extraction_source: cleanup.source_trace === 'azure+openai' ? 'items+table' : line.extraction_source,
+        };
+      });
+
+      openAiCleanupMeta = {
+        provider: 'openai',
+        status: 'applied',
+        model: openAiCleanupPayload.cleanup_meta.model,
+        processed_at: openAiCleanupPayload.cleanup_meta.processed_at || new Date().toISOString(),
+        affected_lines: openAiCleanupPayload.lines_cleanup.length,
+        warning: openAiCleanupPayload.global_warnings.length ? openAiCleanupPayload.global_warnings.join(' ') : null,
+      };
+      console.info('[procurement OCR] OpenAI cleanup applied', {
+        document_id: params.id,
+        affected_lines: openAiCleanupMeta.affected_lines,
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'OpenAI cleanup failed';
+      openAiCleanupMeta = {
+        provider: 'openai',
+        status: 'failed',
+        model: process.env.OPENAI_OCR_CLEANUP_MODEL?.trim() || null,
+        processed_at: new Date().toISOString(),
+        affected_lines: 0,
+        warning: message,
+      };
+      console.warn('[procurement OCR] OpenAI cleanup failed, degraded to Azure-only', {
+        document_id: params.id,
+        message,
+      });
+    }
+  } else {
+    console.info('[procurement OCR] OpenAI cleanup skipped by config', { document_id: params.id });
+  }
 
   const interpretedPayload = {
     supplier_detected: supplierDetected,
@@ -789,6 +917,8 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       rerun_blocked_if_lines_exist: true as const,
       supplier_trace: supplierTrace,
     },
+    openai_cleanup: openAiCleanupPayload,
+    cleanup_meta: openAiCleanupMeta,
   };
 
   const { error: updateError } = await supabase
@@ -816,6 +946,14 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       validated_unit: line.validated_unit,
       raw_unit_price: line.raw_unit_price,
       raw_line_total: line.raw_line_total,
+      interpreted_description: line.raw_description,
+      interpreted_quantity: line.raw_quantity,
+      interpreted_unit: line.raw_unit,
+      normalized_quantity: line.raw_quantity,
+      normalized_unit_code: line.validated_unit,
+      normalized_unit_price: line.raw_unit_price,
+      normalized_line_total: line.raw_line_total,
+      suggested_ingredient_id: line.ingredient_match?.confidence === 'high' ? line.ingredient_match.ingredient_id : null,
       line_status: 'unresolved' as const,
       warning_notes: line.warning_notes,
       user_note: null,
@@ -833,12 +971,19 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   if (ingredientsError) {
     console.warn('[procurement OCR] ingredients list not available for suggestion hints', ingredientsError.message);
   }
+  if (suppliersError) {
+    console.warn('[procurement OCR] suppliers list not available for OpenAI cleanup context', suppliersError.message);
+  }
+  if (refsError) {
+    console.warn('[procurement OCR] supplier refs not available for OpenAI cleanup context', refsError.message);
+  }
 
   const response = NextResponse.json({
     ok: true,
     inserted_lines: insertedLines,
     lines_detected_count: linesDetected.length,
     supplier_detected: supplierDetected,
+    cleanup_meta: openAiCleanupMeta,
   });
   mergeResponseCookies(access.supabaseResponse, response);
   return response;

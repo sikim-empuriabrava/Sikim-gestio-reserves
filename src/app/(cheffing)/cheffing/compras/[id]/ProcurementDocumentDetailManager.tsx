@@ -167,6 +167,20 @@ export function ProcurementDocumentDetailManager({
     };
   }, [document.interpreted_payload]);
 
+  const cleanupMeta = useMemo(() => {
+    const payload = document.interpreted_payload;
+    if (!payload || typeof payload !== 'object') return null;
+    const meta = (payload as Record<string, unknown>).cleanup_meta;
+    if (!meta || typeof meta !== 'object') return null;
+    const record = meta as Record<string, unknown>;
+    return {
+      status: typeof record.status === 'string' ? record.status : null,
+      warning: typeof record.warning === 'string' ? record.warning : null,
+      model: typeof record.model === 'string' ? record.model : null,
+      affectedLines: typeof record.affected_lines === 'number' ? record.affected_lines : null,
+    };
+  }, [document.interpreted_payload]);
+
   const supplierPrefill = useMemo(() => {
     const supplier =
       document.interpreted_payload && typeof document.interpreted_payload === 'object'
@@ -467,7 +481,7 @@ export function ProcurementDocumentDetailManager({
     }
   }
 
-  async function processOcrWithMistral() {
+  async function processOcr() {
     setError(null);
     setOcrMessage(null);
     setIsProcessingOcr(true);
@@ -479,13 +493,17 @@ export function ProcurementDocumentDetailManager({
       });
       const payload = await response.json().catch(() => ({}));
       if (!response.ok) {
-        throw new Error(payload?.error ?? 'No se pudo procesar OCR con Mistral');
+        throw new Error(payload?.error ?? 'No se pudo procesar OCR');
       }
 
       const insertedLines = typeof payload?.inserted_lines === 'number' ? payload.inserted_lines : 0;
+      const cleanupStatus = typeof payload?.cleanup_meta?.status === 'string' ? payload.cleanup_meta.status : null;
       setOcrMessage({
         kind: 'success',
-        text: `OCR procesado correctamente. Líneas sugeridas creadas: ${insertedLines}.`,
+        text:
+          cleanupStatus === 'failed'
+            ? `OCR Azure procesado. OpenAI cleanup falló (degradación aplicada). Líneas sugeridas creadas: ${insertedLines}.`
+            : `OCR Azure procesado${cleanupStatus === 'applied' ? ' + OpenAI cleanup aplicado' : ''}. Líneas sugeridas creadas: ${insertedLines}.`,
       });
       router.refresh();
     } catch (err) {
@@ -504,7 +522,7 @@ export function ProcurementDocumentDetailManager({
           <div className="space-y-2">
             <p className="text-xs uppercase tracking-wide text-slate-400">Ficha operativa</p>
             <h2 className="text-xl font-semibold text-white">Documento de compra</h2>
-            <p className="text-sm text-slate-400">Misma pantalla para carga manual, borrador OCR futuro y consulta en solo lectura.</p>
+            <p className="text-sm text-slate-400">Misma pantalla para carga manual, OCR Azure + cleanup OpenAI y consulta en solo lectura.</p>
           </div>
           <div className="rounded-full border border-slate-700 bg-slate-900/80 px-3 py-1 text-xs text-slate-200">
             Estado: {documentStatusLabel(document.status)}
@@ -518,7 +536,7 @@ export function ProcurementDocumentDetailManager({
             {!header.supplier_id ? <p className="mt-2 text-xs text-amber-300">⚠ Completa proveedor confirmado para dejar el documento listo para aplicar.</p> : null}
           </div>
           <div className="rounded-xl border border-dashed border-slate-700 bg-slate-900/30 p-3 xl:col-span-2">
-            <p className="text-xs uppercase tracking-wide text-slate-400">Proveedor detectado (OCR Mistral)</p>
+            <p className="text-xs uppercase tracking-wide text-slate-400">Proveedor detectado (OCR Azure)</p>
             {detectedSupplier ? (
               <div className="mt-1 space-y-1 text-sm text-slate-200">
                 <p>{detectedSupplier.name ?? 'Sin nombre detectado'}</p>
@@ -528,6 +546,14 @@ export function ProcurementDocumentDetailManager({
             ) : (
               <p className="mt-1 text-sm text-slate-400">Sin datos detectados todavía.</p>
             )}
+            {cleanupMeta ? (
+              <p className={`mt-2 text-xs ${cleanupMeta.status === 'failed' ? 'text-amber-300' : 'text-slate-400'}`}>
+                Cleanup OpenAI: {cleanupMeta.status ?? 'sin estado'}
+                {cleanupMeta.model ? ` · modelo: ${cleanupMeta.model}` : ''}
+                {cleanupMeta.affectedLines !== null ? ` · líneas afectadas: ${cleanupMeta.affectedLines}` : ''}
+                {cleanupMeta.warning ? ` · aviso: ${cleanupMeta.warning}` : ''}
+              </p>
+            ) : null}
           </div>
           <HeaderDatum label="Tipo" value={documentKindLabel(header.document_kind)} />
           <HeaderDatum label="Número" value={header.document_number || '—'} />
@@ -725,12 +751,12 @@ export function ProcurementDocumentDetailManager({
             {isDraft && document.storage_path ? (
               <button
                 type="button"
-                onClick={processOcrWithMistral}
+                onClick={processOcr}
                 disabled={isSubmitting || isProcessingOcr || linesCount > 0}
                 className="w-full rounded-full border border-sky-400/60 px-4 py-2 text-sm font-semibold text-sky-200 disabled:cursor-not-allowed disabled:border-slate-700 disabled:text-slate-500"
                 title={linesCount > 0 ? 'Bloqueado: el documento ya tiene líneas y no se permite re-ejecutar OCR en esta fase.' : undefined}
               >
-                {isProcessingOcr ? 'Procesando OCR…' : 'Procesar OCR con Mistral'}
+                {isProcessingOcr ? 'Procesando OCR…' : 'Procesar OCR Azure + cleanup OpenAI'}
               </button>
             ) : null}
             {isDraft && document.storage_path && linesCount > 0 ? (
