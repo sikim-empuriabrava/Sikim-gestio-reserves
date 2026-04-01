@@ -85,6 +85,168 @@ $$;
 
 
 --
+-- Name: cheffing_apply_purchase_document(uuid, text); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.cheffing_apply_purchase_document(p_document_id uuid, p_applied_by text DEFAULT NULL::text) RETURNS TABLE(applied_lines integer, updated_ingredients integer)
+    LANGUAGE plpgsql
+    AS $$
+declare
+  v_document record;
+  v_applied_at timestamptz := now();
+  v_line_count integer;
+  v_updated_ingredients integer;
+begin
+  select d.id, d.status, d.supplier_id, d.effective_at
+  into v_document
+  from public.cheffing_purchase_documents d
+  where d.id = p_document_id
+  for update;
+
+  if not found then
+    raise exception 'Document % not found', p_document_id;
+  end if;
+
+  if v_document.status <> 'draft' then
+    raise exception 'Only draft documents can be applied';
+  end if;
+
+  if v_document.supplier_id is null then
+    raise exception 'Document requires supplier before apply';
+  end if;
+
+  select count(*)::integer
+  into v_line_count
+  from public.cheffing_purchase_document_lines l
+  where l.document_id = p_document_id;
+
+  if v_line_count = 0 then
+    raise exception 'Document % cannot be applied without lines', p_document_id;
+  end if;
+
+  if exists (
+    select 1
+    from public.cheffing_purchase_document_lines l
+    where l.document_id = p_document_id
+      and l.line_status <> 'resolved'
+  ) then
+    raise exception 'Document % cannot be applied while unresolved lines exist', p_document_id;
+  end if;
+
+  if exists (
+    select 1
+    from public.cheffing_purchase_document_lines l
+    where l.document_id = p_document_id
+      and l.validated_ingredient_id is null
+  ) then
+    raise exception 'All lines require validated ingredient before apply';
+  end if;
+
+  if exists (
+    select 1
+    from public.cheffing_purchase_document_lines l
+    where l.document_id = p_document_id
+      and l.raw_unit_price is null
+  ) then
+    raise exception 'All lines require raw_unit_price in manual V1';
+  end if;
+
+  insert into public.cheffing_ingredient_cost_audit (
+    ingredient_id,
+    purchase_document_id,
+    purchase_document_line_id,
+    supplier_id,
+    previous_cost,
+    new_cost,
+    document_effective_at,
+    applied_by,
+    applied_at
+  )
+  select
+    l.validated_ingredient_id as ingredient_id,
+    p_document_id as purchase_document_id,
+    l.id as purchase_document_line_id,
+    v_document.supplier_id,
+    i.purchase_price as previous_cost,
+    l.raw_unit_price as new_cost,
+    v_document.effective_at as document_effective_at,
+    p_applied_by,
+    v_applied_at
+  from public.cheffing_purchase_document_lines l
+  join public.cheffing_ingredients i on i.id = l.validated_ingredient_id
+  where l.document_id = p_document_id;
+
+  update public.cheffing_purchase_documents d
+  set
+    status = 'applied',
+    applied_by = p_applied_by,
+    applied_at = v_applied_at,
+    updated_at = now()
+  where d.id = p_document_id;
+
+  with affected_ingredients as (
+    select distinct l.validated_ingredient_id as ingredient_id
+    from public.cheffing_purchase_document_lines l
+    where l.document_id = p_document_id
+  ),
+  ranked_costs as (
+    select
+      a.ingredient_id,
+      a.new_cost,
+      row_number() over (
+        partition by a.ingredient_id
+        order by a.document_effective_at desc, a.new_cost desc, a.applied_at desc, a.id desc
+      ) as rn
+    from public.cheffing_ingredient_cost_audit a
+    join affected_ingredients ai on ai.ingredient_id = a.ingredient_id
+  )
+  update public.cheffing_ingredients i
+  set purchase_price = rc.new_cost,
+      updated_at = now()
+  from ranked_costs rc
+  where i.id = rc.ingredient_id
+    and rc.rn = 1;
+
+  get diagnostics v_updated_ingredients = row_count;
+
+  return query select v_line_count, coalesce(v_updated_ingredients, 0);
+end;
+$$;
+
+
+--
+-- Name: cheffing_enforce_purchase_document_apply_ready(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.cheffing_enforce_purchase_document_apply_ready() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+begin
+  if new.status = 'applied' and (tg_op = 'INSERT' or old.status is distinct from 'applied') then
+    if exists (
+      select 1
+      from public.cheffing_purchase_document_lines l
+      where l.document_id = new.id
+        and l.line_status <> 'resolved'
+    ) then
+      raise exception 'Document % cannot be applied while unresolved lines exist', new.id;
+    end if;
+
+    if not exists (
+      select 1
+      from public.cheffing_purchase_document_lines l
+      where l.document_id = new.id
+    ) then
+      raise exception 'Document % cannot be applied without lines', new.id;
+    end if;
+  end if;
+
+  return new;
+end;
+$$;
+
+
+--
 -- Name: cheffing_is_admin(); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -251,6 +413,74 @@ begin
     source = excluded.source,
     updated_at = now();
 end $$;
+
+
+--
+-- Name: cheffing_set_purchase_document_effective_at(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.cheffing_set_purchase_document_effective_at() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+begin
+  new.effective_at := new.document_date::timestamp + coalesce(new.document_time, time '00:00:00');
+
+  return new;
+end;
+$$;
+
+
+--
+-- Name: cheffing_set_purchase_document_storage_retention(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.cheffing_set_purchase_document_storage_retention() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+begin
+  if new.status = 'applied' then
+    new.storage_delete_after := coalesce(new.storage_delete_after, now() + interval '7 days');
+  else
+    new.storage_delete_after := null;
+  end if;
+
+  return new;
+end;
+$$;
+
+
+--
+-- Name: cheffing_set_purchase_line_effective_at(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.cheffing_set_purchase_line_effective_at() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+begin
+  select d.effective_at into new.line_effective_at
+  from public.cheffing_purchase_documents d
+  where d.id = new.document_id;
+
+  return new;
+end;
+$$;
+
+
+--
+-- Name: cheffing_sync_purchase_lines_effective_at(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.cheffing_sync_purchase_lines_effective_at() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+begin
+  update public.cheffing_purchase_document_lines
+  set line_effective_at = new.effective_at
+  where document_id = new.id;
+
+  return new;
+end;
+$$;
 
 
 --
@@ -998,6 +1228,37 @@ CREATE TABLE public.backup_cheffing_subrecipe_items_phase2_20260312 (
 
 
 --
+-- Name: cheffing_card_items; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.cheffing_card_items (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    card_id uuid NOT NULL,
+    dish_id uuid NOT NULL,
+    multiplier numeric DEFAULT 1 NOT NULL,
+    sort_order integer DEFAULT 0 NOT NULL,
+    notes text,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT cheffing_card_items_multiplier_positive CHECK ((multiplier > (0)::numeric))
+);
+
+
+--
+-- Name: cheffing_cards; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.cheffing_cards (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    name text NOT NULL,
+    notes text,
+    is_active boolean DEFAULT true NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+--
 -- Name: cheffing_dish_items; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -1098,10 +1359,47 @@ CREATE TABLE public.cheffing_dishes (
     allergen_codes text[] DEFAULT '{}'::text[] NOT NULL,
     indicator_codes text[] DEFAULT '{}'::text[] NOT NULL,
     image_path text,
+    family_id uuid,
     CONSTRAINT cheffing_dishes_selling_price_check CHECK (((selling_price IS NULL) OR (selling_price >= (0)::numeric))),
     CONSTRAINT cheffing_dishes_servings_check CHECK ((servings > 0)),
     CONSTRAINT cheffing_dishes_servings_positive CHECK ((servings > 0)),
     CONSTRAINT cheffing_dishes_units_sold_nonnegative CHECK ((units_sold >= 0))
+);
+
+
+--
+-- Name: cheffing_families; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.cheffing_families (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    name text NOT NULL,
+    slug text NOT NULL,
+    sort_order integer DEFAULT 0 NOT NULL,
+    is_active boolean DEFAULT true NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    kind text DEFAULT 'food'::text NOT NULL,
+    CONSTRAINT cheffing_families_kind_check CHECK ((kind = ANY (ARRAY['food'::text, 'drink'::text])))
+);
+
+
+--
+-- Name: cheffing_ingredient_cost_audit; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.cheffing_ingredient_cost_audit (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    ingredient_id uuid NOT NULL,
+    purchase_document_id uuid NOT NULL,
+    purchase_document_line_id uuid NOT NULL,
+    supplier_id uuid,
+    previous_cost numeric,
+    new_cost numeric NOT NULL,
+    document_effective_at timestamp without time zone NOT NULL,
+    applied_by text,
+    applied_at timestamp with time zone DEFAULT now() NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL
 );
 
 
@@ -1163,6 +1461,40 @@ CREATE TABLE public.cheffing_ingredients (
     CONSTRAINT cheffing_ingredients_stock_qty_check CHECK ((stock_qty >= (0)::numeric)),
     CONSTRAINT cheffing_ingredients_waste_lt_one CHECK (((waste_pct >= (0)::numeric) AND (waste_pct < (1)::numeric))),
     CONSTRAINT cheffing_ingredients_waste_pct_check CHECK (((waste_pct >= (0)::numeric) AND (waste_pct < (1)::numeric)))
+);
+
+
+--
+-- Name: cheffing_menu_items; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.cheffing_menu_items (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    menu_id uuid NOT NULL,
+    dish_id uuid NOT NULL,
+    multiplier numeric DEFAULT 1 NOT NULL,
+    sort_order integer DEFAULT 0 NOT NULL,
+    notes text,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    section_kind text DEFAULT 'starter'::text NOT NULL,
+    CONSTRAINT cheffing_menu_items_multiplier_positive CHECK ((multiplier > (0)::numeric)),
+    CONSTRAINT cheffing_menu_items_section_kind_check CHECK ((section_kind = ANY (ARRAY['starter'::text, 'main'::text, 'drink'::text, 'dessert'::text])))
+);
+
+
+--
+-- Name: cheffing_menus; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.cheffing_menus (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    name text NOT NULL,
+    notes text,
+    price_per_person numeric,
+    is_active boolean DEFAULT true NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL
 );
 
 
@@ -1271,6 +1603,75 @@ CREATE TABLE public.cheffing_pos_sales_daily (
 
 
 --
+-- Name: cheffing_purchase_document_lines; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.cheffing_purchase_document_lines (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    document_id uuid NOT NULL,
+    line_number integer DEFAULT 1 NOT NULL,
+    raw_description text NOT NULL,
+    raw_quantity numeric,
+    raw_unit text,
+    raw_unit_price numeric,
+    raw_line_total numeric,
+    interpreted_description text,
+    interpreted_quantity numeric,
+    interpreted_unit text,
+    normalized_quantity numeric,
+    normalized_unit_code text,
+    normalized_unit_price numeric,
+    normalized_line_total numeric,
+    suggested_ingredient_id uuid,
+    validated_ingredient_id uuid,
+    line_status text DEFAULT 'unresolved'::text NOT NULL,
+    warning_notes text,
+    line_effective_at timestamp without time zone,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    validated_unit text,
+    user_note text,
+    CONSTRAINT cheffing_purchase_document_lines_resolved_requires_validated_in CHECK (((line_status <> 'resolved'::text) OR (validated_ingredient_id IS NOT NULL))),
+    CONSTRAINT cheffing_purchase_document_lines_status_check CHECK ((line_status = ANY (ARRAY['unresolved'::text, 'resolved'::text]))),
+    CONSTRAINT cheffing_purchase_document_lines_validated_unit_check CHECK (((validated_unit IS NULL) OR (validated_unit = ANY (ARRAY['ud'::text, 'kg'::text, 'g'::text, 'l'::text, 'ml'::text, 'caja'::text, 'pack'::text]))))
+);
+
+
+--
+-- Name: cheffing_purchase_documents; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.cheffing_purchase_documents (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    supplier_id uuid,
+    document_kind text NOT NULL,
+    document_number text,
+    document_date date NOT NULL,
+    document_time time without time zone,
+    effective_at timestamp without time zone,
+    storage_bucket text DEFAULT 'cheffing-procurement-documents'::text NOT NULL,
+    storage_path text,
+    storage_delete_after timestamp with time zone,
+    status text DEFAULT 'draft'::text NOT NULL,
+    ocr_raw_text text,
+    interpreted_payload jsonb,
+    validation_notes text,
+    created_by text,
+    validated_by text,
+    applied_by text,
+    validated_at timestamp with time zone,
+    applied_at timestamp with time zone,
+    discarded_at timestamp with time zone,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    declared_total numeric,
+    CONSTRAINT cheffing_purchase_documents_declared_total_nonnegative CHECK (((declared_total IS NULL) OR (declared_total >= (0)::numeric))),
+    CONSTRAINT cheffing_purchase_documents_kind_check CHECK ((document_kind = ANY (ARRAY['invoice'::text, 'delivery_note'::text, 'other'::text]))),
+    CONSTRAINT cheffing_purchase_documents_status_check CHECK ((status = ANY (ARRAY['draft'::text, 'applied'::text, 'discarded'::text])))
+);
+
+
+--
 -- Name: cheffing_source_labels; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -1364,6 +1765,46 @@ CREATE TABLE public.cheffing_subrecipes (
     CONSTRAINT cheffing_subrecipes_output_qty_check CHECK ((output_qty > (0)::numeric)),
     CONSTRAINT cheffing_subrecipes_waste_lt_one CHECK (((waste_pct >= (0)::numeric) AND (waste_pct < (1)::numeric))),
     CONSTRAINT cheffing_subrecipes_waste_pct_check CHECK (((waste_pct >= (0)::numeric) AND (waste_pct < (1)::numeric)))
+);
+
+
+--
+-- Name: cheffing_supplier_product_refs; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.cheffing_supplier_product_refs (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    supplier_id uuid NOT NULL,
+    supplier_product_description text NOT NULL,
+    supplier_product_alias text,
+    normalized_supplier_product_name text,
+    ingredient_id uuid NOT NULL,
+    reference_unit_code text,
+    reference_format_qty numeric,
+    notes text,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+--
+-- Name: cheffing_suppliers; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.cheffing_suppliers (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    trade_name text NOT NULL,
+    legal_name text,
+    tax_id text,
+    normalized_tax_id text,
+    normalized_name text,
+    phone text,
+    email text,
+    address text,
+    notes text,
+    is_active boolean DEFAULT true NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL
 );
 
 
@@ -1999,6 +2440,22 @@ ALTER TABLE ONLY public.app_allowed_users
 
 
 --
+-- Name: cheffing_card_items cheffing_card_items_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.cheffing_card_items
+    ADD CONSTRAINT cheffing_card_items_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: cheffing_cards cheffing_cards_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.cheffing_cards
+    ADD CONSTRAINT cheffing_cards_pkey PRIMARY KEY (id);
+
+
+--
 -- Name: cheffing_dish_items cheffing_dish_items_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -2031,6 +2488,30 @@ ALTER TABLE ONLY public.cheffing_dishes
 
 
 --
+-- Name: cheffing_families cheffing_families_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.cheffing_families
+    ADD CONSTRAINT cheffing_families_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: cheffing_families cheffing_families_slug_unique; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.cheffing_families
+    ADD CONSTRAINT cheffing_families_slug_unique UNIQUE (slug);
+
+
+--
+-- Name: cheffing_ingredient_cost_audit cheffing_ingredient_cost_audit_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.cheffing_ingredient_cost_audit
+    ADD CONSTRAINT cheffing_ingredient_cost_audit_pkey PRIMARY KEY (id);
+
+
+--
 -- Name: cheffing_ingredient_tags cheffing_ingredient_tags_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -2044,6 +2525,22 @@ ALTER TABLE ONLY public.cheffing_ingredient_tags
 
 ALTER TABLE ONLY public.cheffing_ingredients
     ADD CONSTRAINT cheffing_ingredients_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: cheffing_menu_items cheffing_menu_items_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.cheffing_menu_items
+    ADD CONSTRAINT cheffing_menu_items_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: cheffing_menus cheffing_menus_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.cheffing_menus
+    ADD CONSTRAINT cheffing_menus_pkey PRIMARY KEY (id);
 
 
 --
@@ -2076,6 +2573,22 @@ ALTER TABLE ONLY public.cheffing_pos_product_links
 
 ALTER TABLE ONLY public.cheffing_pos_sales_daily
     ADD CONSTRAINT cheffing_pos_sales_daily_pkey PRIMARY KEY (sale_day, outlet_id, pos_product_id);
+
+
+--
+-- Name: cheffing_purchase_document_lines cheffing_purchase_document_lines_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.cheffing_purchase_document_lines
+    ADD CONSTRAINT cheffing_purchase_document_lines_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: cheffing_purchase_documents cheffing_purchase_documents_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.cheffing_purchase_documents
+    ADD CONSTRAINT cheffing_purchase_documents_pkey PRIMARY KEY (id);
 
 
 --
@@ -2116,6 +2629,22 @@ ALTER TABLE ONLY public.cheffing_subrecipe_tags
 
 ALTER TABLE ONLY public.cheffing_subrecipes
     ADD CONSTRAINT cheffing_subrecipes_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: cheffing_supplier_product_refs cheffing_supplier_product_refs_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.cheffing_supplier_product_refs
+    ADD CONSTRAINT cheffing_supplier_product_refs_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: cheffing_suppliers cheffing_suppliers_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.cheffing_suppliers
+    ADD CONSTRAINT cheffing_suppliers_pkey PRIMARY KEY (id);
 
 
 --
@@ -2286,6 +2815,20 @@ CREATE UNIQUE INDEX app_allowed_users_email_unique ON public.app_allowed_users U
 
 
 --
+-- Name: cheffing_card_items_card_sort_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX cheffing_card_items_card_sort_idx ON public.cheffing_card_items USING btree (card_id, sort_order);
+
+
+--
+-- Name: cheffing_card_items_dish_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX cheffing_card_items_dish_id_idx ON public.cheffing_card_items USING btree (dish_id);
+
+
+--
 -- Name: cheffing_dish_items_dish_id_idx; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -2311,6 +2854,34 @@ CREATE INDEX cheffing_dish_items_subrecipe_id_idx ON public.cheffing_dish_items 
 --
 
 CREATE UNIQUE INDEX cheffing_dishes_name_ci_unique ON public.cheffing_dishes USING btree (lower(name));
+
+
+--
+-- Name: cheffing_families_active_sort_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX cheffing_families_active_sort_idx ON public.cheffing_families USING btree (is_active, sort_order, name);
+
+
+--
+-- Name: cheffing_families_kind_active_sort_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX cheffing_families_kind_active_sort_idx ON public.cheffing_families USING btree (kind, is_active, sort_order, name);
+
+
+--
+-- Name: cheffing_families_name_ci_unique; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX cheffing_families_name_ci_unique ON public.cheffing_families USING btree (lower(name));
+
+
+--
+-- Name: cheffing_ingredient_cost_audit_ingredient_effective_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX cheffing_ingredient_cost_audit_ingredient_effective_idx ON public.cheffing_ingredient_cost_audit USING btree (ingredient_id, document_effective_at DESC, id DESC);
 
 
 --
@@ -2346,6 +2917,27 @@ CREATE UNIQUE INDEX cheffing_ingredients_name_ci_unique ON public.cheffing_ingre
 --
 
 CREATE INDEX cheffing_ingredients_purchase_unit_code_idx ON public.cheffing_ingredients USING btree (purchase_unit_code);
+
+
+--
+-- Name: cheffing_menu_items_dish_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX cheffing_menu_items_dish_id_idx ON public.cheffing_menu_items USING btree (dish_id);
+
+
+--
+-- Name: cheffing_menu_items_menu_section_sort_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX cheffing_menu_items_menu_section_sort_idx ON public.cheffing_menu_items USING btree (menu_id, section_kind, sort_order);
+
+
+--
+-- Name: cheffing_menu_items_menu_sort_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX cheffing_menu_items_menu_sort_idx ON public.cheffing_menu_items USING btree (menu_id, sort_order);
 
 
 --
@@ -2398,6 +2990,41 @@ CREATE UNIQUE INDEX cheffing_pos_sales_daily_unique_idx ON public.cheffing_pos_s
 
 
 --
+-- Name: cheffing_purchase_document_lines_document_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX cheffing_purchase_document_lines_document_idx ON public.cheffing_purchase_document_lines USING btree (document_id, line_number);
+
+
+--
+-- Name: cheffing_purchase_document_lines_validated_ingredient_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX cheffing_purchase_document_lines_validated_ingredient_idx ON public.cheffing_purchase_document_lines USING btree (validated_ingredient_id) WHERE (validated_ingredient_id IS NOT NULL);
+
+
+--
+-- Name: cheffing_purchase_documents_document_date_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX cheffing_purchase_documents_document_date_idx ON public.cheffing_purchase_documents USING btree (document_date DESC, id DESC);
+
+
+--
+-- Name: cheffing_purchase_documents_effective_at_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX cheffing_purchase_documents_effective_at_idx ON public.cheffing_purchase_documents USING btree (effective_at DESC, id DESC);
+
+
+--
+-- Name: cheffing_purchase_documents_supplier_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX cheffing_purchase_documents_supplier_idx ON public.cheffing_purchase_documents USING btree (supplier_id);
+
+
+--
 -- Name: cheffing_subrecipe_items_ingredient_id_idx; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -2430,6 +3057,41 @@ CREATE UNIQUE INDEX cheffing_subrecipes_name_ci_unique ON public.cheffing_subrec
 --
 
 CREATE INDEX cheffing_subrecipes_output_unit_code_idx ON public.cheffing_subrecipes USING btree (output_unit_code);
+
+
+--
+-- Name: cheffing_supplier_product_refs_ingredient_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX cheffing_supplier_product_refs_ingredient_idx ON public.cheffing_supplier_product_refs USING btree (ingredient_id);
+
+
+--
+-- Name: cheffing_supplier_product_refs_supplier_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX cheffing_supplier_product_refs_supplier_idx ON public.cheffing_supplier_product_refs USING btree (supplier_id);
+
+
+--
+-- Name: cheffing_supplier_product_refs_unique_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX cheffing_supplier_product_refs_unique_idx ON public.cheffing_supplier_product_refs USING btree (supplier_id, ingredient_id, normalized_supplier_product_name) WHERE (normalized_supplier_product_name IS NOT NULL);
+
+
+--
+-- Name: cheffing_suppliers_name_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX cheffing_suppliers_name_idx ON public.cheffing_suppliers USING btree (normalized_name) WHERE (normalized_name IS NOT NULL);
+
+
+--
+-- Name: cheffing_suppliers_tax_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX cheffing_suppliers_tax_id_idx ON public.cheffing_suppliers USING btree (normalized_tax_id) WHERE (normalized_tax_id IS NOT NULL);
 
 
 --
@@ -2622,10 +3284,38 @@ CREATE UNIQUE INDEX ux_cheffing_subrecipes_source ON public.cheffing_subrecipes 
 
 
 --
+-- Name: cheffing_purchase_documents enforce_purchase_document_apply_ready; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER enforce_purchase_document_apply_ready BEFORE INSERT OR UPDATE ON public.cheffing_purchase_documents FOR EACH ROW EXECUTE FUNCTION public.cheffing_enforce_purchase_document_apply_ready();
+
+
+--
 -- Name: app_allowed_users normalize_allowed_user_email; Type: TRIGGER; Schema: public; Owner: -
 --
 
 CREATE TRIGGER normalize_allowed_user_email BEFORE INSERT OR UPDATE ON public.app_allowed_users FOR EACH ROW EXECUTE FUNCTION public.tg_normalize_allowed_user_email();
+
+
+--
+-- Name: cheffing_purchase_documents set_purchase_document_effective_at; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER set_purchase_document_effective_at BEFORE INSERT OR UPDATE ON public.cheffing_purchase_documents FOR EACH ROW EXECUTE FUNCTION public.cheffing_set_purchase_document_effective_at();
+
+
+--
+-- Name: cheffing_purchase_documents set_purchase_document_storage_retention; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER set_purchase_document_storage_retention BEFORE INSERT OR UPDATE ON public.cheffing_purchase_documents FOR EACH ROW EXECUTE FUNCTION public.cheffing_set_purchase_document_storage_retention();
+
+
+--
+-- Name: cheffing_purchase_document_lines set_purchase_line_effective_at; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER set_purchase_line_effective_at BEFORE INSERT OR UPDATE ON public.cheffing_purchase_document_lines FOR EACH ROW EXECUTE FUNCTION public.cheffing_set_purchase_line_effective_at();
 
 
 --
@@ -2671,6 +3361,20 @@ CREATE TRIGGER set_timestamp_tasks BEFORE UPDATE ON public.tasks FOR EACH ROW EX
 
 
 --
+-- Name: cheffing_card_items set_updated_at_cheffing_card_items; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER set_updated_at_cheffing_card_items BEFORE UPDATE ON public.cheffing_card_items FOR EACH ROW EXECUTE FUNCTION public.tg_set_updated_at();
+
+
+--
+-- Name: cheffing_cards set_updated_at_cheffing_cards; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER set_updated_at_cheffing_cards BEFORE UPDATE ON public.cheffing_cards FOR EACH ROW EXECUTE FUNCTION public.tg_set_updated_at();
+
+
+--
 -- Name: cheffing_dish_items set_updated_at_cheffing_dish_items; Type: TRIGGER; Schema: public; Owner: -
 --
 
@@ -2685,10 +3389,31 @@ CREATE TRIGGER set_updated_at_cheffing_dishes BEFORE UPDATE ON public.cheffing_d
 
 
 --
+-- Name: cheffing_families set_updated_at_cheffing_families; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER set_updated_at_cheffing_families BEFORE UPDATE ON public.cheffing_families FOR EACH ROW EXECUTE FUNCTION public.tg_set_updated_at();
+
+
+--
 -- Name: cheffing_ingredients set_updated_at_cheffing_ingredients; Type: TRIGGER; Schema: public; Owner: -
 --
 
 CREATE TRIGGER set_updated_at_cheffing_ingredients BEFORE UPDATE ON public.cheffing_ingredients FOR EACH ROW EXECUTE FUNCTION public.tg_set_updated_at();
+
+
+--
+-- Name: cheffing_menu_items set_updated_at_cheffing_menu_items; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER set_updated_at_cheffing_menu_items BEFORE UPDATE ON public.cheffing_menu_items FOR EACH ROW EXECUTE FUNCTION public.tg_set_updated_at();
+
+
+--
+-- Name: cheffing_menus set_updated_at_cheffing_menus; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER set_updated_at_cheffing_menus BEFORE UPDATE ON public.cheffing_menus FOR EACH ROW EXECUTE FUNCTION public.tg_set_updated_at();
 
 
 --
@@ -2706,6 +3431,20 @@ CREATE TRIGGER set_updated_at_cheffing_pos_sales_daily BEFORE UPDATE ON public.c
 
 
 --
+-- Name: cheffing_purchase_document_lines set_updated_at_cheffing_purchase_document_lines; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER set_updated_at_cheffing_purchase_document_lines BEFORE UPDATE ON public.cheffing_purchase_document_lines FOR EACH ROW EXECUTE FUNCTION public.tg_set_updated_at();
+
+
+--
+-- Name: cheffing_purchase_documents set_updated_at_cheffing_purchase_documents; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER set_updated_at_cheffing_purchase_documents BEFORE UPDATE ON public.cheffing_purchase_documents FOR EACH ROW EXECUTE FUNCTION public.tg_set_updated_at();
+
+
+--
 -- Name: cheffing_subrecipe_items set_updated_at_cheffing_subrecipe_items; Type: TRIGGER; Schema: public; Owner: -
 --
 
@@ -2717,6 +3456,20 @@ CREATE TRIGGER set_updated_at_cheffing_subrecipe_items BEFORE UPDATE ON public.c
 --
 
 CREATE TRIGGER set_updated_at_cheffing_subrecipes BEFORE UPDATE ON public.cheffing_subrecipes FOR EACH ROW EXECUTE FUNCTION public.tg_set_updated_at();
+
+
+--
+-- Name: cheffing_supplier_product_refs set_updated_at_cheffing_supplier_product_refs; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER set_updated_at_cheffing_supplier_product_refs BEFORE UPDATE ON public.cheffing_supplier_product_refs FOR EACH ROW EXECUTE FUNCTION public.tg_set_updated_at();
+
+
+--
+-- Name: cheffing_suppliers set_updated_at_cheffing_suppliers; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER set_updated_at_cheffing_suppliers BEFORE UPDATE ON public.cheffing_suppliers FOR EACH ROW EXECUTE FUNCTION public.tg_set_updated_at();
 
 
 --
@@ -2738,6 +3491,13 @@ CREATE TRIGGER set_updated_at_menu_second_courses BEFORE UPDATE ON public.menu_s
 --
 
 CREATE TRIGGER set_updated_at_menus BEFORE UPDATE ON public.menus FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
+
+
+--
+-- Name: cheffing_purchase_documents sync_purchase_lines_effective_at; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER sync_purchase_lines_effective_at AFTER UPDATE OF effective_at ON public.cheffing_purchase_documents FOR EACH ROW WHEN ((old.effective_at IS DISTINCT FROM new.effective_at)) EXECUTE FUNCTION public.cheffing_sync_purchase_lines_effective_at();
 
 
 --
@@ -2818,6 +3578,22 @@ CREATE TRIGGER trg_set_override_capacity BEFORE INSERT OR UPDATE ON public.group
 
 
 --
+-- Name: cheffing_card_items cheffing_card_items_card_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.cheffing_card_items
+    ADD CONSTRAINT cheffing_card_items_card_id_fkey FOREIGN KEY (card_id) REFERENCES public.cheffing_cards(id) ON DELETE CASCADE;
+
+
+--
+-- Name: cheffing_card_items cheffing_card_items_dish_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.cheffing_card_items
+    ADD CONSTRAINT cheffing_card_items_dish_id_fkey FOREIGN KEY (dish_id) REFERENCES public.cheffing_dishes(id) ON DELETE RESTRICT;
+
+
+--
 -- Name: cheffing_dish_items cheffing_dish_items_dish_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -2882,6 +3658,46 @@ ALTER TABLE ONLY public.cheffing_dish_tags
 
 
 --
+-- Name: cheffing_dishes cheffing_dishes_family_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.cheffing_dishes
+    ADD CONSTRAINT cheffing_dishes_family_id_fkey FOREIGN KEY (family_id) REFERENCES public.cheffing_families(id) ON DELETE SET NULL;
+
+
+--
+-- Name: cheffing_ingredient_cost_audit cheffing_ingredient_cost_audit_ingredient_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.cheffing_ingredient_cost_audit
+    ADD CONSTRAINT cheffing_ingredient_cost_audit_ingredient_id_fkey FOREIGN KEY (ingredient_id) REFERENCES public.cheffing_ingredients(id) ON DELETE RESTRICT;
+
+
+--
+-- Name: cheffing_ingredient_cost_audit cheffing_ingredient_cost_audit_purchase_document_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.cheffing_ingredient_cost_audit
+    ADD CONSTRAINT cheffing_ingredient_cost_audit_purchase_document_id_fkey FOREIGN KEY (purchase_document_id) REFERENCES public.cheffing_purchase_documents(id) ON DELETE RESTRICT;
+
+
+--
+-- Name: cheffing_ingredient_cost_audit cheffing_ingredient_cost_audit_purchase_document_line_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.cheffing_ingredient_cost_audit
+    ADD CONSTRAINT cheffing_ingredient_cost_audit_purchase_document_line_id_fkey FOREIGN KEY (purchase_document_line_id) REFERENCES public.cheffing_purchase_document_lines(id) ON DELETE RESTRICT;
+
+
+--
+-- Name: cheffing_ingredient_cost_audit cheffing_ingredient_cost_audit_supplier_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.cheffing_ingredient_cost_audit
+    ADD CONSTRAINT cheffing_ingredient_cost_audit_supplier_id_fkey FOREIGN KEY (supplier_id) REFERENCES public.cheffing_suppliers(id) ON DELETE SET NULL;
+
+
+--
 -- Name: cheffing_ingredient_tags cheffing_ingredient_tags_ingredient_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -2914,6 +3730,22 @@ ALTER TABLE ONLY public.cheffing_ingredients
 
 
 --
+-- Name: cheffing_menu_items cheffing_menu_items_dish_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.cheffing_menu_items
+    ADD CONSTRAINT cheffing_menu_items_dish_id_fkey FOREIGN KEY (dish_id) REFERENCES public.cheffing_dishes(id) ON DELETE RESTRICT;
+
+
+--
+-- Name: cheffing_menu_items cheffing_menu_items_menu_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.cheffing_menu_items
+    ADD CONSTRAINT cheffing_menu_items_menu_id_fkey FOREIGN KEY (menu_id) REFERENCES public.cheffing_menus(id) ON DELETE CASCADE;
+
+
+--
 -- Name: cheffing_pos_order_items cheffing_pos_order_items_pos_order_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -2927,6 +3759,38 @@ ALTER TABLE ONLY public.cheffing_pos_order_items
 
 ALTER TABLE ONLY public.cheffing_pos_product_links
     ADD CONSTRAINT cheffing_pos_product_links_dish_id_fkey FOREIGN KEY (dish_id) REFERENCES public.cheffing_dishes(id) ON DELETE CASCADE;
+
+
+--
+-- Name: cheffing_purchase_document_lines cheffing_purchase_document_lines_document_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.cheffing_purchase_document_lines
+    ADD CONSTRAINT cheffing_purchase_document_lines_document_id_fkey FOREIGN KEY (document_id) REFERENCES public.cheffing_purchase_documents(id) ON DELETE CASCADE;
+
+
+--
+-- Name: cheffing_purchase_document_lines cheffing_purchase_document_lines_suggested_ingredient_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.cheffing_purchase_document_lines
+    ADD CONSTRAINT cheffing_purchase_document_lines_suggested_ingredient_id_fkey FOREIGN KEY (suggested_ingredient_id) REFERENCES public.cheffing_ingredients(id) ON DELETE SET NULL;
+
+
+--
+-- Name: cheffing_purchase_document_lines cheffing_purchase_document_lines_validated_ingredient_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.cheffing_purchase_document_lines
+    ADD CONSTRAINT cheffing_purchase_document_lines_validated_ingredient_id_fkey FOREIGN KEY (validated_ingredient_id) REFERENCES public.cheffing_ingredients(id) ON DELETE SET NULL;
+
+
+--
+-- Name: cheffing_purchase_documents cheffing_purchase_documents_supplier_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.cheffing_purchase_documents
+    ADD CONSTRAINT cheffing_purchase_documents_supplier_id_fkey FOREIGN KEY (supplier_id) REFERENCES public.cheffing_suppliers(id) ON DELETE SET NULL;
 
 
 --
@@ -2983,6 +3847,22 @@ ALTER TABLE ONLY public.cheffing_subrecipe_tags
 
 ALTER TABLE ONLY public.cheffing_subrecipes
     ADD CONSTRAINT cheffing_subrecipes_output_unit_code_fkey FOREIGN KEY (output_unit_code) REFERENCES public.cheffing_units(code);
+
+
+--
+-- Name: cheffing_supplier_product_refs cheffing_supplier_product_refs_ingredient_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.cheffing_supplier_product_refs
+    ADD CONSTRAINT cheffing_supplier_product_refs_ingredient_id_fkey FOREIGN KEY (ingredient_id) REFERENCES public.cheffing_ingredients(id) ON DELETE CASCADE;
+
+
+--
+-- Name: cheffing_supplier_product_refs cheffing_supplier_product_refs_supplier_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.cheffing_supplier_product_refs
+    ADD CONSTRAINT cheffing_supplier_product_refs_supplier_id_fkey FOREIGN KEY (supplier_id) REFERENCES public.cheffing_suppliers(id) ON DELETE CASCADE;
 
 
 --
@@ -3056,6 +3936,46 @@ ALTER TABLE ONLY public.tasks
 ALTER TABLE public.app_allowed_users ENABLE ROW LEVEL SECURITY;
 
 --
+-- Name: cheffing_card_items; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.cheffing_card_items ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: cheffing_card_items cheffing_card_items_select; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY cheffing_card_items_select ON public.cheffing_card_items FOR SELECT USING (public.cheffing_is_allowed());
+
+
+--
+-- Name: cheffing_card_items cheffing_card_items_write; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY cheffing_card_items_write ON public.cheffing_card_items USING (public.cheffing_is_admin()) WITH CHECK (public.cheffing_is_admin());
+
+
+--
+-- Name: cheffing_cards; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.cheffing_cards ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: cheffing_cards cheffing_cards_select; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY cheffing_cards_select ON public.cheffing_cards FOR SELECT USING (public.cheffing_is_allowed());
+
+
+--
+-- Name: cheffing_cards cheffing_cards_write; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY cheffing_cards_write ON public.cheffing_cards USING (public.cheffing_is_admin()) WITH CHECK (public.cheffing_is_admin());
+
+
+--
 -- Name: cheffing_dish_items; Type: ROW SECURITY; Schema: public; Owner: -
 --
 
@@ -3124,6 +4044,46 @@ CREATE POLICY cheffing_dishes_update ON public.cheffing_dishes FOR UPDATE USING 
 
 
 --
+-- Name: cheffing_families; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.cheffing_families ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: cheffing_families cheffing_families_select; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY cheffing_families_select ON public.cheffing_families FOR SELECT USING (public.cheffing_is_allowed());
+
+
+--
+-- Name: cheffing_families cheffing_families_write; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY cheffing_families_write ON public.cheffing_families USING (public.cheffing_is_admin()) WITH CHECK (public.cheffing_is_admin());
+
+
+--
+-- Name: cheffing_ingredient_cost_audit; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.cheffing_ingredient_cost_audit ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: cheffing_ingredient_cost_audit cheffing_ingredient_cost_audit_select; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY cheffing_ingredient_cost_audit_select ON public.cheffing_ingredient_cost_audit FOR SELECT USING (public.cheffing_is_allowed());
+
+
+--
+-- Name: cheffing_ingredient_cost_audit cheffing_ingredient_cost_audit_write; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY cheffing_ingredient_cost_audit_write ON public.cheffing_ingredient_cost_audit USING (public.cheffing_is_admin()) WITH CHECK (public.cheffing_is_admin());
+
+
+--
 -- Name: cheffing_ingredients; Type: ROW SECURITY; Schema: public; Owner: -
 --
 
@@ -3155,6 +4115,46 @@ CREATE POLICY cheffing_ingredients_select ON public.cheffing_ingredients FOR SEL
 --
 
 CREATE POLICY cheffing_ingredients_update ON public.cheffing_ingredients FOR UPDATE USING (public.cheffing_is_allowed()) WITH CHECK (public.cheffing_is_allowed());
+
+
+--
+-- Name: cheffing_menu_items; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.cheffing_menu_items ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: cheffing_menu_items cheffing_menu_items_select; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY cheffing_menu_items_select ON public.cheffing_menu_items FOR SELECT USING (public.cheffing_is_allowed());
+
+
+--
+-- Name: cheffing_menu_items cheffing_menu_items_write; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY cheffing_menu_items_write ON public.cheffing_menu_items USING (public.cheffing_is_admin()) WITH CHECK (public.cheffing_is_admin());
+
+
+--
+-- Name: cheffing_menus; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.cheffing_menus ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: cheffing_menus cheffing_menus_select; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY cheffing_menus_select ON public.cheffing_menus FOR SELECT USING (public.cheffing_is_allowed());
+
+
+--
+-- Name: cheffing_menus cheffing_menus_write; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY cheffing_menus_write ON public.cheffing_menus USING (public.cheffing_is_admin()) WITH CHECK (public.cheffing_is_admin());
 
 
 --
@@ -3221,6 +4221,46 @@ CREATE POLICY cheffing_pos_sales_daily_select ON public.cheffing_pos_sales_daily
 --
 
 CREATE POLICY cheffing_pos_sales_daily_write ON public.cheffing_pos_sales_daily USING (public.cheffing_is_admin()) WITH CHECK (public.cheffing_is_admin());
+
+
+--
+-- Name: cheffing_purchase_document_lines; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.cheffing_purchase_document_lines ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: cheffing_purchase_document_lines cheffing_purchase_document_lines_select; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY cheffing_purchase_document_lines_select ON public.cheffing_purchase_document_lines FOR SELECT USING (public.cheffing_is_allowed());
+
+
+--
+-- Name: cheffing_purchase_document_lines cheffing_purchase_document_lines_write; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY cheffing_purchase_document_lines_write ON public.cheffing_purchase_document_lines USING (public.cheffing_is_admin()) WITH CHECK (public.cheffing_is_admin());
+
+
+--
+-- Name: cheffing_purchase_documents; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.cheffing_purchase_documents ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: cheffing_purchase_documents cheffing_purchase_documents_select; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY cheffing_purchase_documents_select ON public.cheffing_purchase_documents FOR SELECT USING (public.cheffing_is_allowed());
+
+
+--
+-- Name: cheffing_purchase_documents cheffing_purchase_documents_write; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY cheffing_purchase_documents_write ON public.cheffing_purchase_documents USING (public.cheffing_is_admin()) WITH CHECK (public.cheffing_is_admin());
 
 
 --
@@ -3292,6 +4332,46 @@ CREATE POLICY cheffing_subrecipes_update ON public.cheffing_subrecipes FOR UPDAT
 
 
 --
+-- Name: cheffing_supplier_product_refs; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.cheffing_supplier_product_refs ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: cheffing_supplier_product_refs cheffing_supplier_product_refs_select; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY cheffing_supplier_product_refs_select ON public.cheffing_supplier_product_refs FOR SELECT USING (public.cheffing_is_allowed());
+
+
+--
+-- Name: cheffing_supplier_product_refs cheffing_supplier_product_refs_write; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY cheffing_supplier_product_refs_write ON public.cheffing_supplier_product_refs USING (public.cheffing_is_admin()) WITH CHECK (public.cheffing_is_admin());
+
+
+--
+-- Name: cheffing_suppliers; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.cheffing_suppliers ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: cheffing_suppliers cheffing_suppliers_select; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY cheffing_suppliers_select ON public.cheffing_suppliers FOR SELECT USING (public.cheffing_is_allowed());
+
+
+--
+-- Name: cheffing_suppliers cheffing_suppliers_write; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY cheffing_suppliers_write ON public.cheffing_suppliers USING (public.cheffing_is_admin()) WITH CHECK (public.cheffing_is_admin());
+
+
+--
 -- Name: cheffing_units; Type: ROW SECURITY; Schema: public; Owner: -
 --
 
@@ -3336,5 +4416,5 @@ CREATE POLICY "read own allowlist row" ON public.app_allowed_users FOR SELECT TO
 -- PostgreSQL database dump complete
 --
 
-\unrestrict bjTp0bUzxq5Od9OmLWuLYmOSJ13X2DT6DO9gV20tmVUeiJ5LPNLFejRVcQNdaVL
+\unrestrict nVLSuxZE2xenGha98MhlvQfgwbOX90fojKzd4KDfV9piAwnHGUvtU7XpP894xYF
 
