@@ -151,7 +151,7 @@ export async function DELETE(_req: NextRequest, { params }: { params: { id: stri
   const supabase = createSupabaseAdminClient();
   const { data: current, error: currentError } = await supabase
     .from('cheffing_purchase_documents')
-    .select('status')
+    .select('status, storage_bucket, storage_path')
     .eq('id', params.id)
     .maybeSingle();
 
@@ -165,6 +165,32 @@ export async function DELETE(_req: NextRequest, { params }: { params: { id: stri
     const response = NextResponse.json({ error: 'Applied documents cannot be permanently deleted' }, { status: 400 });
     mergeResponseCookies(access.supabaseResponse, response);
     return response;
+  }
+
+  if (current.storage_bucket && current.storage_path) {
+    const { error: storageDeleteError } = await supabase.storage.from(current.storage_bucket).remove([current.storage_path]);
+    if (storageDeleteError) {
+      if (storageDeleteError.message?.toLowerCase().includes('not found')) {
+        console.warn('[cheffing][procurement] Source file already missing in storage before permanent delete', {
+          documentId: params.id,
+          bucket: current.storage_bucket,
+          path: current.storage_path,
+        });
+      } else {
+        console.error('[cheffing][procurement] Failed to remove source file from storage during permanent delete', {
+          documentId: params.id,
+          bucket: current.storage_bucket,
+          path: current.storage_path,
+          error: storageDeleteError.message,
+        });
+        const response = NextResponse.json(
+          { error: 'Could not delete source file from storage. Document was not deleted.' },
+          { status: 500 },
+        );
+        mergeResponseCookies(access.supabaseResponse, response);
+        return response;
+      }
+    }
   }
 
   const { error } = await supabase.from('cheffing_purchase_documents').delete().eq('id', params.id);
