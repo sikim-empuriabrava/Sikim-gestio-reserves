@@ -26,6 +26,7 @@ type Line = {
   validated_unit: ProcurementCanonicalUnit | null;
   raw_unit_price: number | null;
   raw_line_total: number | null;
+  suggested_ingredient_id: string | null;
   validated_ingredient_id: string | null;
   line_status: 'unresolved' | 'resolved';
   warning_notes: string | null;
@@ -50,6 +51,17 @@ type Doc = {
   applied_at: string | null;
   applied_by: string | null;
   cheffing_purchase_document_lines: Line[] | null;
+};
+
+type SupplierExistingSuggestionView = {
+  supplierId: string;
+  tradeName: string;
+  scoreHint: number;
+  shouldAutoSelect: boolean;
+  isStrongMatch: boolean;
+  isDominant: boolean;
+  dominanceGap: number | null;
+  reasons: string[];
 };
 
 const emptyLine = {
@@ -88,6 +100,24 @@ function parseNullableNumber(value: string): number | null {
   return Number.isNaN(parsed) ? null : parsed;
 }
 
+function parseSupplierExistingSuggestion(payload: Record<string, unknown> | null): SupplierExistingSuggestionView | null {
+  if (!payload) return null;
+  const raw = payload.supplier_existing_suggestion;
+  if (!raw || typeof raw !== 'object') return null;
+  const record = raw as Record<string, unknown>;
+  if (typeof record.supplier_id !== 'string') return null;
+  return {
+    supplierId: record.supplier_id,
+    tradeName: typeof record.trade_name === 'string' ? record.trade_name : 'Proveedor sugerido',
+    scoreHint: typeof record.score_hint === 'number' ? record.score_hint : 0,
+    shouldAutoSelect: record.should_auto_select === true,
+    isStrongMatch: record.is_strong_match === true,
+    isDominant: record.is_dominant === true,
+    dominanceGap: typeof record.dominance_gap === 'number' ? record.dominance_gap : null,
+    reasons: Array.isArray(record.match_reasons) ? record.match_reasons.filter((entry): entry is string => typeof entry === 'string') : [],
+  };
+}
+
 export function ProcurementDocumentDetailManager({
   document,
   suppliers,
@@ -100,11 +130,18 @@ export function ProcurementDocumentDetailManager({
   initialSourceFileUrl: string | null;
 }) {
   const router = useRouter();
+  const interpretedPayload = (document.interpreted_payload && typeof document.interpreted_payload === 'object'
+    ? document.interpreted_payload
+    : null) as Record<string, unknown> | null;
+  const suggestedExistingSupplier = parseSupplierExistingSuggestion(interpretedPayload);
+  const defaultSupplierId =
+    document.supplier_id ??
+    (suggestedExistingSupplier?.shouldAutoSelect ? suggestedExistingSupplier.supplierId : null);
   const [header, setHeader] = useState({
     document_kind: document.document_kind,
     document_number: document.document_number ?? '',
     document_date: document.document_date,
-    supplier_id: document.supplier_id ?? '',
+    supplier_id: defaultSupplierId ?? '',
     validation_notes: document.validation_notes ?? '',
     declared_total: document.declared_total?.toString() ?? '',
   });
@@ -129,7 +166,7 @@ export function ProcurementDocumentDetailManager({
   const sourceFileKind = inferProcurementSourceFileKind(document.storage_path);
 
   const hasUnsavedHeaderChanges =
-    header.supplier_id !== (document.supplier_id ?? '') ||
+    header.supplier_id !== (defaultSupplierId ?? '') ||
     header.document_kind !== document.document_kind ||
     normalizeNullableText(header.document_number) !== (document.document_number ?? null) ||
     header.document_date !== document.document_date ||
@@ -152,10 +189,7 @@ export function ProcurementDocumentDetailManager({
   );
 
   const detectedSupplier = useMemo(() => {
-    const supplier =
-      document.interpreted_payload && typeof document.interpreted_payload === 'object'
-        ? (document.interpreted_payload.supplier_detected as Record<string, unknown> | undefined)
-        : undefined;
+    const supplier = interpretedPayload?.supplier_detected as Record<string, unknown> | undefined;
     if (!supplier || typeof supplier !== 'object') return null;
 
     return {
@@ -165,10 +199,10 @@ export function ProcurementDocumentDetailManager({
       phone: typeof supplier.phone === 'string' ? supplier.phone : null,
       matchHint: typeof supplier.match_hint === 'string' ? supplier.match_hint : null,
     };
-  }, [document.interpreted_payload]);
+  }, [interpretedPayload]);
 
   const cleanupMeta = useMemo(() => {
-    const payload = document.interpreted_payload;
+    const payload = interpretedPayload;
     if (!payload || typeof payload !== 'object') return null;
     const meta = (payload as Record<string, unknown>).cleanup_meta;
     if (!meta || typeof meta !== 'object') return null;
@@ -179,13 +213,10 @@ export function ProcurementDocumentDetailManager({
       model: typeof record.model === 'string' ? record.model : null,
       affectedLines: typeof record.affected_lines === 'number' ? record.affected_lines : null,
     };
-  }, [document.interpreted_payload]);
+  }, [interpretedPayload]);
 
   const supplierPrefill = useMemo(() => {
-    const supplier =
-      document.interpreted_payload && typeof document.interpreted_payload === 'object'
-        ? (document.interpreted_payload.supplier_detected as Record<string, unknown> | undefined)
-        : undefined;
+    const supplier = interpretedPayload?.supplier_detected as Record<string, unknown> | undefined;
     if (!supplier || typeof supplier !== 'object') return emptySupplierForm;
 
     return {
@@ -200,7 +231,47 @@ export function ProcurementDocumentDetailManager({
       phone: typeof supplier.phone === 'string' ? supplier.phone : '',
       email: typeof supplier.email === 'string' ? supplier.email : '',
     };
-  }, [document.interpreted_payload]);
+  }, [interpretedPayload]);
+
+  const supplierEnrichment = useMemo(() => {
+    const raw = interpretedPayload?.supplier_enrichment;
+    if (!raw || typeof raw !== 'object') return null;
+    const record = raw as Record<string, unknown>;
+    const autoFilled = Array.isArray(record.auto_filled)
+      ? record.auto_filled.filter((entry): entry is { field: string; value: string } => {
+          if (!entry || typeof entry !== 'object') return false;
+          const typed = entry as Record<string, unknown>;
+          return typeof typed.field === 'string' && typeof typed.value === 'string';
+        })
+      : [];
+    const conflicts = Array.isArray(record.conflicts)
+      ? record.conflicts.filter((entry): entry is { field: string; existing_value: string; detected_value: string } => {
+          if (!entry || typeof entry !== 'object') return false;
+          const typed = entry as Record<string, unknown>;
+          return typeof typed.field === 'string' && typeof typed.existing_value === 'string' && typeof typed.detected_value === 'string';
+        })
+      : [];
+    return { autoFilled, conflicts };
+  }, [interpretedPayload]);
+
+  const lineSuggestionReasonByLineNumber = useMemo(() => {
+    const out = new Map<number, string>();
+    const entries = interpretedPayload?.line_candidates_by_line_number;
+    if (!Array.isArray(entries)) return out;
+    for (const entry of entries) {
+      if (!entry || typeof entry !== 'object') continue;
+      const record = entry as Record<string, unknown>;
+      if (typeof record.line_number !== 'number' || !Array.isArray(record.candidates)) continue;
+      const top = record.candidates[0];
+      if (!top || typeof top !== 'object') continue;
+      const topRecord = top as Record<string, unknown>;
+      const reasons = Array.isArray(topRecord.match_reasons) ? topRecord.match_reasons.filter((reason): reason is string => typeof reason === 'string') : [];
+      const ingredientName = typeof topRecord.ingredient_name === 'string' ? topRecord.ingredient_name : null;
+      if (!ingredientName) continue;
+      out.set(record.line_number, reasons.length > 0 ? `${ingredientName} (${reasons.join(', ')})` : ingredientName);
+    }
+    return out;
+  }, [interpretedPayload]);
 
   function openNewSupplierForm() {
     if (hasUnsavedHeaderChanges) return;
@@ -589,6 +660,44 @@ export function ProcurementDocumentDetailManager({
                     </option>
                   ))}
                 </select>
+                {isDraft && suggestedExistingSupplier ? (
+                  <div className="rounded-lg border border-sky-500/40 bg-sky-500/10 p-2 text-xs text-sky-100">
+                    <p className="font-semibold">
+                      Sugerencia proveedor existente: {suggestedExistingSupplier.tradeName} · score {suggestedExistingSupplier.scoreHint}
+                    </p>
+                    <p className="text-sky-200/90">
+                      {suggestedExistingSupplier.shouldAutoSelect
+                        ? 'Match fuerte y dominante (preseleccionado en cabecera, pendiente de guardar).'
+                        : 'Match no suficientemente fuerte/dominante: requiere selección manual.'}
+                    </p>
+                    {suggestedExistingSupplier.reasons.length > 0 ? (
+                      <p className="mt-1 text-sky-200/90">Motivos: {suggestedExistingSupplier.reasons.join(', ')}</p>
+                    ) : null}
+                    {header.supplier_id !== suggestedExistingSupplier.supplierId ? (
+                      <button
+                        type="button"
+                        onClick={() => setHeader((current) => ({ ...current, supplier_id: suggestedExistingSupplier.supplierId }))}
+                        className="mt-2 rounded-full border border-sky-400/60 px-3 py-1 text-[11px] font-semibold text-sky-100"
+                      >
+                        Asignar sugerencia
+                      </button>
+                    ) : null}
+                  </div>
+                ) : null}
+                {supplierEnrichment && (supplierEnrichment.autoFilled.length > 0 || supplierEnrichment.conflicts.length > 0) ? (
+                  <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 p-2 text-xs text-amber-100">
+                    {supplierEnrichment.autoFilled.length > 0 ? (
+                      <p>
+                        Enriquecido automático en proveedor existente: {supplierEnrichment.autoFilled.map((entry) => `${entry.field}=${entry.value}`).join(' · ')}.
+                      </p>
+                    ) : null}
+                    {supplierEnrichment.conflicts.length > 0 ? (
+                      <p className="mt-1">
+                        Conflictos detectados (sin sobreescritura): {supplierEnrichment.conflicts.map((entry) => `${entry.field} DB:${entry.existing_value} ↔ OCR:${entry.detected_value}`).join(' · ')}.
+                      </p>
+                    ) : null}
+                  </div>
+                ) : null}
                 {isDraft ? (
                   <div className="space-y-2">
                     {!isCreatingSupplier ? (
@@ -702,6 +811,8 @@ export function ProcurementDocumentDetailManager({
                     key={line.id}
                     line={line}
                     ingredients={ingredients}
+                    suggestedIngredientId={line.suggested_ingredient_id}
+                    suggestedReason={lineSuggestionReasonByLineNumber.get(line.line_number) ?? null}
                     isDraft={isDraft}
                     isEditing={editingLineId === line.id}
                     onEdit={() => setEditingLineId(line.id)}
@@ -905,11 +1016,15 @@ function LineForm({ value, onChange, ingredients }: { value: typeof emptyLine; o
   );
 }
 
-function EditableLineRow({ line, ingredients, isDraft, isEditing, onEdit, onCancel, onSave, onDelete }: { line: Line; ingredients: Ingredient[]; isDraft: boolean; isEditing: boolean; onEdit: () => void; onCancel: () => void; onSave: (line: Line, updates: typeof emptyLine) => void; onDelete: (lineId: string) => void }) {
+function EditableLineRow({ line, ingredients, suggestedIngredientId, suggestedReason, isDraft, isEditing, onEdit, onCancel, onSave, onDelete }: { line: Line; ingredients: Ingredient[]; suggestedIngredientId: string | null; suggestedReason: string | null; isDraft: boolean; isEditing: boolean; onEdit: () => void; onCancel: () => void; onSave: (line: Line, updates: typeof emptyLine) => void; onDelete: (lineId: string) => void }) {
   const ingredientName = useMemo(() => {
     const source = line.validated_ingredient;
     return Array.isArray(source) ? source[0]?.name : source?.name;
   }, [line.validated_ingredient]);
+  const suggestedIngredientName = useMemo(
+    () => ingredients.find((ingredient) => ingredient.id === suggestedIngredientId)?.name ?? null,
+    [ingredients, suggestedIngredientId],
+  );
   const [form, setForm] = useState({
     raw_description: line.raw_description,
     raw_quantity: line.raw_quantity?.toString() ?? '',
@@ -925,7 +1040,21 @@ function EditableLineRow({ line, ingredients, isDraft, isEditing, onEdit, onCanc
     <tr className="border-t border-slate-800/60">
       <td className="px-4 py-3">{line.line_number}</td>
       <td className="px-4 py-3">{isEditing ? <input value={form.raw_description} onChange={(event) => setForm({ ...form, raw_description: event.target.value })} className="w-full rounded-md border border-slate-700 bg-slate-950/70 px-2 py-1" /> : line.raw_description}</td>
-      <td className="px-4 py-3">{isEditing ? <select value={form.validated_ingredient_id} onChange={(event) => setForm({ ...form, validated_ingredient_id: event.target.value })} className="rounded-md border border-slate-700 bg-slate-950/70 px-2 py-1"><option value="">Sin validar</option>{ingredients.map((ingredient) => <option key={ingredient.id} value={ingredient.id}>{ingredient.name}</option>)}</select> : (ingredientName ?? '—')}</td>
+      <td className="px-4 py-3">
+        {isEditing ? (
+          <select value={form.validated_ingredient_id} onChange={(event) => setForm({ ...form, validated_ingredient_id: event.target.value })} className="rounded-md border border-slate-700 bg-slate-950/70 px-2 py-1"><option value="">Sin validar</option>{ingredients.map((ingredient) => <option key={ingredient.id} value={ingredient.id}>{ingredient.name}</option>)}</select>
+        ) : (
+          <div className="space-y-1">
+            <p>{ingredientName ?? '—'}</p>
+            {!ingredientName && suggestedIngredientName ? (
+              <p className="text-xs text-sky-300">Sugerido: {suggestedIngredientName}</p>
+            ) : null}
+            {!ingredientName && suggestedReason ? (
+              <p className="text-[11px] text-slate-500">{suggestedReason}</p>
+            ) : null}
+          </div>
+        )}
+      </td>
       <td className="px-4 py-3">{isEditing ? <input type="number" value={form.raw_quantity} onChange={(event) => setForm({ ...form, raw_quantity: event.target.value })} className="w-24 rounded-md border border-slate-700 bg-slate-950/70 px-2 py-1" /> : (line.raw_quantity ?? '—')}</td>
       <td className="px-4 py-3">
         {isEditing ? (
