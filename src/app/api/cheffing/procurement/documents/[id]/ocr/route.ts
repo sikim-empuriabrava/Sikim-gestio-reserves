@@ -91,6 +91,11 @@ type SupplierEnrichmentResult = {
   supplier_id: string;
   auto_filled: Array<{ field: 'tax_id' | 'email' | 'phone'; value: string; source: 'ocr' | 'openai_cleanup' }>;
   conflicts: Array<{ field: 'tax_id' | 'email' | 'phone'; existing_value: string; detected_value: string; reason: string }>;
+  update_attempt: {
+    attempted: boolean;
+    applied: boolean;
+    warning: string | null;
+  };
 };
 
 type IngredientCandidateRow = { id: string; name: string; reference: string | null };
@@ -1291,14 +1296,41 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
         }
       }
 
+      let appliedAutoFilled = autoFilled;
+      let updateAttempt: SupplierEnrichmentResult['update_attempt'] = {
+        attempted: false,
+        applied: false,
+        warning: null,
+      };
       if (Object.keys(supplierUpdates).length > 0) {
-        await supabase.from('cheffing_suppliers').update(supplierUpdates).eq('id', suggestedExistingSupplier.supplier_id);
+        updateAttempt = { attempted: true, applied: false, warning: null };
+        const { error: supplierUpdateError } = await supabase
+          .from('cheffing_suppliers')
+          .update(supplierUpdates)
+          .eq('id', suggestedExistingSupplier.supplier_id);
+        if (supplierUpdateError) {
+          appliedAutoFilled = [];
+          updateAttempt = {
+            attempted: true,
+            applied: false,
+            warning: `Supplier enrichment update failed: ${supplierUpdateError.message}`,
+          };
+          console.warn('[procurement OCR] supplier enrichment update failed; auto-fill not applied', {
+            document_id: params.id,
+            supplier_id: suggestedExistingSupplier.supplier_id,
+            attempted_fields: Object.keys(supplierUpdates),
+            error: supplierUpdateError.message,
+          });
+        } else {
+          updateAttempt = { attempted: true, applied: true, warning: null };
+        }
       }
 
       supplierEnrichment = {
         supplier_id: suggestedExistingSupplier.supplier_id,
-        auto_filled: autoFilled,
+        auto_filled: appliedAutoFilled,
         conflicts,
+        update_attempt: updateAttempt,
       };
     }
   }
