@@ -51,6 +51,13 @@ type OcrLineDetected = {
   } | null;
 };
 
+type OcrPossibleDuplicate = {
+  line_number: number;
+  duplicate_of_line_number: number;
+  confidence: 'high' | 'medium';
+  reason: string;
+};
+
 type OcrCleanupMeta = {
   provider: 'openai';
   status: 'applied' | 'skipped' | 'failed';
@@ -210,6 +217,17 @@ function normalizePhone(value: string | null): string | null {
   return compact.length >= 7 ? compact : null;
 }
 
+function normalizeSupplierNameForMatch(value: string | null): string | null {
+  const normalized = normalizeProcurementText(value);
+  if (!normalized) return null;
+  return normalized
+    .replace(/[.,]/g, ' ')
+    .replace(/\b(sociedad\s+limitada|sociedad\s+anonima)\b/g, ' ')
+    .replace(/\b(s\.?\s*l\.?\s*u?|s\.?\s*a\.?\s*u?)\b/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
 function includesNormalizedText(haystack: string | null, needle: string | null): boolean {
   const normalizedHaystack = normalizeProcurementText(haystack);
   const normalizedNeedle = normalizeProcurementText(needle);
@@ -241,20 +259,24 @@ function buildSupplierCandidates(input: {
   const taxId = parseTaxId(input.supplierDetectedRaw.tax_id);
   const email = input.supplierDetectedRaw.email?.trim().toLowerCase() || null;
   const phone = normalizePhone(input.supplierDetectedRaw.phone);
-  const detectedNames = [
+  const detectedNames = Array.from(
+    new Set(
+      [
     input.supplierDetectedRaw.trade_name,
     input.supplierDetectedRaw.name,
     input.supplierDetectedRaw.legal_name,
-  ]
-    .map((entry) => normalizeProcurementText(entry))
-    .filter((entry): entry is string => Boolean(entry));
+      ]
+        .map((entry) => normalizeSupplierNameForMatch(entry))
+        .filter((entry): entry is string => Boolean(entry)),
+    ),
+  );
 
   return input.suppliers
     .map((supplier) => {
       const reasons: string[] = [];
       let score = 0;
       const supplierTaxId = parseTaxId(supplier.tax_id);
-      const supplierTradeName = normalizeProcurementText(supplier.trade_name);
+      const supplierTradeName = normalizeSupplierNameForMatch(supplier.trade_name);
       const supplierEmail = supplier.email?.trim().toLowerCase() || null;
       const supplierPhone = normalizePhone(supplier.phone);
 
@@ -274,12 +296,12 @@ function buildSupplierCandidates(input: {
       for (const detectedName of detectedNames) {
         if (!detectedName || !supplierTradeName) continue;
         if (detectedName === supplierTradeName) {
-          score += 45;
+          score += 60;
           reasons.push('trade_name_exact_normalized');
           continue;
         }
         if (detectedName.includes(supplierTradeName) || supplierTradeName.includes(detectedName)) {
-          score += 25;
+          score += 32;
           reasons.push('trade_name_substring');
         }
       }
@@ -302,8 +324,15 @@ function getSuggestedExistingSupplier(candidates: SupplierCandidateHint[]): Supp
   if (!top) return null;
   const second = candidates[1];
   const dominanceGap = typeof second?.score_hint === 'number' ? top.score_hint - second.score_hint : null;
-  const isStrongMatch = top.score_hint >= 90;
-  const isDominant = dominanceGap === null || dominanceGap >= 25;
+  const hasIdentitySignal = top.match_reasons.some((reason) =>
+    reason === 'tax_id_exact' || reason === 'email_exact' || reason === 'phone_exact_normalized',
+  );
+  const hasExactNameSignal = top.match_reasons.some((reason) => reason === 'trade_name_exact_normalized');
+  const hasNameSignal = top.match_reasons.some((reason) =>
+    reason === 'trade_name_exact_normalized' || reason === 'trade_name_substring',
+  );
+  const isStrongMatch = hasIdentitySignal ? top.score_hint >= 85 : hasExactNameSignal && top.score_hint >= 60;
+  const isDominant = dominanceGap === null || dominanceGap >= 18;
   return {
     supplier_id: top.id,
     trade_name: top.trade_name,
@@ -312,7 +341,10 @@ function getSuggestedExistingSupplier(candidates: SupplierCandidateHint[]): Supp
     is_strong_match: isStrongMatch,
     is_dominant: isDominant,
     dominance_gap: dominanceGap,
-    should_auto_select: isStrongMatch && isDominant,
+    should_auto_select:
+      isStrongMatch &&
+      isDominant &&
+      (hasIdentitySignal || (hasExactNameSignal && (dominanceGap === null || dominanceGap >= 35)) || (hasNameSignal && top.score_hint >= 95)),
   };
 }
 
@@ -704,6 +736,56 @@ function findSupplierValueFromKvPairs(
   return { value: null, source: 'none' };
 }
 
+function extractDocumentNumberFallback(params: {
+  invoiceFieldValue: string | null;
+  kvPairs: NonNullable<NonNullable<AzureAnalyzeResult['analyzeResult']>['keyValuePairs']> | undefined;
+  rawText: string;
+}): { value: string | null; source: 'invoice_field' | 'key_value_pairs' | 'raw_text' | 'none' } {
+  const looksLikeDateToken = (value: string): boolean =>
+    /^(\d{1,2}[/-]\d{1,2}[/-]\d{2,4}|\d{4}[/-]\d{1,2}[/-]\d{1,2})$/.test(value);
+  const looksLikeFiscalId = (value: string): boolean =>
+    /^[A-HJNPQRSUVW]\d{7}[0-9A-J]$/i.test(value) || /^\d{8}[A-Z]$/i.test(value) || /^ES[A-Z0-9]{9,12}$/i.test(value);
+  const looksLikeAmountToken = (value: string): boolean =>
+    /€|eur/i.test(value) || /^\d{1,3}(?:[.,]\d{3})*[.,]\d{2}$/.test(value) || /^\d+[.,]\d{2}$/.test(value);
+
+  const cleanCandidate = (value: string | null): string | null => {
+    if (!value) return null;
+    const trimmed = value.trim();
+    if (!trimmed) return null;
+    const compact = trimmed.replace(/\s+/g, '');
+    if (!/[0-9]/.test(compact)) return null;
+    if (!/^[A-Z0-9][A-Z0-9\-/.]{2,24}$/i.test(compact)) return null;
+    if (looksLikeDateToken(compact)) return null;
+    if (looksLikeFiscalId(compact)) return null;
+    if (looksLikeAmountToken(trimmed) || looksLikeAmountToken(compact)) return null;
+    return compact;
+  };
+
+  const invoiceField = cleanCandidate(params.invoiceFieldValue);
+  if (invoiceField) return { value: invoiceField, source: 'invoice_field' };
+
+  const numberLikeKey = /(num(\.|ero)?\s*(alb|albar[aà]n|albara|fact|fra)?|sf\s*\/\s*num\.?\s*alb\.?|albar[aà]|n[uú]mero)/i;
+  if (Array.isArray(params.kvPairs)) {
+    for (const pair of params.kvPairs) {
+      const key = pair.key?.content ?? '';
+      if (!numberLikeKey.test(key)) continue;
+      const kvCandidate = cleanCandidate(pair.value?.content ?? null);
+      if (kvCandidate) return { value: kvCandidate, source: 'key_value_pairs' };
+    }
+  }
+
+  const rawTextPatterns = [
+    /(?:sf\s*\/\s*num\.?\s*alb\.?|num\.?\s*alb(?:ar[aà]n)?|n[uú]mero|albar[aà])\s*[:#-]?\s*([a-z0-9][a-z0-9\-/.]{2,24})/i,
+  ];
+  for (const pattern of rawTextPatterns) {
+    const match = params.rawText.match(pattern);
+    const rawCandidate = cleanCandidate(match?.[1] ?? null);
+    if (rawCandidate) return { value: rawCandidate, source: 'raw_text' };
+  }
+
+  return { value: null, source: 'none' };
+}
+
 function isLikelyMainItemsTable(table: AzureTable): boolean {
   const firstRowHeaders = (table.cells ?? [])
     .filter((cell) => cell.rowIndex === 0)
@@ -858,6 +940,41 @@ function mapDocumentKind(docType?: string): 'invoice' | 'delivery_note' | 'other
   if (normalized.includes('invoice')) return 'invoice';
   if (normalized.includes('delivery') || normalized.includes('albaran')) return 'delivery_note';
   return 'other';
+}
+
+function detectPossibleDuplicateLines(lines: OcrLineDetected[]): OcrPossibleDuplicate[] {
+  const hints: OcrPossibleDuplicate[] = [];
+  const normalizeDescription = (value: string): string =>
+    normalizeProcurementText(
+      value
+        .replace(/^\s*(?:cod(?:igo)?|ref(?:erencia)?|art(?:iculo)?)\s*[:#-]?\s*[a-z0-9-]{2,16}\s+/i, '')
+        .replace(/^\s*[a-z]{1,3}\d{2,8}\s+/i, '')
+        .replace(/^\s*\d{4,12}(?:[-/][a-z0-9]{1,8})?\s+/i, ''),
+    ) ?? '';
+
+  for (let i = 0; i < lines.length; i += 1) {
+    const left = lines[i];
+    const leftDesc = normalizeDescription(left.raw_description);
+    if (!leftDesc) continue;
+    for (let j = i + 1; j < Math.min(lines.length, i + 4); j += 1) {
+      const right = lines[j];
+      const rightDesc = normalizeDescription(right.raw_description);
+      if (!rightDesc) continue;
+      const sameDesc = leftDesc === rightDesc || leftDesc.includes(rightDesc) || rightDesc.includes(leftDesc);
+      if (!sameDesc) continue;
+      const samePrice = left.raw_unit_price !== null && right.raw_unit_price !== null && Math.abs(left.raw_unit_price - right.raw_unit_price) <= 0.001;
+      const sameTotal = left.raw_line_total !== null && right.raw_line_total !== null && Math.abs(left.raw_line_total - right.raw_line_total) <= 0.001;
+      if (!samePrice && !sameTotal) continue;
+      const confidence: 'high' | 'medium' = samePrice && sameTotal ? 'high' : 'medium';
+      hints.push({
+        line_number: j + 1,
+        duplicate_of_line_number: i + 1,
+        confidence,
+        reason: 'Descripción muy similar con precio/importe coincidente en filas cercanas.',
+      });
+    }
+  }
+  return hints;
 }
 
 export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
@@ -1072,9 +1189,16 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       `Fuentes proveedor -> email:${supplierTrace.email_source}, phone:${supplierTrace.phone_source}, tax_id:${supplierTrace.tax_id_source}.`,
   } satisfies OcrSupplierDetected;
 
+  const documentNumberFallback = extractDocumentNumberFallback({
+    invoiceFieldValue: getFieldString(fields.InvoiceId),
+    kvPairs: keyValuePairs,
+    rawText,
+  });
+
   const documentDetectedRaw = {
     document_kind: mapDocumentKind(firstDocument?.docType),
-    document_number: getFieldString(fields.InvoiceId),
+    document_number: documentNumberFallback.value,
+    document_number_source: documentNumberFallback.source,
     document_date: getFieldDate(fields.InvoiceDate),
     due_date: getFieldDate(fields.DueDate),
     declared_total: getFieldNumber(fields.InvoiceTotal) ?? getFieldNumber(fields.AmountDue),
@@ -1171,7 +1295,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   const hasReliableSupplierCleanup = (supplierCleanup?.confidence ?? 0) >= 0.75;
   const hasReliableDocumentCleanup = (documentCleanup?.confidence ?? 0) >= 0.75;
 
-  const linesDetected = linesDetectedRaw.map((line, index) => {
+  const linesDetected: OcrLineDetected[] = linesDetectedRaw.map((line, index): OcrLineDetected => {
     const cleanup = cleanupByLine.get(index + 1);
     if (!cleanup) return line;
 
@@ -1195,13 +1319,15 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
           ? {
               ingredient_id: cleanup.ingredient_match.ingredient_id,
               ingredient_name: cleanup.ingredient_match.ingredient_name ?? '',
-              confidence: 'high',
+              confidence: 'high' as const,
               reason: cleanup.ingredient_match.match_basis ?? 'OpenAI cleanup match de alta confianza.',
             }
           : line.ingredient_match,
       extraction_source: cleanup.source_trace === 'azure+openai' ? 'items+table' : line.extraction_source,
     };
   });
+  const possibleDuplicates = detectPossibleDuplicateLines(linesDetected);
+  const duplicateByLineNumber = new Map(possibleDuplicates.map((entry) => [entry.line_number, entry] as const));
 
   const supplierDetected = {
     ...supplierDetectedRaw,
@@ -1345,6 +1471,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     document_detected_raw: documentDetectedRaw,
     lines_detected: linesDetected,
     lines_detected_raw: linesDetectedRaw,
+    possible_duplicates: possibleDuplicates,
     line_candidates_by_line_number: lineCandidatesByLineNumber,
     ocr_meta: {
       provider: 'azure_document_intelligence',
@@ -1354,6 +1481,10 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       processed_at: new Date().toISOString(),
       rerun_blocked_if_lines_exist: true as const,
       supplier_trace: supplierTrace,
+      document_number_trace: {
+        source: documentNumberFallback.source,
+        fallback_used: documentNumberFallback.source !== 'invoice_field' && documentNumberFallback.source !== 'none',
+      },
     },
     openai_cleanup: openAiCleanupPayload,
     cleanup_meta: openAiCleanupMeta,
@@ -1391,6 +1522,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
           ? cleanup.ingredient_match.ingredient_id
           : null;
 
+      const duplicateHint = duplicateByLineNumber.get(index + 1);
       return {
         document_id: params.id,
         line_number: index + 1,
@@ -1412,7 +1544,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
             ? line.ingredient_match.ingredient_id
             : openAiSuggestedIngredientId,
         line_status: 'unresolved' as const,
-        warning_notes: line.warning_notes,
+        warning_notes: [line.warning_notes, duplicateHint ? `possible_duplicate(line #${duplicateHint.duplicate_of_line_number}, ${duplicateHint.confidence})` : null].filter(Boolean).join(' ') || null,
         user_note: null,
       };
     });
@@ -1444,6 +1576,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     supplier_existing_suggestion: suggestedExistingSupplier,
     supplier_enrichment: supplierEnrichment,
     cleanup_meta: openAiCleanupMeta,
+    possible_duplicates: possibleDuplicates,
   });
   mergeResponseCookies(access.supabaseResponse, response);
   return response;

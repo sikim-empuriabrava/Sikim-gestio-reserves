@@ -11,14 +11,15 @@ export default async function CheffingCompraDetailPage({ params }: { params: { i
   await requireCheffingAccess();
 
   const supabase = createSupabaseServerClient();
-  const [{ data: document, error: documentError }, { data: suppliers }, { data: ingredients }] = await Promise.all([
+  const [{ data: document, error: documentError }, { data: suppliers }, { data: ingredients }, { data: units }] = await Promise.all([
     supabase
       .from('cheffing_purchase_documents')
-      .select('id, supplier_id, document_kind, document_number, document_date, effective_at, status, validation_notes, declared_total, storage_bucket, storage_path, ocr_raw_text, interpreted_payload, applied_at, applied_by, created_at, updated_at, cheffing_suppliers(trade_name), cheffing_purchase_document_lines(id, line_number, raw_description, raw_quantity, raw_unit, validated_unit, raw_unit_price, raw_line_total, suggested_ingredient_id, validated_ingredient_id, line_status, warning_notes, user_note, validated_ingredient:cheffing_ingredients!cheffing_purchase_document_lines_validated_ingredient_id_fkey(name))')
+      .select('id, supplier_id, document_kind, document_number, document_date, effective_at, status, validation_notes, declared_total, storage_bucket, storage_path, ocr_raw_text, interpreted_payload, applied_at, applied_by, created_at, updated_at, cheffing_suppliers(trade_name), cheffing_purchase_document_lines(id, line_number, raw_description, interpreted_description, raw_quantity, raw_unit, interpreted_quantity, interpreted_unit, normalized_unit_code, validated_unit, raw_unit_price, raw_line_total, suggested_ingredient_id, validated_ingredient_id, line_status, warning_notes, user_note, validated_ingredient:cheffing_ingredients!cheffing_purchase_document_lines_validated_ingredient_id_fkey(name))')
       .eq('id', params.id)
       .maybeSingle(),
     supabase.from('cheffing_suppliers').select('id, trade_name').eq('is_active', true).order('trade_name', { ascending: true }),
     supabase.from('cheffing_ingredients').select('id, name').order('name', { ascending: true }),
+    supabase.from('cheffing_units').select('code, name').order('code', { ascending: true }),
   ]);
 
   if (documentError || !document) {
@@ -43,7 +44,13 @@ export default async function CheffingCompraDetailPage({ params }: { params: { i
         <span className="text-white">Documento</span>
       </div>
 
-      <ProcurementDocumentDetailManager document={document} suppliers={suppliers ?? []} ingredients={ingredients ?? []} initialSourceFileUrl={sourceFileUrl} />
+      <ProcurementDocumentDetailManager
+        document={document}
+        suppliers={suppliers ?? []}
+        ingredients={ingredients ?? []}
+        units={units ?? []}
+        initialSourceFileUrl={sourceFileUrl}
+      />
     </section>
   );
 }
