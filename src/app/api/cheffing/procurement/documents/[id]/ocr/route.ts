@@ -76,6 +76,28 @@ type SupplierCandidateHint = {
   match_reasons: string[];
 };
 
+type SupplierExistingSuggestion = {
+  supplier_id: string;
+  trade_name: string;
+  score_hint: number;
+  match_reasons: string[];
+  is_strong_match: boolean;
+  is_dominant: boolean;
+  dominance_gap: number | null;
+  should_auto_select: boolean;
+};
+
+type SupplierEnrichmentResult = {
+  supplier_id: string;
+  auto_filled: Array<{ field: 'tax_id' | 'email' | 'phone'; value: string; source: 'ocr' | 'openai_cleanup' }>;
+  conflicts: Array<{ field: 'tax_id' | 'email' | 'phone'; existing_value: string; detected_value: string; reason: string }>;
+  update_attempt: {
+    attempted: boolean;
+    applied: boolean;
+    warning: string | null;
+  };
+};
+
 type IngredientCandidateRow = { id: string; name: string; reference: string | null };
 type SupplierProductRefRow = {
   supplier_id: string;
@@ -273,6 +295,43 @@ function buildSupplierCandidates(input: {
     .filter((candidate) => candidate.score_hint > 0)
     .sort((a, b) => b.score_hint - a.score_hint)
     .slice(0, 5);
+}
+
+function getSuggestedExistingSupplier(candidates: SupplierCandidateHint[]): SupplierExistingSuggestion | null {
+  const top = candidates[0];
+  if (!top) return null;
+  const second = candidates[1];
+  const dominanceGap = typeof second?.score_hint === 'number' ? top.score_hint - second.score_hint : null;
+  const isStrongMatch = top.score_hint >= 90;
+  const isDominant = dominanceGap === null || dominanceGap >= 25;
+  return {
+    supplier_id: top.id,
+    trade_name: top.trade_name,
+    score_hint: top.score_hint,
+    match_reasons: top.match_reasons,
+    is_strong_match: isStrongMatch,
+    is_dominant: isDominant,
+    dominance_gap: dominanceGap,
+    should_auto_select: isStrongMatch && isDominant,
+  };
+}
+
+function isSupplierFieldConfident(params: {
+  field: 'tax_id' | 'email' | 'phone';
+  trace: { email_source: 'vendor_fields' | 'key_value_pairs' | 'none'; phone_source: 'vendor_fields' | 'key_value_pairs' | 'none'; tax_id_source: 'vendor_fields' | 'key_value_pairs' | 'none' };
+  hasReliableSupplierCleanup: boolean;
+}): boolean {
+  if (params.hasReliableSupplierCleanup) return true;
+  if (params.field === 'email') return params.trace.email_source === 'vendor_fields';
+  if (params.field === 'phone') return params.trace.phone_source === 'vendor_fields';
+  return params.trace.tax_id_source === 'vendor_fields';
+}
+
+function normalizedComparableValue(field: 'tax_id' | 'email' | 'phone', value: string | null): string | null {
+  if (!value) return null;
+  if (field === 'tax_id') return normalizeProcurementText(value.replace(/[^a-zA-Z0-9]/g, ''));
+  if (field === 'email') return normalizeProcurementText(value.trim().toLowerCase());
+  return normalizePhone(value);
 }
 
 function buildLineCandidates(input: {
@@ -1029,6 +1088,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     supplierDetectedRaw,
     suppliers: (supplierCandidates ?? []) as SupplierCandidateRow[],
   });
+  const suggestedExistingSupplier = getSuggestedExistingSupplier(supplierCandidatesRetrieved);
   const lineCandidatesByLineNumber = linesDetectedRaw.map((line, index) =>
     buildLineCandidates({
       lineNumber: index + 1,
@@ -1183,13 +1243,109 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
         : documentDetectedRaw.document_date,
   };
 
+  let supplierEnrichment: SupplierEnrichmentResult | null = null;
+  if (suggestedExistingSupplier?.should_auto_select) {
+    const { data: matchedSupplier } = await supabase
+      .from('cheffing_suppliers')
+      .select('id, tax_id, email, phone')
+      .eq('id', suggestedExistingSupplier.supplier_id)
+      .maybeSingle();
+
+    if (matchedSupplier) {
+      const autoFilled: SupplierEnrichmentResult['auto_filled'] = [];
+      const conflicts: SupplierEnrichmentResult['conflicts'] = [];
+      const supplierUpdates: Record<string, string> = {};
+
+      const fields: Array<{ key: 'tax_id' | 'email' | 'phone'; detectedValue: string | null; existingValue: string | null }> = [
+        { key: 'tax_id', detectedValue: supplierDetected.tax_id, existingValue: matchedSupplier.tax_id },
+        { key: 'email', detectedValue: supplierDetected.email, existingValue: matchedSupplier.email },
+        { key: 'phone', detectedValue: supplierDetected.phone, existingValue: matchedSupplier.phone },
+      ];
+
+      for (const field of fields) {
+        const detectedTrimmed = field.detectedValue?.trim() ?? null;
+        if (!detectedTrimmed) continue;
+        const isConfident = isSupplierFieldConfident({
+          field: field.key,
+          trace: supplierTrace,
+          hasReliableSupplierCleanup,
+        });
+        if (!isConfident) continue;
+
+        const existingTrimmed = field.existingValue?.trim() ?? null;
+        if (!existingTrimmed) {
+          supplierUpdates[field.key] = detectedTrimmed;
+          autoFilled.push({
+            field: field.key,
+            value: detectedTrimmed,
+            source: hasReliableSupplierCleanup ? 'openai_cleanup' : 'ocr',
+          });
+          continue;
+        }
+
+        const existingComparable = normalizedComparableValue(field.key, existingTrimmed);
+        const detectedComparable = normalizedComparableValue(field.key, detectedTrimmed);
+        if (!existingComparable || !detectedComparable) continue;
+        if (existingComparable !== detectedComparable) {
+          conflicts.push({
+            field: field.key,
+            existing_value: existingTrimmed,
+            detected_value: detectedTrimmed,
+            reason: 'existing_value_differs_detected',
+          });
+        }
+      }
+
+      let appliedAutoFilled = autoFilled;
+      let updateAttempt: SupplierEnrichmentResult['update_attempt'] = {
+        attempted: false,
+        applied: false,
+        warning: null,
+      };
+      if (Object.keys(supplierUpdates).length > 0) {
+        updateAttempt = { attempted: true, applied: false, warning: null };
+        const { error: supplierUpdateError } = await supabase
+          .from('cheffing_suppliers')
+          .update(supplierUpdates)
+          .eq('id', suggestedExistingSupplier.supplier_id);
+        if (supplierUpdateError) {
+          appliedAutoFilled = [];
+          updateAttempt = {
+            attempted: true,
+            applied: false,
+            warning: `Supplier enrichment update failed: ${supplierUpdateError.message}`,
+          };
+          console.warn('[procurement OCR] supplier enrichment update failed; auto-fill not applied', {
+            document_id: params.id,
+            supplier_id: suggestedExistingSupplier.supplier_id,
+            attempted_fields: Object.keys(supplierUpdates),
+            error: supplierUpdateError.message,
+          });
+        } else {
+          updateAttempt = { attempted: true, applied: true, warning: null };
+        }
+      }
+
+      supplierEnrichment = {
+        supplier_id: suggestedExistingSupplier.supplier_id,
+        auto_filled: appliedAutoFilled,
+        conflicts,
+        update_attempt: updateAttempt,
+      };
+    }
+  }
+
   const interpretedPayload = {
     supplier_detected: supplierDetected,
     supplier_detected_raw: supplierDetectedRaw,
+    supplier_candidates: supplierCandidatesRetrieved,
+    supplier_existing_suggestion: suggestedExistingSupplier,
+    supplier_enrichment: supplierEnrichment,
     document_detected: documentDetected,
     document_detected_raw: documentDetectedRaw,
     lines_detected: linesDetected,
     lines_detected_raw: linesDetectedRaw,
+    line_candidates_by_line_number: lineCandidatesByLineNumber,
     ocr_meta: {
       provider: 'azure_document_intelligence',
       model: AZURE_MODEL_ID,
@@ -1285,6 +1441,8 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     inserted_lines: insertedLines,
     lines_detected_count: linesDetected.length,
     supplier_detected: supplierDetected,
+    supplier_existing_suggestion: suggestedExistingSupplier,
+    supplier_enrichment: supplierEnrichment,
     cleanup_meta: openAiCleanupMeta,
   });
   mergeResponseCookies(access.supabaseResponse, response);
