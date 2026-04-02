@@ -258,7 +258,19 @@ export function ProcurementDocumentDetailManager({
           return typeof typed.field === 'string' && typeof typed.existing_value === 'string' && typeof typed.detected_value === 'string';
         })
       : [];
-    return { autoFilled, conflicts };
+    const updateAttemptRecord =
+      record.update_attempt && typeof record.update_attempt === 'object'
+        ? (record.update_attempt as Record<string, unknown>)
+        : null;
+    return {
+      autoFilled,
+      conflicts,
+      updateAttempt: {
+        attempted: updateAttemptRecord?.attempted === true,
+        applied: updateAttemptRecord?.applied === true,
+        warning: typeof updateAttemptRecord?.warning === 'string' ? updateAttemptRecord.warning : null,
+      },
+    };
   }, [interpretedPayload]);
 
   const lineSuggestionReasonByLineNumber = useMemo(() => {
@@ -696,7 +708,7 @@ export function ProcurementDocumentDetailManager({
                     ) : null}
                   </div>
                 ) : null}
-                {supplierEnrichment && (supplierEnrichment.autoFilled.length > 0 || supplierEnrichment.conflicts.length > 0) ? (
+                {supplierEnrichment && (supplierEnrichment.autoFilled.length > 0 || supplierEnrichment.conflicts.length > 0 || Boolean(supplierEnrichment.updateAttempt.warning)) ? (
                   <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 p-2 text-xs text-amber-100">
                     {supplierEnrichment.autoFilled.length > 0 ? (
                       <p>
@@ -706,6 +718,11 @@ export function ProcurementDocumentDetailManager({
                     {supplierEnrichment.conflicts.length > 0 ? (
                       <p className="mt-1">
                         Conflictos detectados (sin sobreescritura): {supplierEnrichment.conflicts.map((entry) => `${entry.field} DB:${entry.existing_value} ↔ OCR:${entry.detected_value}`).join(' · ')}.
+                      </p>
+                    ) : null}
+                    {supplierEnrichment.updateAttempt.warning ? (
+                      <p className="mt-1 text-rose-200">
+                        Aviso actualización proveedor: {supplierEnrichment.updateAttempt.warning}
                       </p>
                     ) : null}
                   </div>
