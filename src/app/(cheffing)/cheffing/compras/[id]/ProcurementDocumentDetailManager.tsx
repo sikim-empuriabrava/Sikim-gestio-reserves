@@ -164,7 +164,9 @@ function resolveDraftHeaderValue(params: {
   }
   if (params.kind === 'document_date' && params.documentEffectiveAt) {
     const effectiveDate = params.documentEffectiveAt.slice(0, 10);
-    if (persisted === effectiveDate && detected !== persisted) {
+    const createdDate = params.documentCreatedAt?.slice(0, 10) ?? null;
+    const effectiveLooksInherited = Boolean(createdDate) && createdDate === effectiveDate;
+    if (effectiveLooksInherited && persisted === effectiveDate && detected !== persisted) {
       return detected;
     }
   }

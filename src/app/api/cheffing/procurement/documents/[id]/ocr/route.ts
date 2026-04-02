@@ -741,6 +741,13 @@ function extractDocumentNumberFallback(params: {
   kvPairs: NonNullable<NonNullable<AzureAnalyzeResult['analyzeResult']>['keyValuePairs']> | undefined;
   rawText: string;
 }): { value: string | null; source: 'invoice_field' | 'key_value_pairs' | 'raw_text' | 'none' } {
+  const looksLikeDateToken = (value: string): boolean =>
+    /^(\d{1,2}[/-]\d{1,2}[/-]\d{2,4}|\d{4}[/-]\d{1,2}[/-]\d{1,2})$/.test(value);
+  const looksLikeFiscalId = (value: string): boolean =>
+    /^[A-HJNPQRSUVW]\d{7}[0-9A-J]$/i.test(value) || /^\d{8}[A-Z]$/i.test(value) || /^ES[A-Z0-9]{9,12}$/i.test(value);
+  const looksLikeAmountToken = (value: string): boolean =>
+    /€|eur/i.test(value) || /^\d{1,3}(?:[.,]\d{3})*[.,]\d{2}$/.test(value) || /^\d+[.,]\d{2}$/.test(value);
+
   const cleanCandidate = (value: string | null): string | null => {
     if (!value) return null;
     const trimmed = value.trim();
@@ -748,6 +755,9 @@ function extractDocumentNumberFallback(params: {
     const compact = trimmed.replace(/\s+/g, '');
     if (!/[0-9]/.test(compact)) return null;
     if (!/^[A-Z0-9][A-Z0-9\-/.]{2,24}$/i.test(compact)) return null;
+    if (looksLikeDateToken(compact)) return null;
+    if (looksLikeFiscalId(compact)) return null;
+    if (looksLikeAmountToken(trimmed) || looksLikeAmountToken(compact)) return null;
     return compact;
   };
 
