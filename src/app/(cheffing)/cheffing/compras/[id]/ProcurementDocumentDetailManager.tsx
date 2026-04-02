@@ -56,6 +56,7 @@ type Doc = {
   interpreted_payload: Record<string, unknown> | null;
   applied_at: string | null;
   applied_by: string | null;
+  created_at?: string | null;
   cheffing_purchase_document_lines: Line[] | null;
 };
 
@@ -144,6 +145,25 @@ function parseDetectedDocument(payload: Record<string, unknown> | null): { docum
   };
 }
 
+function resolveDraftHeaderValue(params: {
+  persisted: string | null;
+  detected: string;
+  documentCreatedAt?: string | null;
+  kind: 'document_number' | 'document_date';
+}): string {
+  const persisted = params.persisted?.trim() ?? '';
+  const detected = params.detected.trim();
+  if (!detected) return persisted;
+  if (!persisted) return detected;
+  if (params.kind === 'document_date' && params.documentCreatedAt) {
+    const createdDate = params.documentCreatedAt.slice(0, 10);
+    if (persisted === createdDate && detected !== persisted) {
+      return detected;
+    }
+  }
+  return persisted;
+}
+
 export function ProcurementDocumentDetailManager({
   document,
   suppliers,
@@ -168,8 +188,24 @@ export function ProcurementDocumentDetailManager({
     (suggestedExistingSupplier?.shouldAutoSelect ? suggestedExistingSupplier.supplierId : null);
   const [header, setHeader] = useState({
     document_kind: document.document_kind,
-    document_number: document.document_number ?? (document.status === 'draft' ? detectedDocument.documentNumber : ''),
-    document_date: document.document_date || (document.status === 'draft' ? detectedDocument.documentDate : ''),
+    document_number:
+      document.status === 'draft'
+        ? resolveDraftHeaderValue({
+            persisted: document.document_number,
+            detected: detectedDocument.documentNumber,
+            documentCreatedAt: document.created_at,
+            kind: 'document_number',
+          })
+        : (document.document_number ?? ''),
+    document_date:
+      document.status === 'draft'
+        ? resolveDraftHeaderValue({
+            persisted: document.document_date,
+            detected: detectedDocument.documentDate,
+            documentCreatedAt: document.created_at,
+            kind: 'document_date',
+          })
+        : document.document_date,
     supplier_id: defaultSupplierId ?? '',
     validation_notes: document.validation_notes ?? '',
     declared_total: document.declared_total?.toString() ?? (document.status === 'draft' ? detectedDocument.declaredTotal : ''),
@@ -381,7 +417,7 @@ export function ProcurementDocumentDetailManager({
   }
 
   async function confirmSuggestedSupplierAndSave() {
-    if (!suggestedExistingSupplier) return;
+    if (!suggestedExistingSupplier?.shouldAutoSelect) return;
     const nextHeader = { ...header, supplier_id: suggestedExistingSupplier.supplierId };
     setHeader(nextHeader);
     setError(null);
@@ -598,11 +634,22 @@ export function ProcurementDocumentDetailManager({
     setError(null);
     setIsSubmitting(true);
     try {
+      const parsedPackQty = Number(isCreatingIngredient.packQty || '1');
+      const parsedPrice = Number(isCreatingIngredient.price || '0');
+      if (!isCreatingIngredient.name.trim()) {
+        throw new Error('El nombre del ingrediente es obligatorio.');
+      }
+      if (!Number.isFinite(parsedPackQty) || parsedPackQty <= 0) {
+        throw new Error('La cantidad de pack debe ser mayor que 0.');
+      }
+      if (!Number.isFinite(parsedPrice) || parsedPrice < 0) {
+        throw new Error('El precio debe ser 0 o mayor.');
+      }
       const payload = {
         name: isCreatingIngredient.name.trim(),
         purchase_unit_code: isCreatingIngredient.unitCode || 'ud',
-        purchase_pack_qty: Number(isCreatingIngredient.packQty || '1'),
-        purchase_price: Number(isCreatingIngredient.price || '0'),
+        purchase_pack_qty: parsedPackQty,
+        purchase_price: parsedPrice,
         waste_pct: 0,
       };
       const createResponse = await fetch('/api/cheffing/ingredients', {
@@ -842,7 +889,7 @@ export function ProcurementDocumentDetailManager({
                         Asignar sugerencia
                       </button>
                     ) : null}
-                    {suggestedExistingSupplier.isStrongMatch ? (
+                    {suggestedExistingSupplier.shouldAutoSelect ? (
                       <button
                         type="button"
                         onClick={confirmSuggestedSupplierAndSave}
@@ -875,7 +922,7 @@ export function ProcurementDocumentDetailManager({
                 ) : null}
                 {isDraft ? (
                   <div className="space-y-2">
-                    {!isCreatingSupplier && !suggestedExistingSupplier?.isStrongMatch ? (
+                    {!isCreatingSupplier && !suggestedExistingSupplier?.shouldAutoSelect ? (
                       <button
                         type="button"
                         onClick={openNewSupplierForm}
@@ -885,7 +932,7 @@ export function ProcurementDocumentDetailManager({
                         Crear nuevo proveedor
                       </button>
                     ) : null}
-                    {!isCreatingSupplier && suggestedExistingSupplier?.isStrongMatch ? (
+                    {!isCreatingSupplier && suggestedExistingSupplier?.shouldAutoSelect ? (
                       <p className="text-xs text-amber-300">Bloque “crear proveedor” oculto por match fuerte para evitar duplicados.</p>
                     ) : null}
                     {isCreatingSupplier ? (
@@ -1284,6 +1331,9 @@ function EditableLineRow({ line, ingredients, suggestedIngredientId, suggestedRe
         ) : (
           <div className="space-y-1">
             <p>{line.validated_unit ?? line.normalized_unit_code ?? '—'}</p>
+            <p className="text-[11px] text-slate-500">
+              {line.validated_unit ? 'Unidad validada' : line.normalized_unit_code ? 'Unidad sugerida por pipeline (pendiente de validar)' : 'Sin unidad sugerida'}
+            </p>
             <p className="text-xs text-slate-500">Original: {line.raw_unit ?? '—'}</p>
             {line.interpreted_unit ? <p className="text-[11px] text-sky-300">Sugerida pipeline: {line.interpreted_unit}</p> : null}
           </div>
@@ -1299,7 +1349,7 @@ function EditableLineRow({ line, ingredients, suggestedIngredientId, suggestedRe
       <td className="px-4 py-3">{lineStatusLabel(line.line_status)}</td>
       <td className="px-4 py-3">
         {isDraft ? (
-          isEditing ? <div className="flex gap-2"><button type="button" onClick={() => onSave(line, form)} className="rounded-full border border-emerald-400/60 px-3 py-1 text-xs">Guardar</button><button type="button" onClick={onCancel} className="rounded-full border border-slate-700 px-3 py-1 text-xs">Cancelar</button></div> : <div className="flex flex-wrap gap-2"><button type="button" onClick={onEdit} className="rounded-full border border-slate-700 px-3 py-1 text-xs">Editar</button><button type="button" onClick={() => onCreateIngredient(line)} className="rounded-full border border-sky-500/60 px-3 py-1 text-xs text-sky-200">Crear ingrediente</button>{duplicateHint?.confidence === 'high' ? <button type="button" onClick={() => onDelete(line.id)} className="rounded-full border border-amber-500/60 px-3 py-1 text-xs text-amber-200">Suprimir duplicado</button> : null}<button type="button" onClick={() => onDelete(line.id)} className="rounded-full border border-rose-500/60 px-3 py-1 text-xs text-rose-200">Borrar</button></div>
+          isEditing ? <div className="flex gap-2"><button type="button" onClick={() => onSave(line, form)} className="rounded-full border border-emerald-400/60 px-3 py-1 text-xs">Guardar</button><button type="button" onClick={onCancel} className="rounded-full border border-slate-700 px-3 py-1 text-xs">Cancelar</button></div> : <div className="flex flex-wrap gap-2"><button type="button" onClick={onEdit} className="rounded-full border border-slate-700 px-3 py-1 text-xs">Editar</button><button type="button" onClick={() => onCreateIngredient(line)} className="rounded-full border border-sky-500/60 px-3 py-1 text-xs text-sky-200">Crear ingrediente</button>{duplicateHint?.confidence === 'high' ? <button type="button" onClick={() => { if (window.confirm('Se eliminará definitivamente esta línea duplicada sugerida. ¿Continuar?')) onDelete(line.id); }} className="rounded-full border border-amber-500/60 px-3 py-1 text-xs text-amber-200">Eliminar duplicado (definitivo)</button> : null}<button type="button" onClick={() => onDelete(line.id)} className="rounded-full border border-rose-500/60 px-3 py-1 text-xs text-rose-200">Borrar</button></div>
         ) : <span className="text-xs text-slate-500">Solo lectura</span>}
       </td>
     </tr>

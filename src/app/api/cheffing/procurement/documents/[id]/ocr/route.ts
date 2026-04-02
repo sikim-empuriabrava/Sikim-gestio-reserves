@@ -217,6 +217,17 @@ function normalizePhone(value: string | null): string | null {
   return compact.length >= 7 ? compact : null;
 }
 
+function normalizeSupplierNameForMatch(value: string | null): string | null {
+  const normalized = normalizeProcurementText(value);
+  if (!normalized) return null;
+  return normalized
+    .replace(/[.,]/g, ' ')
+    .replace(/\b(sociedad\s+limitada|sociedad\s+anonima)\b/g, ' ')
+    .replace(/\b(s\.?\s*l\.?\s*u?|s\.?\s*a\.?\s*u?)\b/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
 function includesNormalizedText(haystack: string | null, needle: string | null): boolean {
   const normalizedHaystack = normalizeProcurementText(haystack);
   const normalizedNeedle = normalizeProcurementText(needle);
@@ -253,7 +264,7 @@ function buildSupplierCandidates(input: {
     input.supplierDetectedRaw.name,
     input.supplierDetectedRaw.legal_name,
   ]
-    .map((entry) => normalizeProcurementText(entry))
+    .map((entry) => normalizeSupplierNameForMatch(entry))
     .filter((entry): entry is string => Boolean(entry));
 
   return input.suppliers
@@ -261,7 +272,7 @@ function buildSupplierCandidates(input: {
       const reasons: string[] = [];
       let score = 0;
       const supplierTaxId = parseTaxId(supplier.tax_id);
-      const supplierTradeName = normalizeProcurementText(supplier.trade_name);
+      const supplierTradeName = normalizeSupplierNameForMatch(supplier.trade_name);
       const supplierEmail = supplier.email?.trim().toLowerCase() || null;
       const supplierPhone = normalizePhone(supplier.phone);
 
@@ -281,12 +292,12 @@ function buildSupplierCandidates(input: {
       for (const detectedName of detectedNames) {
         if (!detectedName || !supplierTradeName) continue;
         if (detectedName === supplierTradeName) {
-          score += 45;
+          score += 60;
           reasons.push('trade_name_exact_normalized');
           continue;
         }
         if (detectedName.includes(supplierTradeName) || supplierTradeName.includes(detectedName)) {
-          score += 25;
+          score += 32;
           reasons.push('trade_name_substring');
         }
       }
@@ -309,8 +320,14 @@ function getSuggestedExistingSupplier(candidates: SupplierCandidateHint[]): Supp
   if (!top) return null;
   const second = candidates[1];
   const dominanceGap = typeof second?.score_hint === 'number' ? top.score_hint - second.score_hint : null;
-  const isStrongMatch = top.score_hint >= 90;
-  const isDominant = dominanceGap === null || dominanceGap >= 25;
+  const hasIdentitySignal = top.match_reasons.some((reason) =>
+    reason === 'tax_id_exact' || reason === 'email_exact' || reason === 'phone_exact_normalized',
+  );
+  const hasNameSignal = top.match_reasons.some((reason) =>
+    reason === 'trade_name_exact_normalized' || reason === 'trade_name_substring',
+  );
+  const isStrongMatch = top.score_hint >= 85 && (hasIdentitySignal || hasNameSignal);
+  const isDominant = dominanceGap === null || dominanceGap >= 18;
   return {
     supplier_id: top.id,
     trade_name: top.trade_name,
@@ -319,7 +336,7 @@ function getSuggestedExistingSupplier(candidates: SupplierCandidateHint[]): Supp
     is_strong_match: isStrongMatch,
     is_dominant: isDominant,
     dominance_gap: dominanceGap,
-    should_auto_select: isStrongMatch && isDominant,
+    should_auto_select: isStrongMatch && isDominant && (hasIdentitySignal || top.score_hint >= 95),
   };
 }
 
@@ -870,7 +887,12 @@ function mapDocumentKind(docType?: string): 'invoice' | 'delivery_note' | 'other
 function detectPossibleDuplicateLines(lines: OcrLineDetected[]): OcrPossibleDuplicate[] {
   const hints: OcrPossibleDuplicate[] = [];
   const normalizeDescription = (value: string): string =>
-    normalizeProcurementText(value.replace(/^[A-Z0-9]{2,12}\s*[-.:]?\s*/i, '')) ?? '';
+    normalizeProcurementText(
+      value
+        .replace(/^\s*(?:cod(?:igo)?|ref(?:erencia)?|art(?:iculo)?)\s*[:#-]?\s*[a-z0-9-]{2,16}\s+/i, '')
+        .replace(/^\s*[a-z]{1,3}\d{2,8}\s+/i, '')
+        .replace(/^\s*\d{4,12}(?:[-/][a-z0-9]{1,8})?\s+/i, ''),
+    ) ?? '';
 
   for (let i = 0; i < lines.length; i += 1) {
     const left = lines[i];
