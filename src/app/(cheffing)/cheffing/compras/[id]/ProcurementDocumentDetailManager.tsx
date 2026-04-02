@@ -166,15 +166,18 @@ export function ProcurementDocumentDetailManager({
   const sourceFileKind = inferProcurementSourceFileKind(document.storage_path);
 
   const hasUnsavedHeaderChanges =
-    header.supplier_id !== (defaultSupplierId ?? '') ||
+    header.supplier_id !== (document.supplier_id ?? '') ||
     header.document_kind !== document.document_kind ||
     normalizeNullableText(header.document_number) !== (document.document_number ?? null) ||
     header.document_date !== document.document_date ||
     normalizeNullableText(header.validation_notes) !== (document.validation_notes ?? null) ||
     parseNullableNumber(header.declared_total) !== (document.declared_total ?? null);
 
+  const hasPendingSupplierSelection =
+    !document.supplier_id && Boolean(header.supplier_id) && header.supplier_id !== document.supplier_id;
+
   const readinessReasons = [
-    !header.supplier_id ? 'Falta proveedor confirmado en cabecera.' : null,
+    !document.supplier_id ? 'Falta proveedor confirmado en DB (guarda cabecera para confirmar proveedor).' : null,
     !lines.length ? 'No hay líneas en el documento.' : null,
     hasUnresolvedLines ? 'Hay líneas pendientes de resolver.' : null,
     hasLinesWithoutIngredient ? 'Hay líneas sin ingrediente validado.' : null,
@@ -183,7 +186,11 @@ export function ProcurementDocumentDetailManager({
   ].filter(Boolean) as string[];
   const canApply = isDraft && readinessReasons.length === 0 && !hasUnsavedHeaderChanges;
 
-  const supplierLabel = useMemo(
+  const persistedSupplierLabel = useMemo(
+    () => suppliers.find((supplier) => supplier.id === document.supplier_id)?.trade_name ?? null,
+    [document.supplier_id, suppliers],
+  );
+  const selectedSupplierLabel = useMemo(
     () => suppliers.find((supplier) => supplier.id === header.supplier_id)?.trade_name ?? null,
     [header.supplier_id, suppliers],
   );
@@ -603,8 +610,13 @@ export function ProcurementDocumentDetailManager({
         <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
           <div className="rounded-xl border border-slate-800 bg-slate-900/60 p-3 xl:col-span-2">
             <p className="text-xs uppercase tracking-wide text-slate-400">Proveedor confirmado</p>
-            <p className="mt-1 text-base font-semibold text-white">{supplierLabel ?? 'Sin proveedor asignado'}</p>
-            {!header.supplier_id ? <p className="mt-2 text-xs text-amber-300">⚠ Completa proveedor confirmado para dejar el documento listo para aplicar.</p> : null}
+            <p className="mt-1 text-base font-semibold text-white">{persistedSupplierLabel ?? 'Sin proveedor asignado en DB'}</p>
+            {hasPendingSupplierSelection ? (
+              <p className="mt-2 text-xs text-sky-300">
+                Selección actual pendiente de guardar: {selectedSupplierLabel ?? 'Proveedor sugerido'}.
+              </p>
+            ) : null}
+            {!document.supplier_id ? <p className="mt-2 text-xs text-amber-300">⚠ Guarda cabecera para confirmar proveedor antes de aplicar.</p> : null}
           </div>
           <div className="rounded-xl border border-dashed border-slate-700 bg-slate-900/30 p-3 xl:col-span-2">
             <p className="text-xs uppercase tracking-wide text-slate-400">Proveedor detectado (base Azure + cleanup OpenAI)</p>
