@@ -1295,7 +1295,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   const hasReliableSupplierCleanup = (supplierCleanup?.confidence ?? 0) >= 0.75;
   const hasReliableDocumentCleanup = (documentCleanup?.confidence ?? 0) >= 0.75;
 
-  const linesDetected = linesDetectedRaw.map((line, index) => {
+  const linesDetected: OcrLineDetected[] = linesDetectedRaw.map((line, index): OcrLineDetected => {
     const cleanup = cleanupByLine.get(index + 1);
     if (!cleanup) return line;
 
@@ -1319,7 +1319,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
           ? {
               ingredient_id: cleanup.ingredient_match.ingredient_id,
               ingredient_name: cleanup.ingredient_match.ingredient_name ?? '',
-              confidence: 'high',
+              confidence: 'high' as const,
               reason: cleanup.ingredient_match.match_basis ?? 'OpenAI cleanup match de alta confianza.',
             }
           : line.ingredient_match,
