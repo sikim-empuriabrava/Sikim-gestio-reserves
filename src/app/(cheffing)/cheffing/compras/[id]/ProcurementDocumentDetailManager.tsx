@@ -149,6 +149,7 @@ function resolveDraftHeaderValue(params: {
   persisted: string | null;
   detected: string;
   documentCreatedAt?: string | null;
+  documentEffectiveAt?: string | null;
   kind: 'document_number' | 'document_date';
 }): string {
   const persisted = params.persisted?.trim() ?? '';
@@ -158,6 +159,12 @@ function resolveDraftHeaderValue(params: {
   if (params.kind === 'document_date' && params.documentCreatedAt) {
     const createdDate = params.documentCreatedAt.slice(0, 10);
     if (persisted === createdDate && detected !== persisted) {
+      return detected;
+    }
+  }
+  if (params.kind === 'document_date' && params.documentEffectiveAt) {
+    const effectiveDate = params.documentEffectiveAt.slice(0, 10);
+    if (persisted === effectiveDate && detected !== persisted) {
       return detected;
     }
   }
@@ -194,6 +201,7 @@ export function ProcurementDocumentDetailManager({
             persisted: document.document_number,
             detected: detectedDocument.documentNumber,
             documentCreatedAt: document.created_at,
+            documentEffectiveAt: document.effective_at,
             kind: 'document_number',
           })
         : (document.document_number ?? ''),
@@ -203,6 +211,7 @@ export function ProcurementDocumentDetailManager({
             persisted: document.document_date,
             detected: detectedDocument.documentDate,
             documentCreatedAt: document.created_at,
+            documentEffectiveAt: document.effective_at,
             kind: 'document_date',
           })
         : document.document_date,
@@ -226,6 +235,9 @@ export function ProcurementDocumentDetailManager({
   const isDraft = document.status === 'draft';
   const linesCount = lines.length;
   const calculatedLinesTotal = lines.reduce((sum, line) => sum + (line.raw_line_total ?? 0), 0);
+  const declaredTotalNumber = parseNullableNumber(header.declared_total);
+  const totalsDelta =
+    declaredTotalNumber !== null && Number.isFinite(declaredTotalNumber) ? Number((declaredTotalNumber - calculatedLinesTotal).toFixed(2)) : null;
   const hasUnresolvedLines = lines.some((line) => line.line_status !== 'resolved');
   const hasLinesWithoutIngredient = lines.some((line) => !line.validated_ingredient_id);
   const hasLinesWithoutApplicableCost = lines.some((line) => line.raw_unit_price === null);
@@ -1147,9 +1159,14 @@ export function ProcurementDocumentDetailManager({
             <h3 className="text-sm font-semibold text-white">Resumen y readiness</h3>
             <dl className="space-y-2 text-sm">
               <SummaryRow label="Líneas" value={String(linesCount)} />
-              <SummaryRow label="Total calculado" value={formatCurrency(calculatedLinesTotal)} />
-              <SummaryRow label="Total declarado" value={header.declared_total ? formatCurrency(Number(header.declared_total)) : '—'} />
+              <SummaryRow label="Total calculado (líneas imputables)" value={formatCurrency(calculatedLinesTotal)} />
+              <SummaryRow label="Total declarado en documento" value={header.declared_total ? formatCurrency(Number(header.declared_total)) : '—'} />
             </dl>
+            {totalsDelta !== null && Math.abs(totalsDelta) >= 0.01 ? (
+              <p className="rounded-lg border border-amber-500/40 bg-amber-500/10 p-2 text-xs text-amber-200">
+                Diferencia detectada: {formatCurrency(totalsDelta)}. Puede deberse a IVA/base imponible, líneas fiscales o texto no imputable del documento.
+              </p>
+            ) : null}
 
             {readinessReasons.length > 0 ? (
               <div className="rounded-lg border border-rose-400/40 bg-rose-500/10 p-3 text-sm text-rose-200">

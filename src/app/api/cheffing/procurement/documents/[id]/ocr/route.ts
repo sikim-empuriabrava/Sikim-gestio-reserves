@@ -259,13 +259,17 @@ function buildSupplierCandidates(input: {
   const taxId = parseTaxId(input.supplierDetectedRaw.tax_id);
   const email = input.supplierDetectedRaw.email?.trim().toLowerCase() || null;
   const phone = normalizePhone(input.supplierDetectedRaw.phone);
-  const detectedNames = [
+  const detectedNames = Array.from(
+    new Set(
+      [
     input.supplierDetectedRaw.trade_name,
     input.supplierDetectedRaw.name,
     input.supplierDetectedRaw.legal_name,
-  ]
-    .map((entry) => normalizeSupplierNameForMatch(entry))
-    .filter((entry): entry is string => Boolean(entry));
+      ]
+        .map((entry) => normalizeSupplierNameForMatch(entry))
+        .filter((entry): entry is string => Boolean(entry)),
+    ),
+  );
 
   return input.suppliers
     .map((supplier) => {
@@ -323,10 +327,11 @@ function getSuggestedExistingSupplier(candidates: SupplierCandidateHint[]): Supp
   const hasIdentitySignal = top.match_reasons.some((reason) =>
     reason === 'tax_id_exact' || reason === 'email_exact' || reason === 'phone_exact_normalized',
   );
+  const hasExactNameSignal = top.match_reasons.some((reason) => reason === 'trade_name_exact_normalized');
   const hasNameSignal = top.match_reasons.some((reason) =>
     reason === 'trade_name_exact_normalized' || reason === 'trade_name_substring',
   );
-  const isStrongMatch = top.score_hint >= 85 && (hasIdentitySignal || hasNameSignal);
+  const isStrongMatch = hasIdentitySignal ? top.score_hint >= 85 : hasExactNameSignal && top.score_hint >= 60;
   const isDominant = dominanceGap === null || dominanceGap >= 18;
   return {
     supplier_id: top.id,
@@ -336,7 +341,10 @@ function getSuggestedExistingSupplier(candidates: SupplierCandidateHint[]): Supp
     is_strong_match: isStrongMatch,
     is_dominant: isDominant,
     dominance_gap: dominanceGap,
-    should_auto_select: isStrongMatch && isDominant && (hasIdentitySignal || top.score_hint >= 95),
+    should_auto_select:
+      isStrongMatch &&
+      isDominant &&
+      (hasIdentitySignal || (hasExactNameSignal && (dominanceGap === null || dominanceGap >= 35)) || (hasNameSignal && top.score_hint >= 95)),
   };
 }
 
@@ -723,6 +731,46 @@ function findSupplierValueFromKvPairs(
     const rawValue = pair.value?.content?.trim() ?? null;
     const normalized = sanitizer ? sanitizer(rawValue) : rawValue;
     if (normalized) return { value: normalized, source: 'key_value_pairs' };
+  }
+
+  return { value: null, source: 'none' };
+}
+
+function extractDocumentNumberFallback(params: {
+  invoiceFieldValue: string | null;
+  kvPairs: NonNullable<NonNullable<AzureAnalyzeResult['analyzeResult']>['keyValuePairs']> | undefined;
+  rawText: string;
+}): { value: string | null; source: 'invoice_field' | 'key_value_pairs' | 'raw_text' | 'none' } {
+  const cleanCandidate = (value: string | null): string | null => {
+    if (!value) return null;
+    const trimmed = value.trim();
+    if (!trimmed) return null;
+    const compact = trimmed.replace(/\s+/g, '');
+    if (!/[0-9]/.test(compact)) return null;
+    if (!/^[A-Z0-9][A-Z0-9\-/.]{2,24}$/i.test(compact)) return null;
+    return compact;
+  };
+
+  const invoiceField = cleanCandidate(params.invoiceFieldValue);
+  if (invoiceField) return { value: invoiceField, source: 'invoice_field' };
+
+  const numberLikeKey = /(num(\.|ero)?\s*(alb|albar[aà]n|albara|fact|fra)?|sf\s*\/\s*num\.?\s*alb\.?|albar[aà]|n[uú]mero)/i;
+  if (Array.isArray(params.kvPairs)) {
+    for (const pair of params.kvPairs) {
+      const key = pair.key?.content ?? '';
+      if (!numberLikeKey.test(key)) continue;
+      const kvCandidate = cleanCandidate(pair.value?.content ?? null);
+      if (kvCandidate) return { value: kvCandidate, source: 'key_value_pairs' };
+    }
+  }
+
+  const rawTextPatterns = [
+    /(?:sf\s*\/\s*num\.?\s*alb\.?|num\.?\s*alb(?:ar[aà]n)?|n[uú]mero|albar[aà])\s*[:#-]?\s*([a-z0-9][a-z0-9\-/.]{2,24})/i,
+  ];
+  for (const pattern of rawTextPatterns) {
+    const match = params.rawText.match(pattern);
+    const rawCandidate = cleanCandidate(match?.[1] ?? null);
+    if (rawCandidate) return { value: rawCandidate, source: 'raw_text' };
   }
 
   return { value: null, source: 'none' };
@@ -1131,9 +1179,16 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       `Fuentes proveedor -> email:${supplierTrace.email_source}, phone:${supplierTrace.phone_source}, tax_id:${supplierTrace.tax_id_source}.`,
   } satisfies OcrSupplierDetected;
 
+  const documentNumberFallback = extractDocumentNumberFallback({
+    invoiceFieldValue: getFieldString(fields.InvoiceId),
+    kvPairs: keyValuePairs,
+    rawText,
+  });
+
   const documentDetectedRaw = {
     document_kind: mapDocumentKind(firstDocument?.docType),
-    document_number: getFieldString(fields.InvoiceId),
+    document_number: documentNumberFallback.value,
+    document_number_source: documentNumberFallback.source,
     document_date: getFieldDate(fields.InvoiceDate),
     due_date: getFieldDate(fields.DueDate),
     declared_total: getFieldNumber(fields.InvoiceTotal) ?? getFieldNumber(fields.AmountDue),
@@ -1416,6 +1471,10 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       processed_at: new Date().toISOString(),
       rerun_blocked_if_lines_exist: true as const,
       supplier_trace: supplierTrace,
+      document_number_trace: {
+        source: documentNumberFallback.source,
+        fallback_used: documentNumberFallback.source !== 'invoice_field' && documentNumberFallback.source !== 'none',
+      },
     },
     openai_cleanup: openAiCleanupPayload,
     cleanup_meta: openAiCleanupMeta,
