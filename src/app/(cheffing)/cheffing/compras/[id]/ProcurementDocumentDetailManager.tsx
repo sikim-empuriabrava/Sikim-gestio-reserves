@@ -8,6 +8,7 @@ import {
   documentStatusLabel,
   inferProcurementSourceFileKind,
   lineStatusLabel,
+  normalizeProcurementCanonicalUnit,
   PROCUREMENT_CANONICAL_UNITS,
   PROCUREMENT_SOURCE_FILE_ACCEPTED_MIME_TYPES,
   type ProcurementDocumentKind,
@@ -16,13 +17,18 @@ import {
 
 type Ingredient = { id: string; name: string };
 type Supplier = { id: string; trade_name: string };
+type Unit = { code: string; name: string };
 
 type Line = {
   id: string;
   line_number: number;
   raw_description: string;
+  interpreted_description?: string | null;
   raw_quantity: number | null;
   raw_unit: string | null;
+  interpreted_quantity: number | null;
+  interpreted_unit: string | null;
+  normalized_unit_code: string | null;
   validated_unit: ProcurementCanonicalUnit | null;
   raw_unit_price: number | null;
   raw_line_total: number | null;
@@ -62,6 +68,13 @@ type SupplierExistingSuggestionView = {
   isDominant: boolean;
   dominanceGap: number | null;
   reasons: string[];
+};
+
+type DuplicateHint = {
+  lineNumber: number;
+  duplicateOfLineNumber: number;
+  confidence: 'high' | 'medium';
+  reason: string;
 };
 
 const emptyLine = {
@@ -118,32 +131,48 @@ function parseSupplierExistingSuggestion(payload: Record<string, unknown> | null
   };
 }
 
+function parseDetectedDocument(payload: Record<string, unknown> | null): { documentNumber: string; documentDate: string; declaredTotal: string } {
+  const detected = payload?.document_detected;
+  if (!detected || typeof detected !== 'object') {
+    return { documentNumber: '', documentDate: '', declaredTotal: '' };
+  }
+  const record = detected as Record<string, unknown>;
+  return {
+    documentNumber: typeof record.document_number === 'string' ? record.document_number : '',
+    documentDate: typeof record.document_date === 'string' ? record.document_date : '',
+    declaredTotal: typeof record.declared_total === 'number' && Number.isFinite(record.declared_total) ? String(record.declared_total) : '',
+  };
+}
+
 export function ProcurementDocumentDetailManager({
   document,
   suppliers,
   ingredients,
+  units,
   initialSourceFileUrl,
 }: {
   document: Doc;
   suppliers: Supplier[];
   ingredients: Ingredient[];
+  units: Unit[];
   initialSourceFileUrl: string | null;
 }) {
   const router = useRouter();
   const interpretedPayload = (document.interpreted_payload && typeof document.interpreted_payload === 'object'
     ? document.interpreted_payload
     : null) as Record<string, unknown> | null;
+  const detectedDocument = useMemo(() => parseDetectedDocument(interpretedPayload), [interpretedPayload]);
   const suggestedExistingSupplier = parseSupplierExistingSuggestion(interpretedPayload);
   const defaultSupplierId =
     document.supplier_id ??
     (suggestedExistingSupplier?.shouldAutoSelect ? suggestedExistingSupplier.supplierId : null);
   const [header, setHeader] = useState({
     document_kind: document.document_kind,
-    document_number: document.document_number ?? '',
-    document_date: document.document_date,
+    document_number: document.document_number ?? (document.status === 'draft' ? detectedDocument.documentNumber : ''),
+    document_date: document.document_date || (document.status === 'draft' ? detectedDocument.documentDate : ''),
     supplier_id: defaultSupplierId ?? '',
     validation_notes: document.validation_notes ?? '',
-    declared_total: document.declared_total?.toString() ?? '',
+    declared_total: document.declared_total?.toString() ?? (document.status === 'draft' ? detectedDocument.declaredTotal : ''),
   });
   const [newLine, setNewLine] = useState(emptyLine);
   const [editingLineId, setEditingLineId] = useState<string | null>(null);
@@ -155,6 +184,7 @@ export function ProcurementDocumentDetailManager({
   const [isProcessingOcr, setIsProcessingOcr] = useState(false);
   const [ocrMessage, setOcrMessage] = useState<{ kind: 'success' | 'error'; text: string } | null>(null);
   const [newSupplierForm, setNewSupplierForm] = useState(emptySupplierForm);
+  const [isCreatingIngredient, setIsCreatingIngredient] = useState<null | { lineId: string; name: string; unitCode: string; packQty: string; price: string }>(null);
 
   const lines = document.cheffing_purchase_document_lines ?? [];
   const isDraft = document.status === 'draft';
@@ -292,6 +322,24 @@ export function ProcurementDocumentDetailManager({
     return out;
   }, [interpretedPayload]);
 
+  const duplicateHintByLineNumber = useMemo(() => {
+    const out = new Map<number, DuplicateHint>();
+    const entries = interpretedPayload?.possible_duplicates;
+    if (!Array.isArray(entries)) return out;
+    for (const entry of entries) {
+      if (!entry || typeof entry !== 'object') continue;
+      const typed = entry as Record<string, unknown>;
+      if (typeof typed.line_number !== 'number' || typeof typed.duplicate_of_line_number !== 'number' || typeof typed.reason !== 'string') continue;
+      out.set(typed.line_number, {
+        lineNumber: typed.line_number,
+        duplicateOfLineNumber: typed.duplicate_of_line_number,
+        confidence: typed.confidence === 'high' ? 'high' : 'medium',
+        reason: typed.reason,
+      });
+    }
+    return out;
+  }, [interpretedPayload]);
+
   function openNewSupplierForm() {
     if (hasUnsavedHeaderChanges) return;
     setNewSupplierForm(supplierPrefill);
@@ -323,6 +371,37 @@ export function ProcurementDocumentDetailManager({
       if (!response.ok) {
         const payload = await response.json().catch(() => ({}));
         throw new Error(payload?.error ?? 'No se pudo guardar cabecera');
+      }
+      router.refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Error desconocido');
+    } finally {
+      setIsSubmitting(false);
+    }
+  }
+
+  async function confirmSuggestedSupplierAndSave() {
+    if (!suggestedExistingSupplier) return;
+    const nextHeader = { ...header, supplier_id: suggestedExistingSupplier.supplierId };
+    setHeader(nextHeader);
+    setError(null);
+    setIsSubmitting(true);
+    try {
+      const response = await fetch(`/api/cheffing/procurement/documents/${document.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          document_kind: nextHeader.document_kind,
+          document_number: nextHeader.document_number,
+          document_date: nextHeader.document_date,
+          supplier_id: nextHeader.supplier_id || null,
+          validation_notes: nextHeader.validation_notes,
+          declared_total: nextHeader.declared_total ? Number(nextHeader.declared_total) : null,
+        }),
+      });
+      if (!response.ok) {
+        const payload = await response.json().catch(() => ({}));
+        throw new Error(payload?.error ?? 'No se pudo confirmar proveedor sugerido');
       }
       router.refresh();
     } catch (err) {
@@ -491,6 +570,63 @@ export function ProcurementDocumentDetailManager({
         const payload = await response.json().catch(() => ({}));
         throw new Error(payload?.error ?? 'No se pudo borrar la línea');
       }
+      router.refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Error desconocido');
+    } finally {
+      setIsSubmitting(false);
+    }
+  }
+
+  async function acceptSuggestedLine(line: Line) {
+    if (!line.suggested_ingredient_id) return;
+    const suggestedCanonicalUnit = normalizeProcurementCanonicalUnit(line.validated_unit ?? line.normalized_unit_code ?? '');
+    await saveLine(line, {
+      raw_description: line.raw_description,
+      raw_quantity: line.raw_quantity?.toString() ?? '',
+      raw_unit: line.raw_unit ?? '',
+      validated_unit: typeof suggestedCanonicalUnit === 'string' ? suggestedCanonicalUnit : '',
+      raw_unit_price: line.raw_unit_price?.toString() ?? '',
+      raw_line_total: line.raw_line_total?.toString() ?? '',
+      validated_ingredient_id: line.suggested_ingredient_id,
+      user_note: line.user_note ?? '',
+    });
+  }
+
+  async function createIngredientForLine() {
+    if (!isCreatingIngredient) return;
+    setError(null);
+    setIsSubmitting(true);
+    try {
+      const payload = {
+        name: isCreatingIngredient.name.trim(),
+        purchase_unit_code: isCreatingIngredient.unitCode || 'ud',
+        purchase_pack_qty: Number(isCreatingIngredient.packQty || '1'),
+        purchase_price: Number(isCreatingIngredient.price || '0'),
+        waste_pct: 0,
+      };
+      const createResponse = await fetch('/api/cheffing/ingredients', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      const createResult = await createResponse.json().catch(() => ({}));
+      if (!createResponse.ok || typeof createResult?.id !== 'string') {
+        throw new Error(createResult?.error ?? 'No se pudo crear el ingrediente');
+      }
+      const targetLine = lines.find((line) => line.id === isCreatingIngredient.lineId);
+      if (!targetLine) throw new Error('No se encontró la línea para vincular el ingrediente');
+      await saveLine(targetLine, {
+        raw_description: targetLine.raw_description,
+        raw_quantity: targetLine.raw_quantity?.toString() ?? '',
+        raw_unit: targetLine.raw_unit ?? '',
+        validated_unit: (targetLine.validated_unit ?? targetLine.normalized_unit_code ?? '') as string,
+        raw_unit_price: targetLine.raw_unit_price?.toString() ?? '',
+        raw_line_total: targetLine.raw_line_total?.toString() ?? '',
+        validated_ingredient_id: createResult.id,
+        user_note: targetLine.user_note ?? '',
+      });
+      setIsCreatingIngredient(null);
       router.refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Error desconocido');
@@ -706,6 +842,16 @@ export function ProcurementDocumentDetailManager({
                         Asignar sugerencia
                       </button>
                     ) : null}
+                    {suggestedExistingSupplier.isStrongMatch ? (
+                      <button
+                        type="button"
+                        onClick={confirmSuggestedSupplierAndSave}
+                        disabled={isSubmitting}
+                        className="mt-2 ml-2 rounded-full border border-emerald-400/60 px-3 py-1 text-[11px] font-semibold text-emerald-100"
+                      >
+                        Confirmar proveedor sugerido y guardar cabecera
+                      </button>
+                    ) : null}
                   </div>
                 ) : null}
                 {supplierEnrichment && (supplierEnrichment.autoFilled.length > 0 || supplierEnrichment.conflicts.length > 0 || Boolean(supplierEnrichment.updateAttempt.warning)) ? (
@@ -729,7 +875,7 @@ export function ProcurementDocumentDetailManager({
                 ) : null}
                 {isDraft ? (
                   <div className="space-y-2">
-                    {!isCreatingSupplier ? (
+                    {!isCreatingSupplier && !suggestedExistingSupplier?.isStrongMatch ? (
                       <button
                         type="button"
                         onClick={openNewSupplierForm}
@@ -738,7 +884,11 @@ export function ProcurementDocumentDetailManager({
                       >
                         Crear nuevo proveedor
                       </button>
-                    ) : (
+                    ) : null}
+                    {!isCreatingSupplier && suggestedExistingSupplier?.isStrongMatch ? (
+                      <p className="text-xs text-amber-300">Bloque “crear proveedor” oculto por match fuerte para evitar duplicados.</p>
+                    ) : null}
+                    {isCreatingSupplier ? (
                       <div className="space-y-2 rounded-lg border border-slate-700 bg-slate-900/40 p-3">
                         <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Nuevo proveedor</p>
                         <div className="grid gap-2">
@@ -782,7 +932,7 @@ export function ProcurementDocumentDetailManager({
                           </button>
                         </div>
                       </div>
-                    )}
+                    ) : null}
                     {hasUnsavedHeaderChanges ? (
                       <p className="text-xs text-amber-300">Guarda primero la cabecera antes de crear y asignar un proveedor nuevo.</p>
                     ) : null}
@@ -797,9 +947,18 @@ export function ProcurementDocumentDetailManager({
                   <option value="other">Otro</option>
                 </select>
               </div>
-              <input disabled={!isDraft} value={header.document_number} onChange={(event) => setHeader({ ...header, document_number: event.target.value })} placeholder="Número de documento" className="rounded-md border border-slate-700 bg-slate-950/70 px-3 py-2 text-white" />
-              <input disabled={!isDraft} type="date" value={header.document_date} onChange={(event) => setHeader({ ...header, document_date: event.target.value })} className="rounded-md border border-slate-700 bg-slate-950/70 px-3 py-2 text-white" />
-              <input disabled={!isDraft} type="number" step="0.01" min="0" value={header.declared_total} onChange={(event) => setHeader({ ...header, declared_total: event.target.value })} placeholder="Total declarado" className="rounded-md border border-slate-700 bg-slate-950/70 px-3 py-2 text-white" />
+              <div className="space-y-1">
+                <input disabled={!isDraft} value={header.document_number} onChange={(event) => setHeader({ ...header, document_number: event.target.value })} placeholder="Número de documento" className="w-full rounded-md border border-slate-700 bg-slate-950/70 px-3 py-2 text-white" />
+                <p className="text-[11px] text-slate-400">DB: {document.document_number ?? 'vacío'} · Sugerido OCR: {detectedDocument.documentNumber || '—'}.</p>
+              </div>
+              <div className="space-y-1">
+                <input disabled={!isDraft} type="date" value={header.document_date} onChange={(event) => setHeader({ ...header, document_date: event.target.value })} className="w-full rounded-md border border-slate-700 bg-slate-950/70 px-3 py-2 text-white" />
+                <p className="text-[11px] text-slate-400">DB: {document.document_date || 'vacío'} · Sugerido OCR: {detectedDocument.documentDate || '—'}.</p>
+              </div>
+              <div className="space-y-1">
+                <input disabled={!isDraft} type="number" step="0.01" min="0" value={header.declared_total} onChange={(event) => setHeader({ ...header, declared_total: event.target.value })} placeholder="Total declarado" className="w-full rounded-md border border-slate-700 bg-slate-950/70 px-3 py-2 text-white" />
+                <p className="text-[11px] text-slate-400">DB: {document.declared_total !== null ? formatCurrency(document.declared_total) : 'vacío'} · Sugerido OCR: {detectedDocument.declaredTotal ? formatCurrency(Number(detectedDocument.declaredTotal)) : '—'}.</p>
+              </div>
               <input disabled value={formatCurrency(calculatedLinesTotal)} className="rounded-md border border-slate-700 bg-slate-900/80 px-3 py-2 text-slate-300" />
               <textarea disabled={!isDraft} value={header.validation_notes} onChange={(event) => setHeader({ ...header, validation_notes: event.target.value })} placeholder="Notas internas / revisión" className="min-h-24 rounded-md border border-slate-700 bg-slate-950/70 px-3 py-2 text-white md:col-span-2" />
             </div>
@@ -848,6 +1007,17 @@ export function ProcurementDocumentDetailManager({
                     onCancel={() => setEditingLineId(null)}
                     onSave={saveLine}
                     onDelete={deleteLine}
+                    onAcceptSuggestion={acceptSuggestedLine}
+                    onCreateIngredient={(targetLine) =>
+                      setIsCreatingIngredient({
+                        lineId: targetLine.id,
+                        name: targetLine.interpreted_description?.trim() || targetLine.raw_description,
+                        unitCode: targetLine.normalized_unit_code || 'ud',
+                        packQty: '1',
+                        price: targetLine.raw_unit_price?.toString() ?? '0',
+                      })
+                    }
+                    duplicateHint={duplicateHintByLineNumber.get(line.line_number) ?? null}
                   />
                 ))}
               </tbody>
@@ -994,6 +1164,26 @@ export function ProcurementDocumentDetailManager({
           {error ? <p className="rounded-lg border border-rose-500/40 bg-rose-500/10 p-3 text-sm text-rose-300">{error}</p> : null}
         </aside>
       </div>
+      {isCreatingIngredient ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 p-4">
+          <div className="w-full max-w-lg space-y-3 rounded-xl border border-slate-700 bg-slate-900 p-4">
+            <h4 className="text-sm font-semibold text-white">Crear ingrediente desde línea OCR</h4>
+            <input value={isCreatingIngredient.name} onChange={(event) => setIsCreatingIngredient((current) => (current ? { ...current, name: event.target.value } : current))} placeholder="Nombre" className="w-full rounded-md border border-slate-700 bg-slate-950 px-3 py-2 text-white" />
+            <div className="grid gap-2 md:grid-cols-3">
+              <select value={isCreatingIngredient.unitCode} onChange={(event) => setIsCreatingIngredient((current) => (current ? { ...current, unitCode: event.target.value } : current))} className="rounded-md border border-slate-700 bg-slate-950 px-3 py-2 text-white">
+                {units.length === 0 ? <option value="ud">ud</option> : null}
+                {units.map((unit) => <option key={unit.code} value={unit.code}>{unit.code} · {unit.name}</option>)}
+              </select>
+              <input value={isCreatingIngredient.packQty} onChange={(event) => setIsCreatingIngredient((current) => (current ? { ...current, packQty: event.target.value } : current))} type="number" step="0.001" min="0.001" className="rounded-md border border-slate-700 bg-slate-950 px-3 py-2 text-white" placeholder="Pack qty" />
+              <input value={isCreatingIngredient.price} onChange={(event) => setIsCreatingIngredient((current) => (current ? { ...current, price: event.target.value } : current))} type="number" step="0.0001" min="0" className="rounded-md border border-slate-700 bg-slate-950 px-3 py-2 text-white" placeholder="Precio" />
+            </div>
+            <div className="flex justify-end gap-2">
+              <button type="button" onClick={() => setIsCreatingIngredient(null)} className="rounded-full border border-slate-700 px-3 py-1 text-xs text-slate-300">Cancelar</button>
+              <button type="button" onClick={createIngredientForLine} disabled={isSubmitting} className="rounded-full border border-emerald-500/70 px-3 py-1 text-xs text-emerald-200">Crear y vincular</button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -1020,14 +1210,7 @@ function LineForm({ value, onChange, ingredients }: { value: typeof emptyLine; o
   return (
     <div className="grid gap-2 md:grid-cols-4">
       <input value={value.raw_description} onChange={(event) => onChange({ ...value, raw_description: event.target.value })} placeholder="Descripción original" className="rounded-md border border-slate-700 bg-slate-950/70 px-2 py-1 text-white md:col-span-2" />
-      <select value={value.validated_ingredient_id} onChange={(event) => onChange({ ...value, validated_ingredient_id: event.target.value })} className="rounded-md border border-slate-700 bg-slate-950/70 px-2 py-1 text-white md:col-span-2">
-        <option value="">Ingrediente sin validar</option>
-        {ingredients.map((ingredient) => (
-          <option key={ingredient.id} value={ingredient.id}>
-            {ingredient.name}
-          </option>
-        ))}
-      </select>
+      <SearchableIngredientSelect value={value.validated_ingredient_id} ingredients={ingredients} onChange={(nextId) => onChange({ ...value, validated_ingredient_id: nextId })} placeholder="Ingrediente sin validar" />
       <input type="number" step="0.001" value={value.raw_quantity} onChange={(event) => onChange({ ...value, raw_quantity: event.target.value })} placeholder="Cantidad" className="rounded-md border border-slate-700 bg-slate-950/70 px-2 py-1 text-white" />
       <input value={value.raw_unit} onChange={(event) => onChange({ ...value, raw_unit: event.target.value })} placeholder="Unidad original (traza)" className="rounded-md border border-slate-700 bg-slate-950/70 px-2 py-1 text-white" />
       <select value={value.validated_unit} onChange={(event) => onChange({ ...value, validated_unit: event.target.value })} className="rounded-md border border-slate-700 bg-slate-950/70 px-2 py-1 text-white">
@@ -1045,7 +1228,7 @@ function LineForm({ value, onChange, ingredients }: { value: typeof emptyLine; o
   );
 }
 
-function EditableLineRow({ line, ingredients, suggestedIngredientId, suggestedReason, isDraft, isEditing, onEdit, onCancel, onSave, onDelete }: { line: Line; ingredients: Ingredient[]; suggestedIngredientId: string | null; suggestedReason: string | null; isDraft: boolean; isEditing: boolean; onEdit: () => void; onCancel: () => void; onSave: (line: Line, updates: typeof emptyLine) => void; onDelete: (lineId: string) => void }) {
+function EditableLineRow({ line, ingredients, suggestedIngredientId, suggestedReason, isDraft, isEditing, onEdit, onCancel, onSave, onDelete, onAcceptSuggestion, onCreateIngredient, duplicateHint }: { line: Line; ingredients: Ingredient[]; suggestedIngredientId: string | null; suggestedReason: string | null; isDraft: boolean; isEditing: boolean; onEdit: () => void; onCancel: () => void; onSave: (line: Line, updates: typeof emptyLine) => void; onDelete: (lineId: string) => void; onAcceptSuggestion: (line: Line) => void; onCreateIngredient: (line: Line) => void; duplicateHint: DuplicateHint | null }) {
   const ingredientName = useMemo(() => {
     const source = line.validated_ingredient;
     return Array.isArray(source) ? source[0]?.name : source?.name;
@@ -1071,7 +1254,7 @@ function EditableLineRow({ line, ingredients, suggestedIngredientId, suggestedRe
       <td className="px-4 py-3">{isEditing ? <input value={form.raw_description} onChange={(event) => setForm({ ...form, raw_description: event.target.value })} className="w-full rounded-md border border-slate-700 bg-slate-950/70 px-2 py-1" /> : line.raw_description}</td>
       <td className="px-4 py-3">
         {isEditing ? (
-          <select value={form.validated_ingredient_id} onChange={(event) => setForm({ ...form, validated_ingredient_id: event.target.value })} className="rounded-md border border-slate-700 bg-slate-950/70 px-2 py-1"><option value="">Sin validar</option>{ingredients.map((ingredient) => <option key={ingredient.id} value={ingredient.id}>{ingredient.name}</option>)}</select>
+          <SearchableIngredientSelect value={form.validated_ingredient_id} ingredients={ingredients} onChange={(nextId) => setForm({ ...form, validated_ingredient_id: nextId })} placeholder="Sin validar" />
         ) : (
           <div className="space-y-1">
             <p>{ingredientName ?? '—'}</p>
@@ -1080,6 +1263,9 @@ function EditableLineRow({ line, ingredients, suggestedIngredientId, suggestedRe
             ) : null}
             {!ingredientName && suggestedReason ? (
               <p className="text-[11px] text-slate-500">{suggestedReason}</p>
+            ) : null}
+            {!ingredientName && suggestedIngredientName && isDraft ? (
+              <button type="button" onClick={() => onAcceptSuggestion(line)} className="rounded-full border border-emerald-500/60 px-2 py-0.5 text-[11px] text-emerald-200">✓ Aceptar sugerencia</button>
             ) : null}
           </div>
         )}
@@ -1097,21 +1283,43 @@ function EditableLineRow({ line, ingredients, suggestedIngredientId, suggestedRe
           </select>
         ) : (
           <div className="space-y-1">
-            <p>{line.validated_unit ?? '—'}</p>
+            <p>{line.validated_unit ?? line.normalized_unit_code ?? '—'}</p>
             <p className="text-xs text-slate-500">Original: {line.raw_unit ?? '—'}</p>
+            {line.interpreted_unit ? <p className="text-[11px] text-sky-300">Sugerida pipeline: {line.interpreted_unit}</p> : null}
           </div>
         )}
       </td>
       <td className="px-4 py-3">{isEditing ? <input type="number" value={form.raw_unit_price} onChange={(event) => setForm({ ...form, raw_unit_price: event.target.value })} className="w-24 rounded-md border border-slate-700 bg-slate-950/70 px-2 py-1" /> : (line.raw_unit_price ?? '—')}</td>
       <td className="px-4 py-3">{isEditing ? <input type="number" value={form.raw_line_total} onChange={(event) => setForm({ ...form, raw_line_total: event.target.value })} className="w-24 rounded-md border border-slate-700 bg-slate-950/70 px-2 py-1" /> : (line.raw_line_total ?? '—')}</td>
-      <td className="px-4 py-3 text-xs text-slate-400">{line.warning_notes ?? '—'}</td>
+      <td className="px-4 py-3 text-xs text-slate-400">
+        {line.warning_notes ?? '—'}
+        {duplicateHint ? <p className="mt-1 text-amber-300">Posible duplicado de línea #{duplicateHint.duplicateOfLineNumber}: {duplicateHint.reason}</p> : null}
+      </td>
       <td className="px-4 py-3">{isEditing ? <input value={form.user_note} onChange={(event) => setForm({ ...form, user_note: event.target.value })} className="w-full rounded-md border border-slate-700 bg-slate-950/70 px-2 py-1" /> : (line.user_note ?? '—')}</td>
       <td className="px-4 py-3">{lineStatusLabel(line.line_status)}</td>
       <td className="px-4 py-3">
         {isDraft ? (
-          isEditing ? <div className="flex gap-2"><button type="button" onClick={() => onSave(line, form)} className="rounded-full border border-emerald-400/60 px-3 py-1 text-xs">Guardar</button><button type="button" onClick={onCancel} className="rounded-full border border-slate-700 px-3 py-1 text-xs">Cancelar</button></div> : <div className="flex gap-2"><button type="button" onClick={onEdit} className="rounded-full border border-slate-700 px-3 py-1 text-xs">Editar</button><button type="button" onClick={() => onDelete(line.id)} className="rounded-full border border-rose-500/60 px-3 py-1 text-xs text-rose-200">Borrar</button></div>
+          isEditing ? <div className="flex gap-2"><button type="button" onClick={() => onSave(line, form)} className="rounded-full border border-emerald-400/60 px-3 py-1 text-xs">Guardar</button><button type="button" onClick={onCancel} className="rounded-full border border-slate-700 px-3 py-1 text-xs">Cancelar</button></div> : <div className="flex flex-wrap gap-2"><button type="button" onClick={onEdit} className="rounded-full border border-slate-700 px-3 py-1 text-xs">Editar</button><button type="button" onClick={() => onCreateIngredient(line)} className="rounded-full border border-sky-500/60 px-3 py-1 text-xs text-sky-200">Crear ingrediente</button>{duplicateHint?.confidence === 'high' ? <button type="button" onClick={() => onDelete(line.id)} className="rounded-full border border-amber-500/60 px-3 py-1 text-xs text-amber-200">Suprimir duplicado</button> : null}<button type="button" onClick={() => onDelete(line.id)} className="rounded-full border border-rose-500/60 px-3 py-1 text-xs text-rose-200">Borrar</button></div>
         ) : <span className="text-xs text-slate-500">Solo lectura</span>}
       </td>
     </tr>
+  );
+}
+
+function SearchableIngredientSelect({ value, onChange, ingredients, placeholder }: { value: string; onChange: (value: string) => void; ingredients: Ingredient[]; placeholder: string }) {
+  const [query, setQuery] = useState('');
+  const filtered = useMemo(() => {
+    const normalized = query.trim().toLowerCase();
+    if (!normalized) return ingredients.slice(0, 80);
+    return ingredients.filter((ingredient) => ingredient.name.toLowerCase().includes(normalized)).slice(0, 80);
+  }, [ingredients, query]);
+  return (
+    <div className="space-y-1 md:col-span-2">
+      <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Buscar ingrediente…" className="w-full rounded-md border border-slate-700 bg-slate-950/70 px-2 py-1 text-xs text-slate-200" />
+      <select value={value} onChange={(event) => onChange(event.target.value)} className="w-full rounded-md border border-slate-700 bg-slate-950/70 px-2 py-1 text-white">
+        <option value="">{placeholder}</option>
+        {filtered.map((ingredient) => <option key={ingredient.id} value={ingredient.id}>{ingredient.name}</option>)}
+      </select>
+    </div>
   );
 }

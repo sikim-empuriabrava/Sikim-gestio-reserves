@@ -51,6 +51,13 @@ type OcrLineDetected = {
   } | null;
 };
 
+type OcrPossibleDuplicate = {
+  line_number: number;
+  duplicate_of_line_number: number;
+  confidence: 'high' | 'medium';
+  reason: string;
+};
+
 type OcrCleanupMeta = {
   provider: 'openai';
   status: 'applied' | 'skipped' | 'failed';
@@ -860,6 +867,36 @@ function mapDocumentKind(docType?: string): 'invoice' | 'delivery_note' | 'other
   return 'other';
 }
 
+function detectPossibleDuplicateLines(lines: OcrLineDetected[]): OcrPossibleDuplicate[] {
+  const hints: OcrPossibleDuplicate[] = [];
+  const normalizeDescription = (value: string): string =>
+    normalizeProcurementText(value.replace(/^[A-Z0-9]{2,12}\s*[-.:]?\s*/i, '')) ?? '';
+
+  for (let i = 0; i < lines.length; i += 1) {
+    const left = lines[i];
+    const leftDesc = normalizeDescription(left.raw_description);
+    if (!leftDesc) continue;
+    for (let j = i + 1; j < Math.min(lines.length, i + 4); j += 1) {
+      const right = lines[j];
+      const rightDesc = normalizeDescription(right.raw_description);
+      if (!rightDesc) continue;
+      const sameDesc = leftDesc === rightDesc || leftDesc.includes(rightDesc) || rightDesc.includes(leftDesc);
+      if (!sameDesc) continue;
+      const samePrice = left.raw_unit_price !== null && right.raw_unit_price !== null && Math.abs(left.raw_unit_price - right.raw_unit_price) <= 0.001;
+      const sameTotal = left.raw_line_total !== null && right.raw_line_total !== null && Math.abs(left.raw_line_total - right.raw_line_total) <= 0.001;
+      if (!samePrice && !sameTotal) continue;
+      const confidence: 'high' | 'medium' = samePrice && sameTotal ? 'high' : 'medium';
+      hints.push({
+        line_number: j + 1,
+        duplicate_of_line_number: i + 1,
+        confidence,
+        reason: 'Descripción muy similar con precio/importe coincidente en filas cercanas.',
+      });
+    }
+  }
+  return hints;
+}
+
 export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
   const access = await requireCheffingRouteAccess();
   if (access.response) return access.response;
@@ -1202,6 +1239,8 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       extraction_source: cleanup.source_trace === 'azure+openai' ? 'items+table' : line.extraction_source,
     };
   });
+  const possibleDuplicates = detectPossibleDuplicateLines(linesDetected);
+  const duplicateByLineNumber = new Map(possibleDuplicates.map((entry) => [entry.line_number, entry] as const));
 
   const supplierDetected = {
     ...supplierDetectedRaw,
@@ -1345,6 +1384,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     document_detected_raw: documentDetectedRaw,
     lines_detected: linesDetected,
     lines_detected_raw: linesDetectedRaw,
+    possible_duplicates: possibleDuplicates,
     line_candidates_by_line_number: lineCandidatesByLineNumber,
     ocr_meta: {
       provider: 'azure_document_intelligence',
@@ -1391,6 +1431,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
           ? cleanup.ingredient_match.ingredient_id
           : null;
 
+      const duplicateHint = duplicateByLineNumber.get(index + 1);
       return {
         document_id: params.id,
         line_number: index + 1,
@@ -1412,7 +1453,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
             ? line.ingredient_match.ingredient_id
             : openAiSuggestedIngredientId,
         line_status: 'unresolved' as const,
-        warning_notes: line.warning_notes,
+        warning_notes: [line.warning_notes, duplicateHint ? `possible_duplicate(line #${duplicateHint.duplicate_of_line_number}, ${duplicateHint.confidence})` : null].filter(Boolean).join(' ') || null,
         user_note: null,
       };
     });
@@ -1444,6 +1485,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     supplier_existing_suggestion: suggestedExistingSupplier,
     supplier_enrichment: supplierEnrichment,
     cleanup_meta: openAiCleanupMeta,
+    possible_duplicates: possibleDuplicates,
   });
   mergeResponseCookies(access.supabaseResponse, response);
   return response;
