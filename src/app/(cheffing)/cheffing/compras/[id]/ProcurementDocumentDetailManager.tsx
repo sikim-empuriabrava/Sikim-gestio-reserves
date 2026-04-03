@@ -87,6 +87,25 @@ type SupplierEnrichmentView = {
   };
 };
 
+function supplierEnrichmentStatusMessage(status: string): string {
+  switch (status) {
+    case 'matched_no_new_data':
+      return 'No había datos nuevos que enriquecer.';
+    case 'skipped_not_attempted':
+      return 'No se intentó enriquecer todavía (proveedor sugerido sin confirmación automática).';
+    case 'skipped_no_supplier_detected':
+      return 'No hay proveedor existente sugerido para enriquecer.';
+    case 'attempted_failed':
+      return 'Se intentó enriquecer, pero falló la actualización.';
+    case 'matched_conflicts_only':
+      return 'Se detectaron conflictos y no se sobreescribió ningún dato.';
+    case 'attempted_applied':
+      return 'Enriquecimiento aplicado correctamente.';
+    default:
+      return 'Sin detalle de enriquecimiento.';
+  }
+}
+
 type DuplicateHint = {
   lineNumber: number;
   duplicateOfLineNumber: number;
@@ -635,6 +654,8 @@ export function ProcurementDocumentDetailManager({
             },
           ]),
         );
+      } else {
+        router.refresh();
       }
       setNewLine(emptyLine);
     } catch (err) {
@@ -644,7 +665,7 @@ export function ProcurementDocumentDetailManager({
     }
   }
 
-  async function saveLine(line: Line, updates: typeof emptyLine) {
+  async function saveLine(line: Line, updates: typeof emptyLine, resolvedIngredientName?: string | null) {
     setError(null);
     setIsSubmitting(true);
     try {
@@ -669,7 +690,10 @@ export function ProcurementDocumentDetailManager({
         throw new Error(payload?.error ?? 'No se pudo actualizar la línea');
       }
       const nextIngredientId = validatedId;
-      const nextIngredientName = nextIngredientId ? localIngredients.find((ingredient) => ingredient.id === nextIngredientId)?.name ?? null : null;
+      const nextIngredientName =
+        nextIngredientId
+          ? resolvedIngredientName ?? localIngredients.find((ingredient) => ingredient.id === nextIngredientId)?.name ?? null
+          : null;
       setLocalLines((current) =>
         sortLinesByNumberAsc(
           current.map((entry) =>
@@ -771,6 +795,12 @@ export function ProcurementDocumentDetailManager({
       }
       const targetLine = lines.find((line) => line.id === isCreatingIngredient.lineId);
       if (!targetLine) throw new Error('No se encontró la línea para vincular el ingrediente');
+      const createdIngredientName = payload.name;
+      setLocalIngredients((current) => {
+        const exists = current.some((ingredient) => ingredient.id === createResult.id);
+        if (exists) return current;
+        return [...current, { id: createResult.id, name: createdIngredientName }].sort((a, b) => a.name.localeCompare(b.name, 'es'));
+      });
       await saveLine(targetLine, {
         raw_description: targetLine.raw_description,
         raw_quantity: targetLine.raw_quantity?.toString() ?? '',
@@ -780,12 +810,7 @@ export function ProcurementDocumentDetailManager({
         raw_line_total: targetLine.raw_line_total?.toString() ?? '',
         validated_ingredient_id: createResult.id,
         user_note: targetLine.user_note ?? '',
-      });
-      setLocalIngredients((current) => {
-        const exists = current.some((ingredient) => ingredient.id === createResult.id);
-        if (exists) return current;
-        return [...current, { id: createResult.id, name: payload.name }].sort((a, b) => a.name.localeCompare(b.name, 'es'));
-      });
+      }, createdIngredientName);
       setIsCreatingIngredient(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Error desconocido');
@@ -1027,7 +1052,7 @@ export function ProcurementDocumentDetailManager({
                     {supplierEnrichment.autoFilled.length > 0 ? (
                       <p className="mt-1">Campos añadidos: {supplierEnrichment.autoFilled.map((entry) => `${entry.field}=${entry.value}`).join(' · ')}</p>
                     ) : (
-                      <p className="mt-1">No había datos nuevos que enriquecer.</p>
+                      <p className="mt-1">{supplierEnrichmentStatusMessage(supplierEnrichment.status)}</p>
                     )}
                     {supplierEnrichment.conflicts.length > 0 ? (
                       <p className="mt-1">
@@ -1126,7 +1151,6 @@ export function ProcurementDocumentDetailManager({
                 <input disabled={!isDraft} type="number" step="0.01" min="0" value={header.declared_total} onChange={(event) => setHeader({ ...header, declared_total: event.target.value })} placeholder="Total declarado" className="w-full rounded-md border border-slate-700 bg-slate-950/70 px-3 py-2 text-white" />
                 <p className="text-[11px] text-slate-400">DB: {document.declared_total !== null ? formatCurrency(document.declared_total) : 'vacío'} · Sugerido OCR: {detectedDocument.declaredTotal ? formatCurrency(Number(detectedDocument.declaredTotal)) : '—'}.</p>
               </div>
-              <input disabled value={formatCurrency(calculatedLinesTotal)} className="rounded-md border border-slate-700 bg-slate-900/80 px-3 py-2 text-slate-300" />
               <textarea disabled={!isDraft} value={header.validation_notes} onChange={(event) => setHeader({ ...header, validation_notes: event.target.value })} placeholder="Notas internas / revisión" className="min-h-24 rounded-md border border-slate-700 bg-slate-950/70 px-3 py-2 text-white md:col-span-2" />
             </div>
           </section>
