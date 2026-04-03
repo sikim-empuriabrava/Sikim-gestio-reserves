@@ -127,6 +127,7 @@ function parseSupplierEnrichmentStatus(raw: unknown): SupplierEnrichmentView['st
 type DuplicateHint = {
   lineNumber: number;
   duplicateOfLineNumber: number;
+  hintType: 'duplicate' | 'possible_shadow_code_line';
   confidence: 'high' | 'medium';
   reason: string;
 };
@@ -313,6 +314,8 @@ export function ProcurementDocumentDetailManager({
   const [sourceFileUrl, setSourceFileUrl] = useState<string | null>(initialSourceFileUrl);
   const [fileToUpload, setFileToUpload] = useState<File | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [savingLineIds, setSavingLineIds] = useState<Set<string>>(new Set());
+  const [deletingLineIds, setDeletingLineIds] = useState<Set<string>>(new Set());
   const [isCreatingSupplier, setIsCreatingSupplier] = useState(false);
   const [isProcessingOcr, setIsProcessingOcr] = useState(false);
   const [ocrMessage, setOcrMessage] = useState<{ kind: 'success' | 'error'; text: string } | null>(null);
@@ -331,6 +334,8 @@ export function ProcurementDocumentDetailManager({
     setLocalLines(sortLinesByNumberAsc(document.cheffing_purchase_document_lines ?? []));
     setModelDirtyLineIds(new Set());
     setFormDirtyLineIds(new Set());
+    setSavingLineIds(new Set());
+    setDeletingLineIds(new Set());
   }, [document.cheffing_purchase_document_lines]);
 
   const lines = localLines;
@@ -488,6 +493,7 @@ export function ProcurementDocumentDetailManager({
       out.set(typed.line_number, {
         lineNumber: typed.line_number,
         duplicateOfLineNumber: typed.duplicate_of_line_number,
+        hintType: typed.hint_type === 'possible_shadow_code_line' ? 'possible_shadow_code_line' : 'duplicate',
         confidence: typed.confidence === 'high' ? 'high' : 'medium',
         reason: typed.reason,
       });
@@ -501,6 +507,16 @@ export function ProcurementDocumentDetailManager({
       if (alreadyDirty === dirty) return current;
       const next = new Set(current);
       if (dirty) next.add(lineId);
+      else next.delete(lineId);
+      return next;
+    });
+  }
+  function setLineBusy(setter: (value: Set<string> | ((current: Set<string>) => Set<string>)) => void, lineId: string, busy: boolean) {
+    setter((current) => {
+      const alreadyBusy = current.has(lineId);
+      if (alreadyBusy === busy) return current;
+      const next = new Set(current);
+      if (busy) next.add(lineId);
       else next.delete(lineId);
       return next;
     });
@@ -734,7 +750,7 @@ export function ProcurementDocumentDetailManager({
 
   async function saveLine(line: Line, updates: typeof emptyLine, resolvedIngredientName?: string | null) {
     setError(null);
-    setIsSubmitting(true);
+    setLineBusy(setSavingLineIds, line.id, true);
     try {
       const validatedId = updates.validated_ingredient_id || null;
       const response = await fetch(`/api/cheffing/procurement/lines/${line.id}`, {
@@ -788,13 +804,13 @@ export function ProcurementDocumentDetailManager({
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Error desconocido');
     } finally {
-      setIsSubmitting(false);
+      setLineBusy(setSavingLineIds, line.id, false);
     }
   }
 
   async function deleteLine(lineId: string) {
     setError(null);
-    setIsSubmitting(true);
+    setLineBusy(setDeletingLineIds, lineId, true);
     try {
       const response = await fetch(`/api/cheffing/procurement/lines/${lineId}`, { method: 'DELETE' });
       if (!response.ok) {
@@ -807,7 +823,7 @@ export function ProcurementDocumentDetailManager({
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Error desconocido');
     } finally {
-      setIsSubmitting(false);
+      setLineBusy(setDeletingLineIds, lineId, false);
     }
   }
 
@@ -1285,6 +1301,9 @@ export function ProcurementDocumentDetailManager({
                       })
                     }
                     duplicateHint={duplicateHintByLineNumber.get(line.line_number) ?? null}
+                    isSaving={savingLineIds.has(line.id)}
+                    isDeleting={deletingLineIds.has(line.id)}
+                    isCreatingIngredient={isCreatingIngredient?.lineId === line.id}
                   />
                 ))}
               </tbody>
@@ -1507,7 +1526,7 @@ function LineForm({ value, onChange, ingredients }: { value: typeof emptyLine; o
   );
 }
 
-function EditableLineRow({ line, ingredients, suggestedIngredientId, suggestedReason, isDraft, isEditing, isDirty, onEdit, onCancel, onSave, onDelete, onAcceptSuggestion, onCreateIngredient, onFormDirtyChange, duplicateHint }: { line: Line; ingredients: Ingredient[]; suggestedIngredientId: string | null; suggestedReason: string | null; isDraft: boolean; isEditing: boolean; isDirty: boolean; onEdit: () => void; onCancel: () => void; onSave: (line: Line, updates: typeof emptyLine) => void; onDelete: (lineId: string) => void; onAcceptSuggestion: (line: Line) => void; onCreateIngredient: (line: Line) => void; onFormDirtyChange: (lineId: string, dirty: boolean) => void; duplicateHint: DuplicateHint | null }) {
+function EditableLineRow({ line, ingredients, suggestedIngredientId, suggestedReason, isDraft, isEditing, isDirty, onEdit, onCancel, onSave, onDelete, onAcceptSuggestion, onCreateIngredient, onFormDirtyChange, duplicateHint, isSaving, isDeleting, isCreatingIngredient }: { line: Line; ingredients: Ingredient[]; suggestedIngredientId: string | null; suggestedReason: string | null; isDraft: boolean; isEditing: boolean; isDirty: boolean; onEdit: () => void; onCancel: () => void; onSave: (line: Line, updates: typeof emptyLine) => void; onDelete: (lineId: string) => void; onAcceptSuggestion: (line: Line) => void; onCreateIngredient: (line: Line) => void; onFormDirtyChange: (lineId: string, dirty: boolean) => void; duplicateHint: DuplicateHint | null; isSaving: boolean; isDeleting: boolean; isCreatingIngredient: boolean }) {
   const ingredientName = useMemo(() => {
     const source = line.validated_ingredient;
     return Array.isArray(source) ? source[0]?.name : source?.name;
@@ -1531,6 +1550,7 @@ function EditableLineRow({ line, ingredients, suggestedIngredientId, suggestedRe
   useEffect(() => {
     onFormDirtyChange(line.id, isFormDirty);
   }, [isFormDirty, line.id, onFormDirtyChange]);
+  const isRowBusy = isSaving || isDeleting || isCreatingIngredient;
 
   return (
     <tr className="border-t border-slate-800/60">
@@ -1558,8 +1578,8 @@ function EditableLineRow({ line, ingredients, suggestedIngredientId, suggestedRe
                 onChange={(nextId) => setForm({ ...form, validated_ingredient_id: nextId })}
                 placeholder="Sin validar"
               />
-              <button type="button" onClick={() => onCreateIngredient(line)} className="rounded-full border border-sky-500/60 px-2 py-0.5 text-[11px] text-sky-200">
-                Crear ingrediente
+              <button type="button" onClick={() => onCreateIngredient(line)} disabled={isRowBusy} className="rounded-full border border-sky-500/60 px-2 py-0.5 text-[11px] text-sky-200 disabled:cursor-not-allowed disabled:border-slate-700 disabled:text-slate-500">
+                {isCreatingIngredient ? 'Creando…' : 'Crear ingrediente'}
               </button>
             </>
           ) : null}
@@ -1591,7 +1611,8 @@ function EditableLineRow({ line, ingredients, suggestedIngredientId, suggestedRe
       <td className="px-4 py-3">{isEditing ? <input type="number" value={form.raw_line_total} onChange={(event) => setForm({ ...form, raw_line_total: event.target.value })} className="w-24 rounded-md border border-slate-700 bg-slate-950/70 px-2 py-1" /> : (line.raw_line_total ?? '—')}</td>
       <td className="px-4 py-3 text-xs text-slate-400">
         {line.warning_notes ?? '—'}
-        {duplicateHint ? <p className="mt-1 text-amber-300">Posible duplicado de línea #{duplicateHint.duplicateOfLineNumber}: {duplicateHint.reason}</p> : null}
+        {duplicateHint?.hintType === 'duplicate' ? <p className="mt-1 text-amber-300">Posible duplicado de línea #{duplicateHint.duplicateOfLineNumber}: {duplicateHint.reason}</p> : null}
+        {duplicateHint?.hintType === 'possible_shadow_code_line' ? <p className="mt-1 text-sky-300">Aviso línea sombra/código (relación con línea #{duplicateHint.duplicateOfLineNumber}): {duplicateHint.reason}</p> : null}
       </td>
       <td className="px-4 py-3">{isEditing ? <input value={form.user_note} onChange={(event) => setForm({ ...form, user_note: event.target.value })} className="w-full rounded-md border border-slate-700 bg-slate-950/70 px-2 py-1" /> : (line.user_note ?? '—')}</td>
       <td className="px-4 py-3">{lineStatusLabel(line.line_status)}</td>
@@ -1606,36 +1627,38 @@ function EditableLineRow({ line, ingredients, suggestedIngredientId, suggestedRe
                   onFormDirtyChange(line.id, false);
                   onCancel();
                 }}
-                className="rounded-full border border-slate-700 px-3 py-1 text-xs"
+                disabled={isRowBusy}
+                className="rounded-full border border-slate-700 px-3 py-1 text-xs disabled:cursor-not-allowed disabled:border-slate-700 disabled:text-slate-500"
               >
                 Cancelar edición
               </button>
             ) : (
-              <button type="button" onClick={onEdit} className="rounded-full border border-slate-700 px-3 py-1 text-xs">
+              <button type="button" onClick={onEdit} disabled={isRowBusy} className="rounded-full border border-slate-700 px-3 py-1 text-xs disabled:cursor-not-allowed disabled:border-slate-700 disabled:text-slate-500">
                 Editar
               </button>
             )}
             <button
               type="button"
-              disabled={!isDirty}
+              disabled={!isDirty || isRowBusy}
               onClick={() => onSave(line, form)}
               className="rounded-full border border-emerald-400/60 px-3 py-1 text-xs disabled:cursor-not-allowed disabled:border-slate-700 disabled:text-slate-500"
             >
-              Guardar línea
+              {isSaving ? 'Guardando…' : 'Guardar línea'}
             </button>
-            {duplicateHint?.confidence === 'high' ? (
+            {duplicateHint?.hintType === 'duplicate' && duplicateHint?.confidence === 'high' ? (
               <button
                 type="button"
+                disabled={isRowBusy}
                 onClick={() => {
                   if (window.confirm('Se eliminará definitivamente esta línea duplicada sugerida. ¿Continuar?')) onDelete(line.id);
                 }}
-                className="rounded-full border border-amber-500/60 px-3 py-1 text-xs text-amber-200"
+                className="rounded-full border border-amber-500/60 px-3 py-1 text-xs text-amber-200 disabled:cursor-not-allowed disabled:border-slate-700 disabled:text-slate-500"
               >
                 Eliminar duplicado (definitivo)
               </button>
             ) : null}
-            <button type="button" onClick={() => onDelete(line.id)} className="rounded-full border border-rose-500/60 px-3 py-1 text-xs text-rose-200">
-              Borrar
+            <button type="button" onClick={() => onDelete(line.id)} disabled={isRowBusy} className="rounded-full border border-rose-500/60 px-3 py-1 text-xs text-rose-200 disabled:cursor-not-allowed disabled:border-slate-700 disabled:text-slate-500">
+              {isDeleting ? 'Borrando…' : 'Borrar'}
             </button>
           </div>
         ) : <span className="text-xs text-slate-500">Solo lectura</span>}
