@@ -163,6 +163,19 @@ function lineToFormSnapshot(line: Line) {
   };
 }
 
+function hasLineSnapshotChanges(current: ReturnType<typeof lineToFormSnapshot>, persisted: ReturnType<typeof lineToFormSnapshot>): boolean {
+  return (
+    current.raw_description !== persisted.raw_description ||
+    current.raw_quantity !== persisted.raw_quantity ||
+    current.raw_unit !== persisted.raw_unit ||
+    current.validated_unit !== persisted.validated_unit ||
+    current.raw_unit_price !== persisted.raw_unit_price ||
+    current.raw_line_total !== persisted.raw_line_total ||
+    current.validated_ingredient_id !== persisted.validated_ingredient_id ||
+    current.user_note !== persisted.user_note
+  );
+}
+
 function formatCurrency(value: number | null): string {
   if (value === null || Number.isNaN(value)) return '—';
   return new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR' }).format(value);
@@ -1505,7 +1518,7 @@ function EditableLineRow({ line, ingredients, suggestedIngredientId, suggestedRe
   );
   const [form, setForm] = useState(lineToFormSnapshot(line));
   const persistedSnapshot = lineToFormSnapshot(line);
-  const isFormDirty = JSON.stringify(form) !== JSON.stringify(persistedSnapshot);
+  const isFormDirty = hasLineSnapshotChanges(form, persistedSnapshot);
   const pendingIngredientName = useMemo(
     () => ingredients.find((ingredient) => ingredient.id === form.validated_ingredient_id)?.name ?? null,
     [form.validated_ingredient_id, ingredients],
@@ -1602,7 +1615,12 @@ function EditableLineRow({ line, ingredients, suggestedIngredientId, suggestedRe
                 Editar
               </button>
             )}
-            <button type="button" onClick={() => onSave(line, form)} className="rounded-full border border-emerald-400/60 px-3 py-1 text-xs">
+            <button
+              type="button"
+              disabled={!isDirty}
+              onClick={() => onSave(line, form)}
+              className="rounded-full border border-emerald-400/60 px-3 py-1 text-xs disabled:cursor-not-allowed disabled:border-slate-700 disabled:text-slate-500"
+            >
               Guardar línea
             </button>
             {duplicateHint?.confidence === 'high' ? (
