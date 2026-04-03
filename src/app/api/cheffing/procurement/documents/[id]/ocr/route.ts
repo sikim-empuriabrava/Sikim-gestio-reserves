@@ -81,6 +81,9 @@ type SupplierCandidateHint = {
   tax_id: string | null;
   score_hint: number;
   match_reasons: string[];
+  detected_name_normalized: string | null;
+  supplier_trade_name_normalized: string | null;
+  match_trace: string[];
 };
 
 type SupplierExistingSuggestion = {
@@ -88,6 +91,9 @@ type SupplierExistingSuggestion = {
   trade_name: string;
   score_hint: number;
   match_reasons: string[];
+  match_trace: string[];
+  detected_name_normalized: string | null;
+  supplier_trade_name_normalized: string | null;
   is_strong_match: boolean;
   is_dominant: boolean;
   dominance_gap: number | null;
@@ -98,6 +104,14 @@ type SupplierEnrichmentResult = {
   supplier_id: string;
   auto_filled: Array<{ field: 'tax_id' | 'email' | 'phone'; value: string; source: 'ocr' | 'openai_cleanup' }>;
   conflicts: Array<{ field: 'tax_id' | 'email' | 'phone'; existing_value: string; detected_value: string; reason: string }>;
+  status:
+    | 'skipped_not_attempted'
+    | 'skipped_no_supplier_detected'
+    | 'matched_no_new_data'
+    | 'attempted_applied'
+    | 'attempted_failed'
+    | 'matched_conflicts_only';
+  summary: string;
   update_attempt: {
     attempted: boolean;
     applied: boolean;
@@ -221,9 +235,11 @@ function normalizeSupplierNameForMatch(value: string | null): string | null {
   const normalized = normalizeProcurementText(value);
   if (!normalized) return null;
   return normalized
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
     .replace(/[.,]/g, ' ')
     .replace(/\b(sociedad\s+limitada|sociedad\s+anonima)\b/g, ' ')
-    .replace(/\b(s\.?\s*l\.?\s*u?|s\.?\s*a\.?\s*u?)\b/g, ' ')
+    .replace(/\b(s\.?\s*l\.?\s*u?|s\.?\s*a\.?\s*u?|s\.?\s*c\.?\s*p\.?|s\.?\s*l\.?\s*n\.?\s*e\.?)\b/g, ' ')
     .replace(/\s+/g, ' ')
     .trim();
 }
@@ -274,6 +290,7 @@ function buildSupplierCandidates(input: {
   return input.suppliers
     .map((supplier) => {
       const reasons: string[] = [];
+      const trace: string[] = [];
       let score = 0;
       const supplierTaxId = parseTaxId(supplier.tax_id);
       const supplierTradeName = normalizeSupplierNameForMatch(supplier.trade_name);
@@ -293,18 +310,35 @@ function buildSupplierCandidates(input: {
         reasons.push('phone_exact_normalized');
       }
 
-      for (const detectedName of detectedNames) {
-        if (!detectedName || !supplierTradeName) continue;
-        if (detectedName === supplierTradeName) {
+      if (supplierTradeName) {
+        let bestNameSignal: 'exact' | 'substring' | null = null;
+        let bestDetectedName: string | null = null;
+        for (const detectedName of detectedNames) {
+          if (!detectedName) continue;
+          if (detectedName === supplierTradeName) {
+            bestNameSignal = 'exact';
+            bestDetectedName = detectedName;
+            break;
+          }
+          if (!bestNameSignal && (detectedName.includes(supplierTradeName) || supplierTradeName.includes(detectedName))) {
+            bestNameSignal = 'substring';
+            bestDetectedName = detectedName;
+          }
+        }
+        if (bestNameSignal === 'exact') {
           score += 60;
           reasons.push('trade_name_exact_normalized');
-          continue;
-        }
-        if (detectedName.includes(supplierTradeName) || supplierTradeName.includes(detectedName)) {
+          trace.push(`name_exact:${bestDetectedName}`);
+        } else if (bestNameSignal === 'substring') {
           score += 32;
           reasons.push('trade_name_substring');
+          trace.push(`name_substring:${bestDetectedName}~${supplierTradeName}`);
         }
       }
+
+      if (taxId && supplierTaxId && taxId === supplierTaxId) trace.push(`tax_id_exact:${taxId}`);
+      if (email && supplierEmail && email === supplierEmail) trace.push(`email_exact:${email}`);
+      if (phone && supplierPhone && phone === supplierPhone) trace.push(`phone_exact_normalized:${phone}`);
 
       return {
         id: supplier.id,
@@ -312,6 +346,9 @@ function buildSupplierCandidates(input: {
         tax_id: supplier.tax_id,
         score_hint: score,
         match_reasons: Array.from(new Set(reasons)),
+        detected_name_normalized: detectedNames[0] ?? null,
+        supplier_trade_name_normalized: supplierTradeName,
+        match_trace: trace,
       } satisfies SupplierCandidateHint;
     })
     .filter((candidate) => candidate.score_hint > 0)
@@ -338,6 +375,9 @@ function getSuggestedExistingSupplier(candidates: SupplierCandidateHint[]): Supp
     trade_name: top.trade_name,
     score_hint: top.score_hint,
     match_reasons: top.match_reasons,
+    match_trace: top.match_trace,
+    detected_name_normalized: top.detected_name_normalized,
+    supplier_trade_name_normalized: top.supplier_trade_name_normalized,
     is_strong_match: isStrongMatch,
     is_dominant: isDominant,
     dominance_gap: dominanceGap,
@@ -1369,7 +1409,22 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
         : documentDetectedRaw.document_date,
   };
 
-  let supplierEnrichment: SupplierEnrichmentResult | null = null;
+  let supplierEnrichment: SupplierEnrichmentResult | null = {
+    supplier_id: suggestedExistingSupplier?.supplier_id ?? '',
+    auto_filled: [],
+    conflicts: [],
+    status: suggestedExistingSupplier
+      ? 'skipped_not_attempted'
+      : 'skipped_no_supplier_detected',
+    summary: suggestedExistingSupplier
+      ? 'No se intentó enriquecer: proveedor sugerido no confirmado automáticamente.'
+      : 'No se intentó enriquecer: no hay proveedor existente sugerido.',
+    update_attempt: {
+      attempted: false,
+      applied: false,
+      warning: null,
+    },
+  };
   if (suggestedExistingSupplier?.should_auto_select) {
     const { data: matchedSupplier } = await supabase
       .from('cheffing_suppliers')
@@ -1456,6 +1511,22 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
         supplier_id: suggestedExistingSupplier.supplier_id,
         auto_filled: appliedAutoFilled,
         conflicts,
+        status:
+          updateAttempt.warning
+            ? 'attempted_failed'
+            : appliedAutoFilled.length > 0
+              ? 'attempted_applied'
+              : conflicts.length > 0
+                ? 'matched_conflicts_only'
+                : 'matched_no_new_data',
+        summary:
+          updateAttempt.warning
+            ? 'Se intentó enriquecer, pero falló la actualización del proveedor.'
+            : appliedAutoFilled.length > 0
+              ? `Proveedor enriquecido automáticamente con ${appliedAutoFilled.length} campo(s).`
+              : conflicts.length > 0
+                ? 'Proveedor detectado, pero solo hubo conflictos y no se sobreescribieron campos.'
+                : 'No había datos nuevos que enriquecer.',
         update_attempt: updateAttempt,
       };
     }

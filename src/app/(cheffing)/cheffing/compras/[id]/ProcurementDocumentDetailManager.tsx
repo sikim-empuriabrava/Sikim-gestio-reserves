@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 
 import {
@@ -69,7 +69,60 @@ type SupplierExistingSuggestionView = {
   isDominant: boolean;
   dominanceGap: number | null;
   reasons: string[];
+  matchTrace: string[];
+  detectedNameNormalized: string | null;
+  supplierNameNormalized: string | null;
 };
+
+type SupplierEnrichmentView = {
+  supplierId: string;
+  autoFilled: Array<{ field: string; value: string }>;
+  conflicts: Array<{ field: string; existing_value: string; detected_value: string }>;
+  status:
+    | 'skipped_not_attempted'
+    | 'skipped_no_supplier_detected'
+    | 'matched_no_new_data'
+    | 'attempted_applied'
+    | 'attempted_failed'
+    | 'matched_conflicts_only'
+    | 'unknown';
+  summary: string;
+  updateAttempt: {
+    attempted: boolean;
+    applied: boolean;
+    warning: string | null;
+  };
+};
+
+function supplierEnrichmentStatusMessage(status: string): string {
+  switch (status) {
+    case 'matched_no_new_data':
+      return 'No había datos nuevos que enriquecer.';
+    case 'skipped_not_attempted':
+      return 'No se intentó enriquecer todavía (proveedor sugerido sin confirmación automática).';
+    case 'skipped_no_supplier_detected':
+      return 'No hay proveedor existente sugerido para enriquecer.';
+    case 'attempted_failed':
+      return 'Se intentó enriquecer, pero falló la actualización.';
+    case 'matched_conflicts_only':
+      return 'Se detectaron conflictos y no se sobreescribió ningún dato.';
+    case 'attempted_applied':
+      return 'Enriquecimiento aplicado correctamente.';
+    default:
+      return 'Sin detalle de enriquecimiento.';
+  }
+}
+
+function parseSupplierEnrichmentStatus(raw: unknown): SupplierEnrichmentView['status'] {
+  return raw === 'skipped_not_attempted' ||
+    raw === 'skipped_no_supplier_detected' ||
+    raw === 'matched_no_new_data' ||
+    raw === 'attempted_applied' ||
+    raw === 'attempted_failed' ||
+    raw === 'matched_conflicts_only'
+    ? raw
+    : 'unknown';
+}
 
 type DuplicateHint = {
   lineNumber: number;
@@ -96,6 +149,32 @@ const emptySupplierForm = {
   phone: '',
   email: '',
 };
+
+function lineToFormSnapshot(line: Line) {
+  return {
+    raw_description: line.raw_description,
+    raw_quantity: line.raw_quantity?.toString() ?? '',
+    raw_unit: line.raw_unit ?? '',
+    validated_unit: line.validated_unit ?? '',
+    raw_unit_price: line.raw_unit_price?.toString() ?? '',
+    raw_line_total: line.raw_line_total?.toString() ?? '',
+    validated_ingredient_id: line.validated_ingredient_id ?? '',
+    user_note: line.user_note ?? '',
+  };
+}
+
+function hasLineSnapshotChanges(current: ReturnType<typeof lineToFormSnapshot>, persisted: ReturnType<typeof lineToFormSnapshot>): boolean {
+  return (
+    current.raw_description !== persisted.raw_description ||
+    current.raw_quantity !== persisted.raw_quantity ||
+    current.raw_unit !== persisted.raw_unit ||
+    current.validated_unit !== persisted.validated_unit ||
+    current.raw_unit_price !== persisted.raw_unit_price ||
+    current.raw_line_total !== persisted.raw_line_total ||
+    current.validated_ingredient_id !== persisted.validated_ingredient_id ||
+    current.user_note !== persisted.user_note
+  );
+}
 
 function formatCurrency(value: number | null): string {
   if (value === null || Number.isNaN(value)) return '—';
@@ -129,7 +208,14 @@ function parseSupplierExistingSuggestion(payload: Record<string, unknown> | null
     isDominant: record.is_dominant === true,
     dominanceGap: typeof record.dominance_gap === 'number' ? record.dominance_gap : null,
     reasons: Array.isArray(record.match_reasons) ? record.match_reasons.filter((entry): entry is string => typeof entry === 'string') : [],
+    matchTrace: Array.isArray(record.match_trace) ? record.match_trace.filter((entry): entry is string => typeof entry === 'string') : [],
+    detectedNameNormalized: typeof record.detected_name_normalized === 'string' ? record.detected_name_normalized : null,
+    supplierNameNormalized: typeof record.supplier_trade_name_normalized === 'string' ? record.supplier_trade_name_normalized : null,
   };
+}
+
+function sortLinesByNumberAsc(lines: Line[]): Line[] {
+  return [...lines].sort((a, b) => a.line_number - b.line_number);
 }
 
 function parseDetectedDocument(payload: Record<string, unknown> | null): { documentNumber: string; documentDate: string; declaredTotal: string } {
@@ -232,8 +318,23 @@ export function ProcurementDocumentDetailManager({
   const [ocrMessage, setOcrMessage] = useState<{ kind: 'success' | 'error'; text: string } | null>(null);
   const [newSupplierForm, setNewSupplierForm] = useState(emptySupplierForm);
   const [isCreatingIngredient, setIsCreatingIngredient] = useState<null | { lineId: string; name: string; unitCode: string; packQty: string; price: string }>(null);
+  const [localIngredients, setLocalIngredients] = useState<Ingredient[]>(ingredients);
+  const [localLines, setLocalLines] = useState<Line[]>(sortLinesByNumberAsc(document.cheffing_purchase_document_lines ?? []));
+  const [modelDirtyLineIds, setModelDirtyLineIds] = useState<Set<string>>(new Set());
+  const [formDirtyLineIds, setFormDirtyLineIds] = useState<Set<string>>(new Set());
 
-  const lines = document.cheffing_purchase_document_lines ?? [];
+  useEffect(() => {
+    setLocalIngredients(ingredients);
+  }, [ingredients]);
+
+  useEffect(() => {
+    setLocalLines(sortLinesByNumberAsc(document.cheffing_purchase_document_lines ?? []));
+    setModelDirtyLineIds(new Set());
+    setFormDirtyLineIds(new Set());
+  }, [document.cheffing_purchase_document_lines]);
+
+  const lines = localLines;
+  const hasDirtyLines = modelDirtyLineIds.size > 0 || formDirtyLineIds.size > 0;
   const isDraft = document.status === 'draft';
   const linesCount = lines.length;
   const calculatedLinesTotal = lines.reduce((sum, line) => sum + (line.raw_line_total ?? 0), 0);
@@ -259,6 +360,7 @@ export function ProcurementDocumentDetailManager({
   const readinessReasons = [
     !document.supplier_id ? 'Falta proveedor confirmado en DB (guarda cabecera para confirmar proveedor).' : null,
     !lines.length ? 'No hay líneas en el documento.' : null,
+    hasDirtyLines ? 'Hay líneas con cambios pendientes de guardar.' : null,
     hasUnresolvedLines ? 'Hay líneas pendientes de resolver.' : null,
     hasLinesWithoutIngredient ? 'Hay líneas sin ingrediente validado.' : null,
     hasLinesWithoutApplicableCost ? 'Hay líneas sin coste aplicable (raw_unit_price).' : null,
@@ -320,7 +422,7 @@ export function ProcurementDocumentDetailManager({
     };
   }, [interpretedPayload]);
 
-  const supplierEnrichment = useMemo(() => {
+  const supplierEnrichment = useMemo<SupplierEnrichmentView | null>(() => {
     const raw = interpretedPayload?.supplier_enrichment;
     if (!raw || typeof raw !== 'object') return null;
     const record = raw as Record<string, unknown>;
@@ -343,8 +445,11 @@ export function ProcurementDocumentDetailManager({
         ? (record.update_attempt as Record<string, unknown>)
         : null;
     return {
+      supplierId: typeof record.supplier_id === 'string' ? record.supplier_id : '',
       autoFilled,
       conflicts,
+      status: parseSupplierEnrichmentStatus(record.status),
+      summary: typeof record.summary === 'string' ? record.summary : 'Sin detalle de enriquecimiento.',
       updateAttempt: {
         attempted: updateAttemptRecord?.attempted === true,
         applied: updateAttemptRecord?.applied === true,
@@ -389,6 +494,21 @@ export function ProcurementDocumentDetailManager({
     }
     return out;
   }, [interpretedPayload]);
+
+  function setLineDirty(setter: (value: Set<string> | ((current: Set<string>) => Set<string>)) => void, lineId: string, dirty: boolean) {
+    setter((current) => {
+      const alreadyDirty = current.has(lineId);
+      if (alreadyDirty === dirty) return current;
+      const next = new Set(current);
+      if (dirty) next.add(lineId);
+      else next.delete(lineId);
+      return next;
+    });
+  }
+
+  const handleFormDirtyChange = useCallback((lineId: string, dirty: boolean) => {
+    setLineDirty(setFormDirtyLineIds, lineId, dirty);
+  }, []);
 
   function openNewSupplierForm() {
     if (hasUnsavedHeaderChanges) return;
@@ -565,12 +685,46 @@ export function ProcurementDocumentDetailManager({
           user_note: newLine.user_note,
         }),
       });
+      const payload = await response.json().catch(() => ({}));
       if (!response.ok) {
-        const payload = await response.json().catch(() => ({}));
         throw new Error(payload?.error ?? 'No se pudo crear la línea');
       }
+      const createdId = typeof payload?.id === 'string' ? payload.id : null;
+      const nextLineNumber = lines.length > 0 ? Math.max(...lines.map((line) => line.line_number)) + 1 : 1;
+      if (createdId) {
+        setLocalLines((current) =>
+          sortLinesByNumberAsc([
+            ...current,
+            {
+              id: createdId,
+              line_number: nextLineNumber,
+              raw_description: newLine.raw_description,
+              interpreted_description: null,
+              raw_quantity: newLine.raw_quantity ? Number(newLine.raw_quantity) : null,
+              raw_unit: newLine.raw_unit || null,
+              interpreted_quantity: null,
+              interpreted_unit: null,
+              normalized_unit_code: newLine.validated_unit || null,
+              validated_unit: (newLine.validated_unit || null) as ProcurementCanonicalUnit | null,
+              raw_unit_price: newLine.raw_unit_price ? Number(newLine.raw_unit_price) : null,
+              raw_line_total: newLine.raw_line_total ? Number(newLine.raw_line_total) : null,
+              suggested_ingredient_id: null,
+              validated_ingredient_id: newLine.validated_ingredient_id || null,
+              line_status: newLine.validated_ingredient_id ? 'resolved' : 'unresolved',
+              warning_notes: null,
+              user_note: newLine.user_note || null,
+              validated_ingredient: newLine.validated_ingredient_id
+                ? { name: localIngredients.find((ingredient) => ingredient.id === newLine.validated_ingredient_id)?.name ?? null }
+                : null,
+            },
+          ]),
+        );
+        setLineDirty(setModelDirtyLineIds, createdId, false);
+        setLineDirty(setFormDirtyLineIds, createdId, false);
+      } else {
+        router.refresh();
+      }
       setNewLine(emptyLine);
-      router.refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Error desconocido');
     } finally {
@@ -578,7 +732,7 @@ export function ProcurementDocumentDetailManager({
     }
   }
 
-  async function saveLine(line: Line, updates: typeof emptyLine) {
+  async function saveLine(line: Line, updates: typeof emptyLine, resolvedIngredientName?: string | null) {
     setError(null);
     setIsSubmitting(true);
     try {
@@ -602,8 +756,35 @@ export function ProcurementDocumentDetailManager({
         const payload = await response.json().catch(() => ({}));
         throw new Error(payload?.error ?? 'No se pudo actualizar la línea');
       }
+      const nextIngredientId = validatedId;
+      const nextIngredientName =
+        nextIngredientId
+          ? resolvedIngredientName ?? localIngredients.find((ingredient) => ingredient.id === nextIngredientId)?.name ?? null
+          : null;
+      setLocalLines((current) =>
+        sortLinesByNumberAsc(
+          current.map((entry) =>
+            entry.id === line.id
+              ? {
+                  ...entry,
+                  raw_description: updates.raw_description,
+                  raw_quantity: updates.raw_quantity ? Number(updates.raw_quantity) : null,
+                  raw_unit: updates.raw_unit || null,
+                  validated_unit: (updates.validated_unit || null) as ProcurementCanonicalUnit | null,
+                  raw_unit_price: updates.raw_unit_price ? Number(updates.raw_unit_price) : null,
+                  raw_line_total: updates.raw_line_total ? Number(updates.raw_line_total) : null,
+                  validated_ingredient_id: nextIngredientId,
+                  line_status: nextIngredientId ? 'resolved' : 'unresolved',
+                  user_note: updates.user_note || null,
+                  validated_ingredient: nextIngredientId ? { name: nextIngredientName } : null,
+                }
+              : entry,
+          ),
+        ),
+      );
+      setLineDirty(setModelDirtyLineIds, line.id, false);
+      setLineDirty(setFormDirtyLineIds, line.id, false);
       setEditingLineId(null);
-      router.refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Error desconocido');
     } finally {
@@ -620,7 +801,9 @@ export function ProcurementDocumentDetailManager({
         const payload = await response.json().catch(() => ({}));
         throw new Error(payload?.error ?? 'No se pudo borrar la línea');
       }
-      router.refresh();
+      setLocalLines((current) => sortLinesByNumberAsc(current.filter((line) => line.id !== lineId)));
+      setLineDirty(setModelDirtyLineIds, lineId, false);
+      setLineDirty(setFormDirtyLineIds, lineId, false);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Error desconocido');
     } finally {
@@ -628,19 +811,26 @@ export function ProcurementDocumentDetailManager({
     }
   }
 
-  async function acceptSuggestedLine(line: Line) {
+  function acceptSuggestedLine(line: Line) {
     if (!line.suggested_ingredient_id) return;
     const suggestedCanonicalUnit = normalizeProcurementCanonicalUnit(line.validated_unit ?? line.normalized_unit_code ?? '');
-    await saveLine(line, {
-      raw_description: line.raw_description,
-      raw_quantity: line.raw_quantity?.toString() ?? '',
-      raw_unit: line.raw_unit ?? '',
-      validated_unit: typeof suggestedCanonicalUnit === 'string' ? suggestedCanonicalUnit : '',
-      raw_unit_price: line.raw_unit_price?.toString() ?? '',
-      raw_line_total: line.raw_line_total?.toString() ?? '',
-      validated_ingredient_id: line.suggested_ingredient_id,
-      user_note: line.user_note ?? '',
-    });
+    const nextIngredientName = localIngredients.find((ingredient) => ingredient.id === line.suggested_ingredient_id)?.name ?? null;
+    setLocalLines((current) =>
+      sortLinesByNumberAsc(
+        current.map((entry) =>
+          entry.id === line.id
+            ? {
+                ...entry,
+                validated_ingredient_id: line.suggested_ingredient_id,
+                line_status: 'resolved',
+                validated_unit: typeof suggestedCanonicalUnit === 'string' ? suggestedCanonicalUnit : entry.validated_unit,
+                validated_ingredient: { name: nextIngredientName },
+              }
+            : entry,
+        ),
+      ),
+    );
+    setLineDirty(setModelDirtyLineIds, line.id, true);
   }
 
   async function createIngredientForLine() {
@@ -677,6 +867,12 @@ export function ProcurementDocumentDetailManager({
       }
       const targetLine = lines.find((line) => line.id === isCreatingIngredient.lineId);
       if (!targetLine) throw new Error('No se encontró la línea para vincular el ingrediente');
+      const createdIngredientName = payload.name;
+      setLocalIngredients((current) => {
+        const exists = current.some((ingredient) => ingredient.id === createResult.id);
+        if (exists) return current;
+        return [...current, { id: createResult.id, name: createdIngredientName }].sort((a, b) => a.name.localeCompare(b.name, 'es'));
+      });
       await saveLine(targetLine, {
         raw_description: targetLine.raw_description,
         raw_quantity: targetLine.raw_quantity?.toString() ?? '',
@@ -686,9 +882,8 @@ export function ProcurementDocumentDetailManager({
         raw_line_total: targetLine.raw_line_total?.toString() ?? '',
         validated_ingredient_id: createResult.id,
         user_note: targetLine.user_note ?? '',
-      });
+      }, createdIngredientName);
       setIsCreatingIngredient(null);
-      router.refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Error desconocido');
     } finally {
@@ -851,8 +1046,8 @@ export function ProcurementDocumentDetailManager({
           <HeaderDatum label="Número" value={header.document_number || '—'} />
           <HeaderDatum label="Fecha" value={header.document_date} />
           <HeaderDatum label="Total declarado" value={header.declared_total ? formatCurrency(Number(header.declared_total)) : '—'} />
-          <HeaderDatum label="Total calculado líneas" value={formatCurrency(calculatedLinesTotal)} />
           <HeaderDatum label="Líneas" value={String(linesCount)} />
+          <HeaderDatum label="Diferencia (declarado - calculado)" value={totalsDelta === null ? '—' : formatCurrency(totalsDelta)} />
         </div>
       </header>
 
@@ -886,6 +1081,12 @@ export function ProcurementDocumentDetailManager({
                     <p className="font-semibold">
                       Sugerencia proveedor existente: {suggestedExistingSupplier.tradeName} · score {suggestedExistingSupplier.scoreHint}
                     </p>
+                    {suggestedExistingSupplier.detectedNameNormalized || suggestedExistingSupplier.supplierNameNormalized ? (
+                      <p className="mt-1 text-sky-200/90">
+                        Nombre OCR normalizado: <code>{suggestedExistingSupplier.detectedNameNormalized ?? '—'}</code> ·
+                        candidato normalizado: <code>{suggestedExistingSupplier.supplierNameNormalized ?? '—'}</code>
+                      </p>
+                    ) : null}
                     <p className="text-sky-200/90">
                       {suggestedExistingSupplier.shouldAutoSelect
                         ? 'Match fuerte y dominante (preseleccionado en cabecera, pendiente de guardar).'
@@ -893,6 +1094,9 @@ export function ProcurementDocumentDetailManager({
                     </p>
                     {suggestedExistingSupplier.reasons.length > 0 ? (
                       <p className="mt-1 text-sky-200/90">Motivos: {suggestedExistingSupplier.reasons.join(', ')}</p>
+                    ) : null}
+                    {suggestedExistingSupplier.matchTrace.length > 0 ? (
+                      <p className="mt-1 text-sky-200/90">Trazabilidad: {suggestedExistingSupplier.matchTrace.join(' · ')}</p>
                     ) : null}
                     {header.supplier_id !== suggestedExistingSupplier.supplierId ? (
                       <button
@@ -915,23 +1119,24 @@ export function ProcurementDocumentDetailManager({
                     ) : null}
                   </div>
                 ) : null}
-                {supplierEnrichment && (supplierEnrichment.autoFilled.length > 0 || supplierEnrichment.conflicts.length > 0 || Boolean(supplierEnrichment.updateAttempt.warning)) ? (
+                {supplierEnrichment ? (
                   <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 p-2 text-xs text-amber-100">
+                    <p className="font-semibold">Estado enriquecimiento proveedor: {supplierEnrichment.status}</p>
+                    <p className="mt-1">{supplierEnrichment.summary}</p>
                     {supplierEnrichment.autoFilled.length > 0 ? (
-                      <p>
-                        Enriquecido automático en proveedor existente: {supplierEnrichment.autoFilled.map((entry) => `${entry.field}=${entry.value}`).join(' · ')}.
-                      </p>
-                    ) : null}
+                      <p className="mt-1">Campos añadidos: {supplierEnrichment.autoFilled.map((entry) => `${entry.field}=${entry.value}`).join(' · ')}</p>
+                    ) : (
+                      <p className="mt-1">{supplierEnrichmentStatusMessage(supplierEnrichment.status)}</p>
+                    )}
                     {supplierEnrichment.conflicts.length > 0 ? (
                       <p className="mt-1">
                         Conflictos detectados (sin sobreescritura): {supplierEnrichment.conflicts.map((entry) => `${entry.field} DB:${entry.existing_value} ↔ OCR:${entry.detected_value}`).join(' · ')}.
                       </p>
                     ) : null}
-                    {supplierEnrichment.updateAttempt.warning ? (
-                      <p className="mt-1 text-rose-200">
-                        Aviso actualización proveedor: {supplierEnrichment.updateAttempt.warning}
-                      </p>
-                    ) : null}
+                    <p className="mt-1">
+                      Intento de guardado: {supplierEnrichment.updateAttempt.attempted ? (supplierEnrichment.updateAttempt.applied ? 'aplicado' : 'fallido') : 'no intentado'}.
+                    </p>
+                    {supplierEnrichment.updateAttempt.warning ? <p className="mt-1 text-rose-200">Aviso actualización proveedor: {supplierEnrichment.updateAttempt.warning}</p> : null}
                   </div>
                 ) : null}
                 {isDraft ? (
@@ -1020,7 +1225,6 @@ export function ProcurementDocumentDetailManager({
                 <input disabled={!isDraft} type="number" step="0.01" min="0" value={header.declared_total} onChange={(event) => setHeader({ ...header, declared_total: event.target.value })} placeholder="Total declarado" className="w-full rounded-md border border-slate-700 bg-slate-950/70 px-3 py-2 text-white" />
                 <p className="text-[11px] text-slate-400">DB: {document.declared_total !== null ? formatCurrency(document.declared_total) : 'vacío'} · Sugerido OCR: {detectedDocument.declaredTotal ? formatCurrency(Number(detectedDocument.declaredTotal)) : '—'}.</p>
               </div>
-              <input disabled value={formatCurrency(calculatedLinesTotal)} className="rounded-md border border-slate-700 bg-slate-900/80 px-3 py-2 text-slate-300" />
               <textarea disabled={!isDraft} value={header.validation_notes} onChange={(event) => setHeader({ ...header, validation_notes: event.target.value })} placeholder="Notas internas / revisión" className="min-h-24 rounded-md border border-slate-700 bg-slate-950/70 px-3 py-2 text-white md:col-span-2" />
             </div>
           </section>
@@ -1033,7 +1237,7 @@ export function ProcurementDocumentDetailManager({
                   Añadir línea
                 </button>
               </div>
-              <LineForm value={newLine} onChange={setNewLine} ingredients={ingredients} />
+              <LineForm value={newLine} onChange={setNewLine} ingredients={localIngredients} />
             </section>
           ) : null}
 
@@ -1059,7 +1263,7 @@ export function ProcurementDocumentDetailManager({
                   <EditableLineRow
                     key={line.id}
                     line={line}
-                    ingredients={ingredients}
+                    ingredients={localIngredients}
                     suggestedIngredientId={line.suggested_ingredient_id}
                     suggestedReason={lineSuggestionReasonByLineNumber.get(line.line_number) ?? null}
                     isDraft={isDraft}
@@ -1069,6 +1273,8 @@ export function ProcurementDocumentDetailManager({
                     onSave={saveLine}
                     onDelete={deleteLine}
                     onAcceptSuggestion={acceptSuggestedLine}
+                    isDirty={modelDirtyLineIds.has(line.id) || formDirtyLineIds.has(line.id)}
+                    onFormDirtyChange={handleFormDirtyChange}
                     onCreateIngredient={(targetLine) =>
                       setIsCreatingIngredient({
                         lineId: targetLine.id,
@@ -1161,14 +1367,21 @@ export function ProcurementDocumentDetailManager({
             <h3 className="text-sm font-semibold text-white">Resumen y readiness</h3>
             <dl className="space-y-2 text-sm">
               <SummaryRow label="Líneas" value={String(linesCount)} />
-              <SummaryRow label="Total calculado (líneas imputables)" value={formatCurrency(calculatedLinesTotal)} />
               <SummaryRow label="Total declarado en documento" value={header.declared_total ? formatCurrency(Number(header.declared_total)) : '—'} />
+              <SummaryRow label="Total calculado (líneas imputables)" value={formatCurrency(calculatedLinesTotal)} />
+              <SummaryRow label="Diferencia" value={totalsDelta === null ? '—' : formatCurrency(totalsDelta)} />
             </dl>
-            {totalsDelta !== null && Math.abs(totalsDelta) >= 0.01 ? (
-              <p className="rounded-lg border border-amber-500/40 bg-amber-500/10 p-2 text-xs text-amber-200">
-                Diferencia detectada: {formatCurrency(totalsDelta)}. Puede deberse a IVA/base imponible, líneas fiscales o texto no imputable del documento.
-              </p>
-            ) : null}
+            <p
+              className={`rounded-lg p-2 text-xs ${
+                totalsDelta !== null && Math.abs(totalsDelta) >= 0.01
+                  ? 'border border-amber-500/40 bg-amber-500/10 text-amber-200'
+                  : 'border border-emerald-500/40 bg-emerald-500/10 text-emerald-200'
+              }`}
+            >
+              {totalsDelta !== null && Math.abs(totalsDelta) >= 0.01
+                ? 'Hay delta relevante entre declarado y calculado. Revisa IVA/base imponible o líneas no imputables.'
+                : 'Declarado y calculado están alineados (sin delta relevante).'}
+            </p>
 
             {readinessReasons.length > 0 ? (
               <div className="rounded-lg border border-rose-400/40 bg-rose-500/10 p-3 text-sm text-rose-200">
@@ -1294,7 +1507,7 @@ function LineForm({ value, onChange, ingredients }: { value: typeof emptyLine; o
   );
 }
 
-function EditableLineRow({ line, ingredients, suggestedIngredientId, suggestedReason, isDraft, isEditing, onEdit, onCancel, onSave, onDelete, onAcceptSuggestion, onCreateIngredient, duplicateHint }: { line: Line; ingredients: Ingredient[]; suggestedIngredientId: string | null; suggestedReason: string | null; isDraft: boolean; isEditing: boolean; onEdit: () => void; onCancel: () => void; onSave: (line: Line, updates: typeof emptyLine) => void; onDelete: (lineId: string) => void; onAcceptSuggestion: (line: Line) => void; onCreateIngredient: (line: Line) => void; duplicateHint: DuplicateHint | null }) {
+function EditableLineRow({ line, ingredients, suggestedIngredientId, suggestedReason, isDraft, isEditing, isDirty, onEdit, onCancel, onSave, onDelete, onAcceptSuggestion, onCreateIngredient, onFormDirtyChange, duplicateHint }: { line: Line; ingredients: Ingredient[]; suggestedIngredientId: string | null; suggestedReason: string | null; isDraft: boolean; isEditing: boolean; isDirty: boolean; onEdit: () => void; onCancel: () => void; onSave: (line: Line, updates: typeof emptyLine) => void; onDelete: (lineId: string) => void; onAcceptSuggestion: (line: Line) => void; onCreateIngredient: (line: Line) => void; onFormDirtyChange: (lineId: string, dirty: boolean) => void; duplicateHint: DuplicateHint | null }) {
   const ingredientName = useMemo(() => {
     const source = line.validated_ingredient;
     return Array.isArray(source) ? source[0]?.name : source?.name;
@@ -1303,38 +1516,54 @@ function EditableLineRow({ line, ingredients, suggestedIngredientId, suggestedRe
     () => ingredients.find((ingredient) => ingredient.id === suggestedIngredientId)?.name ?? null,
     [ingredients, suggestedIngredientId],
   );
-  const [form, setForm] = useState({
-    raw_description: line.raw_description,
-    raw_quantity: line.raw_quantity?.toString() ?? '',
-    raw_unit: line.raw_unit ?? '',
-    validated_unit: line.validated_unit ?? '',
-    raw_unit_price: line.raw_unit_price?.toString() ?? '',
-    raw_line_total: line.raw_line_total?.toString() ?? '',
-    validated_ingredient_id: line.validated_ingredient_id ?? '',
-    user_note: line.user_note ?? '',
-  });
+  const [form, setForm] = useState(lineToFormSnapshot(line));
+  const persistedSnapshot = lineToFormSnapshot(line);
+  const isFormDirty = hasLineSnapshotChanges(form, persistedSnapshot);
+  const pendingIngredientName = useMemo(
+    () => ingredients.find((ingredient) => ingredient.id === form.validated_ingredient_id)?.name ?? null,
+    [form.validated_ingredient_id, ingredients],
+  );
+
+  useEffect(() => {
+    setForm(lineToFormSnapshot(line));
+  }, [line]);
+
+  useEffect(() => {
+    onFormDirtyChange(line.id, isFormDirty);
+  }, [isFormDirty, line.id, onFormDirtyChange]);
 
   return (
     <tr className="border-t border-slate-800/60">
       <td className="px-4 py-3">{line.line_number}</td>
       <td className="px-4 py-3">{isEditing ? <input value={form.raw_description} onChange={(event) => setForm({ ...form, raw_description: event.target.value })} className="w-full rounded-md border border-slate-700 bg-slate-950/70 px-2 py-1" /> : line.raw_description}</td>
       <td className="px-4 py-3">
-        {isEditing ? (
-          <SearchableIngredientSelect value={form.validated_ingredient_id} ingredients={ingredients} onChange={(nextId) => setForm({ ...form, validated_ingredient_id: nextId })} placeholder="Sin validar" />
-        ) : (
-          <div className="space-y-1">
-            <p>{ingredientName ?? '—'}</p>
-            {!ingredientName && suggestedIngredientName ? (
-              <p className="text-xs text-sky-300">Sugerido: {suggestedIngredientName}</p>
-            ) : null}
-            {!ingredientName && suggestedReason ? (
-              <p className="text-[11px] text-slate-500">{suggestedReason}</p>
-            ) : null}
-            {!ingredientName && suggestedIngredientName && isDraft ? (
-              <button type="button" onClick={() => onAcceptSuggestion(line)} className="rounded-full border border-emerald-500/60 px-2 py-0.5 text-[11px] text-emerald-200">✓ Aceptar sugerencia</button>
-            ) : null}
-          </div>
-        )}
+        <div className="space-y-1">
+          <p>{ingredientName ?? '—'}</p>
+          {isDirty ? <p className="text-[11px] font-medium text-amber-300">Cambios pendientes</p> : null}
+          {suggestedIngredientName ? <p className="text-xs text-sky-300">Sugerido: {suggestedIngredientName}</p> : null}
+          {suggestedReason ? <p className="text-[11px] text-slate-500">{suggestedReason}</p> : null}
+          {isFormDirty && pendingIngredientName && pendingIngredientName !== ingredientName ? (
+            <p className="text-[11px] text-amber-300">Selección pendiente: {pendingIngredientName}</p>
+          ) : null}
+          {isDraft ? (
+            <>
+              {suggestedIngredientName ? (
+                <button type="button" onClick={() => onAcceptSuggestion(line)} className="rounded-full border border-emerald-500/60 px-2 py-0.5 text-[11px] text-emerald-200">
+                  ✓ Aceptar sugerencia
+                </button>
+              ) : null}
+              <SearchableIngredientSelect
+                value={form.validated_ingredient_id}
+                ingredients={ingredients}
+                onChange={(nextId) => setForm({ ...form, validated_ingredient_id: nextId })}
+                placeholder="Sin validar"
+              />
+              <button type="button" onClick={() => onCreateIngredient(line)} className="rounded-full border border-sky-500/60 px-2 py-0.5 text-[11px] text-sky-200">
+                Crear ingrediente
+              </button>
+            </>
+          ) : null}
+        </div>
       </td>
       <td className="px-4 py-3">{isEditing ? <input type="number" value={form.raw_quantity} onChange={(event) => setForm({ ...form, raw_quantity: event.target.value })} className="w-24 rounded-md border border-slate-700 bg-slate-950/70 px-2 py-1" /> : (line.raw_quantity ?? '—')}</td>
       <td className="px-4 py-3">
@@ -1368,7 +1597,47 @@ function EditableLineRow({ line, ingredients, suggestedIngredientId, suggestedRe
       <td className="px-4 py-3">{lineStatusLabel(line.line_status)}</td>
       <td className="px-4 py-3">
         {isDraft ? (
-          isEditing ? <div className="flex gap-2"><button type="button" onClick={() => onSave(line, form)} className="rounded-full border border-emerald-400/60 px-3 py-1 text-xs">Guardar</button><button type="button" onClick={onCancel} className="rounded-full border border-slate-700 px-3 py-1 text-xs">Cancelar</button></div> : <div className="flex flex-wrap gap-2"><button type="button" onClick={onEdit} className="rounded-full border border-slate-700 px-3 py-1 text-xs">Editar</button><button type="button" onClick={() => onCreateIngredient(line)} className="rounded-full border border-sky-500/60 px-3 py-1 text-xs text-sky-200">Crear ingrediente</button>{duplicateHint?.confidence === 'high' ? <button type="button" onClick={() => { if (window.confirm('Se eliminará definitivamente esta línea duplicada sugerida. ¿Continuar?')) onDelete(line.id); }} className="rounded-full border border-amber-500/60 px-3 py-1 text-xs text-amber-200">Eliminar duplicado (definitivo)</button> : null}<button type="button" onClick={() => onDelete(line.id)} className="rounded-full border border-rose-500/60 px-3 py-1 text-xs text-rose-200">Borrar</button></div>
+          <div className="flex flex-wrap gap-2">
+            {isEditing ? (
+              <button
+                type="button"
+                onClick={() => {
+                  setForm(lineToFormSnapshot(line));
+                  onFormDirtyChange(line.id, false);
+                  onCancel();
+                }}
+                className="rounded-full border border-slate-700 px-3 py-1 text-xs"
+              >
+                Cancelar edición
+              </button>
+            ) : (
+              <button type="button" onClick={onEdit} className="rounded-full border border-slate-700 px-3 py-1 text-xs">
+                Editar
+              </button>
+            )}
+            <button
+              type="button"
+              disabled={!isDirty}
+              onClick={() => onSave(line, form)}
+              className="rounded-full border border-emerald-400/60 px-3 py-1 text-xs disabled:cursor-not-allowed disabled:border-slate-700 disabled:text-slate-500"
+            >
+              Guardar línea
+            </button>
+            {duplicateHint?.confidence === 'high' ? (
+              <button
+                type="button"
+                onClick={() => {
+                  if (window.confirm('Se eliminará definitivamente esta línea duplicada sugerida. ¿Continuar?')) onDelete(line.id);
+                }}
+                className="rounded-full border border-amber-500/60 px-3 py-1 text-xs text-amber-200"
+              >
+                Eliminar duplicado (definitivo)
+              </button>
+            ) : null}
+            <button type="button" onClick={() => onDelete(line.id)} className="rounded-full border border-rose-500/60 px-3 py-1 text-xs text-rose-200">
+              Borrar
+            </button>
+          </div>
         ) : <span className="text-xs text-slate-500">Solo lectura</span>}
       </td>
     </tr>
