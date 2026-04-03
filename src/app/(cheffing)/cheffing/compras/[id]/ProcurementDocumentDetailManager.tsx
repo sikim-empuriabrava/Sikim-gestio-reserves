@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 
 import {
@@ -69,6 +69,22 @@ type SupplierExistingSuggestionView = {
   isDominant: boolean;
   dominanceGap: number | null;
   reasons: string[];
+  matchTrace: string[];
+  detectedNameNormalized: string | null;
+  supplierNameNormalized: string | null;
+};
+
+type SupplierEnrichmentView = {
+  supplierId: string;
+  autoFilled: Array<{ field: string; value: string }>;
+  conflicts: Array<{ field: string; existing_value: string; detected_value: string }>;
+  status: string;
+  summary: string;
+  updateAttempt: {
+    attempted: boolean;
+    applied: boolean;
+    warning: string | null;
+  };
 };
 
 type DuplicateHint = {
@@ -129,7 +145,14 @@ function parseSupplierExistingSuggestion(payload: Record<string, unknown> | null
     isDominant: record.is_dominant === true,
     dominanceGap: typeof record.dominance_gap === 'number' ? record.dominance_gap : null,
     reasons: Array.isArray(record.match_reasons) ? record.match_reasons.filter((entry): entry is string => typeof entry === 'string') : [],
+    matchTrace: Array.isArray(record.match_trace) ? record.match_trace.filter((entry): entry is string => typeof entry === 'string') : [],
+    detectedNameNormalized: typeof record.detected_name_normalized === 'string' ? record.detected_name_normalized : null,
+    supplierNameNormalized: typeof record.supplier_trade_name_normalized === 'string' ? record.supplier_trade_name_normalized : null,
   };
+}
+
+function sortLinesByNumberAsc(lines: Line[]): Line[] {
+  return [...lines].sort((a, b) => a.line_number - b.line_number);
 }
 
 function parseDetectedDocument(payload: Record<string, unknown> | null): { documentNumber: string; documentDate: string; declaredTotal: string } {
@@ -232,8 +255,18 @@ export function ProcurementDocumentDetailManager({
   const [ocrMessage, setOcrMessage] = useState<{ kind: 'success' | 'error'; text: string } | null>(null);
   const [newSupplierForm, setNewSupplierForm] = useState(emptySupplierForm);
   const [isCreatingIngredient, setIsCreatingIngredient] = useState<null | { lineId: string; name: string; unitCode: string; packQty: string; price: string }>(null);
+  const [localIngredients, setLocalIngredients] = useState<Ingredient[]>(ingredients);
+  const [localLines, setLocalLines] = useState<Line[]>(sortLinesByNumberAsc(document.cheffing_purchase_document_lines ?? []));
 
-  const lines = document.cheffing_purchase_document_lines ?? [];
+  useEffect(() => {
+    setLocalIngredients(ingredients);
+  }, [ingredients]);
+
+  useEffect(() => {
+    setLocalLines(sortLinesByNumberAsc(document.cheffing_purchase_document_lines ?? []));
+  }, [document.cheffing_purchase_document_lines]);
+
+  const lines = localLines;
   const isDraft = document.status === 'draft';
   const linesCount = lines.length;
   const calculatedLinesTotal = lines.reduce((sum, line) => sum + (line.raw_line_total ?? 0), 0);
@@ -320,7 +353,7 @@ export function ProcurementDocumentDetailManager({
     };
   }, [interpretedPayload]);
 
-  const supplierEnrichment = useMemo(() => {
+  const supplierEnrichment = useMemo<SupplierEnrichmentView | null>(() => {
     const raw = interpretedPayload?.supplier_enrichment;
     if (!raw || typeof raw !== 'object') return null;
     const record = raw as Record<string, unknown>;
@@ -343,8 +376,11 @@ export function ProcurementDocumentDetailManager({
         ? (record.update_attempt as Record<string, unknown>)
         : null;
     return {
+      supplierId: typeof record.supplier_id === 'string' ? record.supplier_id : '',
       autoFilled,
       conflicts,
+      status: typeof record.status === 'string' ? record.status : 'unknown',
+      summary: typeof record.summary === 'string' ? record.summary : 'Sin detalle de enriquecimiento.',
       updateAttempt: {
         attempted: updateAttemptRecord?.attempted === true,
         applied: updateAttemptRecord?.applied === true,
@@ -565,12 +601,42 @@ export function ProcurementDocumentDetailManager({
           user_note: newLine.user_note,
         }),
       });
+      const payload = await response.json().catch(() => ({}));
       if (!response.ok) {
-        const payload = await response.json().catch(() => ({}));
         throw new Error(payload?.error ?? 'No se pudo crear la línea');
       }
+      const createdId = typeof payload?.id === 'string' ? payload.id : null;
+      const nextLineNumber = lines.length > 0 ? Math.max(...lines.map((line) => line.line_number)) + 1 : 1;
+      if (createdId) {
+        setLocalLines((current) =>
+          sortLinesByNumberAsc([
+            ...current,
+            {
+              id: createdId,
+              line_number: nextLineNumber,
+              raw_description: newLine.raw_description,
+              interpreted_description: null,
+              raw_quantity: newLine.raw_quantity ? Number(newLine.raw_quantity) : null,
+              raw_unit: newLine.raw_unit || null,
+              interpreted_quantity: null,
+              interpreted_unit: null,
+              normalized_unit_code: newLine.validated_unit || null,
+              validated_unit: (newLine.validated_unit || null) as ProcurementCanonicalUnit | null,
+              raw_unit_price: newLine.raw_unit_price ? Number(newLine.raw_unit_price) : null,
+              raw_line_total: newLine.raw_line_total ? Number(newLine.raw_line_total) : null,
+              suggested_ingredient_id: null,
+              validated_ingredient_id: newLine.validated_ingredient_id || null,
+              line_status: newLine.validated_ingredient_id ? 'resolved' : 'unresolved',
+              warning_notes: null,
+              user_note: newLine.user_note || null,
+              validated_ingredient: newLine.validated_ingredient_id
+                ? { name: localIngredients.find((ingredient) => ingredient.id === newLine.validated_ingredient_id)?.name ?? null }
+                : null,
+            },
+          ]),
+        );
+      }
       setNewLine(emptyLine);
-      router.refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Error desconocido');
     } finally {
@@ -602,8 +668,30 @@ export function ProcurementDocumentDetailManager({
         const payload = await response.json().catch(() => ({}));
         throw new Error(payload?.error ?? 'No se pudo actualizar la línea');
       }
+      const nextIngredientId = validatedId;
+      const nextIngredientName = nextIngredientId ? localIngredients.find((ingredient) => ingredient.id === nextIngredientId)?.name ?? null : null;
+      setLocalLines((current) =>
+        sortLinesByNumberAsc(
+          current.map((entry) =>
+            entry.id === line.id
+              ? {
+                  ...entry,
+                  raw_description: updates.raw_description,
+                  raw_quantity: updates.raw_quantity ? Number(updates.raw_quantity) : null,
+                  raw_unit: updates.raw_unit || null,
+                  validated_unit: (updates.validated_unit || null) as ProcurementCanonicalUnit | null,
+                  raw_unit_price: updates.raw_unit_price ? Number(updates.raw_unit_price) : null,
+                  raw_line_total: updates.raw_line_total ? Number(updates.raw_line_total) : null,
+                  validated_ingredient_id: nextIngredientId,
+                  line_status: nextIngredientId ? 'resolved' : 'unresolved',
+                  user_note: updates.user_note || null,
+                  validated_ingredient: nextIngredientId ? { name: nextIngredientName } : null,
+                }
+              : entry,
+          ),
+        ),
+      );
       setEditingLineId(null);
-      router.refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Error desconocido');
     } finally {
@@ -620,7 +708,7 @@ export function ProcurementDocumentDetailManager({
         const payload = await response.json().catch(() => ({}));
         throw new Error(payload?.error ?? 'No se pudo borrar la línea');
       }
-      router.refresh();
+      setLocalLines((current) => sortLinesByNumberAsc(current.filter((line) => line.id !== lineId)));
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Error desconocido');
     } finally {
@@ -628,19 +716,25 @@ export function ProcurementDocumentDetailManager({
     }
   }
 
-  async function acceptSuggestedLine(line: Line) {
+  function acceptSuggestedLine(line: Line) {
     if (!line.suggested_ingredient_id) return;
     const suggestedCanonicalUnit = normalizeProcurementCanonicalUnit(line.validated_unit ?? line.normalized_unit_code ?? '');
-    await saveLine(line, {
-      raw_description: line.raw_description,
-      raw_quantity: line.raw_quantity?.toString() ?? '',
-      raw_unit: line.raw_unit ?? '',
-      validated_unit: typeof suggestedCanonicalUnit === 'string' ? suggestedCanonicalUnit : '',
-      raw_unit_price: line.raw_unit_price?.toString() ?? '',
-      raw_line_total: line.raw_line_total?.toString() ?? '',
-      validated_ingredient_id: line.suggested_ingredient_id,
-      user_note: line.user_note ?? '',
-    });
+    const nextIngredientName = localIngredients.find((ingredient) => ingredient.id === line.suggested_ingredient_id)?.name ?? null;
+    setLocalLines((current) =>
+      sortLinesByNumberAsc(
+        current.map((entry) =>
+          entry.id === line.id
+            ? {
+                ...entry,
+                validated_ingredient_id: line.suggested_ingredient_id,
+                line_status: 'resolved',
+                validated_unit: typeof suggestedCanonicalUnit === 'string' ? suggestedCanonicalUnit : entry.validated_unit,
+                validated_ingredient: { name: nextIngredientName },
+              }
+            : entry,
+        ),
+      ),
+    );
   }
 
   async function createIngredientForLine() {
@@ -687,8 +781,12 @@ export function ProcurementDocumentDetailManager({
         validated_ingredient_id: createResult.id,
         user_note: targetLine.user_note ?? '',
       });
+      setLocalIngredients((current) => {
+        const exists = current.some((ingredient) => ingredient.id === createResult.id);
+        if (exists) return current;
+        return [...current, { id: createResult.id, name: payload.name }].sort((a, b) => a.name.localeCompare(b.name, 'es'));
+      });
       setIsCreatingIngredient(null);
-      router.refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Error desconocido');
     } finally {
@@ -851,8 +949,8 @@ export function ProcurementDocumentDetailManager({
           <HeaderDatum label="Número" value={header.document_number || '—'} />
           <HeaderDatum label="Fecha" value={header.document_date} />
           <HeaderDatum label="Total declarado" value={header.declared_total ? formatCurrency(Number(header.declared_total)) : '—'} />
-          <HeaderDatum label="Total calculado líneas" value={formatCurrency(calculatedLinesTotal)} />
           <HeaderDatum label="Líneas" value={String(linesCount)} />
+          <HeaderDatum label="Diferencia (declarado - calculado)" value={totalsDelta === null ? '—' : formatCurrency(totalsDelta)} />
         </div>
       </header>
 
@@ -886,6 +984,10 @@ export function ProcurementDocumentDetailManager({
                     <p className="font-semibold">
                       Sugerencia proveedor existente: {suggestedExistingSupplier.tradeName} · score {suggestedExistingSupplier.scoreHint}
                     </p>
+                    <p className="mt-1 text-sky-200/90">
+                      Nombre OCR normalizado: <code>{suggestedExistingSupplier.detectedNameNormalized ?? '—'}</code> ·
+                      candidato normalizado: <code>{suggestedExistingSupplier.supplierNameNormalized ?? '—'}</code>
+                    </p>
                     <p className="text-sky-200/90">
                       {suggestedExistingSupplier.shouldAutoSelect
                         ? 'Match fuerte y dominante (preseleccionado en cabecera, pendiente de guardar).'
@@ -893,6 +995,9 @@ export function ProcurementDocumentDetailManager({
                     </p>
                     {suggestedExistingSupplier.reasons.length > 0 ? (
                       <p className="mt-1 text-sky-200/90">Motivos: {suggestedExistingSupplier.reasons.join(', ')}</p>
+                    ) : null}
+                    {suggestedExistingSupplier.matchTrace.length > 0 ? (
+                      <p className="mt-1 text-sky-200/90">Trazabilidad: {suggestedExistingSupplier.matchTrace.join(' · ')}</p>
                     ) : null}
                     {header.supplier_id !== suggestedExistingSupplier.supplierId ? (
                       <button
@@ -915,23 +1020,24 @@ export function ProcurementDocumentDetailManager({
                     ) : null}
                   </div>
                 ) : null}
-                {supplierEnrichment && (supplierEnrichment.autoFilled.length > 0 || supplierEnrichment.conflicts.length > 0 || Boolean(supplierEnrichment.updateAttempt.warning)) ? (
+                {supplierEnrichment ? (
                   <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 p-2 text-xs text-amber-100">
+                    <p className="font-semibold">Estado enriquecimiento proveedor: {supplierEnrichment.status}</p>
+                    <p className="mt-1">{supplierEnrichment.summary}</p>
                     {supplierEnrichment.autoFilled.length > 0 ? (
-                      <p>
-                        Enriquecido automático en proveedor existente: {supplierEnrichment.autoFilled.map((entry) => `${entry.field}=${entry.value}`).join(' · ')}.
-                      </p>
-                    ) : null}
+                      <p className="mt-1">Campos añadidos: {supplierEnrichment.autoFilled.map((entry) => `${entry.field}=${entry.value}`).join(' · ')}</p>
+                    ) : (
+                      <p className="mt-1">No había datos nuevos que enriquecer.</p>
+                    )}
                     {supplierEnrichment.conflicts.length > 0 ? (
                       <p className="mt-1">
                         Conflictos detectados (sin sobreescritura): {supplierEnrichment.conflicts.map((entry) => `${entry.field} DB:${entry.existing_value} ↔ OCR:${entry.detected_value}`).join(' · ')}.
                       </p>
                     ) : null}
-                    {supplierEnrichment.updateAttempt.warning ? (
-                      <p className="mt-1 text-rose-200">
-                        Aviso actualización proveedor: {supplierEnrichment.updateAttempt.warning}
-                      </p>
-                    ) : null}
+                    <p className="mt-1">
+                      Intento de guardado: {supplierEnrichment.updateAttempt.attempted ? (supplierEnrichment.updateAttempt.applied ? 'aplicado' : 'fallido') : 'no intentado'}.
+                    </p>
+                    {supplierEnrichment.updateAttempt.warning ? <p className="mt-1 text-rose-200">Aviso actualización proveedor: {supplierEnrichment.updateAttempt.warning}</p> : null}
                   </div>
                 ) : null}
                 {isDraft ? (
@@ -1033,7 +1139,7 @@ export function ProcurementDocumentDetailManager({
                   Añadir línea
                 </button>
               </div>
-              <LineForm value={newLine} onChange={setNewLine} ingredients={ingredients} />
+              <LineForm value={newLine} onChange={setNewLine} ingredients={localIngredients} />
             </section>
           ) : null}
 
@@ -1059,7 +1165,7 @@ export function ProcurementDocumentDetailManager({
                   <EditableLineRow
                     key={line.id}
                     line={line}
-                    ingredients={ingredients}
+                    ingredients={localIngredients}
                     suggestedIngredientId={line.suggested_ingredient_id}
                     suggestedReason={lineSuggestionReasonByLineNumber.get(line.line_number) ?? null}
                     isDraft={isDraft}
@@ -1161,14 +1267,21 @@ export function ProcurementDocumentDetailManager({
             <h3 className="text-sm font-semibold text-white">Resumen y readiness</h3>
             <dl className="space-y-2 text-sm">
               <SummaryRow label="Líneas" value={String(linesCount)} />
-              <SummaryRow label="Total calculado (líneas imputables)" value={formatCurrency(calculatedLinesTotal)} />
               <SummaryRow label="Total declarado en documento" value={header.declared_total ? formatCurrency(Number(header.declared_total)) : '—'} />
+              <SummaryRow label="Total calculado (líneas imputables)" value={formatCurrency(calculatedLinesTotal)} />
+              <SummaryRow label="Diferencia" value={totalsDelta === null ? '—' : formatCurrency(totalsDelta)} />
             </dl>
-            {totalsDelta !== null && Math.abs(totalsDelta) >= 0.01 ? (
-              <p className="rounded-lg border border-amber-500/40 bg-amber-500/10 p-2 text-xs text-amber-200">
-                Diferencia detectada: {formatCurrency(totalsDelta)}. Puede deberse a IVA/base imponible, líneas fiscales o texto no imputable del documento.
-              </p>
-            ) : null}
+            <p
+              className={`rounded-lg p-2 text-xs ${
+                totalsDelta !== null && Math.abs(totalsDelta) >= 0.01
+                  ? 'border border-amber-500/40 bg-amber-500/10 text-amber-200'
+                  : 'border border-emerald-500/40 bg-emerald-500/10 text-emerald-200'
+              }`}
+            >
+              {totalsDelta !== null && Math.abs(totalsDelta) >= 0.01
+                ? 'Hay delta relevante entre declarado y calculado. Revisa IVA/base imponible o líneas no imputables.'
+                : 'Declarado y calculado están alineados (sin delta relevante).'}
+            </p>
 
             {readinessReasons.length > 0 ? (
               <div className="rounded-lg border border-rose-400/40 bg-rose-500/10 p-3 text-sm text-rose-200">
@@ -1314,27 +1427,47 @@ function EditableLineRow({ line, ingredients, suggestedIngredientId, suggestedRe
     user_note: line.user_note ?? '',
   });
 
+  useEffect(() => {
+    setForm({
+      raw_description: line.raw_description,
+      raw_quantity: line.raw_quantity?.toString() ?? '',
+      raw_unit: line.raw_unit ?? '',
+      validated_unit: line.validated_unit ?? '',
+      raw_unit_price: line.raw_unit_price?.toString() ?? '',
+      raw_line_total: line.raw_line_total?.toString() ?? '',
+      validated_ingredient_id: line.validated_ingredient_id ?? '',
+      user_note: line.user_note ?? '',
+    });
+  }, [line]);
+
   return (
     <tr className="border-t border-slate-800/60">
       <td className="px-4 py-3">{line.line_number}</td>
       <td className="px-4 py-3">{isEditing ? <input value={form.raw_description} onChange={(event) => setForm({ ...form, raw_description: event.target.value })} className="w-full rounded-md border border-slate-700 bg-slate-950/70 px-2 py-1" /> : line.raw_description}</td>
       <td className="px-4 py-3">
-        {isEditing ? (
-          <SearchableIngredientSelect value={form.validated_ingredient_id} ingredients={ingredients} onChange={(nextId) => setForm({ ...form, validated_ingredient_id: nextId })} placeholder="Sin validar" />
-        ) : (
-          <div className="space-y-1">
-            <p>{ingredientName ?? '—'}</p>
-            {!ingredientName && suggestedIngredientName ? (
-              <p className="text-xs text-sky-300">Sugerido: {suggestedIngredientName}</p>
-            ) : null}
-            {!ingredientName && suggestedReason ? (
-              <p className="text-[11px] text-slate-500">{suggestedReason}</p>
-            ) : null}
-            {!ingredientName && suggestedIngredientName && isDraft ? (
-              <button type="button" onClick={() => onAcceptSuggestion(line)} className="rounded-full border border-emerald-500/60 px-2 py-0.5 text-[11px] text-emerald-200">✓ Aceptar sugerencia</button>
-            ) : null}
-          </div>
-        )}
+        <div className="space-y-1">
+          <p>{ingredientName ?? '—'}</p>
+          {suggestedIngredientName ? <p className="text-xs text-sky-300">Sugerido: {suggestedIngredientName}</p> : null}
+          {suggestedReason ? <p className="text-[11px] text-slate-500">{suggestedReason}</p> : null}
+          {isDraft ? (
+            <>
+              {suggestedIngredientName ? (
+                <button type="button" onClick={() => onAcceptSuggestion(line)} className="rounded-full border border-emerald-500/60 px-2 py-0.5 text-[11px] text-emerald-200">
+                  ✓ Aceptar sugerencia
+                </button>
+              ) : null}
+              <SearchableIngredientSelect
+                value={form.validated_ingredient_id}
+                ingredients={ingredients}
+                onChange={(nextId) => setForm({ ...form, validated_ingredient_id: nextId })}
+                placeholder="Sin validar"
+              />
+              <button type="button" onClick={() => onCreateIngredient(line)} className="rounded-full border border-sky-500/60 px-2 py-0.5 text-[11px] text-sky-200">
+                Crear ingrediente
+              </button>
+            </>
+          ) : null}
+        </div>
       </td>
       <td className="px-4 py-3">{isEditing ? <input type="number" value={form.raw_quantity} onChange={(event) => setForm({ ...form, raw_quantity: event.target.value })} className="w-24 rounded-md border border-slate-700 bg-slate-950/70 px-2 py-1" /> : (line.raw_quantity ?? '—')}</td>
       <td className="px-4 py-3">
@@ -1368,7 +1501,34 @@ function EditableLineRow({ line, ingredients, suggestedIngredientId, suggestedRe
       <td className="px-4 py-3">{lineStatusLabel(line.line_status)}</td>
       <td className="px-4 py-3">
         {isDraft ? (
-          isEditing ? <div className="flex gap-2"><button type="button" onClick={() => onSave(line, form)} className="rounded-full border border-emerald-400/60 px-3 py-1 text-xs">Guardar</button><button type="button" onClick={onCancel} className="rounded-full border border-slate-700 px-3 py-1 text-xs">Cancelar</button></div> : <div className="flex flex-wrap gap-2"><button type="button" onClick={onEdit} className="rounded-full border border-slate-700 px-3 py-1 text-xs">Editar</button><button type="button" onClick={() => onCreateIngredient(line)} className="rounded-full border border-sky-500/60 px-3 py-1 text-xs text-sky-200">Crear ingrediente</button>{duplicateHint?.confidence === 'high' ? <button type="button" onClick={() => { if (window.confirm('Se eliminará definitivamente esta línea duplicada sugerida. ¿Continuar?')) onDelete(line.id); }} className="rounded-full border border-amber-500/60 px-3 py-1 text-xs text-amber-200">Eliminar duplicado (definitivo)</button> : null}<button type="button" onClick={() => onDelete(line.id)} className="rounded-full border border-rose-500/60 px-3 py-1 text-xs text-rose-200">Borrar</button></div>
+          <div className="flex flex-wrap gap-2">
+            {isEditing ? (
+              <button type="button" onClick={onCancel} className="rounded-full border border-slate-700 px-3 py-1 text-xs">
+                Cancelar edición
+              </button>
+            ) : (
+              <button type="button" onClick={onEdit} className="rounded-full border border-slate-700 px-3 py-1 text-xs">
+                Editar
+              </button>
+            )}
+            <button type="button" onClick={() => onSave(line, form)} className="rounded-full border border-emerald-400/60 px-3 py-1 text-xs">
+              Guardar línea
+            </button>
+            {duplicateHint?.confidence === 'high' ? (
+              <button
+                type="button"
+                onClick={() => {
+                  if (window.confirm('Se eliminará definitivamente esta línea duplicada sugerida. ¿Continuar?')) onDelete(line.id);
+                }}
+                className="rounded-full border border-amber-500/60 px-3 py-1 text-xs text-amber-200"
+              >
+                Eliminar duplicado (definitivo)
+              </button>
+            ) : null}
+            <button type="button" onClick={() => onDelete(line.id)} className="rounded-full border border-rose-500/60 px-3 py-1 text-xs text-rose-200">
+              Borrar
+            </button>
+          </div>
         ) : <span className="text-xs text-slate-500">Solo lectura</span>}
       </td>
     </tr>
