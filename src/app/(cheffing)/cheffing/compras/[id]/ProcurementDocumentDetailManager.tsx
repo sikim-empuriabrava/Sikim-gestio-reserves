@@ -78,7 +78,14 @@ type SupplierEnrichmentView = {
   supplierId: string;
   autoFilled: Array<{ field: string; value: string }>;
   conflicts: Array<{ field: string; existing_value: string; detected_value: string }>;
-  status: string;
+  status:
+    | 'skipped_not_attempted'
+    | 'skipped_no_supplier_detected'
+    | 'matched_no_new_data'
+    | 'attempted_applied'
+    | 'attempted_failed'
+    | 'matched_conflicts_only'
+    | 'unknown';
   summary: string;
   updateAttempt: {
     attempted: boolean;
@@ -104,6 +111,17 @@ function supplierEnrichmentStatusMessage(status: string): string {
     default:
       return 'Sin detalle de enriquecimiento.';
   }
+}
+
+function parseSupplierEnrichmentStatus(raw: unknown): SupplierEnrichmentView['status'] {
+  return raw === 'skipped_not_attempted' ||
+    raw === 'skipped_no_supplier_detected' ||
+    raw === 'matched_no_new_data' ||
+    raw === 'attempted_applied' ||
+    raw === 'attempted_failed' ||
+    raw === 'matched_conflicts_only'
+    ? raw
+    : 'unknown';
 }
 
 type DuplicateHint = {
@@ -398,7 +416,7 @@ export function ProcurementDocumentDetailManager({
       supplierId: typeof record.supplier_id === 'string' ? record.supplier_id : '',
       autoFilled,
       conflicts,
-      status: typeof record.status === 'string' ? record.status : 'unknown',
+      status: parseSupplierEnrichmentStatus(record.status),
       summary: typeof record.summary === 'string' ? record.summary : 'Sin detalle de enriquecimiento.',
       updateAttempt: {
         attempted: updateAttemptRecord?.attempted === true,
@@ -1009,10 +1027,12 @@ export function ProcurementDocumentDetailManager({
                     <p className="font-semibold">
                       Sugerencia proveedor existente: {suggestedExistingSupplier.tradeName} · score {suggestedExistingSupplier.scoreHint}
                     </p>
-                    <p className="mt-1 text-sky-200/90">
-                      Nombre OCR normalizado: <code>{suggestedExistingSupplier.detectedNameNormalized ?? '—'}</code> ·
-                      candidato normalizado: <code>{suggestedExistingSupplier.supplierNameNormalized ?? '—'}</code>
-                    </p>
+                    {suggestedExistingSupplier.detectedNameNormalized || suggestedExistingSupplier.supplierNameNormalized ? (
+                      <p className="mt-1 text-sky-200/90">
+                        Nombre OCR normalizado: <code>{suggestedExistingSupplier.detectedNameNormalized ?? '—'}</code> ·
+                        candidato normalizado: <code>{suggestedExistingSupplier.supplierNameNormalized ?? '—'}</code>
+                      </p>
+                    ) : null}
                     <p className="text-sky-200/90">
                       {suggestedExistingSupplier.shouldAutoSelect
                         ? 'Match fuerte y dominante (preseleccionado en cabecera, pendiente de guardar).'
