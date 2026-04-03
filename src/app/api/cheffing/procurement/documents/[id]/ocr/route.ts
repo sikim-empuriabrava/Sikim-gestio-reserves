@@ -55,6 +55,7 @@ type OcrPossibleDuplicate = {
   line_number: number;
   duplicate_of_line_number: number;
   confidence: 'high' | 'medium';
+  hint_type: 'duplicate' | 'possible_shadow_code_line';
   reason: string;
 };
 
@@ -991,25 +992,83 @@ function detectPossibleDuplicateLines(lines: OcrLineDetected[]): OcrPossibleDupl
         .replace(/^\s*[a-z]{1,3}\d{2,8}\s+/i, '')
         .replace(/^\s*\d{4,12}(?:[-/][a-z0-9]{1,8})?\s+/i, ''),
     ) ?? '';
+  const normalizeDescriptionWithoutStripping = (value: string): string => normalizeProcurementText(value) ?? '';
+  const startsWithCodeLikePrefix = (value: string): boolean =>
+    /^\s*(?:(?:cod(?:igo)?|ref(?:erencia)?|art(?:iculo)?)\s*[:#-]?\s*[a-z0-9-]{2,16}|\d{2,12}(?:[-/][a-z0-9]{1,8})?|[a-z]{1,3}\d{2,8})\b/i.test(
+      value,
+    );
+  const hasValidQuantity = (line: OcrLineDetected): boolean =>
+    typeof line.raw_quantity === 'number' && Number.isFinite(line.raw_quantity) && line.raw_quantity > 0;
+  const hasPlaceholderUnit = (line: OcrLineDetected): boolean => {
+    const unit = line.raw_unit?.trim();
+    if (!unit) return false;
+    return unit === '-' || unit === '—';
+  };
+  const hasConsistentTotals = (line: OcrLineDetected): boolean => {
+    if (
+      typeof line.raw_quantity !== 'number' ||
+      typeof line.raw_unit_price !== 'number' ||
+      typeof line.raw_line_total !== 'number' ||
+      !Number.isFinite(line.raw_quantity) ||
+      !Number.isFinite(line.raw_unit_price) ||
+      !Number.isFinite(line.raw_line_total) ||
+      line.raw_quantity <= 0
+    ) {
+      return true;
+    }
+    return Math.abs(line.raw_quantity * line.raw_unit_price - line.raw_line_total) <= 0.05;
+  };
+  const isCoherentStandaloneLine = (line: OcrLineDetected): boolean => {
+    const hasMeaningfulAmount =
+      hasValidQuantity(line) ||
+      (typeof line.raw_line_total === 'number' && Number.isFinite(line.raw_line_total) && line.raw_line_total > 0);
+    return hasMeaningfulAmount && !hasPlaceholderUnit(line) && hasConsistentTotals(line);
+  };
 
   for (let i = 0; i < lines.length; i += 1) {
     const left = lines[i];
     const leftDesc = normalizeDescription(left.raw_description);
+    const leftDescRaw = normalizeDescriptionWithoutStripping(left.raw_description);
     if (!leftDesc) continue;
     for (let j = i + 1; j < Math.min(lines.length, i + 4); j += 1) {
       const right = lines[j];
       const rightDesc = normalizeDescription(right.raw_description);
+      const rightDescRaw = normalizeDescriptionWithoutStripping(right.raw_description);
       if (!rightDesc) continue;
       const sameDesc = leftDesc === rightDesc || leftDesc.includes(rightDesc) || rightDesc.includes(leftDesc);
       if (!sameDesc) continue;
+      const leftHasPrefix = startsWithCodeLikePrefix(left.raw_description);
+      const rightHasPrefix = startsWithCodeLikePrefix(right.raw_description);
+      const prefixMismatch = leftHasPrefix !== rightHasPrefix;
+      const similarityDependsOnPrefixStripping = prefixMismatch && leftDescRaw !== rightDescRaw;
+      const hasQualitySignalsForShadow =
+        !hasValidQuantity(left) ||
+        !hasValidQuantity(right) ||
+        hasPlaceholderUnit(left) ||
+        hasPlaceholderUnit(right) ||
+        !hasConsistentTotals(left) ||
+        !hasConsistentTotals(right);
+      if (similarityDependsOnPrefixStripping && hasQualitySignalsForShadow) {
+        hints.push({
+          line_number: j + 1,
+          duplicate_of_line_number: i + 1,
+          confidence: 'medium',
+          hint_type: 'possible_shadow_code_line',
+          reason: 'Línea potencialmente sombra por código/prefijo; revisar manualmente antes de eliminar.',
+        });
+        continue;
+      }
+
       const samePrice = left.raw_unit_price !== null && right.raw_unit_price !== null && Math.abs(left.raw_unit_price - right.raw_unit_price) <= 0.001;
       const sameTotal = left.raw_line_total !== null && right.raw_line_total !== null && Math.abs(left.raw_line_total - right.raw_line_total) <= 0.001;
       if (!samePrice && !sameTotal) continue;
+      if (!isCoherentStandaloneLine(left) || !isCoherentStandaloneLine(right)) continue;
       const confidence: 'high' | 'medium' = samePrice && sameTotal ? 'high' : 'medium';
       hints.push({
         line_number: j + 1,
         duplicate_of_line_number: i + 1,
         confidence,
+        hint_type: 'duplicate',
         reason: 'Descripción muy similar con precio/importe coincidente en filas cercanas.',
       });
     }
@@ -1615,7 +1674,16 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
             ? line.ingredient_match.ingredient_id
             : openAiSuggestedIngredientId,
         line_status: 'unresolved' as const,
-        warning_notes: [line.warning_notes, duplicateHint ? `possible_duplicate(line #${duplicateHint.duplicate_of_line_number}, ${duplicateHint.confidence})` : null].filter(Boolean).join(' ') || null,
+        warning_notes: [
+          line.warning_notes,
+          duplicateHint
+            ? duplicateHint.hint_type === 'possible_shadow_code_line'
+              ? `possible_shadow_code_line(line #${duplicateHint.duplicate_of_line_number})`
+              : `possible_duplicate(line #${duplicateHint.duplicate_of_line_number}, ${duplicateHint.confidence})`
+            : null,
+        ]
+          .filter(Boolean)
+          .join(' ') || null,
         user_note: null,
       };
     });
