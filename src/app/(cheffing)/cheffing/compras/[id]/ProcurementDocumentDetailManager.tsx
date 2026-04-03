@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 
 import {
@@ -150,6 +150,19 @@ const emptySupplierForm = {
   email: '',
 };
 
+function lineToFormSnapshot(line: Line) {
+  return {
+    raw_description: line.raw_description,
+    raw_quantity: line.raw_quantity?.toString() ?? '',
+    raw_unit: line.raw_unit ?? '',
+    validated_unit: line.validated_unit ?? '',
+    raw_unit_price: line.raw_unit_price?.toString() ?? '',
+    raw_line_total: line.raw_line_total?.toString() ?? '',
+    validated_ingredient_id: line.validated_ingredient_id ?? '',
+    user_note: line.user_note ?? '',
+  };
+}
+
 function formatCurrency(value: number | null): string {
   if (value === null || Number.isNaN(value)) return '—';
   return new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR' }).format(value);
@@ -294,6 +307,8 @@ export function ProcurementDocumentDetailManager({
   const [isCreatingIngredient, setIsCreatingIngredient] = useState<null | { lineId: string; name: string; unitCode: string; packQty: string; price: string }>(null);
   const [localIngredients, setLocalIngredients] = useState<Ingredient[]>(ingredients);
   const [localLines, setLocalLines] = useState<Line[]>(sortLinesByNumberAsc(document.cheffing_purchase_document_lines ?? []));
+  const [modelDirtyLineIds, setModelDirtyLineIds] = useState<Set<string>>(new Set());
+  const [formDirtyLineIds, setFormDirtyLineIds] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     setLocalIngredients(ingredients);
@@ -301,9 +316,12 @@ export function ProcurementDocumentDetailManager({
 
   useEffect(() => {
     setLocalLines(sortLinesByNumberAsc(document.cheffing_purchase_document_lines ?? []));
+    setModelDirtyLineIds(new Set());
+    setFormDirtyLineIds(new Set());
   }, [document.cheffing_purchase_document_lines]);
 
   const lines = localLines;
+  const hasDirtyLines = modelDirtyLineIds.size > 0 || formDirtyLineIds.size > 0;
   const isDraft = document.status === 'draft';
   const linesCount = lines.length;
   const calculatedLinesTotal = lines.reduce((sum, line) => sum + (line.raw_line_total ?? 0), 0);
@@ -329,6 +347,7 @@ export function ProcurementDocumentDetailManager({
   const readinessReasons = [
     !document.supplier_id ? 'Falta proveedor confirmado en DB (guarda cabecera para confirmar proveedor).' : null,
     !lines.length ? 'No hay líneas en el documento.' : null,
+    hasDirtyLines ? 'Hay líneas con cambios pendientes de guardar.' : null,
     hasUnresolvedLines ? 'Hay líneas pendientes de resolver.' : null,
     hasLinesWithoutIngredient ? 'Hay líneas sin ingrediente validado.' : null,
     hasLinesWithoutApplicableCost ? 'Hay líneas sin coste aplicable (raw_unit_price).' : null,
@@ -462,6 +481,21 @@ export function ProcurementDocumentDetailManager({
     }
     return out;
   }, [interpretedPayload]);
+
+  function setLineDirty(setter: (value: Set<string> | ((current: Set<string>) => Set<string>)) => void, lineId: string, dirty: boolean) {
+    setter((current) => {
+      const alreadyDirty = current.has(lineId);
+      if (alreadyDirty === dirty) return current;
+      const next = new Set(current);
+      if (dirty) next.add(lineId);
+      else next.delete(lineId);
+      return next;
+    });
+  }
+
+  const handleFormDirtyChange = useCallback((lineId: string, dirty: boolean) => {
+    setLineDirty(setFormDirtyLineIds, lineId, dirty);
+  }, []);
 
   function openNewSupplierForm() {
     if (hasUnsavedHeaderChanges) return;
@@ -672,6 +706,8 @@ export function ProcurementDocumentDetailManager({
             },
           ]),
         );
+        setLineDirty(setModelDirtyLineIds, createdId, false);
+        setLineDirty(setFormDirtyLineIds, createdId, false);
       } else {
         router.refresh();
       }
@@ -733,6 +769,8 @@ export function ProcurementDocumentDetailManager({
           ),
         ),
       );
+      setLineDirty(setModelDirtyLineIds, line.id, false);
+      setLineDirty(setFormDirtyLineIds, line.id, false);
       setEditingLineId(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Error desconocido');
@@ -751,6 +789,8 @@ export function ProcurementDocumentDetailManager({
         throw new Error(payload?.error ?? 'No se pudo borrar la línea');
       }
       setLocalLines((current) => sortLinesByNumberAsc(current.filter((line) => line.id !== lineId)));
+      setLineDirty(setModelDirtyLineIds, lineId, false);
+      setLineDirty(setFormDirtyLineIds, lineId, false);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Error desconocido');
     } finally {
@@ -777,6 +817,7 @@ export function ProcurementDocumentDetailManager({
         ),
       ),
     );
+    setLineDirty(setModelDirtyLineIds, line.id, true);
   }
 
   async function createIngredientForLine() {
@@ -1219,6 +1260,8 @@ export function ProcurementDocumentDetailManager({
                     onSave={saveLine}
                     onDelete={deleteLine}
                     onAcceptSuggestion={acceptSuggestedLine}
+                    isDirty={modelDirtyLineIds.has(line.id) || formDirtyLineIds.has(line.id)}
+                    onFormDirtyChange={handleFormDirtyChange}
                     onCreateIngredient={(targetLine) =>
                       setIsCreatingIngredient({
                         lineId: targetLine.id,
@@ -1451,7 +1494,7 @@ function LineForm({ value, onChange, ingredients }: { value: typeof emptyLine; o
   );
 }
 
-function EditableLineRow({ line, ingredients, suggestedIngredientId, suggestedReason, isDraft, isEditing, onEdit, onCancel, onSave, onDelete, onAcceptSuggestion, onCreateIngredient, duplicateHint }: { line: Line; ingredients: Ingredient[]; suggestedIngredientId: string | null; suggestedReason: string | null; isDraft: boolean; isEditing: boolean; onEdit: () => void; onCancel: () => void; onSave: (line: Line, updates: typeof emptyLine) => void; onDelete: (lineId: string) => void; onAcceptSuggestion: (line: Line) => void; onCreateIngredient: (line: Line) => void; duplicateHint: DuplicateHint | null }) {
+function EditableLineRow({ line, ingredients, suggestedIngredientId, suggestedReason, isDraft, isEditing, isDirty, onEdit, onCancel, onSave, onDelete, onAcceptSuggestion, onCreateIngredient, onFormDirtyChange, duplicateHint }: { line: Line; ingredients: Ingredient[]; suggestedIngredientId: string | null; suggestedReason: string | null; isDraft: boolean; isEditing: boolean; isDirty: boolean; onEdit: () => void; onCancel: () => void; onSave: (line: Line, updates: typeof emptyLine) => void; onDelete: (lineId: string) => void; onAcceptSuggestion: (line: Line) => void; onCreateIngredient: (line: Line) => void; onFormDirtyChange: (lineId: string, dirty: boolean) => void; duplicateHint: DuplicateHint | null }) {
   const ingredientName = useMemo(() => {
     const source = line.validated_ingredient;
     return Array.isArray(source) ? source[0]?.name : source?.name;
@@ -1460,29 +1503,21 @@ function EditableLineRow({ line, ingredients, suggestedIngredientId, suggestedRe
     () => ingredients.find((ingredient) => ingredient.id === suggestedIngredientId)?.name ?? null,
     [ingredients, suggestedIngredientId],
   );
-  const [form, setForm] = useState({
-    raw_description: line.raw_description,
-    raw_quantity: line.raw_quantity?.toString() ?? '',
-    raw_unit: line.raw_unit ?? '',
-    validated_unit: line.validated_unit ?? '',
-    raw_unit_price: line.raw_unit_price?.toString() ?? '',
-    raw_line_total: line.raw_line_total?.toString() ?? '',
-    validated_ingredient_id: line.validated_ingredient_id ?? '',
-    user_note: line.user_note ?? '',
-  });
+  const [form, setForm] = useState(lineToFormSnapshot(line));
+  const persistedSnapshot = lineToFormSnapshot(line);
+  const isFormDirty = JSON.stringify(form) !== JSON.stringify(persistedSnapshot);
+  const pendingIngredientName = useMemo(
+    () => ingredients.find((ingredient) => ingredient.id === form.validated_ingredient_id)?.name ?? null,
+    [form.validated_ingredient_id, ingredients],
+  );
 
   useEffect(() => {
-    setForm({
-      raw_description: line.raw_description,
-      raw_quantity: line.raw_quantity?.toString() ?? '',
-      raw_unit: line.raw_unit ?? '',
-      validated_unit: line.validated_unit ?? '',
-      raw_unit_price: line.raw_unit_price?.toString() ?? '',
-      raw_line_total: line.raw_line_total?.toString() ?? '',
-      validated_ingredient_id: line.validated_ingredient_id ?? '',
-      user_note: line.user_note ?? '',
-    });
+    setForm(lineToFormSnapshot(line));
   }, [line]);
+
+  useEffect(() => {
+    onFormDirtyChange(line.id, isFormDirty);
+  }, [isFormDirty, line.id, onFormDirtyChange]);
 
   return (
     <tr className="border-t border-slate-800/60">
@@ -1491,8 +1526,12 @@ function EditableLineRow({ line, ingredients, suggestedIngredientId, suggestedRe
       <td className="px-4 py-3">
         <div className="space-y-1">
           <p>{ingredientName ?? '—'}</p>
+          {isDirty ? <p className="text-[11px] font-medium text-amber-300">Cambios pendientes</p> : null}
           {suggestedIngredientName ? <p className="text-xs text-sky-300">Sugerido: {suggestedIngredientName}</p> : null}
           {suggestedReason ? <p className="text-[11px] text-slate-500">{suggestedReason}</p> : null}
+          {isFormDirty && pendingIngredientName && pendingIngredientName !== ingredientName ? (
+            <p className="text-[11px] text-amber-300">Selección pendiente: {pendingIngredientName}</p>
+          ) : null}
           {isDraft ? (
             <>
               {suggestedIngredientName ? (
@@ -1547,7 +1586,15 @@ function EditableLineRow({ line, ingredients, suggestedIngredientId, suggestedRe
         {isDraft ? (
           <div className="flex flex-wrap gap-2">
             {isEditing ? (
-              <button type="button" onClick={onCancel} className="rounded-full border border-slate-700 px-3 py-1 text-xs">
+              <button
+                type="button"
+                onClick={() => {
+                  setForm(lineToFormSnapshot(line));
+                  onFormDirtyChange(line.id, false);
+                  onCancel();
+                }}
+                className="rounded-full border border-slate-700 px-3 py-1 text-xs"
+              >
                 Cancelar edición
               </button>
             ) : (
