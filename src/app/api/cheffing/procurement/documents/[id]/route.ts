@@ -192,89 +192,77 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     return response;
   }
 
-  const { data: updatedDocumentAfterPatch, error: updatedDocumentAfterPatchError } = await supabase
-    .from('cheffing_purchase_documents')
-    .select('id, supplier_id, interpreted_payload')
-    .eq('id', params.id)
-    .maybeSingle();
-
-  const confirmedSupplierId = typeof updatedDocumentAfterPatch?.supplier_id === 'string' ? updatedDocumentAfterPatch.supplier_id : null;
-  if (!updatedDocumentAfterPatchError && updatedDocumentAfterPatch && confirmedSupplierId) {
-    const payload =
-      updatedDocumentAfterPatch.interpreted_payload && typeof updatedDocumentAfterPatch.interpreted_payload === 'object'
-        ? (updatedDocumentAfterPatch.interpreted_payload as Record<string, unknown>)
-        : null;
-    const detectedSupplier =
-      payload?.supplier_detected && typeof payload.supplier_detected === 'object'
-        ? (payload.supplier_detected as Record<string, unknown>)
-        : null;
-
-    const finalTaxId =
-      supplierContactUpdates?.tax_id !== undefined
-        ? supplierContactUpdates.tax_id
-        : (typeof detectedSupplier?.tax_id === 'string' ? detectedSupplier.tax_id.trim() || null : null);
-    const finalEmail =
-      supplierContactUpdates?.email !== undefined
-        ? supplierContactUpdates.email
-        : (typeof detectedSupplier?.email === 'string' ? detectedSupplier.email.trim() || null : null);
-    const finalPhone =
-      supplierContactUpdates?.phone !== undefined
-        ? supplierContactUpdates.phone
-        : (typeof detectedSupplier?.phone === 'string' ? detectedSupplier.phone.trim() || null : null);
-
-    const { data: updatedDocument, error: updatedDocumentError } = await supabase
-      .from('cheffing_suppliers')
-      .select('id, tax_id, email, phone')
-      .eq('id', confirmedSupplierId)
+  const hasExplicitSupplierContactUpdates = Boolean(
+    supplierContactUpdates &&
+      Object.values(supplierContactUpdates).some((value) => value !== undefined),
+  );
+  if (hasExplicitSupplierContactUpdates) {
+    const { data: updatedDocumentAfterPatch, error: updatedDocumentAfterPatchError } = await supabase
+      .from('cheffing_purchase_documents')
+      .select('id, supplier_id')
+      .eq('id', params.id)
       .maybeSingle();
 
-    if (!updatedDocumentError && updatedDocument) {
-      const supplierUpdates: Record<string, string> = {};
+    const confirmedSupplierId = typeof updatedDocumentAfterPatch?.supplier_id === 'string' ? updatedDocumentAfterPatch.supplier_id : null;
+    if (!updatedDocumentAfterPatchError && updatedDocumentAfterPatch && confirmedSupplierId) {
+      const finalTaxId = supplierContactUpdates?.tax_id ?? null;
+      const finalEmail = supplierContactUpdates?.email ?? null;
+      const finalPhone = supplierContactUpdates?.phone ?? null;
 
-      if (finalTaxId) {
-        const existingTaxComparable = normalizeSupplierComparable('tax_id', updatedDocument.tax_id);
-        const detectedTaxComparable = normalizeSupplierComparable('tax_id', finalTaxId);
-        if (!existingTaxComparable) {
-          supplierUpdates.tax_id = finalTaxId;
-        } else if (detectedTaxComparable && existingTaxComparable !== detectedTaxComparable) {
-          console.info('[cheffing][procurement] Supplier tax_id conflict detected on header save; no auto-overwrite', {
-            documentId: params.id,
-            supplierId: confirmedSupplierId,
-          });
+      const { data: supplierRow, error: supplierError } = await supabase
+        .from('cheffing_suppliers')
+        .select('id, tax_id, email, phone')
+        .eq('id', confirmedSupplierId)
+        .maybeSingle();
+
+      if (!supplierError && supplierRow) {
+        const supplierUpdates: Record<string, string> = {};
+
+        if (finalTaxId) {
+          const existingTaxComparable = normalizeSupplierComparable('tax_id', supplierRow.tax_id);
+          const detectedTaxComparable = normalizeSupplierComparable('tax_id', finalTaxId);
+          if (!existingTaxComparable) {
+            supplierUpdates.tax_id = finalTaxId;
+          } else if (detectedTaxComparable && existingTaxComparable !== detectedTaxComparable) {
+            console.info('[cheffing][procurement] Supplier tax_id conflict detected on header save; no auto-overwrite', {
+              documentId: params.id,
+              supplierId: confirmedSupplierId,
+            });
+          }
         }
-      }
 
-      if (finalEmail) {
-        const existingEmail = updatedDocument.email?.trim() || null;
-        if (!existingEmail) {
-          supplierUpdates.email = finalEmail;
-        } else {
-          const merged = mergeUniqueSupplierContactValues('email', existingEmail, finalEmail);
-          if (merged !== existingEmail) supplierUpdates.email = merged;
+        if (finalEmail) {
+          const existingEmail = supplierRow.email?.trim() || null;
+          if (!existingEmail) {
+            supplierUpdates.email = finalEmail;
+          } else {
+            const merged = mergeUniqueSupplierContactValues('email', existingEmail, finalEmail);
+            if (merged !== existingEmail) supplierUpdates.email = merged;
+          }
         }
-      }
 
-      if (finalPhone) {
-        const existingPhone = updatedDocument.phone?.trim() || null;
-        if (!existingPhone) {
-          supplierUpdates.phone = finalPhone;
-        } else {
-          const merged = mergeUniqueSupplierContactValues('phone', existingPhone, finalPhone);
-          if (merged !== existingPhone) supplierUpdates.phone = merged;
+        if (finalPhone) {
+          const existingPhone = supplierRow.phone?.trim() || null;
+          if (!existingPhone) {
+            supplierUpdates.phone = finalPhone;
+          } else {
+            const merged = mergeUniqueSupplierContactValues('phone', existingPhone, finalPhone);
+            if (merged !== existingPhone) supplierUpdates.phone = merged;
+          }
         }
-      }
 
-      if (Object.keys(supplierUpdates).length > 0) {
-        const { error: supplierUpdateError } = await supabase
-          .from('cheffing_suppliers')
-          .update(supplierUpdates)
-          .eq('id', confirmedSupplierId);
-        if (supplierUpdateError) {
-          console.warn('[cheffing][procurement] Supplier enrichment on header save failed', {
-            documentId: params.id,
-            supplierId: confirmedSupplierId,
-            error: supplierUpdateError.message,
-          });
+        if (Object.keys(supplierUpdates).length > 0) {
+          const { error: supplierUpdateError } = await supabase
+            .from('cheffing_suppliers')
+            .update(supplierUpdates)
+            .eq('id', confirmedSupplierId);
+          if (supplierUpdateError) {
+            console.warn('[cheffing][procurement] Supplier enrichment on header save failed', {
+              documentId: params.id,
+              supplierId: confirmedSupplierId,
+              error: supplierUpdateError.message,
+            });
+          }
         }
       }
     }

@@ -311,6 +311,17 @@ export function ProcurementDocumentDetailManager({
   const defaultSupplierId =
     document.supplier_id ??
     (suggestedExistingSupplier?.shouldAutoSelect ? suggestedExistingSupplier.supplierId : null);
+  const resolveSupplierContactPrefill = useCallback(
+    (supplierId: string) => {
+      const selectedSupplier = suppliers.find((supplier) => supplier.id === supplierId) ?? null;
+      return {
+        tax_id: selectedSupplier?.tax_id ?? (typeof detectedSupplierRecord?.tax_id === 'string' ? detectedSupplierRecord.tax_id : ''),
+        email: selectedSupplier?.email ?? (typeof detectedSupplierRecord?.email === 'string' ? detectedSupplierRecord.email : ''),
+        phone: selectedSupplier?.phone ?? (typeof detectedSupplierRecord?.phone === 'string' ? detectedSupplierRecord.phone : ''),
+      };
+    },
+    [detectedSupplierRecord, suppliers],
+  );
   const [header, setHeader] = useState({
     document_kind: document.document_kind,
     document_number:
@@ -334,15 +345,9 @@ export function ProcurementDocumentDetailManager({
           })
         : document.document_date,
     supplier_id: defaultSupplierId ?? '',
-    supplier_tax_id: document.supplier_id
-      ? (suppliers.find((supplier) => supplier.id === document.supplier_id)?.tax_id ?? '')
-      : (typeof detectedSupplierRecord?.tax_id === 'string' ? detectedSupplierRecord.tax_id : ''),
-    supplier_email: document.supplier_id
-      ? (suppliers.find((supplier) => supplier.id === document.supplier_id)?.email ?? '')
-      : (typeof detectedSupplierRecord?.email === 'string' ? detectedSupplierRecord.email : ''),
-    supplier_phone: document.supplier_id
-      ? (suppliers.find((supplier) => supplier.id === document.supplier_id)?.phone ?? '')
-      : (typeof detectedSupplierRecord?.phone === 'string' ? detectedSupplierRecord.phone : ''),
+    supplier_tax_id: resolveSupplierContactPrefill(defaultSupplierId ?? '').tax_id,
+    supplier_email: resolveSupplierContactPrefill(defaultSupplierId ?? '').email,
+    supplier_phone: resolveSupplierContactPrefill(defaultSupplierId ?? '').phone,
     validation_notes: document.validation_notes ?? '',
     declared_total: document.declared_total?.toString() ?? (document.status === 'draft' ? detectedDocument.declaredTotal : ''),
   });
@@ -663,7 +668,8 @@ export function ProcurementDocumentDetailManager({
 
   async function confirmSuggestedSupplierAndSave() {
     if (!suggestedExistingSupplier?.shouldAutoSelect) return;
-    const nextHeader = { ...header, supplier_id: suggestedExistingSupplier.supplierId };
+    const prefill = resolveSupplierContactPrefill(suggestedExistingSupplier.supplierId);
+    const nextHeader = { ...header, supplier_id: suggestedExistingSupplier.supplierId, supplier_tax_id: prefill.tax_id, supplier_email: prefill.email, supplier_phone: prefill.phone };
     setHeader(nextHeader);
     setError(null);
     setIsSubmitting(true);
@@ -740,7 +746,8 @@ export function ProcurementDocumentDetailManager({
         throw new Error(assignPayload?.error ?? 'No se pudo asignar el proveedor al documento');
       }
 
-      setHeader((current) => ({ ...current, supplier_id: newSupplierId }));
+      const prefill = resolveSupplierContactPrefill(newSupplierId);
+      setHeader((current) => ({ ...current, supplier_id: newSupplierId, supplier_tax_id: prefill.tax_id, supplier_email: prefill.email, supplier_phone: prefill.phone }));
       setIsCreatingSupplier(false);
       setNewSupplierForm(emptySupplierForm);
       router.refresh();
