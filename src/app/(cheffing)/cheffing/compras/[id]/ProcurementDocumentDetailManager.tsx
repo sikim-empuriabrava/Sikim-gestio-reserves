@@ -501,28 +501,34 @@ export function ProcurementDocumentDetailManager({
       detectedDocumentRecord && typeof detectedDocumentRecord === 'object'
         ? (detectedDocumentRecord as Record<string, unknown>)
         : null;
-    const subtotalDetected = typeof detectedDocument?.subtotal_detected === 'number' ? detectedDocument.subtotal_detected : calculatedLinesTotal;
+    const lineSubtotal = calculatedLinesTotal;
+    const headerSubtotalDetected = typeof detectedDocument?.subtotal_detected === 'number' ? detectedDocument.subtotal_detected : null;
     const vatDetectedRaw = typeof detectedDocument?.vat_total_detected === 'number' ? detectedDocument.vat_total_detected : null;
     const vatDetected = vatDetectedRaw !== null && Number.isFinite(vatDetectedRaw) ? vatDetectedRaw : null;
+    const deltaLinesVsHeaderSubtotal =
+      headerSubtotalDetected !== null ? Number((lineSubtotal - headerSubtotalDetected).toFixed(2)) : null;
     const vatEstimatedFromDelta =
       vatDetected === null &&
-      declaredTotalNumber !== null && Number.isFinite(declaredTotalNumber) ? Number((declaredTotalNumber - subtotalDetected).toFixed(2)) : null;
-    const expectedGross = declaredTotalNumber !== null && vatDetected !== null ? Number((subtotalDetected + vatDetected).toFixed(2)) : null;
-    const grossDelta =
-      declaredTotalNumber !== null && expectedGross !== null
-        ? Number((declaredTotalNumber - expectedGross).toFixed(2))
+      declaredTotalNumber !== null && Number.isFinite(declaredTotalNumber) ? Number((declaredTotalNumber - lineSubtotal).toFixed(2)) : null;
+    const expectedGrossWithDetectedVat =
+      declaredTotalNumber !== null && vatDetected !== null ? Number((lineSubtotal + vatDetected).toFixed(2)) : null;
+    const grossDeltaReal =
+      declaredTotalNumber !== null && expectedGrossWithDetectedVat !== null
+        ? Number((declaredTotalNumber - expectedGrossWithDetectedVat).toFixed(2))
         : totalsDelta;
     const vatLikelyExplainsDelta =
       vatDetected !== null &&
       totalsDelta !== null &&
-      grossDelta !== null &&
+      grossDeltaReal !== null &&
       Math.abs(totalsDelta - vatDetected) <= 0.05 &&
-      Math.abs(grossDelta) <= 0.05;
+      Math.abs(grossDeltaReal) <= 0.05;
     return {
-      subtotalDetected,
+      lineSubtotal,
+      headerSubtotalDetected,
+      deltaLinesVsHeaderSubtotal,
       vatDetected,
       vatEstimatedFromDelta,
-      grossDelta,
+      grossDeltaReal,
       vatLikelyExplainsDelta,
     };
   }, [calculatedLinesTotal, declaredTotalNumber, interpretedPayload, totalsDelta]);
@@ -1106,14 +1112,16 @@ export function ProcurementDocumentDetailManager({
           <HeaderDatum label="Tipo" value={documentKindLabel(header.document_kind)} />
           <HeaderDatum label="Número" value={header.document_number || '—'} />
           <HeaderDatum label="Fecha" value={header.document_date} />
-          <HeaderDatum label="Subtotal líneas / base" value={formatCurrency(totalsInsight.subtotalDetected)} />
+          <HeaderDatum label="Subtotal líneas" value={formatCurrency(totalsInsight.lineSubtotal)} />
+          <HeaderDatum label="Subtotal cabecera detectado" value={totalsInsight.headerSubtotalDetected !== null ? formatCurrency(totalsInsight.headerSubtotalDetected) : '—'} />
+          <HeaderDatum label="Delta líneas vs cabecera" value={totalsInsight.deltaLinesVsHeaderSubtotal === null ? '—' : formatCurrency(totalsInsight.deltaLinesVsHeaderSubtotal)} />
           <HeaderDatum label="IVA detectado" value={totalsInsight.vatDetected !== null ? formatCurrency(totalsInsight.vatDetected) : '—'} />
           <HeaderDatum label="IVA estimado (diferencia)" value={totalsInsight.vatEstimatedFromDelta !== null && totalsInsight.vatEstimatedFromDelta > 0 ? formatCurrency(totalsInsight.vatEstimatedFromDelta) : '—'} />
           <HeaderDatum label="Total declarado" value={header.declared_total ? formatCurrency(Number(header.declared_total)) : '—'} />
           <HeaderDatum label="Líneas" value={String(linesCount)} />
           <HeaderDatum
             label={totalsInsight.vatLikelyExplainsDelta ? 'Delta real (sin IVA)' : 'Diferencia (declarado - calculado)'}
-            value={totalsInsight.grossDelta === null ? '—' : formatCurrency(totalsInsight.grossDelta)}
+            value={totalsInsight.grossDeltaReal === null ? '—' : formatCurrency(totalsInsight.grossDeltaReal)}
           />
         </div>
       </header>
@@ -1438,7 +1446,9 @@ export function ProcurementDocumentDetailManager({
             <h3 className="text-sm font-semibold text-white">Resumen y readiness</h3>
             <dl className="space-y-2 text-sm">
               <SummaryRow label="Líneas" value={String(linesCount)} />
-              <SummaryRow label="Subtotal/base imponible (líneas)" value={formatCurrency(totalsInsight.subtotalDetected)} />
+              <SummaryRow label="Subtotal líneas" value={formatCurrency(totalsInsight.lineSubtotal)} />
+              <SummaryRow label="Subtotal cabecera detectado (OCR)" value={totalsInsight.headerSubtotalDetected !== null ? formatCurrency(totalsInsight.headerSubtotalDetected) : '—'} />
+              <SummaryRow label="Delta líneas vs cabecera" value={totalsInsight.deltaLinesVsHeaderSubtotal === null ? '—' : formatCurrency(totalsInsight.deltaLinesVsHeaderSubtotal)} />
               <SummaryRow label="IVA detectado (si aplica)" value={totalsInsight.vatDetected !== null ? formatCurrency(totalsInsight.vatDetected) : '—'} />
               <SummaryRow
                 label="IVA estimado por diferencia"
@@ -1446,13 +1456,13 @@ export function ProcurementDocumentDetailManager({
               />
               <SummaryRow label="Total declarado en documento" value={header.declared_total ? formatCurrency(Number(header.declared_total)) : '—'} />
               <SummaryRow
-                label={totalsInsight.vatLikelyExplainsDelta ? 'Delta real (declarado - (base + IVA))' : 'Diferencia declarada'}
-                value={totalsInsight.grossDelta === null ? '—' : formatCurrency(totalsInsight.grossDelta)}
+                label={totalsInsight.vatLikelyExplainsDelta ? 'Delta real bruto (declarado - (subtotal líneas + IVA))' : 'Delta real bruto (declarado - subtotal líneas)'}
+                value={totalsInsight.grossDeltaReal === null ? '—' : formatCurrency(totalsInsight.grossDeltaReal)}
               />
             </dl>
             <p
               className={`rounded-lg p-2 text-xs ${
-                totalsInsight.grossDelta !== null && Math.abs(totalsInsight.grossDelta) >= 0.01
+                totalsInsight.grossDeltaReal !== null && Math.abs(totalsInsight.grossDeltaReal) >= 0.01
                   ? 'border border-amber-500/40 bg-amber-500/10 text-amber-200'
                   : 'border border-emerald-500/40 bg-emerald-500/10 text-emerald-200'
               }`}
@@ -1461,8 +1471,8 @@ export function ProcurementDocumentDetailManager({
                 ? 'El delta declarado-calculado parece corresponder al IVA detectado; no se marca como discrepancia real de OCR.'
                 : totalsInsight.vatDetected === null && totalsInsight.vatEstimatedFromDelta !== null && totalsInsight.vatEstimatedFromDelta > 0
                   ? 'La diferencia podría corresponder a IVA, pero no hay señal fiscal OCR suficientemente fiable para confirmarlo.'
-                : totalsInsight.grossDelta !== null && Math.abs(totalsInsight.grossDelta) >= 0.01
-                  ? 'Hay delta real relevante entre declarado y base+IVA estimados. Revisa líneas no imputables o importes OCR.'
+                : totalsInsight.grossDeltaReal !== null && Math.abs(totalsInsight.grossDeltaReal) >= 0.01
+                  ? 'Hay delta real relevante entre declarado y subtotal de líneas. Revisa líneas no imputables o importes OCR.'
                   : 'Declarado y calculado están alineados (sin delta real relevante).'}
             </p>
 
