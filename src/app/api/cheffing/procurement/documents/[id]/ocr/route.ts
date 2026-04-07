@@ -1818,7 +1818,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
             is_strong_match: suggestedExistingSupplier.is_strong_match,
           }
         : null,
-      line_input_source: linesDetected.map((line, index) => ({
+      line_input_source: linesForFinalCandidateMatching.map((line, index) => ({
         line_number: index + 1,
         source: cleanupByLine.get(index + 1) ? 'post_cleanup' : 'raw_or_azure',
         raw_description: linesDetectedRaw[index]?.raw_description ?? null,
