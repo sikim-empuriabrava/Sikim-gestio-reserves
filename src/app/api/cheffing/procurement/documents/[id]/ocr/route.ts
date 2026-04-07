@@ -151,7 +151,57 @@ type LineCandidateHint = {
   } | null;
   score_hint: number;
   match_reasons: string[];
+  is_auto_high_confidence: boolean;
+  is_manual_suggestion_candidate: boolean;
 };
+
+function hasRiskyVariantTokens(values: string[]): boolean {
+  return values.some((value) => /\b(cherry|pera|raf|marina|vio|viola|violola|kumato|rama|rosa|negro|negra)\b/i.test(value));
+}
+
+function assessManualSuggestionCandidate(params: {
+  top: Pick<LineCandidateHint, 'score_hint' | 'match_reasons' | 'ingredient_name' | 'supplier_ref_context'>;
+  second: Pick<LineCandidateHint, 'score_hint' | 'ingredient_name'> | undefined;
+  normalizedLineDescription: string | null;
+  lineDescriptionTokens: string[];
+}): { isAutoHighConfidence: boolean; isManualSuggestionCandidate: boolean } {
+  const topScore = params.top.score_hint;
+  const secondScore = typeof params.second?.score_hint === 'number' ? params.second.score_hint : null;
+  const dominanceGap = secondScore === null ? null : topScore - secondScore;
+  const normalizedIngredientName = normalizeProcurementText(params.top.ingredient_name);
+  const ingredientTokens = tokenizeIngredientForFuzzyMatch(params.top.ingredient_name);
+  const tokenOverlap = computeTokenOverlap(params.lineDescriptionTokens, ingredientTokens);
+  const hasStrongSignal = params.top.match_reasons.some((reason) =>
+    reason === 'ingredient_reference_exact' ||
+    reason === 'supplier_ref_description_match' ||
+    reason === 'ingredient_name_text_match' ||
+    reason === 'supplier_top_dominant_bonus',
+  );
+  const hasSupplierRef = Boolean(params.top.supplier_ref_context);
+  const normalizedSecondIngredient = normalizeProcurementText(params.second?.ingredient_name ?? null);
+  const hasPotentialVariantRisk = hasRiskyVariantTokens([
+    params.normalizedLineDescription ?? '',
+    normalizedIngredientName ?? '',
+    normalizedSecondIngredient ?? '',
+  ]);
+
+  const isAutoHighConfidence =
+    topScore >= 92 &&
+    (dominanceGap === null || dominanceGap >= 28) &&
+    tokenOverlap >= 0.6 &&
+    hasStrongSignal &&
+    !hasPotentialVariantRisk;
+
+  const isManualSuggestionCandidate =
+    !isAutoHighConfidence &&
+    topScore >= 66 &&
+    (dominanceGap === null || dominanceGap >= 10) &&
+    tokenOverlap >= 0.45 &&
+    (hasStrongSignal || hasSupplierRef) &&
+    !hasPotentialVariantRisk;
+
+  return { isAutoHighConfidence, isManualSuggestionCandidate };
+}
 
 type AzureFieldValue = {
   type?: string;
@@ -677,17 +727,36 @@ function buildLineCandidates(input: {
         }
       }
 
-      return {
+      const candidate: LineCandidateHint = {
         ingredient_id: ingredient.id,
         ingredient_name: ingredient.name,
         supplier_ref_context: bestRefContext,
         score_hint: score,
         match_reasons: Array.from(new Set(reasons)),
-      } satisfies LineCandidateHint;
+        is_auto_high_confidence: false,
+        is_manual_suggestion_candidate: false,
+      };
+      return candidate;
     })
     .filter((candidate) => candidate.score_hint > 0)
     .sort((a, b) => b.score_hint - a.score_hint)
     .slice(0, 8);
+
+  if (candidates.length > 0) {
+    const top = candidates[0];
+    const second = candidates[1];
+    const suggestionAssessment = assessManualSuggestionCandidate({
+      top,
+      second,
+      normalizedLineDescription: normalizedDescription,
+      lineDescriptionTokens,
+    });
+    candidates[0] = {
+      ...top,
+      is_auto_high_confidence: suggestionAssessment.isAutoHighConfidence,
+      is_manual_suggestion_candidate: suggestionAssessment.isManualSuggestionCandidate,
+    };
+  }
 
   return {
     line_number: input.lineNumber,
@@ -1676,6 +1745,8 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     document_number_source: documentNumberFallback.source,
     document_date: getFieldDate(fields.InvoiceDate),
     due_date: getFieldDate(fields.DueDate),
+    subtotal_detected: getFieldNumber(fields.SubTotal),
+    vat_total_detected: getFieldNumber(fields.TotalTax),
     declared_total: getFieldNumber(fields.InvoiceTotal) ?? getFieldNumber(fields.AmountDue),
   };
 
@@ -2054,6 +2125,9 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
 
   let insertedLines = 0;
   if ((currentLinesCount ?? 0) === 0 && linesDetected.length > 0) {
+    const topCandidateByLineNumber = new Map<number, LineCandidateHint | null>(
+      lineCandidatesByLineNumber.map((entry) => [entry.line_number, entry.candidates[0] ?? null]),
+    );
     const rows = linesDetected.flatMap((line, index) => {
       const lineNumber = index + 1;
       if (excludedLineNumbers.has(lineNumber)) return [];
@@ -2071,6 +2145,8 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
         !cleanup.ingredient_match.ambiguous
           ? cleanup.ingredient_match.ingredient_id
           : null;
+      const topCandidate = topCandidateByLineNumber.get(lineNumber) ?? null;
+      const manualSuggestedIngredientId = topCandidate?.is_manual_suggestion_candidate ? topCandidate.ingredient_id : null;
 
       const duplicateHint = duplicateByLineNumber.get(lineNumber);
       return [{
@@ -2092,7 +2168,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
         suggested_ingredient_id:
           line.ingredient_match?.confidence === 'high'
             ? line.ingredient_match.ingredient_id
-            : openAiSuggestedIngredientId,
+            : openAiSuggestedIngredientId ?? manualSuggestedIngredientId,
         line_status: 'unresolved' as const,
         warning_notes: [
           line.warning_notes,

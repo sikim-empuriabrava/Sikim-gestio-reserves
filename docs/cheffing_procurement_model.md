@@ -158,3 +158,14 @@ Aunque el bloque está avanzado, no se documenta como final cerrado:
 ## 9) Nota de uso para handoff
 
 Este documento describe **estado actual implementado** en repo. Para decisiones de roadmap/“definitivo”, validar siempre sobre código + datos reales de operación antes de cerrar criterios de producto.
+
+---
+
+## 10) Ajustes recientes en revisión OCR (neto/bruto + sugerencias manuales)
+
+- **Comparación económica neto vs bruto**: en la revisión de detalle se separan subtotal/base de líneas, IVA detectado (solo con señal OCR suficiente), IVA estimado por diferencia y total declarado. Solo cuando el delta cuadra con **IVA detectado real** se trata como caso esperado y no como discrepancia OCR real; si solo hay **IVA estimado por diferencia**, se muestra como hipótesis prudente para revisión, sin darlo por confirmado.
+- **Sugerencias de ingrediente manuales útiles**: el pipeline distingue entre:
+  - `auto/high confidence` (señal fuerte y dominante);
+  - `manual suggestion candidate` (útil para aceptar con 1 clic sin auto-validar);
+  - candidatos débiles (no sugerir fuerte).
+- **Prudencia en variedades**: se evita promover con demasiada fuerza casos con riesgo de variante distinta (p.ej. diferentes tipos de tomate cherry) aunque el parecido textual sea razonable.
