@@ -5,6 +5,7 @@ import { mergeResponseCookies } from '@/lib/supabase/route';
 import { requireCheffingRouteAccess } from '@/lib/cheffing/requireCheffingRoute';
 import { mapCheffingPostgresError } from '@/lib/cheffing/postgresErrors';
 import { PROCUREMENT_DOCUMENT_KINDS, PROCUREMENT_DOCUMENT_STATUSES } from '@/lib/cheffing/procurement';
+import { upsertPossibleDocumentDuplicateSignal } from '@/lib/cheffing/procurementDuplicateSignal';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -139,6 +140,15 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     return response;
   }
 
+  try {
+    await upsertPossibleDocumentDuplicateSignal({ supabase, documentId: params.id });
+  } catch (signalError) {
+    console.warn('[cheffing][procurement] Duplicate signal check failed on document patch', {
+      documentId: params.id,
+      error: signalError instanceof Error ? signalError.message : 'unknown',
+    });
+  }
+
   const response = NextResponse.json({ ok: true });
   mergeResponseCookies(access.supabaseResponse, response);
   return response;
@@ -199,6 +209,15 @@ export async function DELETE(_req: NextRequest, { params }: { params: { id: stri
     const response = NextResponse.json({ error: mapped.message }, { status: mapped.status });
     mergeResponseCookies(access.supabaseResponse, response);
     return response;
+  }
+
+  try {
+    await upsertPossibleDocumentDuplicateSignal({ supabase, documentId: params.id });
+  } catch (signalError) {
+    console.warn('[cheffing][procurement] Duplicate signal check failed on document patch', {
+      documentId: params.id,
+      error: signalError instanceof Error ? signalError.message : 'unknown',
+    });
   }
 
   const response = NextResponse.json({ ok: true });

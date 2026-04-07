@@ -173,15 +173,23 @@ Este documento describe **estado actual implementado** en repo. Para decisiones 
 
 ## 11) Entrada documental móvil compartida (Bloque 1)
 
-Desde **2026-04-07** existe un punto de entrada documental compartido para subir 1 documento y crear borrador draft reutilizando el pipeline actual de procurement:
+Desde **2026-04-07** existe un punto de entrada documental compartido para subir 1 documento y crear borrador draft reutilizando el pipeline actual de procurement.
 
-- `/cheffing/compras`: mantiene su entrada OCR y ahora usa el intake compartido.
-- `/mantenimiento/stock`: añade acceso rápido orientado a operativa móvil (repartidor/recepción de mañana).
+Separación operativa vigente:
+- `/mantenimiento/stock`: rol **upload-only intake** (hacer foto/galería/archivo, crear draft y subir original). No incluye listado/revisión de compras ni navegación a módulos de Cheffing.
+- `/cheffing/compras`: mantiene el flujo completo de revisión (listado, detalle, OCR, validación y aplicación).
 
-Capacidades de este bloque inicial:
+Capacidades del intake inicial:
 - acciones explícitas para **hacer foto** (preferencia de cámara trasera cuando el navegador lo permite) y **galería/archivo**;
 - formatos aceptados: **imagen** y **PDF**;
-- flujo reutilizado: crear documento draft + subir archivo original + acceso al detalle en `/cheffing/compras/[id]`.
+- flujo reutilizado: crear documento draft + subir archivo original + confirmación de envío.
 
-Fuera de alcance en este bloque: subida múltiple, colas avanzadas, tabs borradores/aprobadas y rediseños extensos de listado.
+### 11.1 Señal prudente de posible duplicado documental (warning-first)
+
+Como base del siguiente bloque, los documentos draft calculan una señal conservadora de `possible_document_duplicate` y se persiste dentro de `interpreted_payload`:
+- estado (`none` o `possible_duplicate`), score, motivos y candidatos;
+- heurística prudente con metadatos disponibles (tipo, número, fecha, proveedor, total declarado);
+- **sin** auto-descartar, auto-borrar ni bloquear irreversiblemente.
+
+La política actual es de advertencia y trazabilidad para revisión manual posterior.
 

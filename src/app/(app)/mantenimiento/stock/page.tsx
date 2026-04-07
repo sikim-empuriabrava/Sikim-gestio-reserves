@@ -42,7 +42,8 @@ export default async function MantenimientoStockPage() {
     <section className="space-y-6">
       <SharedProcurementDocumentIntake
         title="Subir albarán/factura"
-        description="Entrada rápida para mantenimiento: hacer foto, usar galería o subir PDF y crear borrador en Compras para revisión."
+        description="Entrada rápida para mantenimiento: hacer foto, usar galería o subir PDF y enviar el borrador a revisión de Cheffing."
+        showDocumentLinkOnSuccess={false}
       />
 
       <ModulePlaceholder

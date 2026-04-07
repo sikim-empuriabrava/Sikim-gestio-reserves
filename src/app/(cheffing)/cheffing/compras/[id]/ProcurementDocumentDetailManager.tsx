@@ -284,6 +284,25 @@ export function ProcurementDocumentDetailManager({
     ? document.interpreted_payload
     : null) as Record<string, unknown> | null;
   const detectedDocument = useMemo(() => parseDetectedDocument(interpretedPayload), [interpretedPayload]);
+
+  const possibleDocumentDuplicate = useMemo(() => {
+    const candidate = interpretedPayload?.possible_document_duplicate;
+    if (!candidate || typeof candidate !== 'object') return null;
+    const typed = candidate as Record<string, unknown>;
+    const status = typed.status === 'possible_duplicate' ? 'possible_duplicate' : 'none';
+    const reasons = Array.isArray(typed.reasons) ? typed.reasons.filter((entry): entry is string => typeof entry === 'string') : [];
+    const candidateDocumentIds = Array.isArray(typed.candidate_document_ids)
+      ? typed.candidate_document_ids.filter((entry): entry is string => typeof entry === 'string')
+      : [];
+    const checkedAt = typeof typed.checked_at === 'string' ? typed.checked_at : null;
+    return {
+      status,
+      reasons,
+      candidateDocumentIds,
+      score: typeof typed.score === 'number' ? typed.score : 0,
+      checkedAt,
+    };
+  }, [interpretedPayload]);
   const suggestedExistingSupplier = parseSupplierExistingSuggestion(interpretedPayload);
   const defaultSupplierId =
     document.supplier_id ??
@@ -1077,6 +1096,19 @@ export function ProcurementDocumentDetailManager({
             Estado: {documentStatusLabel(document.status)}
           </div>
         </div>
+
+
+        {possibleDocumentDuplicate?.status === 'possible_duplicate' ? (
+          <div className="mt-4 rounded-xl border border-amber-500/40 bg-amber-500/10 p-3 text-amber-100">
+            <p className="text-xs font-semibold uppercase tracking-wide">Posible duplicado documental</p>
+            <p className="mt-1 text-sm">
+              Señal prudente activa (score {possibleDocumentDuplicate.score}). Revisa si este borrador ya existe antes de aplicar.
+            </p>
+            <p className="mt-1 text-xs text-amber-200/90">
+              Motivos: {possibleDocumentDuplicate.reasons.length > 0 ? possibleDocumentDuplicate.reasons.join(', ') : 'sin detalle'} · coincidencias: {possibleDocumentDuplicate.candidateDocumentIds.join(', ') || '—'}.
+            </p>
+          </div>
+        ) : null}
 
         <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
           <div className="rounded-xl border border-slate-800 bg-slate-900/60 p-3 xl:col-span-2">

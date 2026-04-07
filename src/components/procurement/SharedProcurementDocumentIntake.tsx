@@ -11,6 +11,7 @@ type SharedProcurementDocumentIntakeProps = {
   description?: string;
   runOcrAfterUpload?: boolean;
   redirectToDetailOnSuccess?: boolean;
+  showDocumentLinkOnSuccess?: boolean;
   className?: string;
 };
 
@@ -19,6 +20,7 @@ export function SharedProcurementDocumentIntake({
   description = 'Sube una factura o albarán (foto, imagen o PDF) para crear un borrador revisable en Compras.',
   runOcrAfterUpload = false,
   redirectToDetailOnSuccess = false,
+  showDocumentLinkOnSuccess = true,
   className,
 }: SharedProcurementDocumentIntakeProps) {
   const router = useRouter();
@@ -159,18 +161,23 @@ export function SharedProcurementDocumentIntake({
 
       {createdDocumentId ? (
         <p className="text-sm text-emerald-300">
-          Documento borrador creado correctamente.{' '}
-          <Link href={`/cheffing/compras/${createdDocumentId}`} className="underline">
-            Abrir en Compras
-          </Link>
-          .
+          Documento enviado correctamente. Queda como borrador pendiente de revisión por Cheffing.
+          {showDocumentLinkOnSuccess ? (
+            <>
+              {' '}
+              <Link href={`/cheffing/compras/${createdDocumentId}`} className="underline">
+                Abrir en Compras
+              </Link>
+              .
+            </>
+          ) : null}
         </p>
       ) : null}
 
       {error ? (
         <p className="text-sm text-rose-400">
           {error}
-          {createdDocumentId ? (
+          {createdDocumentId && showDocumentLinkOnSuccess ? (
             <>
               {' '}
               El borrador se ha creado igualmente:{' '}

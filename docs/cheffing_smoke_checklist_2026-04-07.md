@@ -32,7 +32,8 @@ Checklist manual corta para validar que Cheffing está “en pie” antes de blo
 - [ ] Abrir `/cheffing/ventas` y confirmar que la vista carga (aunque no haya datos).
 - [ ] Abrir `/cheffing/proveedores` y confirmar listado visible.
 - [ ] Abrir `/cheffing/compras` y confirmar listado de documentos.
-- [ ] En `/mantenimiento/stock`, usar "Subir albarán/factura" y comprobar creación de borrador enlazado a Compras.
+- [ ] En `/mantenimiento/stock`, usar "Subir albarán/factura" y comprobar creación de borrador con confirmación de envío (sin enlace a Compras).
+- [ ] Con usuario solo mantenimiento, confirmar que `GET /api/cheffing/procurement/documents` devuelve acceso denegado.
 - [ ] Entrar a `/cheffing/compras/[id]` (un documento draft) y verificar:
   - [ ] cabecera visible (proveedor/tipo/fecha/estado);
   - [ ] líneas visibles ordenadas por `line_number`;
