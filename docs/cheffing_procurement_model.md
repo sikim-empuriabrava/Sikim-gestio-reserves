@@ -169,3 +169,19 @@ Este documento describe **estado actual implementado** en repo. Para decisiones 
   - `manual suggestion candidate` (útil para aceptar con 1 clic sin auto-validar);
   - candidatos débiles (no sugerir fuerte).
 - **Prudencia en variedades**: se evita promover con demasiada fuerza casos con riesgo de variante distinta (p.ej. diferentes tipos de tomate cherry) aunque el parecido textual sea razonable.
+
+
+## 11) Entrada documental móvil compartida (Bloque 1)
+
+Desde **2026-04-07** existe un punto de entrada documental compartido para subir 1 documento y crear borrador draft reutilizando el pipeline actual de procurement:
+
+- `/cheffing/compras`: mantiene su entrada OCR y ahora usa el intake compartido.
+- `/mantenimiento/stock`: añade acceso rápido orientado a operativa móvil (repartidor/recepción de mañana).
+
+Capacidades de este bloque inicial:
+- acciones explícitas para **hacer foto** (preferencia de cámara trasera cuando el navegador lo permite) y **galería/archivo**;
+- formatos aceptados: **imagen** y **PDF**;
+- flujo reutilizado: crear documento draft + subir archivo original + acceso al detalle en `/cheffing/compras/[id]`.
+
+Fuera de alcance en este bloque: subida múltiple, colas avanzadas, tabs borradores/aprobadas y rediseños extensos de listado.
+

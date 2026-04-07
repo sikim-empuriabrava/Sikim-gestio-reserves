@@ -10,7 +10,7 @@ export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 export async function GET() {
-  const access = await requireCheffingRouteAccess();
+  const access = await requireCheffingRouteAccess({ allowMantenimiento: true });
   if (access.response) return access.response;
 
   const supabase = createSupabaseAdminClient();
@@ -32,7 +32,7 @@ export async function GET() {
 }
 
 export async function POST(req: NextRequest) {
-  const access = await requireCheffingRouteAccess();
+  const access = await requireCheffingRouteAccess({ allowMantenimiento: true });
   if (access.response) return access.response;
 
   const body = await req.json().catch(() => null);

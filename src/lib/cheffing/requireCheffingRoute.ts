@@ -8,7 +8,7 @@ export type CheffingRouteAccess = {
   response?: NextResponse;
 };
 
-export async function requireCheffingRouteAccess(): Promise<CheffingRouteAccess> {
+export async function requireCheffingRouteAccess(options?: { allowMantenimiento?: boolean }): Promise<CheffingRouteAccess> {
   const supabaseResponse = NextResponse.next();
   const authClient = createSupabaseRouteHandlerClient(supabaseResponse);
   const {
@@ -42,7 +42,13 @@ export async function requireCheffingRouteAccess(): Promise<CheffingRouteAccess>
     return { supabaseResponse, response: forbidden };
   }
 
-  if (!isAdmin(allowlistInfo.role) && !allowlistInfo.allowedUser?.can_cheffing) {
+  const canAccessCheffingRoute = Boolean(
+    isAdmin(allowlistInfo.role) ||
+      allowlistInfo.allowedUser?.can_cheffing ||
+      (options?.allowMantenimiento && allowlistInfo.allowedUser?.can_mantenimiento),
+  );
+
+  if (!canAccessCheffingRoute) {
     const forbidden = NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     mergeResponseCookies(supabaseResponse, forbidden);
     return { supabaseResponse, response: forbidden };

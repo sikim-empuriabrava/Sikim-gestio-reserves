@@ -15,7 +15,7 @@ export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
-  const access = await requireCheffingRouteAccess();
+  const access = await requireCheffingRouteAccess({ allowMantenimiento: true });
   if (access.response) return access.response;
 
   const formData = await req.formData().catch(() => null);
