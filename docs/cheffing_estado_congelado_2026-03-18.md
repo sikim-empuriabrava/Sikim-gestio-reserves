@@ -522,3 +522,49 @@ Se aplica una corrección funcional/económica conservadora, sin rehacer Carta:
   - `Platos` y `Bebidas` mantienen comportamiento base y filtros;
   - pestaña `Menús` añade vista económica (PVP, neto, coste, margen, COGS, objetivo, diferencia) usando la misma lógica de IVA/base imponible;
   - ventas/popularidad/BCM para menús no se inventan sin source of truth: se muestran como `Sin datos`.
+
+---
+
+## Actualización incremental (2026-04-07)
+
+> Esta sección **no reemplaza** la foto congelada del 18/03/2026; la complementa para evitar drift documental.
+
+### 1) Alcance de la actualización
+Desde la fecha de corte original, el repo evolucionó y ahora incluye un bloque de **Compras/OCR** materialmente más avanzado que el descrito en la sección 10.2 de la foto histórica.
+
+### 2) Rutas/pantallas Cheffing confirmadas en el repo
+A nivel de árbol/rutas y navegación interna de Cheffing, están presentes los bloques de:
+
+- productos (`/cheffing/productos`)
+- ingredientes (redirigido a productos)
+- elaboraciones (`/cheffing/elaboraciones`)
+- platos (`/cheffing/platos`)
+- bebidas (`/cheffing/bebidas`)
+- menús (`/cheffing/menus`)
+- carta (`/cheffing/carta`)
+- menu engineering (`/cheffing/menu-engineering`)
+- ventas (`/cheffing/ventas`)
+- proveedores (`/cheffing/proveedores`)
+- compras (`/cheffing/compras`)
+
+### 3) Compras: ya no es fase puramente conceptual
+El repo actual ya incorpora:
+
+- OCR real con Azure Document Intelligence en backend de procurement;
+- cleanup/interpretación adicional con OpenAI (controlado por env vars y disponibilidad de API key);
+- persistencia de OCR raw + payload interpretado;
+- inserción de líneas OCR como borrador revisable;
+- revisión manual asistida en detalle de documento (`/cheffing/compras/[id]`) antes de aplicar.
+
+### 4) Ventas / POS (SumUp/Goodtill): estado con prudencia
+Foto actual desde código:
+
+- sí existe importación CSV para POS en API de Cheffing (`/api/cheffing/pos/import-csv`), con parseo de orders/items y persistencia en tablas `cheffing_pos_*`;
+- sí existe estado de import (`/api/cheffing/pos/import-status`) y vista de ventas (`/cheffing/ventas`) consumiendo esas tablas;
+- el endpoint programático de sync SumUp (`/api/pos/sumup/sync`) responde explícitamente **501 Not implemented yet (SumUp sync disabled)**.
+
+Con esto, puede afirmarse que hay base real de ventas por CSV, pero la integración programática directa SumUp sigue incompleta.
+
+### 5) Límites explícitos de esta actualización
+- Esta actualización incremental se basa solo en evidencia del repo.
+- No afirma estado de PRs, merge, base branch ni despliegues externos, porque eso no se puede certificar únicamente leyendo el código local.
