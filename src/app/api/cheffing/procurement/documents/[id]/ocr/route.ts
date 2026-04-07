@@ -1068,7 +1068,7 @@ function detectPossibleDuplicateLines(lines: OcrLineDetected[]): OcrPossibleDupl
       const similarityDependsOnPrefixStripping = prefixMismatch && leftDescRaw !== rightDescRaw;
       const lengthRatio = Math.min(leftDesc.length, rightDesc.length) / Math.max(leftDesc.length, rightDesc.length);
       const clearLengthAsymmetry = lengthRatio < 0.7;
-      const lowInformationTokens = leftCoreTokens.length <= 1 || rightCoreTokens.length <= 1;
+      const lowInformationTokens = leftCoreTokens.length <= 1 && rightCoreTokens.length <= 1;
       const hasQualitySignalsForShadow =
         !hasValidQuantity(left) ||
         !hasValidQuantity(right) ||
