@@ -1212,7 +1212,22 @@ export function ProcurementDocumentDetailManager({
             <div className="grid gap-3 md:grid-cols-2">
               <div className="space-y-1">
                 <label className="text-xs uppercase tracking-wide text-slate-400">Proveedor confirmado</label>
-                <select disabled={!isDraft} value={header.supplier_id} onChange={(event) => setHeader({ ...header, supplier_id: event.target.value })} className="w-full rounded-md border border-slate-700 bg-slate-950/70 px-3 py-2 text-white">
+                <select
+                  disabled={!isDraft}
+                  value={header.supplier_id}
+                  onChange={(event) => {
+                    const supplierId = event.target.value;
+                    const prefill = resolveSupplierContactPrefill(supplierId);
+                    setHeader((current) => ({
+                      ...current,
+                      supplier_id: supplierId,
+                      supplier_tax_id: prefill.tax_id,
+                      supplier_email: prefill.email,
+                      supplier_phone: prefill.phone,
+                    }));
+                  }}
+                  className="w-full rounded-md border border-slate-700 bg-slate-950/70 px-3 py-2 text-white"
+                >
                   <option value="">Sense proveïdor</option>
                   {suppliers.map((supplier) => (
                     <option key={supplier.id} value={supplier.id}>
