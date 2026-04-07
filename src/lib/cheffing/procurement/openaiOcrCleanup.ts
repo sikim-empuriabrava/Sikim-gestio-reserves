@@ -126,20 +126,6 @@ type RetrievedLineCandidate = {
     match_reasons: string[];
   }>;
 };
-type SupplierRefCandidate = {
-  supplier_id: string;
-  ingredient_id: string;
-  supplier_product_description: string;
-  supplier_product_alias: string | null;
-  reference_unit_code: string | null;
-  reference_format_qty: number | null;
-};
-type SupplierCandidate = {
-  id: string;
-  trade_name: string;
-  tax_id: string | null;
-};
-
 export function shouldRunOpenAiOcrCleanup(): boolean {
   const apiKey = process.env.OPENAI_API_KEY?.trim();
   const enabled = process.env.OPENAI_OCR_CLEANUP_ENABLED?.trim()?.toLowerCase();
@@ -226,8 +212,6 @@ export async function runOpenAiOcrCleanup(input: {
   supplierCandidates: RetrievedSupplierCandidate[];
   lineCandidatesByLineNumber: RetrievedLineCandidate[];
   ingredientCandidatesFallback?: IngredientCandidate[];
-  supplierCandidatesFallback?: SupplierCandidate[];
-  supplierProductRefsFallback?: SupplierRefCandidate[];
 }): Promise<OpenAiOcrCleanupResult> {
   const apiKey = process.env.OPENAI_API_KEY?.trim();
   if (!apiKey) throw new Error('Missing OPENAI_API_KEY');
@@ -244,8 +228,6 @@ export async function runOpenAiOcrCleanup(input: {
       candidates: entry.candidates.slice(0, 8),
     })),
     ingredient_candidates_fallback: (input.ingredientCandidatesFallback ?? []).slice(0, 200),
-    supplier_candidates_fallback: (input.supplierCandidatesFallback ?? []).slice(0, 80),
-    supplier_product_refs_fallback: (input.supplierProductRefsFallback ?? []).slice(0, 250),
   };
 
   for (let attempt = 0; attempt < backoffMsByAttempt.length; attempt += 1) {
@@ -269,6 +251,7 @@ export async function runOpenAiOcrCleanup(input: {
               'Devuelve salida estructurada estricta para cleanup OCR. Mantén trazabilidad azure/openai.\n' +
               'Reglas: no inventar valores si no hay señal clara; ante ambigüedad añade warning; ingrediente_match solo high si evidencia fuerte.\n' +
               'supplier_id y validated_ingredient_id nunca se autoconfirman en este paso; solo sugerencias conservadoras.\n' +
+              'Usa supplier_candidates y line_candidates_by_line_number como grounding principal (no resolver fuera de shortlist).\n' +
               'No incluyas razonamiento largo, solo reasoning_short breve.\n\n' +
               JSON.stringify(promptPayload),
           },

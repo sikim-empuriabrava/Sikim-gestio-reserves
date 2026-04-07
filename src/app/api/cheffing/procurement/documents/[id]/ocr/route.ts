@@ -71,6 +71,7 @@ type OcrCleanupMeta = {
 type SupplierCandidateRow = {
   id: string;
   trade_name: string;
+  legal_name: string | null;
   tax_id: string | null;
   email: string | null;
   phone: string | null;
@@ -245,9 +246,34 @@ function normalizeSupplierNameForMatch(value: string | null): string | null {
     .trim();
 }
 
+function tokenizeForFuzzyMatch(value: string | null): string[] {
+  const normalized = normalizeSupplierNameForMatch(value);
+  if (!normalized) return [];
+  const stopwords = new Set(['de', 'del', 'la', 'el', 'los', 'las', 'y', 'e']);
+  return normalized
+    .split(' ')
+    .map((token) => token.trim())
+    .filter((token) => token.length >= 3)
+    .filter((token) => !/^\d+(x\d+)?$/.test(token))
+    .filter((token) => !stopwords.has(token));
+}
+
+function computeTokenOverlap(a: string[] | null | undefined, b: string[] | null | undefined): number {
+  if (!a?.length || !b?.length) return 0;
+  const setA = new Set(a);
+  const setB = new Set(b);
+  let intersection = 0;
+  for (const token of setA) {
+    if (setB.has(token)) intersection += 1;
+  }
+  const union = new Set([...setA, ...setB]).size;
+  if (union === 0) return 0;
+  return intersection / union;
+}
+
 function includesNormalizedText(haystack: string | null, needle: string | null): boolean {
-  const normalizedHaystack = normalizeProcurementText(haystack);
-  const normalizedNeedle = normalizeProcurementText(needle);
+  const normalizedHaystack = normalizeSupplierNameForMatch(haystack);
+  const normalizedNeedle = normalizeSupplierNameForMatch(needle);
   if (!normalizedHaystack || !normalizedNeedle) return false;
   return normalizedHaystack.includes(normalizedNeedle) || normalizedNeedle.includes(normalizedHaystack);
 }
@@ -287,6 +313,7 @@ function buildSupplierCandidates(input: {
         .filter((entry): entry is string => Boolean(entry)),
     ),
   );
+  const detectedTokens = Array.from(new Set(detectedNames.flatMap((name) => tokenizeForFuzzyMatch(name))));
 
   return input.suppliers
     .map((supplier) => {
@@ -295,8 +322,11 @@ function buildSupplierCandidates(input: {
       let score = 0;
       const supplierTaxId = parseTaxId(supplier.tax_id);
       const supplierTradeName = normalizeSupplierNameForMatch(supplier.trade_name);
+      const supplierLegalName = normalizeSupplierNameForMatch(supplier.legal_name);
       const supplierEmail = supplier.email?.trim().toLowerCase() || null;
       const supplierPhone = normalizePhone(supplier.phone);
+      const supplierTradeTokens = tokenizeForFuzzyMatch(supplier.trade_name);
+      const supplierLegalTokens = tokenizeForFuzzyMatch(supplier.legal_name);
 
       if (taxId && supplierTaxId && taxId === supplierTaxId) {
         score += 80;
@@ -336,6 +366,48 @@ function buildSupplierCandidates(input: {
           trace.push(`name_substring:${bestDetectedName}~${supplierTradeName}`);
         }
       }
+      if (supplierLegalName) {
+        let bestLegalSignal: 'exact' | 'substring' | null = null;
+        let bestDetectedLegalName: string | null = null;
+        for (const detectedName of detectedNames) {
+          if (!detectedName) continue;
+          if (detectedName === supplierLegalName) {
+            bestLegalSignal = 'exact';
+            bestDetectedLegalName = detectedName;
+            break;
+          }
+          if (!bestLegalSignal && (detectedName.includes(supplierLegalName) || supplierLegalName.includes(detectedName))) {
+            bestLegalSignal = 'substring';
+            bestDetectedLegalName = detectedName;
+          }
+        }
+        if (bestLegalSignal === 'exact') {
+          score += 56;
+          reasons.push('legal_name_exact_normalized');
+          trace.push(`legal_exact:${bestDetectedLegalName}`);
+        } else if (bestLegalSignal === 'substring') {
+          score += 30;
+          reasons.push('legal_name_substring');
+          trace.push(`legal_substring:${bestDetectedLegalName}~${supplierLegalName}`);
+        }
+      }
+
+      const tradeOverlap = computeTokenOverlap(detectedTokens, supplierTradeTokens);
+      if (tradeOverlap >= 0.6) {
+        score += 34;
+        reasons.push('trade_name_token_overlap_high');
+        trace.push(`trade_token_overlap:${tradeOverlap.toFixed(2)}`);
+      } else if (tradeOverlap >= 0.35) {
+        score += 16;
+        reasons.push('trade_name_token_overlap_medium');
+        trace.push(`trade_token_overlap:${tradeOverlap.toFixed(2)}`);
+      }
+      const legalOverlap = computeTokenOverlap(detectedTokens, supplierLegalTokens);
+      if (legalOverlap >= 0.6) {
+        score += 26;
+        reasons.push('legal_name_token_overlap_high');
+        trace.push(`legal_token_overlap:${legalOverlap.toFixed(2)}`);
+      }
 
       if (taxId && supplierTaxId && taxId === supplierTaxId) trace.push(`tax_id_exact:${taxId}`);
       if (email && supplierEmail && email === supplierEmail) trace.push(`email_exact:${email}`);
@@ -366,10 +438,19 @@ function getSuggestedExistingSupplier(candidates: SupplierCandidateHint[]): Supp
     reason === 'tax_id_exact' || reason === 'email_exact' || reason === 'phone_exact_normalized',
   );
   const hasExactNameSignal = top.match_reasons.some((reason) => reason === 'trade_name_exact_normalized');
-  const hasNameSignal = top.match_reasons.some((reason) =>
-    reason === 'trade_name_exact_normalized' || reason === 'trade_name_substring',
+  const hasLegalExactSignal = top.match_reasons.some((reason) => reason === 'legal_name_exact_normalized');
+  const hasHighTokenSignal = top.match_reasons.some(
+    (reason) => reason === 'trade_name_token_overlap_high' || reason === 'legal_name_token_overlap_high',
   );
-  const isStrongMatch = hasIdentitySignal ? top.score_hint >= 85 : hasExactNameSignal && top.score_hint >= 60;
+  const hasNameSignal = top.match_reasons.some((reason) =>
+    reason === 'trade_name_exact_normalized' ||
+    reason === 'trade_name_substring' ||
+    reason === 'legal_name_exact_normalized' ||
+    reason === 'legal_name_substring' ||
+    reason === 'trade_name_token_overlap_high' ||
+    reason === 'trade_name_token_overlap_medium',
+  );
+  const isStrongMatch = hasIdentitySignal ? top.score_hint >= 85 : (hasExactNameSignal || hasLegalExactSignal || hasHighTokenSignal) && top.score_hint >= 60;
   const isDominant = dominanceGap === null || dominanceGap >= 18;
   return {
     supplier_id: top.id,
@@ -416,6 +497,7 @@ function buildLineCandidates(input: {
 }): { line_number: number; candidates: LineCandidateHint[] } {
   const normalizedDescription = normalizeProcurementText(input.line.raw_description);
   const normalizedProductCode = normalizeProcurementText(input.line.product_code);
+  const lineDescriptionTokens = tokenizeForFuzzyMatch(normalizedDescription);
   const topSupplierIds = new Set(input.supplierCandidates.map((candidate) => candidate.id));
 
   const candidates = input.ingredients
@@ -423,6 +505,7 @@ function buildLineCandidates(input: {
       const reasons: string[] = [];
       let score = 0;
       const ingredientName = normalizeProcurementText(ingredient.name);
+      const ingredientTokens = tokenizeForFuzzyMatch(ingredient.name);
       const ingredientReference = normalizeProcurementText(ingredient.reference);
       const refs = input.supplierProductRefs.filter((ref) => ref.ingredient_id === ingredient.id);
       let bestRefContext: LineCandidateHint['supplier_ref_context'] = null;
@@ -431,6 +514,14 @@ function buildLineCandidates(input: {
       if (normalizedDescription && ingredientName && includesNormalizedText(normalizedDescription, ingredientName)) {
         score += 45;
         reasons.push('ingredient_name_text_match');
+      }
+      const ingredientTokenOverlap = computeTokenOverlap(lineDescriptionTokens, ingredientTokens);
+      if (ingredientTokenOverlap >= 0.6) {
+        score += 36;
+        reasons.push('ingredient_name_token_overlap_high');
+      } else if (ingredientTokenOverlap >= 0.34) {
+        score += 18;
+        reasons.push('ingredient_name_token_overlap_medium');
       }
       if (normalizedProductCode && ingredientReference && normalizedProductCode === ingredientReference) {
         score += 55;
@@ -442,12 +533,24 @@ function buildLineCandidates(input: {
         const refReasons: string[] = [];
         const refDescription = normalizeProcurementText(ref.supplier_product_description);
         const refAlias = normalizeProcurementText(ref.supplier_product_alias);
+        const refDescriptionTokens = tokenizeForFuzzyMatch(ref.supplier_product_description);
+        const refAliasTokens = tokenizeForFuzzyMatch(ref.supplier_product_alias);
         const refMatchesText =
           (normalizedDescription && refDescription && includesNormalizedText(normalizedDescription, refDescription)) ||
           (normalizedDescription && refAlias && includesNormalizedText(normalizedDescription, refAlias));
         if (refMatchesText) {
           refScore += 38;
           refReasons.push('supplier_ref_description_match');
+        }
+        const refDescriptionOverlap = computeTokenOverlap(lineDescriptionTokens, refDescriptionTokens);
+        const refAliasOverlap = computeTokenOverlap(lineDescriptionTokens, refAliasTokens);
+        const bestRefOverlap = Math.max(refDescriptionOverlap, refAliasOverlap);
+        if (bestRefOverlap >= 0.6) {
+          refScore += 24;
+          refReasons.push('supplier_ref_token_overlap_high');
+        } else if (bestRefOverlap >= 0.34) {
+          refScore += 12;
+          refReasons.push('supplier_ref_token_overlap_medium');
         }
         if (topSupplierIds.has(ref.supplier_id)) {
           refScore += 22;
@@ -1165,7 +1268,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
         .select('id', { count: 'exact', head: true })
         .eq('document_id', params.id),
       supabase.from('cheffing_ingredients').select('id, name, reference').order('name', { ascending: true }),
-      supabase.from('cheffing_suppliers').select('id, trade_name, tax_id, email, phone').order('trade_name', { ascending: true }),
+      supabase.from('cheffing_suppliers').select('id, trade_name, legal_name, tax_id, email, phone').order('trade_name', { ascending: true }),
       supabase
         .from('cheffing_supplier_product_refs')
         .select('supplier_id, ingredient_id, supplier_product_description, supplier_product_alias, reference_unit_code, reference_format_qty')
@@ -1349,18 +1452,18 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   const linesFromTables = deriveDetectedLinesFromTables(analyzePayload.analyzeResult.tables, ingredientCandidates ?? []);
   const linesDetectedRaw =
     linesFromItems.length === 0 ? linesFromTables : enrichItemsWithTableQuantities(linesFromItems, linesFromTables);
-  const supplierCandidatesRetrieved = buildSupplierCandidates({
+  const supplierCandidatesInitial = buildSupplierCandidates({
     supplierDetectedRaw,
     suppliers: (supplierCandidates ?? []) as SupplierCandidateRow[],
   });
-  const suggestedExistingSupplier = getSuggestedExistingSupplier(supplierCandidatesRetrieved);
-  const lineCandidatesByLineNumber = linesDetectedRaw.map((line, index) =>
+  const suggestedExistingSupplierInitial = getSuggestedExistingSupplier(supplierCandidatesInitial);
+  const lineCandidatesByLineNumberInitial = linesDetectedRaw.map((line, index) =>
     buildLineCandidates({
       lineNumber: index + 1,
       line,
       ingredients: (ingredientCandidates ?? []) as IngredientCandidateRow[],
       supplierProductRefs: (supplierProductRefs ?? []) as SupplierProductRefRow[],
-      supplierCandidates: supplierCandidatesRetrieved,
+      supplierCandidates: supplierCandidatesInitial,
     }),
   );
 
@@ -1393,11 +1496,9 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
           product_code: line.product_code,
           warning_notes: line.warning_notes,
         })),
-        supplierCandidates: supplierCandidatesRetrieved,
-        lineCandidatesByLineNumber,
+        supplierCandidates: supplierCandidatesInitial,
+        lineCandidatesByLineNumber: lineCandidatesByLineNumberInitial,
         ingredientCandidatesFallback: (ingredientCandidates ?? []) as IngredientCandidateRow[],
-        supplierCandidatesFallback: (supplierCandidates ?? []) as SupplierCandidateRow[],
-        supplierProductRefsFallback: (supplierProductRefs ?? []) as SupplierProductRefRow[],
       });
       openAiCleanupMeta = {
         provider: 'openai',
@@ -1497,6 +1598,20 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
         ? supplierCleanup.cleaned_phone
         : supplierDetectedRaw.phone,
   } satisfies OcrSupplierDetected;
+  const supplierCandidatesRetrieved = buildSupplierCandidates({
+    supplierDetectedRaw: supplierDetected,
+    suppliers: (supplierCandidates ?? []) as SupplierCandidateRow[],
+  });
+  const suggestedExistingSupplier = getSuggestedExistingSupplier(supplierCandidatesRetrieved);
+  const lineCandidatesByLineNumber = linesDetectedRaw.map((line, index) =>
+    buildLineCandidates({
+      lineNumber: index + 1,
+      line,
+      ingredients: (ingredientCandidates ?? []) as IngredientCandidateRow[],
+      supplierProductRefs: (supplierProductRefs ?? []) as SupplierProductRefRow[],
+      supplierCandidates: supplierCandidatesRetrieved,
+    }),
+  );
 
   const documentDetected = {
     ...documentDetectedRaw,
@@ -1638,6 +1753,12 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     supplier_detected_raw: supplierDetectedRaw,
     supplier_candidates: supplierCandidatesRetrieved,
     supplier_existing_suggestion: suggestedExistingSupplier,
+    supplier_matching_debug: {
+      initial_suggestion: suggestedExistingSupplierInitial,
+      final_suggestion: suggestedExistingSupplier,
+      supplier_detected_name_raw: supplierDetectedRaw.name,
+      supplier_detected_name_final: supplierDetected.name,
+    },
     supplier_enrichment: supplierEnrichment,
     document_detected: documentDetected,
     document_detected_raw: documentDetectedRaw,

@@ -57,6 +57,13 @@ Si hay sugerencia de proveedor existente en payload interpretado, la UI de detal
 - acción explícita para **“Confirmar proveedor sugerido y guardar cabecera”**;
 - bloque de estado de enriquecimiento del proveedor (auto-fill prudente, conflictos y warning de update).
 
+### 2.6 Grounding DB-first en matching OCR (proveedor e ingredientes)
+- El backend de OCR intenta resolver **primero contra entidades reales de DB**:
+  - proveedor: candidatos desde `cheffing_suppliers` (trade/legal name + señales fiscales/contacto) con score y trazas;
+  - líneas: shortlist de ingredientes reales priorizando `cheffing_supplier_product_refs` y nombre normalizado/tokens.
+- OpenAI ya no actúa como resolvedor “a ciegas” sobre toda la base: recibe shortlist/candidatos y se usa como capa de cleanup/reranking conservadora.
+- El payload interpretado mantiene trazabilidad útil (`match_reasons`, `match_trace`, shortlist por línea) para depuración en revisión manual.
+
 ### 2.5 Hints de revisión en líneas
 La UI diferencia tipos de hint documentados en payload:
 
