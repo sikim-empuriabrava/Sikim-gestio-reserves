@@ -503,27 +503,25 @@ export function ProcurementDocumentDetailManager({
         : null;
     const subtotalDetected = typeof detectedDocument?.subtotal_detected === 'number' ? detectedDocument.subtotal_detected : calculatedLinesTotal;
     const vatDetectedRaw = typeof detectedDocument?.vat_total_detected === 'number' ? detectedDocument.vat_total_detected : null;
-    const inferredVatFromDelta =
+    const vatDetected = vatDetectedRaw !== null && Number.isFinite(vatDetectedRaw) ? vatDetectedRaw : null;
+    const vatEstimatedFromDelta =
+      vatDetected === null &&
       declaredTotalNumber !== null && Number.isFinite(declaredTotalNumber) ? Number((declaredTotalNumber - subtotalDetected).toFixed(2)) : null;
-    const vatDetected =
-      vatDetectedRaw !== null && Number.isFinite(vatDetectedRaw)
-        ? vatDetectedRaw
-        : inferredVatFromDelta !== null && inferredVatFromDelta > 0
-          ? inferredVatFromDelta
-          : null;
     const expectedGross = declaredTotalNumber !== null && vatDetected !== null ? Number((subtotalDetected + vatDetected).toFixed(2)) : null;
     const grossDelta =
       declaredTotalNumber !== null && expectedGross !== null
         ? Number((declaredTotalNumber - expectedGross).toFixed(2))
         : totalsDelta;
     const vatLikelyExplainsDelta =
-      totalsDelta !== null &&
       vatDetected !== null &&
+      totalsDelta !== null &&
+      grossDelta !== null &&
       Math.abs(totalsDelta - vatDetected) <= 0.05 &&
-      (grossDelta === null || Math.abs(grossDelta) <= 0.05);
+      Math.abs(grossDelta) <= 0.05;
     return {
       subtotalDetected,
       vatDetected,
+      vatEstimatedFromDelta,
       grossDelta,
       vatLikelyExplainsDelta,
     };
@@ -1110,6 +1108,7 @@ export function ProcurementDocumentDetailManager({
           <HeaderDatum label="Fecha" value={header.document_date} />
           <HeaderDatum label="Subtotal líneas / base" value={formatCurrency(totalsInsight.subtotalDetected)} />
           <HeaderDatum label="IVA detectado" value={totalsInsight.vatDetected !== null ? formatCurrency(totalsInsight.vatDetected) : '—'} />
+          <HeaderDatum label="IVA estimado (diferencia)" value={totalsInsight.vatEstimatedFromDelta !== null && totalsInsight.vatEstimatedFromDelta > 0 ? formatCurrency(totalsInsight.vatEstimatedFromDelta) : '—'} />
           <HeaderDatum label="Total declarado" value={header.declared_total ? formatCurrency(Number(header.declared_total)) : '—'} />
           <HeaderDatum label="Líneas" value={String(linesCount)} />
           <HeaderDatum
@@ -1441,6 +1440,10 @@ export function ProcurementDocumentDetailManager({
               <SummaryRow label="Líneas" value={String(linesCount)} />
               <SummaryRow label="Subtotal/base imponible (líneas)" value={formatCurrency(totalsInsight.subtotalDetected)} />
               <SummaryRow label="IVA detectado (si aplica)" value={totalsInsight.vatDetected !== null ? formatCurrency(totalsInsight.vatDetected) : '—'} />
+              <SummaryRow
+                label="IVA estimado por diferencia"
+                value={totalsInsight.vatEstimatedFromDelta !== null && totalsInsight.vatEstimatedFromDelta > 0 ? formatCurrency(totalsInsight.vatEstimatedFromDelta) : '—'}
+              />
               <SummaryRow label="Total declarado en documento" value={header.declared_total ? formatCurrency(Number(header.declared_total)) : '—'} />
               <SummaryRow
                 label={totalsInsight.vatLikelyExplainsDelta ? 'Delta real (declarado - (base + IVA))' : 'Diferencia declarada'}
@@ -1456,6 +1459,8 @@ export function ProcurementDocumentDetailManager({
             >
               {totalsInsight.vatLikelyExplainsDelta
                 ? 'El delta declarado-calculado parece corresponder al IVA detectado; no se marca como discrepancia real de OCR.'
+                : totalsInsight.vatDetected === null && totalsInsight.vatEstimatedFromDelta !== null && totalsInsight.vatEstimatedFromDelta > 0
+                  ? 'La diferencia podría corresponder a IVA, pero no hay señal fiscal OCR suficientemente fiable para confirmarlo.'
                 : totalsInsight.grossDelta !== null && Math.abs(totalsInsight.grossDelta) >= 0.01
                   ? 'Hay delta real relevante entre declarado y base+IVA estimados. Revisa líneas no imputables o importes OCR.'
                   : 'Declarado y calculado están alineados (sin delta real relevante).'}
