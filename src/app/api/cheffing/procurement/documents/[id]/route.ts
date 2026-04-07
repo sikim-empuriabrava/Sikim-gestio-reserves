@@ -10,6 +10,34 @@ import { upsertPossibleDocumentDuplicateSignal } from '@/lib/cheffing/procuremen
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
+function normalizeSupplierComparable(field: 'tax_id' | 'email' | 'phone', value: string | null): string | null {
+  if (!value) return null;
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+  if (field === 'tax_id') return trimmed.replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
+  if (field === 'email') return trimmed.toLowerCase();
+  return trimmed.replace(/[^\d+]/g, '');
+}
+
+function mergeUniqueSupplierContactValues(field: 'email' | 'phone', existingValue: string, detectedValue: string): string {
+  const splitRegex = /[;,|/]+/;
+  const values = `${existingValue}${field === 'email' ? ';' : ' / '}${detectedValue}`
+    .split(splitRegex)
+    .map((entry) => entry.trim())
+    .filter(Boolean);
+
+  const unique: string[] = [];
+  const seen = new Set<string>();
+  for (const value of values) {
+    const normalized = normalizeSupplierComparable(field, value);
+    if (!normalized || seen.has(normalized)) continue;
+    seen.add(normalized);
+    unique.push(value);
+  }
+
+  return unique.join(field === 'email' ? '; ' : ' / ');
+}
+
 export async function GET(_req: NextRequest, { params }: { params: { id: string } }) {
   const access = await requireCheffingRouteAccess();
   if (access.response) return access.response;
@@ -138,6 +166,89 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     const response = NextResponse.json({ error: mapped.message }, { status: mapped.status });
     mergeResponseCookies(access.supabaseResponse, response);
     return response;
+  }
+
+  const confirmedSupplierId = typeof updates.supplier_id === 'string' ? updates.supplier_id : null;
+  if (confirmedSupplierId) {
+    const { data: updatedDocument, error: updatedDocumentError } = await supabase
+      .from('cheffing_purchase_documents')
+      .select('id, interpreted_payload')
+      .eq('id', params.id)
+      .maybeSingle();
+
+    if (!updatedDocumentError && updatedDocument) {
+      const payload =
+        updatedDocument.interpreted_payload && typeof updatedDocument.interpreted_payload === 'object'
+          ? (updatedDocument.interpreted_payload as Record<string, unknown>)
+          : null;
+      const detectedSupplier =
+        payload?.supplier_detected && typeof payload.supplier_detected === 'object'
+          ? (payload.supplier_detected as Record<string, unknown>)
+          : null;
+
+      if (detectedSupplier) {
+        const detectedTaxId = typeof detectedSupplier.tax_id === 'string' ? detectedSupplier.tax_id.trim() || null : null;
+        const detectedEmail = typeof detectedSupplier.email === 'string' ? detectedSupplier.email.trim() || null : null;
+        const detectedPhone = typeof detectedSupplier.phone === 'string' ? detectedSupplier.phone.trim() || null : null;
+
+        const { data: supplierRow, error: supplierError } = await supabase
+          .from('cheffing_suppliers')
+          .select('id, tax_id, email, phone')
+          .eq('id', confirmedSupplierId)
+          .maybeSingle();
+
+        if (!supplierError && supplierRow) {
+          const supplierUpdates: Record<string, string> = {};
+
+          if (detectedTaxId) {
+            const existingTaxComparable = normalizeSupplierComparable('tax_id', supplierRow.tax_id);
+            const detectedTaxComparable = normalizeSupplierComparable('tax_id', detectedTaxId);
+            if (!existingTaxComparable) {
+              supplierUpdates.tax_id = detectedTaxId;
+            } else if (detectedTaxComparable && existingTaxComparable !== detectedTaxComparable) {
+              console.info('[cheffing][procurement] Supplier tax_id conflict detected on header save; no auto-overwrite', {
+                documentId: params.id,
+                supplierId: confirmedSupplierId,
+              });
+            }
+          }
+
+          if (detectedEmail) {
+            const existingEmail = supplierRow.email?.trim() || null;
+            if (!existingEmail) {
+              supplierUpdates.email = detectedEmail;
+            } else {
+              const merged = mergeUniqueSupplierContactValues('email', existingEmail, detectedEmail);
+              if (merged !== existingEmail) supplierUpdates.email = merged;
+            }
+          }
+
+          if (detectedPhone) {
+            const existingPhone = supplierRow.phone?.trim() || null;
+            if (!existingPhone) {
+              supplierUpdates.phone = detectedPhone;
+            } else {
+              const merged = mergeUniqueSupplierContactValues('phone', existingPhone, detectedPhone);
+              if (merged !== existingPhone) supplierUpdates.phone = merged;
+            }
+          }
+
+          if (Object.keys(supplierUpdates).length > 0) {
+            const { error: supplierUpdateError } = await supabase
+              .from('cheffing_suppliers')
+              .update(supplierUpdates)
+              .eq('id', confirmedSupplierId);
+            if (supplierUpdateError) {
+              console.warn('[cheffing][procurement] Supplier enrichment on header save failed', {
+                documentId: params.id,
+                supplierId: confirmedSupplierId,
+                error: supplierUpdateError.message,
+              });
+            }
+          }
+        }
+      }
+    }
   }
 
   try {

@@ -31,7 +31,7 @@ export function ProcurementDocumentsManager({
   const [manualError, setManualError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [form, setForm] = useState({
-    document_kind: 'invoice' as ProcurementDocumentKind,
+    document_kind: 'delivery_note' as ProcurementDocumentKind,
     document_number: '',
     document_date: new Date().toISOString().slice(0, 10),
     supplier_id: '',
