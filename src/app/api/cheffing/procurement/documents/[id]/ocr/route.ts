@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createSupabaseAdminClient } from '@/lib/supabaseAdmin';
 import { normalizeProcurementCanonicalUnit, normalizeProcurementText, type ProcurementCanonicalUnit } from '@/lib/cheffing/procurement';
 import { runOpenAiOcrCleanup, shouldRunOpenAiOcrCleanup, type OpenAiOcrCleanupLine } from '@/lib/cheffing/procurement/openaiOcrCleanup';
+import { upsertPossibleDocumentDuplicateSignal } from '@/lib/cheffing/procurementDuplicateSignal';
 import { requireCheffingRouteAccess } from '@/lib/cheffing/requireCheffingRoute';
 import { mergeResponseCookies } from '@/lib/supabase/route';
 
@@ -1522,7 +1523,7 @@ function detectAutoExcludedLines(input: {
 }
 
 export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
-  const access = await requireCheffingRouteAccess();
+  const access = await requireCheffingRouteAccess({ allowMantenimiento: true });
   if (access.response) return access.response;
 
   const azureEndpoint = process.env.AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT?.trim();
@@ -2201,6 +2202,15 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   }
   if (refsError) {
     console.warn('[procurement OCR] supplier refs not available for OpenAI cleanup context', refsError.message);
+  }
+
+  try {
+    await upsertPossibleDocumentDuplicateSignal({ supabase, documentId: params.id });
+  } catch (signalError) {
+    console.warn('[procurement OCR] Duplicate signal check failed after OCR', {
+      document_id: params.id,
+      error: signalError instanceof Error ? signalError.message : 'unknown',
+    });
   }
 
   const response = NextResponse.json({

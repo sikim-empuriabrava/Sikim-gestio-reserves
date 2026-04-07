@@ -182,14 +182,13 @@ Separación operativa vigente:
 Capacidades del intake inicial:
 - acciones explícitas para **hacer foto** (preferencia de cámara trasera cuando el navegador lo permite) y **galería/archivo**;
 - formatos aceptados: **imagen** y **PDF**;
-- flujo reutilizado: crear documento draft + subir archivo original + confirmación de envío.
+- flujo reutilizado: crear documento draft + subir archivo original + lanzar OCR automáticamente + confirmación de envío.
 
 ### 11.1 Señal prudente de posible duplicado documental (warning-first)
 
 Como base del siguiente bloque, los documentos draft calculan una señal conservadora de `possible_document_duplicate` y se persiste dentro de `interpreted_payload`:
 - estado (`none` o `possible_duplicate`), score, motivos y candidatos;
-- heurística prudente con metadatos disponibles (tipo, número, fecha, proveedor, total declarado);
+- heurística prudente con metadatos disponibles (tipo, número, fecha, proveedor, total declarado), con fallback desde `document_detected` y `supplier_existing_suggestion` cuando la cabecera DB aún está vacía;
 - **sin** auto-descartar, auto-borrar ni bloquear irreversiblemente.
 
 La política actual es de advertencia y trazabilidad para revisión manual posterior.
-

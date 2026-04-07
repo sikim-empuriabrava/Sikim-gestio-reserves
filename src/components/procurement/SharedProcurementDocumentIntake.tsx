@@ -157,11 +157,17 @@ export function SharedProcurementDocumentIntake({
 
       <p className="text-xs text-slate-500">Soportado en este bloque: 1 documento por subida (imagen o PDF).</p>
 
-      {isSubmitting ? <p className="text-sm text-sky-300">Subiendo documento y creando borrador…</p> : null}
+      {isSubmitting ? (
+        <p className="text-sm text-sky-300">
+          {runOcrAfterUpload ? 'Subiendo documento, creando borrador y lanzando OCR…' : 'Subiendo documento y creando borrador…'}
+        </p>
+      ) : null}
 
       {createdDocumentId ? (
         <p className="text-sm text-emerald-300">
-          Documento enviado correctamente. Queda como borrador pendiente de revisión por Cheffing.
+          {runOcrAfterUpload
+            ? 'Documento enviado y procesado con OCR inicial. Queda como borrador pendiente de revisión por Cheffing.'
+            : 'Documento enviado correctamente. Queda como borrador pendiente de revisión por Cheffing.'}
           {showDocumentLinkOnSuccess ? (
             <>
               {' '}
