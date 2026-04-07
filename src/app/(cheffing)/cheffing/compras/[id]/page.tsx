@@ -18,7 +18,7 @@ export default async function CheffingCompraDetailPage({ params }: { params: { i
       .eq('id', params.id)
       .order('line_number', { ascending: true, foreignTable: 'cheffing_purchase_document_lines' })
       .maybeSingle(),
-    supabase.from('cheffing_suppliers').select('id, trade_name').eq('is_active', true).order('trade_name', { ascending: true }),
+    supabase.from('cheffing_suppliers').select('id, trade_name, tax_id, email, phone').eq('is_active', true).order('trade_name', { ascending: true }),
     supabase.from('cheffing_ingredients').select('id, name').order('name', { ascending: true }),
     supabase.from('cheffing_units').select('code, name').order('code', { ascending: true }),
   ]);

@@ -16,7 +16,7 @@ import {
 } from '@/lib/cheffing/procurement';
 
 type Ingredient = { id: string; name: string };
-type Supplier = { id: string; trade_name: string };
+type Supplier = { id: string; trade_name: string; tax_id?: string | null; email?: string | null; phone?: string | null };
 type Unit = { code: string; name: string };
 
 type Line = {
@@ -283,6 +283,10 @@ export function ProcurementDocumentDetailManager({
   const interpretedPayload = (document.interpreted_payload && typeof document.interpreted_payload === 'object'
     ? document.interpreted_payload
     : null) as Record<string, unknown> | null;
+  const detectedSupplierRecord =
+    interpretedPayload?.supplier_detected && typeof interpretedPayload.supplier_detected === 'object'
+      ? (interpretedPayload.supplier_detected as Record<string, unknown>)
+      : null;
   const detectedDocument = useMemo(() => parseDetectedDocument(interpretedPayload), [interpretedPayload]);
 
   const possibleDocumentDuplicate = useMemo(() => {
@@ -330,6 +334,15 @@ export function ProcurementDocumentDetailManager({
           })
         : document.document_date,
     supplier_id: defaultSupplierId ?? '',
+    supplier_tax_id: document.supplier_id
+      ? (suppliers.find((supplier) => supplier.id === document.supplier_id)?.tax_id ?? '')
+      : (typeof detectedSupplierRecord?.tax_id === 'string' ? detectedSupplierRecord.tax_id : ''),
+    supplier_email: document.supplier_id
+      ? (suppliers.find((supplier) => supplier.id === document.supplier_id)?.email ?? '')
+      : (typeof detectedSupplierRecord?.email === 'string' ? detectedSupplierRecord.email : ''),
+    supplier_phone: document.supplier_id
+      ? (suppliers.find((supplier) => supplier.id === document.supplier_id)?.phone ?? '')
+      : (typeof detectedSupplierRecord?.phone === 'string' ? detectedSupplierRecord.phone : ''),
     validation_notes: document.validation_notes ?? '',
     declared_total: document.declared_total?.toString() ?? (document.status === 'draft' ? detectedDocument.declaredTotal : ''),
   });
@@ -375,6 +388,10 @@ export function ProcurementDocumentDetailManager({
   const hasLinesWithoutIngredient = lines.some((line) => !line.validated_ingredient_id);
   const hasLinesWithoutApplicableCost = lines.some((line) => line.raw_unit_price === null);
   const sourceFileKind = inferProcurementSourceFileKind(document.storage_path);
+  const persistedSupplierData = suppliers.find((supplier) => supplier.id === document.supplier_id) ?? null;
+  const initialHeaderSupplierTaxId = persistedSupplierData?.tax_id ?? (typeof detectedSupplierRecord?.tax_id === 'string' ? detectedSupplierRecord.tax_id : '');
+  const initialHeaderSupplierEmail = persistedSupplierData?.email ?? (typeof detectedSupplierRecord?.email === 'string' ? detectedSupplierRecord.email : '');
+  const initialHeaderSupplierPhone = persistedSupplierData?.phone ?? (typeof detectedSupplierRecord?.phone === 'string' ? detectedSupplierRecord.phone : '');
 
   const hasUnsavedHeaderChanges =
     header.supplier_id !== (document.supplier_id ?? '') ||
@@ -382,7 +399,10 @@ export function ProcurementDocumentDetailManager({
     normalizeNullableText(header.document_number) !== (document.document_number ?? null) ||
     header.document_date !== document.document_date ||
     normalizeNullableText(header.validation_notes) !== (document.validation_notes ?? null) ||
-    parseNullableNumber(header.declared_total) !== (document.declared_total ?? null);
+    parseNullableNumber(header.declared_total) !== (document.declared_total ?? null) ||
+    normalizeNullableText(header.supplier_tax_id) !== normalizeNullableText(initialHeaderSupplierTaxId) ||
+    normalizeNullableText(header.supplier_email) !== normalizeNullableText(initialHeaderSupplierEmail) ||
+    normalizeNullableText(header.supplier_phone) !== normalizeNullableText(initialHeaderSupplierPhone);
 
   const hasPendingSupplierSelection =
     !document.supplier_id && Boolean(header.supplier_id) && header.supplier_id !== document.supplier_id;
@@ -620,6 +640,11 @@ export function ProcurementDocumentDetailManager({
           document_number: header.document_number,
           document_date: header.document_date,
           supplier_id: header.supplier_id || null,
+          supplier_contact_updates: {
+            tax_id: header.supplier_tax_id || null,
+            email: header.supplier_email || null,
+            phone: header.supplier_phone || null,
+          },
           validation_notes: header.validation_notes,
           declared_total: header.declared_total ? Number(header.declared_total) : null,
         }),
@@ -651,6 +676,11 @@ export function ProcurementDocumentDetailManager({
           document_number: nextHeader.document_number,
           document_date: nextHeader.document_date,
           supplier_id: nextHeader.supplier_id || null,
+          supplier_contact_updates: {
+            tax_id: nextHeader.supplier_tax_id || null,
+            email: nextHeader.supplier_email || null,
+            phone: nextHeader.supplier_phone || null,
+          },
           validation_notes: nextHeader.validation_notes,
           declared_total: nextHeader.declared_total ? Number(nextHeader.declared_total) : null,
         }),
@@ -1246,6 +1276,32 @@ export function ProcurementDocumentDetailManager({
                     {supplierEnrichment.updateAttempt.warning ? <p className="mt-1 text-rose-200">Aviso actualización proveedor: {supplierEnrichment.updateAttempt.warning}</p> : null}
                   </div>
                 ) : null}
+                <div className="mt-2 grid gap-2">
+                  <input
+                    disabled={!isDraft}
+                    value={header.supplier_tax_id}
+                    onChange={(event) => setHeader({ ...header, supplier_tax_id: event.target.value })}
+                    placeholder="CIF/NIF proveedor (cabecera)"
+                    className="rounded-md border border-slate-700 bg-slate-950/70 px-3 py-2 text-white"
+                  />
+                  <p className="text-[11px] text-slate-400">Sugerido OCR: {detectedSupplier?.taxId ?? '—'}.</p>
+                  <input
+                    disabled={!isDraft}
+                    value={header.supplier_email}
+                    onChange={(event) => setHeader({ ...header, supplier_email: event.target.value })}
+                    placeholder="Email proveedor (cabecera)"
+                    className="rounded-md border border-slate-700 bg-slate-950/70 px-3 py-2 text-white"
+                  />
+                  <p className="text-[11px] text-slate-400">Sugerido OCR: {detectedSupplier?.email ?? '—'}.</p>
+                  <input
+                    disabled={!isDraft}
+                    value={header.supplier_phone}
+                    onChange={(event) => setHeader({ ...header, supplier_phone: event.target.value })}
+                    placeholder="Teléfono proveedor (cabecera)"
+                    className="rounded-md border border-slate-700 bg-slate-950/70 px-3 py-2 text-white"
+                  />
+                  <p className="text-[11px] text-slate-400">Sugerido OCR: {detectedSupplier?.phone ?? '—'}.</p>
+                </div>
                 {isDraft ? (
                   <div className="space-y-2">
                     {!isCreatingSupplier && !suggestedExistingSupplier?.shouldAutoSelect ? (

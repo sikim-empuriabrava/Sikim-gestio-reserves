@@ -189,6 +189,7 @@ Importante de permisos/mutación:
 - OCR desde mantenimiento se ejecuta en modo intake-only: genera payload/sugerencias y duplicate warnings, pero **no** muta maestro de proveedor.
 - OCR en cualquier flujo (mantenimiento, cheffing o admin) **no muta** `cheffing_suppliers`; solo interpreta y persiste sugerencias/warnings.
 - La mutación/enriquecimiento de proveedor queda reservada a **Guardar cabecera** en el borrador desde Compras (Pau/cheffing).
+- En cabecera del borrador se muestran sugerencias OCR editables (teléfono/email y, si aplica, tax_id) para confirmación manual antes de guardar.
 - Política de aplicación al guardar cabecera:
   - `tax_id`: no se sobreescribe automáticamente si entra en conflicto con valor previo.
   - `email` y `phone`: merge no destructivo, manteniendo existentes y agregando nuevos valores únicos.
