@@ -132,6 +132,12 @@ type DuplicateHint = {
   reason: string;
 };
 
+type LineSuggestionHint = {
+  reasonLabel: string;
+  isManualSuggestionCandidate: boolean;
+  isAutoHighConfidence: boolean;
+};
+
 const emptyLine = {
   raw_description: '',
   raw_quantity: '',
@@ -466,8 +472,8 @@ export function ProcurementDocumentDetailManager({
     };
   }, [interpretedPayload]);
 
-  const lineSuggestionReasonByLineNumber = useMemo(() => {
-    const out = new Map<number, string>();
+  const lineSuggestionHintByLineNumber = useMemo(() => {
+    const out = new Map<number, LineSuggestionHint>();
     const entries = interpretedPayload?.line_candidates_by_line_number;
     if (!Array.isArray(entries)) return out;
     for (const entry of entries) {
@@ -480,10 +486,48 @@ export function ProcurementDocumentDetailManager({
       const reasons = Array.isArray(topRecord.match_reasons) ? topRecord.match_reasons.filter((reason): reason is string => typeof reason === 'string') : [];
       const ingredientName = typeof topRecord.ingredient_name === 'string' ? topRecord.ingredient_name : null;
       if (!ingredientName) continue;
-      out.set(record.line_number, reasons.length > 0 ? `${ingredientName} (${reasons.join(', ')})` : ingredientName);
+      out.set(record.line_number, {
+        reasonLabel: reasons.length > 0 ? `${ingredientName} (${reasons.join(', ')})` : ingredientName,
+        isManualSuggestionCandidate: topRecord.is_manual_suggestion_candidate === true,
+        isAutoHighConfidence: topRecord.is_auto_high_confidence === true,
+      });
     }
     return out;
   }, [interpretedPayload]);
+
+  const totalsInsight = useMemo(() => {
+    const detectedDocumentRecord = interpretedPayload?.document_detected;
+    const detectedDocument =
+      detectedDocumentRecord && typeof detectedDocumentRecord === 'object'
+        ? (detectedDocumentRecord as Record<string, unknown>)
+        : null;
+    const subtotalDetected = typeof detectedDocument?.subtotal_detected === 'number' ? detectedDocument.subtotal_detected : calculatedLinesTotal;
+    const vatDetectedRaw = typeof detectedDocument?.vat_total_detected === 'number' ? detectedDocument.vat_total_detected : null;
+    const inferredVatFromDelta =
+      declaredTotalNumber !== null && Number.isFinite(declaredTotalNumber) ? Number((declaredTotalNumber - subtotalDetected).toFixed(2)) : null;
+    const vatDetected =
+      vatDetectedRaw !== null && Number.isFinite(vatDetectedRaw)
+        ? vatDetectedRaw
+        : inferredVatFromDelta !== null && inferredVatFromDelta > 0
+          ? inferredVatFromDelta
+          : null;
+    const expectedGross = declaredTotalNumber !== null && vatDetected !== null ? Number((subtotalDetected + vatDetected).toFixed(2)) : null;
+    const grossDelta =
+      declaredTotalNumber !== null && expectedGross !== null
+        ? Number((declaredTotalNumber - expectedGross).toFixed(2))
+        : totalsDelta;
+    const vatLikelyExplainsDelta =
+      totalsDelta !== null &&
+      vatDetected !== null &&
+      Math.abs(totalsDelta - vatDetected) <= 0.05 &&
+      (grossDelta === null || Math.abs(grossDelta) <= 0.05);
+    return {
+      subtotalDetected,
+      vatDetected,
+      grossDelta,
+      vatLikelyExplainsDelta,
+    };
+  }, [calculatedLinesTotal, declaredTotalNumber, interpretedPayload, totalsDelta]);
 
   const duplicateHintByLineNumber = useMemo(() => {
     const out = new Map<number, DuplicateHint>();
@@ -1064,9 +1108,14 @@ export function ProcurementDocumentDetailManager({
           <HeaderDatum label="Tipo" value={documentKindLabel(header.document_kind)} />
           <HeaderDatum label="Número" value={header.document_number || '—'} />
           <HeaderDatum label="Fecha" value={header.document_date} />
+          <HeaderDatum label="Subtotal líneas / base" value={formatCurrency(totalsInsight.subtotalDetected)} />
+          <HeaderDatum label="IVA detectado" value={totalsInsight.vatDetected !== null ? formatCurrency(totalsInsight.vatDetected) : '—'} />
           <HeaderDatum label="Total declarado" value={header.declared_total ? formatCurrency(Number(header.declared_total)) : '—'} />
           <HeaderDatum label="Líneas" value={String(linesCount)} />
-          <HeaderDatum label="Diferencia (declarado - calculado)" value={totalsDelta === null ? '—' : formatCurrency(totalsDelta)} />
+          <HeaderDatum
+            label={totalsInsight.vatLikelyExplainsDelta ? 'Delta real (sin IVA)' : 'Diferencia (declarado - calculado)'}
+            value={totalsInsight.grossDelta === null ? '—' : formatCurrency(totalsInsight.grossDelta)}
+          />
         </div>
       </header>
 
@@ -1285,7 +1334,7 @@ export function ProcurementDocumentDetailManager({
                     line={line}
                     ingredients={localIngredients}
                     suggestedIngredientId={line.suggested_ingredient_id}
-                    suggestedReason={lineSuggestionReasonByLineNumber.get(line.line_number) ?? null}
+                      suggestedHint={lineSuggestionHintByLineNumber.get(line.line_number) ?? null}
                     isDraft={isDraft}
                     isEditing={editingLineId === line.id}
                     onEdit={() => setEditingLineId(line.id)}
@@ -1390,20 +1439,26 @@ export function ProcurementDocumentDetailManager({
             <h3 className="text-sm font-semibold text-white">Resumen y readiness</h3>
             <dl className="space-y-2 text-sm">
               <SummaryRow label="Líneas" value={String(linesCount)} />
+              <SummaryRow label="Subtotal/base imponible (líneas)" value={formatCurrency(totalsInsight.subtotalDetected)} />
+              <SummaryRow label="IVA detectado (si aplica)" value={totalsInsight.vatDetected !== null ? formatCurrency(totalsInsight.vatDetected) : '—'} />
               <SummaryRow label="Total declarado en documento" value={header.declared_total ? formatCurrency(Number(header.declared_total)) : '—'} />
-              <SummaryRow label="Total calculado (líneas imputables)" value={formatCurrency(calculatedLinesTotal)} />
-              <SummaryRow label="Diferencia" value={totalsDelta === null ? '—' : formatCurrency(totalsDelta)} />
+              <SummaryRow
+                label={totalsInsight.vatLikelyExplainsDelta ? 'Delta real (declarado - (base + IVA))' : 'Diferencia declarada'}
+                value={totalsInsight.grossDelta === null ? '—' : formatCurrency(totalsInsight.grossDelta)}
+              />
             </dl>
             <p
               className={`rounded-lg p-2 text-xs ${
-                totalsDelta !== null && Math.abs(totalsDelta) >= 0.01
+                totalsInsight.grossDelta !== null && Math.abs(totalsInsight.grossDelta) >= 0.01
                   ? 'border border-amber-500/40 bg-amber-500/10 text-amber-200'
                   : 'border border-emerald-500/40 bg-emerald-500/10 text-emerald-200'
               }`}
             >
-              {totalsDelta !== null && Math.abs(totalsDelta) >= 0.01
-                ? 'Hay delta relevante entre declarado y calculado. Revisa IVA/base imponible o líneas no imputables.'
-                : 'Declarado y calculado están alineados (sin delta relevante).'}
+              {totalsInsight.vatLikelyExplainsDelta
+                ? 'El delta declarado-calculado parece corresponder al IVA detectado; no se marca como discrepancia real de OCR.'
+                : totalsInsight.grossDelta !== null && Math.abs(totalsInsight.grossDelta) >= 0.01
+                  ? 'Hay delta real relevante entre declarado y base+IVA estimados. Revisa líneas no imputables o importes OCR.'
+                  : 'Declarado y calculado están alineados (sin delta real relevante).'}
             </p>
 
             {readinessReasons.length > 0 ? (
@@ -1530,7 +1585,7 @@ function LineForm({ value, onChange, ingredients }: { value: typeof emptyLine; o
   );
 }
 
-function EditableLineRow({ line, ingredients, suggestedIngredientId, suggestedReason, isDraft, isEditing, isDirty, onEdit, onCancel, onSave, onDelete, onAcceptSuggestion, onCreateIngredient, onFormDirtyChange, duplicateHint, isSaving, isDeleting, isCreatingIngredient }: { line: Line; ingredients: Ingredient[]; suggestedIngredientId: string | null; suggestedReason: string | null; isDraft: boolean; isEditing: boolean; isDirty: boolean; onEdit: () => void; onCancel: () => void; onSave: (line: Line, updates: typeof emptyLine) => void; onDelete: (lineId: string) => void; onAcceptSuggestion: (line: Line) => void; onCreateIngredient: (line: Line) => void; onFormDirtyChange: (lineId: string, dirty: boolean) => void; duplicateHint: DuplicateHint | null; isSaving: boolean; isDeleting: boolean; isCreatingIngredient: boolean }) {
+function EditableLineRow({ line, ingredients, suggestedIngredientId, suggestedHint, isDraft, isEditing, isDirty, onEdit, onCancel, onSave, onDelete, onAcceptSuggestion, onCreateIngredient, onFormDirtyChange, duplicateHint, isSaving, isDeleting, isCreatingIngredient }: { line: Line; ingredients: Ingredient[]; suggestedIngredientId: string | null; suggestedHint: LineSuggestionHint | null; isDraft: boolean; isEditing: boolean; isDirty: boolean; onEdit: () => void; onCancel: () => void; onSave: (line: Line, updates: typeof emptyLine) => void; onDelete: (lineId: string) => void; onAcceptSuggestion: (line: Line) => void; onCreateIngredient: (line: Line) => void; onFormDirtyChange: (lineId: string, dirty: boolean) => void; duplicateHint: DuplicateHint | null; isSaving: boolean; isDeleting: boolean; isCreatingIngredient: boolean }) {
   const ingredientName = useMemo(() => {
     const source = line.validated_ingredient;
     return Array.isArray(source) ? source[0]?.name : source?.name;
@@ -1565,7 +1620,9 @@ function EditableLineRow({ line, ingredients, suggestedIngredientId, suggestedRe
           <p>{ingredientName ?? '—'}</p>
           {isDirty ? <p className="text-[11px] font-medium text-amber-300">Cambios pendientes</p> : null}
           {suggestedIngredientName ? <p className="text-xs text-sky-300">Sugerido: {suggestedIngredientName}</p> : null}
-          {suggestedReason ? <p className="text-[11px] text-slate-500">{suggestedReason}</p> : null}
+          {suggestedHint ? <p className="text-[11px] text-slate-500">{suggestedHint.reasonLabel}</p> : null}
+          {suggestedHint?.isManualSuggestionCandidate ? <p className="text-[11px] text-emerald-300">Sugerencia manual útil (1 clic)</p> : null}
+          {suggestedHint?.isAutoHighConfidence ? <p className="text-[11px] text-sky-300">Match alto (pipeline)</p> : null}
           {isFormDirty && pendingIngredientName && pendingIngredientName !== ingredientName ? (
             <p className="text-[11px] text-amber-300">Selección pendiente: {pendingIngredientName}</p>
           ) : null}
