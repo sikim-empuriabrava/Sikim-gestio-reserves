@@ -59,6 +59,14 @@ type OcrPossibleDuplicate = {
   reason: string;
 };
 
+type OcrExcludedLine = {
+  line_number: number;
+  raw_description: string;
+  exclusion_reason: string;
+  exclusion_type: 'section_header_non_purchasable' | 'shadow_duplicate_strong';
+  excluded_in_favor_of_line_number?: number;
+};
+
 type OcrCleanupMeta = {
   provider: 'openai';
   status: 'applied' | 'skipped' | 'failed';
@@ -294,6 +302,38 @@ function computeTokenOverlap(a: string[] | null | undefined, b: string[] | null 
   return intersection / union;
 }
 
+function buildCharacterTrigrams(value: string): string[] {
+  const compact = value.replace(/\s+/g, ' ').trim();
+  if (!compact) return [];
+  const padded = `  ${compact}  `;
+  const grams: string[] = [];
+  for (let index = 0; index <= padded.length - 3; index += 1) {
+    grams.push(padded.slice(index, index + 3));
+  }
+  return grams;
+}
+
+function computeDiceCoefficient(a: string | null, b: string | null): number {
+  if (!a || !b) return 0;
+  if (a === b) return 1;
+  const trigramsA = buildCharacterTrigrams(a);
+  const trigramsB = buildCharacterTrigrams(b);
+  if (!trigramsA.length || !trigramsB.length) return 0;
+
+  const counts = new Map<string, number>();
+  for (const gram of trigramsA) {
+    counts.set(gram, (counts.get(gram) ?? 0) + 1);
+  }
+  let intersection = 0;
+  for (const gram of trigramsB) {
+    const available = counts.get(gram) ?? 0;
+    if (available <= 0) continue;
+    counts.set(gram, available - 1);
+    intersection += 1;
+  }
+  return (2 * intersection) / (trigramsA.length + trigramsB.length);
+}
+
 function includesNormalizedText(haystack: string | null, needle: string | null): boolean {
   const normalizedHaystack = normalizeIngredientTextForMatch(haystack);
   const normalizedNeedle = normalizeIngredientTextForMatch(needle);
@@ -350,6 +390,12 @@ function buildSupplierCandidates(input: {
       const supplierPhone = normalizePhone(supplier.phone);
       const supplierTradeTokens = tokenizeSupplierForFuzzyMatch(supplier.trade_name);
       const supplierLegalTokens = tokenizeSupplierForFuzzyMatch(supplier.legal_name);
+      const detectedAndSupplierPairs = detectedNames.flatMap((detectedName) => {
+        const pairs: Array<{ kind: 'trade' | 'legal'; detected: string; supplier: string }> = [];
+        if (supplierTradeName) pairs.push({ kind: 'trade', detected: detectedName, supplier: supplierTradeName });
+        if (supplierLegalName) pairs.push({ kind: 'legal', detected: detectedName, supplier: supplierLegalName });
+        return pairs;
+      });
 
       if (taxId && supplierTaxId && taxId === supplierTaxId) {
         score += 80;
@@ -415,6 +461,22 @@ function buildSupplierCandidates(input: {
         }
       }
 
+      const bestFuzzyPair = detectedAndSupplierPairs
+        .map((pair) => ({ ...pair, similarity: computeDiceCoefficient(pair.detected, pair.supplier) }))
+        .sort((a, b) => b.similarity - a.similarity)[0];
+      if (bestFuzzyPair) {
+        if (bestFuzzyPair.similarity >= 0.92) {
+          score += bestFuzzyPair.kind === 'trade' ? 34 : 30;
+          reasons.push(bestFuzzyPair.kind === 'trade' ? 'trade_name_fuzzy_high' : 'legal_name_fuzzy_high');
+        } else if (bestFuzzyPair.similarity >= 0.86) {
+          score += bestFuzzyPair.kind === 'trade' ? 22 : 18;
+          reasons.push(bestFuzzyPair.kind === 'trade' ? 'trade_name_fuzzy_medium' : 'legal_name_fuzzy_medium');
+        }
+        if (bestFuzzyPair.similarity >= 0.86) {
+          trace.push(`name_fuzzy_${bestFuzzyPair.kind}:${bestFuzzyPair.similarity.toFixed(3)}:${bestFuzzyPair.detected}~${bestFuzzyPair.supplier}`);
+        }
+      }
+
       const tradeOverlap = computeTokenOverlap(detectedTokens, supplierTradeTokens);
       if (tradeOverlap >= 0.6) {
         score += 34;
@@ -465,15 +527,22 @@ function getSuggestedExistingSupplier(candidates: SupplierCandidateHint[]): Supp
   const hasHighTokenSignal = top.match_reasons.some(
     (reason) => reason === 'trade_name_token_overlap_high' || reason === 'legal_name_token_overlap_high',
   );
+  const hasHighFuzzySignal = top.match_reasons.some((reason) => reason === 'trade_name_fuzzy_high' || reason === 'legal_name_fuzzy_high');
   const hasNameSignal = top.match_reasons.some((reason) =>
     reason === 'trade_name_exact_normalized' ||
     reason === 'trade_name_substring' ||
     reason === 'legal_name_exact_normalized' ||
     reason === 'legal_name_substring' ||
     reason === 'trade_name_token_overlap_high' ||
-    reason === 'trade_name_token_overlap_medium',
+    reason === 'trade_name_token_overlap_medium' ||
+    reason === 'trade_name_fuzzy_high' ||
+    reason === 'legal_name_fuzzy_high' ||
+    reason === 'trade_name_fuzzy_medium' ||
+    reason === 'legal_name_fuzzy_medium',
   );
-  const isStrongMatch = hasIdentitySignal ? top.score_hint >= 85 : (hasExactNameSignal || hasLegalExactSignal || hasHighTokenSignal) && top.score_hint >= 60;
+  const isStrongMatch = hasIdentitySignal
+    ? top.score_hint >= 85
+    : (hasExactNameSignal || hasLegalExactSignal || hasHighTokenSignal || hasHighFuzzySignal) && top.score_hint >= 60;
   const isDominant = dominanceGap === null || dominanceGap >= 18;
   return {
     supplier_id: top.id,
@@ -1263,6 +1332,126 @@ function detectPossibleDuplicateLines(lines: OcrLineDetected[]): OcrPossibleDupl
   return hints;
 }
 
+function detectAutoExcludedLines(input: {
+  lines: OcrLineDetected[];
+  lineCandidatesByLineNumber: Array<{ line_number: number; candidates: LineCandidateHint[] }>;
+  possibleDuplicates: OcrPossibleDuplicate[];
+}): OcrExcludedLine[] {
+  const excluded = new Map<number, OcrExcludedLine>();
+  const candidatesByLineNumber = new Map(input.lineCandidatesByLineNumber.map((entry) => [entry.line_number, entry.candidates] as const));
+  const startsWithCodeLikePrefix = (value: string): boolean =>
+    /^\s*(?:(?:cod(?:igo)?|ref(?:erencia)?|art(?:iculo)?)\s*[:#-]?\s*[a-z0-9-]{2,16}|\d{2,12}(?:[-/][a-z0-9]{1,8})?|[a-z]{1,3}\d{2,8})\b/i.test(
+      value,
+    );
+  const normalizeDescription = (value: string): string =>
+    (normalizeProcurementText(value) ?? '')
+      .replace(/^\s*(?:cod(?:igo)?|ref(?:erencia)?|art(?:iculo)?)\s*[:#-]?\s*[a-z0-9-]{2,16}\s+/i, '')
+      .replace(/^\s*[a-z]{1,3}\d{2,8}\s+/i, '')
+      .replace(/^\s*\d{3,12}(?:[-/][a-z0-9]{1,8})?\s+/i, '');
+  const tokenizeDescription = (value: string): string[] =>
+    normalizeDescription(value)
+      .split(' ')
+      .map((token) => token.trim())
+      .filter((token) => token.length >= 3)
+      .filter((token) => !/^\d+(?:[.,]\d+)?$/.test(token));
+  const overlap = (left: string[], right: string[]): number => {
+    if (left.length === 0 || right.length === 0) return 0;
+    const intersection = left.filter((token) => right.includes(token)).length;
+    return intersection / Math.min(left.length, right.length);
+  };
+  const hasPositiveNumber = (value: number | null): boolean => typeof value === 'number' && Number.isFinite(value) && value > 0;
+  const lineRichnessScore = (line: OcrLineDetected): number => {
+    let score = tokenizeDescription(line.raw_description).length;
+    if (hasPositiveNumber(line.raw_quantity)) score += 1.5;
+    if (hasPositiveNumber(line.raw_unit_price)) score += 1;
+    if (hasPositiveNumber(line.raw_line_total)) score += 1;
+    if (line.product_code?.trim()) score += 0.5;
+    return score;
+  };
+  const topCandidate = (lineNumber: number): LineCandidateHint | null => candidatesByLineNumber.get(lineNumber)?.[0] ?? null;
+
+  for (const [index, line] of input.lines.entries()) {
+    const lineNumber = index + 1;
+    const normalizedDescription = normalizeDescription(line.raw_description);
+    if (!normalizedDescription) continue;
+
+    const warningsText = (line.warning_notes ?? '').toLowerCase();
+    const hasHeaderWarning =
+      warningsText.includes('section/category header') ||
+      warningsText.includes('not a purchasable line item') ||
+      warningsText.includes('cabecera') ||
+      warningsText.includes('categor');
+    const hasHeaderShape = /^[a-z0-9]+(?:[-/][a-z0-9]+){1,}$/i.test(normalizedDescription) || /^[a-z\s/-]+$/i.test(normalizedDescription);
+    const lacksPurchasingSignals = !hasPositiveNumber(line.raw_quantity) && !hasPositiveNumber(line.raw_unit_price) && !hasPositiveNumber(line.raw_line_total);
+    const strongestCandidate = topCandidate(lineNumber);
+    const hasStrongGrounding = Boolean(strongestCandidate && strongestCandidate.score_hint >= 55);
+
+    if (hasHeaderWarning && hasHeaderShape && lacksPurchasingSignals && !hasStrongGrounding) {
+      excluded.set(lineNumber, {
+        line_number: lineNumber,
+        raw_description: line.raw_description,
+        exclusion_reason: 'Detected as section/category header without quantity/price signals or strong ingredient grounding.',
+        exclusion_type: 'section_header_non_purchasable',
+      });
+    }
+  }
+
+  for (const duplicateHint of input.possibleDuplicates) {
+    if (duplicateHint.hint_type !== 'possible_shadow_code_line') continue;
+    const shadowLine = input.lines[duplicateHint.line_number - 1];
+    const survivorLine = input.lines[duplicateHint.duplicate_of_line_number - 1];
+    if (!shadowLine || !survivorLine) continue;
+    if (excluded.has(duplicateHint.line_number)) continue;
+
+    const shadowTokens = tokenizeDescription(shadowLine.raw_description);
+    const survivorTokens = tokenizeDescription(survivorLine.raw_description);
+    const descriptionOverlap = overlap(shadowTokens, survivorTokens);
+    const hasVeryStrongDescriptionMatch = descriptionOverlap >= 0.9 || computeDiceCoefficient(normalizeDescription(shadowLine.raw_description), normalizeDescription(survivorLine.raw_description)) >= 0.92;
+    if (!hasVeryStrongDescriptionMatch) continue;
+
+    const sameQuantity =
+      !hasPositiveNumber(shadowLine.raw_quantity) ||
+      !hasPositiveNumber(survivorLine.raw_quantity) ||
+      Math.abs((shadowLine.raw_quantity ?? 0) - (survivorLine.raw_quantity ?? 0)) <= 0.001;
+    const samePrice =
+      !hasPositiveNumber(shadowLine.raw_unit_price) ||
+      !hasPositiveNumber(survivorLine.raw_unit_price) ||
+      Math.abs((shadowLine.raw_unit_price ?? 0) - (survivorLine.raw_unit_price ?? 0)) <= 0.001;
+    const sameTotal =
+      !hasPositiveNumber(shadowLine.raw_line_total) ||
+      !hasPositiveNumber(survivorLine.raw_line_total) ||
+      Math.abs((shadowLine.raw_line_total ?? 0) - (survivorLine.raw_line_total ?? 0)) <= 0.001;
+    const hasStrongEconomicCoherence = sameQuantity && samePrice && sameTotal;
+    if (!hasStrongEconomicCoherence) continue;
+
+    const shadowRichness = lineRichnessScore(shadowLine);
+    const survivorRichness = lineRichnessScore(survivorLine);
+    const clearQualityDominance =
+      survivorRichness - shadowRichness >= 1.5 ||
+      (startsWithCodeLikePrefix(shadowLine.raw_description) && !startsWithCodeLikePrefix(survivorLine.raw_description));
+    if (!clearQualityDominance) continue;
+
+    const shadowTopCandidate = topCandidate(duplicateHint.line_number);
+    const survivorTopCandidate = topCandidate(duplicateHint.duplicate_of_line_number);
+    const candidateCoherence =
+      !shadowTopCandidate ||
+      !survivorTopCandidate ||
+      shadowTopCandidate.ingredient_id === survivorTopCandidate.ingredient_id ||
+      shadowTopCandidate.score_hint < 45;
+    if (!candidateCoherence) continue;
+
+    excluded.set(duplicateHint.line_number, {
+      line_number: duplicateHint.line_number,
+      raw_description: shadowLine.raw_description,
+      exclusion_reason: 'Strong shadow duplicate auto-excluded; richer sibling line kept for manual review.',
+      exclusion_type: 'shadow_duplicate_strong',
+      excluded_in_favor_of_line_number: duplicateHint.duplicate_of_line_number,
+    });
+  }
+
+  return Array.from(excluded.values()).sort((a, b) => a.line_number - b.line_number);
+}
+
 export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
   const access = await requireCheffingRouteAccess();
   if (access.response) return access.response;
@@ -1655,6 +1844,12 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       supplierSuggestion: suggestedExistingSupplier,
     }),
   );
+  const excludedLines = detectAutoExcludedLines({
+    lines: linesForFinalCandidateMatching,
+    lineCandidatesByLineNumber,
+    possibleDuplicates,
+  });
+  const excludedLineNumbers = new Set(excludedLines.map((entry) => entry.line_number));
 
   const documentDetected = {
     ...documentDetectedRaw,
@@ -1807,6 +2002,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     document_detected_raw: documentDetectedRaw,
     lines_detected: linesDetected,
     lines_detected_raw: linesDetectedRaw,
+    excluded_lines: excludedLines,
     possible_duplicates: possibleDuplicates,
     line_candidates_by_line_number: lineCandidatesByLineNumber,
     line_candidate_matching_meta: {
@@ -1858,7 +2054,9 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
 
   let insertedLines = 0;
   if ((currentLinesCount ?? 0) === 0 && linesDetected.length > 0) {
-    const rows = linesDetected.map((line, index) => {
+    const rows = linesDetected.flatMap((line, index) => {
+      const lineNumber = index + 1;
+      if (excludedLineNumbers.has(lineNumber)) return [];
       const cleanup = cleanupByLine.get(index + 1);
       const interpretedDescription = cleanup?.cleaned_description?.trim() || line.raw_description;
       const interpretedQuantity = cleanup?.quantity_interpreted ?? line.raw_quantity;
@@ -1874,10 +2072,10 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
           ? cleanup.ingredient_match.ingredient_id
           : null;
 
-      const duplicateHint = duplicateByLineNumber.get(index + 1);
-      return {
+      const duplicateHint = duplicateByLineNumber.get(lineNumber);
+      return [{
         document_id: params.id,
-        line_number: index + 1,
+        line_number: lineNumber,
         raw_description: line.raw_description,
         raw_quantity: line.raw_quantity,
         raw_unit: line.raw_unit,
@@ -1907,7 +2105,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
           .filter(Boolean)
           .join(' ') || null,
         user_note: null,
-      };
+      }];
     });
 
     const { error: insertError } = await supabase.from('cheffing_purchase_document_lines').insert(rows);
@@ -1933,6 +2131,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     ok: true,
     inserted_lines: insertedLines,
     lines_detected_count: linesDetected.length,
+    excluded_lines_count: excludedLines.length,
     supplier_detected: supplierDetected,
     supplier_existing_suggestion: suggestedExistingSupplier,
     supplier_enrichment: supplierEnrichment,

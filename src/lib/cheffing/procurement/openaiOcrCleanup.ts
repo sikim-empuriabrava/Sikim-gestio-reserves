@@ -250,6 +250,8 @@ export async function runOpenAiOcrCleanup(input: {
             content:
               'Devuelve salida estructurada estricta para cleanup OCR. Mantén trazabilidad azure/openai.\n' +
               'Reglas: no inventar valores si no hay señal clara; ante ambigüedad añade warning; ingrediente_match solo high si evidencia fuerte.\n' +
+              'Si una línea parece cabecera/categoría no comprable, añade warning explícito tipo "section/category header" y evita inventar cantidad/precio.\n' +
+              'Si detectas posible línea sombra/codificada duplicada, añade warning explícito tipo "possible shadow duplicate", pero NO sumes ni fusiones cantidades/importes.\n' +
               'supplier_id y validated_ingredient_id nunca se autoconfirman en este paso; solo sugerencias conservadoras.\n' +
               'Usa supplier_candidates y line_candidates_by_line_number como grounding principal (no resolver fuera de shortlist).\n' +
               'No incluyas razonamiento largo, solo reasoning_short breve.\n\n' +

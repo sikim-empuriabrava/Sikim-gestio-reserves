@@ -66,6 +66,7 @@ Si hay sugerencia de proveedor existente en payload interpretado, la UI de detal
 - El matching final de líneas usa la mejor representación disponible tras cleanup (sin perder referencia de la línea raw).
 - La normalización se separa por dominio: proveedor (nombres societarios) vs ingrediente/producto (texto OCR de línea/ref).
 - El bonus de proveedor en candidaturas de ingredientes se centra en el proveedor top sugerido (especialmente si es fuerte/dominante), evitando inflar refs de candidatos secundarios.
+- El matching de proveedor añade una capa fuzzy (Dice sobre trigramas normalizados) para variantes cercanas reales (`frigorificos` vs `frigorifics`) sin sustituir señales fuertes (NIF/email/teléfono/exact).
 
 ### 2.5 Hints de revisión en líneas
 La UI diferencia tipos de hint documentados en payload:
@@ -74,6 +75,12 @@ La UI diferencia tipos de hint documentados en payload:
 - `possible_shadow_code_line` (repetición parcial/codificada o de menor calidad donde conviene revisión manual prudente).
 
 El criterio vigente prioriza evitar deduplicación agresiva: ante dudas de prefijo/código, texto parcial o señal económica incompleta, se degrada a warning conservador en lugar de `duplicate`.
+
+Además, el backend aplica exclusión automática **solo en alta confianza** antes de insertar líneas revisables:
+- `section_header_non_purchasable`: líneas de cabecera/sección no comprables (sin cantidad/precio útil y sin grounding convincente) se excluyen de revisión manual.
+- `shadow_duplicate_strong`: en duplicado sombra fuerte se conserva únicamente la línea más rica/fiable y se excluye la sombra.
+
+Las líneas excluidas no se insertan en `cheffing_purchase_document_lines`, pero quedan trazadas en `interpreted_payload.excluded_lines` con motivo y (si aplica) línea superviviente.
 
 ---
 
