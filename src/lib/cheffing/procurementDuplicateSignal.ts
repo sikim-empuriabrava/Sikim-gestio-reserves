@@ -11,6 +11,7 @@ type ProcurementDocumentDuplicateSignal = {
 type DocumentForDuplicateCheck = {
   id: string;
   status: 'draft' | 'applied' | 'discarded';
+  created_at: string;
   supplier_id: string | null;
   document_kind: string;
   document_number: string | null;
@@ -66,18 +67,22 @@ function getComparableFields(document: DocumentForDuplicateCheck): DuplicateComp
   const payload = safePayload(document.interpreted_payload);
   const detectedDocument = getPayloadRecord(payload, 'document_detected');
   const supplierSuggestion = getPayloadRecord(payload, 'supplier_existing_suggestion');
+  const dbDate = normalizeDate(document.document_date);
+  const detectedDate = normalizeDate(detectedDocument?.document_date);
+  const createdDate = normalizeDate(document.created_at?.slice(0, 10));
+  const shouldUseDetectedDate = Boolean(detectedDate) && (!dbDate || (createdDate && dbDate === createdDate));
+  const suggestionIsStrong =
+    supplierSuggestion?.should_auto_select === true ||
+    (supplierSuggestion?.is_strong_match === true && supplierSuggestion?.is_dominant === true);
 
   return {
     documentNumber:
       normalizeDocumentNumber(document.document_number) ??
       normalizeDocumentNumber(typeof detectedDocument?.document_number === 'string' ? detectedDocument.document_number : null),
-    documentDate:
-      normalizeDate(document.document_date) ??
-      normalizeDate(detectedDocument?.document_date) ??
-      new Date().toISOString().slice(0, 10),
+    documentDate: (shouldUseDetectedDate ? detectedDate : dbDate) ?? detectedDate ?? dbDate ?? new Date().toISOString().slice(0, 10),
     supplierId:
       normalizeSupplierId(document.supplier_id) ??
-      normalizeSupplierId(supplierSuggestion?.supplier_id),
+      (suggestionIsStrong ? normalizeSupplierId(supplierSuggestion?.supplier_id) : null),
     declaredTotal:
       normalizeDeclaredTotal(document.declared_total) ??
       normalizeDeclaredTotal(detectedDocument?.declared_total),
@@ -103,7 +108,7 @@ export async function upsertPossibleDocumentDuplicateSignal({
 }) {
   const { data: currentDocument, error: currentDocumentError } = await supabase
     .from('cheffing_purchase_documents')
-    .select('id, status, supplier_id, document_kind, document_number, document_date, declared_total, interpreted_payload')
+    .select('id, status, created_at, supplier_id, document_kind, document_number, document_date, declared_total, interpreted_payload')
     .eq('id', documentId)
     .maybeSingle<DocumentForDuplicateCheck>();
 
@@ -113,7 +118,7 @@ export async function upsertPossibleDocumentDuplicateSignal({
 
   const { data: candidates, error: candidatesError } = await supabase
     .from('cheffing_purchase_documents')
-    .select('id, status, supplier_id, document_kind, document_number, document_date, declared_total, interpreted_payload')
+    .select('id, status, created_at, supplier_id, document_kind, document_number, document_date, declared_total, interpreted_payload')
     .neq('id', documentId)
     .in('status', ['draft', 'applied'])
     .eq('document_kind', currentDocument.document_kind)

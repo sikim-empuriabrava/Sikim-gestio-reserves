@@ -211,15 +211,6 @@ export async function DELETE(_req: NextRequest, { params }: { params: { id: stri
     return response;
   }
 
-  try {
-    await upsertPossibleDocumentDuplicateSignal({ supabase, documentId: params.id });
-  } catch (signalError) {
-    console.warn('[cheffing][procurement] Duplicate signal check failed on document patch', {
-      documentId: params.id,
-      error: signalError instanceof Error ? signalError.message : 'unknown',
-    });
-  }
-
   const response = NextResponse.json({ ok: true });
   mergeResponseCookies(access.supabaseResponse, response);
   return response;
