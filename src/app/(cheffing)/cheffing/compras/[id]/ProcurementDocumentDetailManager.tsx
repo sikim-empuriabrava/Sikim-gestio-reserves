@@ -361,6 +361,9 @@ export function ProcurementDocumentDetailManager({
 
   const hasPendingSupplierSelection =
     !document.supplier_id && Boolean(header.supplier_id) && header.supplier_id !== document.supplier_id;
+  const createSupplierBlockedReason = hasUnsavedHeaderChanges
+    ? 'Guarda primero la cabecera (hay cambios pendientes) para evitar crear proveedor con contexto desactualizado.'
+    : null;
 
   const readinessReasons = [
     !document.supplier_id ? 'Falta proveedor confirmado en DB (guarda cabecera para confirmar proveedor).' : null,
@@ -1162,6 +1165,7 @@ export function ProcurementDocumentDetailManager({
                         type="button"
                         onClick={openNewSupplierForm}
                         disabled={hasUnsavedHeaderChanges}
+                        title={createSupplierBlockedReason ?? undefined}
                         className="text-xs font-semibold text-emerald-300 underline decoration-dotted underline-offset-4 disabled:cursor-not-allowed disabled:text-slate-500"
                       >
                         Crear nuevo proveedor
@@ -1215,8 +1219,8 @@ export function ProcurementDocumentDetailManager({
                         </div>
                       </div>
                     ) : null}
-                    {hasUnsavedHeaderChanges ? (
-                      <p className="text-xs text-amber-300">Guarda primero la cabecera antes de crear y asignar un proveedor nuevo.</p>
+                    {createSupplierBlockedReason ? (
+                      <p className="text-xs text-amber-300">{createSupplierBlockedReason}</p>
                     ) : null}
                   </div>
                 ) : null}
