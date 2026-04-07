@@ -1,228 +1,143 @@
-# Cheffing — Modelo técnico inicial de Proveedores y Compras
+# Cheffing — Compras/Procurement técnico (estado actual)
 
-## Alcance de esta PR
+## Propósito de este documento
+Este documento sustituye la foto previa de “modelo inicial” y alinea la documentación con el estado real del repo a fecha **2026-04-07**.
 
-Esta PR deja preparada la base de datos y el diseño técnico para el bloque funcional de:
+> Contexto: la versión anterior describía Compras como una V1 manual con OCR/LLM fuera de alcance. Ese encuadre ya no refleja el código actual.
 
-- Proveedores.
-- Documentos de compra (factura/albarán).
-- Líneas de documento.
-- Referencias de compra por proveedor.
-- Auditoría simple de cambios de coste.
+---
 
-Fuera de alcance (intencionadamente):
+## 1) Alcance real actual del bloque de Compras
+El flujo de Compras en el repo ya cubre un circuito operativo completo de **documento draft revisable** con OCR asistido:
 
-- OCR real.
-- Extracción/validación por LLM.
-- UI completa OCR/LLM y automatizaciones avanzadas.
-- Job real de borrado en Storage.
+- alta/listado de documentos de compra en `/cheffing/compras`;
+- detalle operativo en `/cheffing/compras/[id]`;
+- subida y preview de archivo original (imagen/PDF);
+- procesamiento OCR real vía Azure Document Intelligence (`prebuilt-invoice`);
+- cleanup/interpretación adicional con OpenAI (cuando está habilitado por entorno);
+- persistencia separada de capa **raw**, capa **interpreted/normalized** y capa **validated**;
+- revisión manual asistida de cabecera, proveedor y líneas antes de aplicar.
 
-## Estado funcional actual (V1 manual)
+No se documenta aquí como “cerrado al 100%”: sigue habiendo heurística y decisiones abiertas (ver sección 8).
 
-Además del scaffold de base de datos, ahora existe una **V1 manual usable en UI** para Pau dentro de Cheffing.
+---
 
-Incluye:
+## 2) Estado funcional actual
 
-- Subida real de archivo original (imagen/PDF) por documento draft a Supabase Storage.
-- Consulta/preview del documento original desde la ficha `/cheffing/compras/[id]`.
-- Distinción UI entre proveedor confirmado y bloque scaffold de proveedor detectado (sin OCR real).
+### 2.1 Listado y entrada a detalle (`/cheffing/compras`)
+- El listado carga documentos y proveedores activos.
+- El copy de la página ya declara explícitamente “flujo draft revisable” y “pase inicial OCR”.
 
-- Sección de navegación con `Compras` y `Proveedores`.
-- Gestión manual de proveedores (`/cheffing/proveedores`): listado, alta, edición y búsqueda básica.
-- Gestión manual de documentos (`/cheffing/compras`): listado con estados, creación manual de documento draft, descarte, recuperación desde `discarded` y borrado definitivo para no aplicados.
-- Detalle de documento (`/cheffing/compras/[id]`) rediseñado como **ficha operativa única** para manual + OCR futuro:
-  - cabecera fuerte (proveedor, tipo, número, fecha, estado, notas, total declarado),
-  - sección de líneas como núcleo operativo (descripción, ingrediente, cantidad, unidad, p.unitario, total, warning, estado),
-  - bloque lateral de resumen/readiness con razones legibles de bloqueo para aplicar,
-  - acciones jerarquizadas por estado (`draft`, `applied`, `discarded`) en la misma pantalla.
+### 2.2 Detalle operativo (`/cheffing/compras/[id]`)
+En la ficha de documento existe revisión operativa real sobre cabecera + líneas:
 
-### Qué queda fuera en esta V1 manual
+- cabecera editable en draft (tipo, número, fecha, proveedor, notas, total declarado);
+- preview de archivo original firmado temporalmente;
+- líneas renderizadas y ordenadas por `line_number`;
+- edición por fila (guardar línea a línea), con estado local por fila;
+- tracking de cambios (dirty) por línea/modelo/formulario;
+- estados por fila durante operaciones (`saving`, `deleting`), sin bloquear globalmente toda la tabla;
+- validaciones de readiness antes de aplicar (incluyendo líneas dirty y condiciones de completitud).
 
-Se mantiene fuera de alcance en esta PR:
+### 2.3 OCR real (backend)
+El endpoint `POST /api/cheffing/procurement/documents/[id]/ocr`:
 
-- OCR real.
-- LLM real.
-- Job de limpieza de Storage.
-- Analítica avanzada.
+- descarga el archivo origen desde Storage con signed URL;
+- llama a Azure Document Intelligence (`2024-11-30`, modelo `prebuilt-invoice`);
+- parsea proveedor, metadatos documentales y líneas detectadas;
+- genera hints de duplicado y “línea sombra/código”;
+- opcionalmente ejecuta cleanup OpenAI sobre OCR bruto + candidatos internos;
+- actualiza el documento con `ocr_raw_text` + `interpreted_payload`;
+- inserta líneas detectadas como base revisable (`line_status = unresolved`).
 
-### Aplicación manual V1 ya habilitada
+### 2.4 Sugerencia/confirmación de proveedor y enriquecimiento prudente
+Si hay sugerencia de proveedor existente en payload interpretado, la UI de detalle muestra:
 
-- Desde `/cheffing/compras/[id]`, un documento `draft` se puede aplicar completo cuando cumple validaciones.
-- La aplicación crea auditoría por línea en `cheffing_ingredient_cost_audit`.
-- La actualización de coste vigente se recalcula por cronología documental (`document_effective_at`), no por momento de validación.
-- En empate temporal no resoluble para el mismo ingrediente, se prioriza el `new_cost` más alto.
-- Tras aplicar, el documento queda en solo lectura (cabecera y líneas).
-- Los documentos `discarded` pueden recuperarse a `draft`.
-- El borrado definitivo solo está permitido en `draft` y `discarded` (nunca en `applied`).
+- sugerencia con score/hints;
+- acción explícita para **“Confirmar proveedor sugerido y guardar cabecera”**;
+- bloque de estado de enriquecimiento del proveedor (auto-fill prudente, conflictos y warning de update).
 
+### 2.5 Hints de revisión en líneas
+La UI diferencia tipos de hint documentados en payload:
 
-## Principios funcionales implementados
+- `duplicate`;
+- `possible_shadow_code_line`.
 
-1. **El histórico se conserva siempre**: no se sobrescriben líneas históricas ni auditoría.
-2. **Modo borrador/aplicación completa**: el documento se aplica entero, no por líneas parciales.
-3. **No aplicar con líneas sin resolver**: la DB bloquea pasar a `applied` si existe alguna línea en estado distinto de `resolved`.
-4. **Proveedor nullable**: un documento puede existir sin proveedor validado.
-5. **Multiproveedor por ingrediente**: un ingrediente puede tener múltiples referencias en `cheffing_supplier_product_refs`.
-6. **Campo de conciliación documental**: `declared_total` permite comparar más adelante total declarado vs total calculado.
-7. **Retención de archivo original por estado**:
-   - `draft` / `discarded`: sin fecha de borrado (`storage_delete_after = null`).
-   - `applied`: elegible para borrado a +7 días (`storage_delete_after` se rellena automáticamente).
+Se muestran con mensaje distinto y permiten revisión manual contextual.
 
-## Entidades
+---
 
-## `cheffing_suppliers`
-Proveedor operativo.
+## 3) Capas de dato: raw / interpreted / validated
 
-Campos clave:
+El diseño activo mantiene separación de capas para evitar aplicar automáticamente datos no confirmados:
 
-- `trade_name`, `legal_name`.
-- `tax_id`, `normalized_tax_id`, `normalized_name`.
-- `phone`, `email`, `address`, `notes`.
-- `is_active`, `created_at`, `updated_at`.
+1. **Raw**
+   - OCR bruto textual (`ocr_raw_text`) y campos raw de líneas (`raw_*`).
+2. **Interpreted / normalized**
+   - `interpreted_payload` del documento.
+   - Campos `interpreted_*` y `normalized_*` por línea (incluyendo unidad/precios normalizados cuando aplica cleanup).
+3. **Validated**
+   - Confirmación operativa manual (ej. `validated_ingredient_id`, `line_status = resolved`, cabecera final).
 
-Notas:
+Esta separación sigue siendo clave para auditoría y control de riesgo.
 
-- La detección futura puede priorizar `normalized_tax_id` y luego `normalized_name`.
-- No se fuerza unicidad global de NIF/CIF en esta fase para mantener compatibilidad con cargas reales sucias.
+---
 
-## `cheffing_purchase_documents`
-Cabecera del documento de compra (factura/albarán/otro).
+## 4) Entidades principales (resumen)
 
-Campos clave:
+- `cheffing_suppliers`: proveedores operativos y datos de contacto/fiscales.
+- `cheffing_purchase_documents`: cabecera documental, storage, estado, OCR raw y payload interpretado.
+- `cheffing_purchase_document_lines`: líneas raw + interpreted/normalized + validación final.
+- `cheffing_supplier_product_refs`: referencias proveedor↔ingrediente para sugerencias/matching.
+- `cheffing_ingredient_cost_audit`: auditoría de cambios de coste al aplicar documentos.
 
-- `supplier_id` nullable.
-- `document_kind` (`invoice`, `delivery_note`, `other`).
-- `document_number`.
-- `document_date`, `document_time`, `effective_at`.
-- `storage_bucket`, `storage_path` (nullable), `storage_delete_after`.
-- `status` (`draft`, `applied`, `discarded`), donde `draft` cubre también el pendiente de validar en términos funcionales.
-- `ocr_raw_text` y `interpreted_payload` (jsonb) para futuras fases.
-- `created_by`, `validated_by`, `applied_by` + `validated_at`, `applied_at`, `discarded_at`.
-- `declared_total` (nullable, total declarado por el proveedor para futura comparación con el total calculado por líneas).
-- `validation_notes`, `created_at`, `updated_at`.
+---
 
-## `cheffing_purchase_document_lines`
-Líneas del documento.
+## 5) Flujo documental actual (alto nivel)
 
-Campos clave:
+1. Crear documento draft.
+2. Subir archivo original (opcional pero previsto como flujo normal).
+3. Lanzar OCR (si entorno/config preparados).
+4. Revisar/ajustar cabecera y proveedor.
+5. Revisar líneas una a una (ingrediente, unidad, coste, notas, hints).
+6. Aplicar documento cuando cumple reglas de readiness.
+7. Documento aplicado queda en solo lectura operativa.
 
-- `document_id`, `line_number`.
-- Raw: `raw_description`, `raw_quantity`, `raw_unit`, `raw_unit_price`, `raw_line_total`.
-- Interpretado/normalizado: `interpreted_*`, `normalized_*`.
-- Enlace ingrediente: `suggested_ingredient_id`, `validated_ingredient_id`.
-- Estado: `line_status` (`unresolved`, `resolved`) con regla DB: `resolved` requiere `validated_ingredient_id` no nulo.
-- `warning_notes`, `line_effective_at`, `created_at`, `updated_at`.
+---
 
-## `cheffing_supplier_product_refs`
-Relación multiproveedor ingrediente↔referencia de compra.
+## 6) Política de coste vigente (estado actual)
 
-Campos clave:
+Sigue activa la decisión conservadora de V1:
 
-- `supplier_id`, `ingredient_id`.
-- `supplier_product_description`, `supplier_product_alias`.
-- `normalized_supplier_product_name`.
-- `reference_unit_code`, `reference_format_qty`, `notes`.
-- `created_at`, `updated_at`.
+- al aplicar, el coste usado por línea para auditoría y recalculo vigente sale de `raw_unit_price`;
+- existe `normalized_unit_price` en modelo/líneas OCR, pero no es aún la fuente final de aplicación;
+- por tanto, esta política debe considerarse **temporal/pivotable** en futuros bloques cuando se consolide normalización.
 
-## `cheffing_ingredient_cost_audit`
-Auditoría simple de cambios de coste vigente de ingrediente.
+---
 
-Campos clave:
+## 7) Retención de archivo original
 
-- `ingredient_id`.
-- `purchase_document_id`, `purchase_document_line_id`.
-- `supplier_id`.
-- `previous_cost`, `new_cost`.
-- `document_effective_at`.
-- `applied_by`, `applied_at`, `created_at`.
+A nivel de modelo se mantiene `storage_delete_after` con trigger por estado documental:
 
-## Relaciones
+- `applied` => fecha elegible de borrado (+7 días);
+- resto de estados => `null`.
 
-- Documento (`cheffing_purchase_documents`) pertenece opcionalmente a proveedor.
-- Línea (`cheffing_purchase_document_lines`) pertenece a documento.
-- Línea puede tener ingrediente sugerido y validado.
-- Referencia de proveedor (`cheffing_supplier_product_refs`) conecta proveedor con ingrediente.
-- Auditoría conecta ingrediente + documento + línea + proveedor (nullable).
+Sigue pendiente un **job automático real** que ejecute la purga física en Storage según esa fecha.
 
-## Estados funcionales
+---
 
-Semántica de negocio visible:
+## 8) Pendientes y decisiones abiertas reales
 
-- `draft`: borrador en edición (incluye pendiente de validación manual).
-- `applied`: aplicado/validado a modelo de coste vigente.
-- `discarded`: descartado temporalmente; no se edita, pero puede recuperarse a `draft` o eliminarse definitivamente.
+Aunque el bloque está avanzado, no se documenta como final cerrado:
 
-Reglas de acciones por estado:
+- persisten heurísticas en extracción/matching OCR;
+- hay que seguir validando comportamiento con casos reales de proveedor/documento;
+- la estrategia final de duplicados y líneas sombra sigue afinándose (cuánto resolver en cleanup vs frontend/backend);
+- queda pendiente decidir el momento de migrar coste aplicado desde `raw_unit_price` a flujo normalizado estable;
+- la limpieza automática de Storage por retención todavía no está automatizada end-to-end.
 
-- `draft`: permite editar, descartar y eliminar definitivamente.
-- `discarded`: permite recuperar a `draft` y eliminar definitivamente.
-- `applied`: solo lectura; no permite recuperar ni eliminar definitivamente.
+---
 
-Regla de aplicación:
+## 9) Nota de uso para handoff
 
-- En inserción o transición a `applied`, si hay alguna línea `unresolved` o no hay líneas, la DB bloquea la operación.
-
-## Dato bruto vs interpretado vs validado
-
-Por diseño se separa en líneas:
-
-- **Bruto (raw)**: lectura original del documento.
-- **Interpretado/normalizado**: propuesta técnica (OCR/LLM futuro u otras heurísticas).
-- **Validado**: ingrediente final en `validated_ingredient_id` + estado `resolved`.
-
-Esto evita aplicar automáticamente datos no revisados.
-
-## Política de coste vigente (V1 manual)
-
-La aplicación manual registra eventos de coste en `cheffing_ingredient_cost_audit` y recalcula el vigente por ingrediente.
-
-1. El coste vigente de un ingrediente será el `new_cost` del último documento aplicado por `document_effective_at`.
-2. Si hay empate temporal no resoluble de forma fiable dentro del mismo día, se priorizará el `new_cost` más alto (histórico intacto).
-3. No se usa media ponderada.
-4. En V1 manual, `new_cost` sale de `raw_unit_price` de la línea (decisión temporal hasta disponer de normalización OCR/LLM).
-
-## Criterio temporal por fecha documental
-
-- `effective_at` se recalcula automáticamente en cada insert/update como `document_date + coalesce(document_time, 00:00:00)`.
-- `line_effective_at` se sincroniza automáticamente con `effective_at` de su documento tanto al crear/editar líneas como cuando cambia la cabecera.
-
-## Política de retención en Supabase Storage
-
-Modelada en documento con:
-
-- `storage_bucket`.
-- `storage_path`.
-- `storage_delete_after`.
-
-Regla automática actual:
-
-- Si estado `applied` ⇒ `storage_delete_after = now() + 7 days` (si estaba vacío).
-- Si estado distinto de `applied` ⇒ `storage_delete_after = null`.
-
-Pendiente en próxima fase:
-
-- Job programado real que purgue objetos vencidos en Storage.
-- OCR real y extracción automática de proveedor/líneas.
-
-## Seguridad y acceso
-
-Las nuevas tablas siguen el patrón existente de Cheffing:
-
-- RLS habilitado en todas.
-- `*_select` con `public.cheffing_is_allowed()`.
-- `*_write` con `public.cheffing_is_admin()`.
-
-Sin introducir un sistema nuevo de auth/autorización.
-
-## Decisiones mínimas pendientes
-
-1. **Normalización exacta de NIF/CIF y nombres**: función canónica a reutilizar en ingestas.
-2. **Migrar la fuente de coste** desde `raw_unit_price` a `normalized_unit_price` cuando exista flujo OCR/LLM fiable.
-3. **Job de limpieza Storage** (`storage_delete_after`) con trazabilidad.
-4. **Estrategia de deduplicación documental** (mismo proveedor+número+fecha) cuando llegue la carga real.
-
-## Nota de despliegue Supabase
-
-Además de la migración previa `20260326120000_cheffing_procurement_declared_total.sql`, esta fase añade `20260326170000_cheffing_procurement_storage_bucket.sql` para asegurar el bucket privado `cheffing-procurement-documents` y limitar MIME types permitidos (PDF/JPG/PNG/WEBP).
-
-En entornos donde no se ejecutan migraciones automáticas, hay que aplicar ambas migraciones manualmente en Supabase antes de usar la subida de archivo original desde UI/API.
+Este documento describe **estado actual implementado** en repo. Para decisiones de roadmap/“definitivo”, validar siempre sobre código + datos reales de operación antes de cerrar criterios de producto.
