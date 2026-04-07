@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 
 import { createSupabaseAdminClient } from '@/lib/supabaseAdmin';
 import { normalizeProcurementCanonicalUnit, normalizeProcurementText, type ProcurementCanonicalUnit } from '@/lib/cheffing/procurement';
-import { runOpenAiOcrCleanup, shouldRunOpenAiOcrCleanup } from '@/lib/cheffing/procurement/openaiOcrCleanup';
+import { runOpenAiOcrCleanup, shouldRunOpenAiOcrCleanup, type OpenAiOcrCleanupLine } from '@/lib/cheffing/procurement/openaiOcrCleanup';
 import { requireCheffingRouteAccess } from '@/lib/cheffing/requireCheffingRoute';
 import { mergeResponseCookies } from '@/lib/supabase/route';
 
@@ -246,8 +246,31 @@ function normalizeSupplierNameForMatch(value: string | null): string | null {
     .trim();
 }
 
-function tokenizeForFuzzyMatch(value: string | null): string[] {
+function normalizeIngredientTextForMatch(value: string | null): string | null {
+  const normalized = normalizeProcurementText(value);
+  if (!normalized) return null;
+  return normalized
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^\p{L}\p{N}\s]/gu, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function tokenizeSupplierForFuzzyMatch(value: string | null): string[] {
   const normalized = normalizeSupplierNameForMatch(value);
+  if (!normalized) return [];
+  const stopwords = new Set(['de', 'del', 'la', 'el', 'los', 'las', 'y', 'e']);
+  return normalized
+    .split(' ')
+    .map((token) => token.trim())
+    .filter((token) => token.length >= 3)
+    .filter((token) => !/^\d+(x\d+)?$/.test(token))
+    .filter((token) => !stopwords.has(token));
+}
+
+function tokenizeIngredientForFuzzyMatch(value: string | null): string[] {
+  const normalized = normalizeIngredientTextForMatch(value);
   if (!normalized) return [];
   const stopwords = new Set(['de', 'del', 'la', 'el', 'los', 'las', 'y', 'e']);
   return normalized
@@ -272,8 +295,8 @@ function computeTokenOverlap(a: string[] | null | undefined, b: string[] | null 
 }
 
 function includesNormalizedText(haystack: string | null, needle: string | null): boolean {
-  const normalizedHaystack = normalizeSupplierNameForMatch(haystack);
-  const normalizedNeedle = normalizeSupplierNameForMatch(needle);
+  const normalizedHaystack = normalizeIngredientTextForMatch(haystack);
+  const normalizedNeedle = normalizeIngredientTextForMatch(needle);
   if (!normalizedHaystack || !normalizedNeedle) return false;
   return normalizedHaystack.includes(normalizedNeedle) || normalizedNeedle.includes(normalizedHaystack);
 }
@@ -313,7 +336,7 @@ function buildSupplierCandidates(input: {
         .filter((entry): entry is string => Boolean(entry)),
     ),
   );
-  const detectedTokens = Array.from(new Set(detectedNames.flatMap((name) => tokenizeForFuzzyMatch(name))));
+  const detectedTokens = Array.from(new Set(detectedNames.flatMap((name) => tokenizeSupplierForFuzzyMatch(name))));
 
   return input.suppliers
     .map((supplier) => {
@@ -325,8 +348,8 @@ function buildSupplierCandidates(input: {
       const supplierLegalName = normalizeSupplierNameForMatch(supplier.legal_name);
       const supplierEmail = supplier.email?.trim().toLowerCase() || null;
       const supplierPhone = normalizePhone(supplier.phone);
-      const supplierTradeTokens = tokenizeForFuzzyMatch(supplier.trade_name);
-      const supplierLegalTokens = tokenizeForFuzzyMatch(supplier.legal_name);
+      const supplierTradeTokens = tokenizeSupplierForFuzzyMatch(supplier.trade_name);
+      const supplierLegalTokens = tokenizeSupplierForFuzzyMatch(supplier.legal_name);
 
       if (taxId && supplierTaxId && taxId === supplierTaxId) {
         score += 80;
@@ -493,19 +516,18 @@ function buildLineCandidates(input: {
   line: OcrLineDetected;
   ingredients: IngredientCandidateRow[];
   supplierProductRefs: SupplierProductRefRow[];
-  supplierCandidates: SupplierCandidateHint[];
+  supplierSuggestion: SupplierExistingSuggestion | null;
 }): { line_number: number; candidates: LineCandidateHint[] } {
   const normalizedDescription = normalizeProcurementText(input.line.raw_description);
   const normalizedProductCode = normalizeProcurementText(input.line.product_code);
-  const lineDescriptionTokens = tokenizeForFuzzyMatch(normalizedDescription);
-  const topSupplierIds = new Set(input.supplierCandidates.map((candidate) => candidate.id));
+  const lineDescriptionTokens = tokenizeIngredientForFuzzyMatch(normalizedDescription);
 
   const candidates = input.ingredients
     .map((ingredient) => {
       const reasons: string[] = [];
       let score = 0;
       const ingredientName = normalizeProcurementText(ingredient.name);
-      const ingredientTokens = tokenizeForFuzzyMatch(ingredient.name);
+      const ingredientTokens = tokenizeIngredientForFuzzyMatch(ingredient.name);
       const ingredientReference = normalizeProcurementText(ingredient.reference);
       const refs = input.supplierProductRefs.filter((ref) => ref.ingredient_id === ingredient.id);
       let bestRefContext: LineCandidateHint['supplier_ref_context'] = null;
@@ -533,8 +555,8 @@ function buildLineCandidates(input: {
         const refReasons: string[] = [];
         const refDescription = normalizeProcurementText(ref.supplier_product_description);
         const refAlias = normalizeProcurementText(ref.supplier_product_alias);
-        const refDescriptionTokens = tokenizeForFuzzyMatch(ref.supplier_product_description);
-        const refAliasTokens = tokenizeForFuzzyMatch(ref.supplier_product_alias);
+        const refDescriptionTokens = tokenizeIngredientForFuzzyMatch(ref.supplier_product_description);
+        const refAliasTokens = tokenizeIngredientForFuzzyMatch(ref.supplier_product_alias);
         const refMatchesText =
           (normalizedDescription && refDescription && includesNormalizedText(normalizedDescription, refDescription)) ||
           (normalizedDescription && refAlias && includesNormalizedText(normalizedDescription, refAlias));
@@ -552,9 +574,15 @@ function buildLineCandidates(input: {
           refScore += 12;
           refReasons.push('supplier_ref_token_overlap_medium');
         }
-        if (topSupplierIds.has(ref.supplier_id)) {
-          refScore += 22;
-          refReasons.push('supplier_candidate_bonus');
+        const suggestedSupplierId = input.supplierSuggestion?.supplier_id ?? null;
+        if (suggestedSupplierId && ref.supplier_id === suggestedSupplierId) {
+          if (input.supplierSuggestion?.is_dominant && input.supplierSuggestion?.is_strong_match) {
+            refScore += 26;
+            refReasons.push('supplier_top_dominant_bonus');
+          } else {
+            refScore += 10;
+            refReasons.push('supplier_top_candidate_bonus');
+          }
         }
         if (hasCompatibleUnit(input.line.raw_unit, ref.reference_unit_code)) {
           refScore += 10;
@@ -595,6 +623,20 @@ function buildLineCandidates(input: {
   return {
     line_number: input.lineNumber,
     candidates,
+  };
+}
+
+function buildBestLineForCandidateMatching(line: OcrLineDetected, cleanup: OpenAiOcrCleanupLine | undefined): OcrLineDetected {
+  if (!cleanup) return line;
+  return {
+    ...line,
+    raw_description: cleanup.cleaned_description?.trim() || line.raw_description,
+    raw_quantity: cleanup.quantity_interpreted ?? line.raw_quantity,
+    raw_unit: cleanup.unit_interpreted?.trim() || line.raw_unit,
+    raw_unit_price: cleanup.unit_price_interpreted ?? line.raw_unit_price,
+    raw_line_total: cleanup.line_total_interpreted ?? line.raw_line_total,
+    product_code: cleanup.product_code?.trim() || line.product_code,
+    validated_unit: cleanup.canonical_unit ?? line.validated_unit,
   };
 }
 
@@ -1463,7 +1505,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       line,
       ingredients: (ingredientCandidates ?? []) as IngredientCandidateRow[],
       supplierProductRefs: (supplierProductRefs ?? []) as SupplierProductRefRow[],
-      supplierCandidates: supplierCandidatesInitial,
+      supplierSuggestion: suggestedExistingSupplierInitial,
     }),
   );
 
@@ -1603,13 +1645,14 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     suppliers: (supplierCandidates ?? []) as SupplierCandidateRow[],
   });
   const suggestedExistingSupplier = getSuggestedExistingSupplier(supplierCandidatesRetrieved);
-  const lineCandidatesByLineNumber = linesDetectedRaw.map((line, index) =>
+  const linesForFinalCandidateMatching = linesDetected.map((line, index) => buildBestLineForCandidateMatching(line, cleanupByLine.get(index + 1)));
+  const lineCandidatesByLineNumber = linesForFinalCandidateMatching.map((line, index) =>
     buildLineCandidates({
       lineNumber: index + 1,
       line,
       ingredients: (ingredientCandidates ?? []) as IngredientCandidateRow[],
       supplierProductRefs: (supplierProductRefs ?? []) as SupplierProductRefRow[],
-      supplierCandidates: supplierCandidatesRetrieved,
+      supplierSuggestion: suggestedExistingSupplier,
     }),
   );
 
@@ -1766,6 +1809,22 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     lines_detected_raw: linesDetectedRaw,
     possible_duplicates: possibleDuplicates,
     line_candidates_by_line_number: lineCandidatesByLineNumber,
+    line_candidate_matching_meta: {
+      top_supplier_for_bonus: suggestedExistingSupplier
+        ? {
+            supplier_id: suggestedExistingSupplier.supplier_id,
+            score_hint: suggestedExistingSupplier.score_hint,
+            is_dominant: suggestedExistingSupplier.is_dominant,
+            is_strong_match: suggestedExistingSupplier.is_strong_match,
+          }
+        : null,
+      line_input_source: linesDetected.map((line, index) => ({
+        line_number: index + 1,
+        source: cleanupByLine.get(index + 1) ? 'post_cleanup' : 'raw_or_azure',
+        raw_description: linesDetectedRaw[index]?.raw_description ?? null,
+        effective_description: line.raw_description,
+      })),
+    },
     ocr_meta: {
       provider: 'azure_document_intelligence',
       model: AZURE_MODEL_ID,
