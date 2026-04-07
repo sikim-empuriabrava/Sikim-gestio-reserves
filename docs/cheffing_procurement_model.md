@@ -163,7 +163,7 @@ Este documento describe **estado actual implementado** en repo. Para decisiones 
 
 ## 10) Ajustes recientes en revisión OCR (neto/bruto + sugerencias manuales)
 
-- **Comparación económica neto vs bruto**: en la revisión de detalle se separa mejor el subtotal/base de líneas, el IVA detectado (si existe señal suficiente) y el total declarado. Cuando el delta entre declarado y calculado coincide con IVA detectado/estimado, se trata como caso esperado y no como “error OCR real”.
+- **Comparación económica neto vs bruto**: en la revisión de detalle se separan subtotal/base de líneas, IVA detectado (solo con señal OCR suficiente), IVA estimado por diferencia y total declarado. Solo cuando el delta cuadra con **IVA detectado real** se trata como caso esperado y no como discrepancia OCR real; si solo hay **IVA estimado por diferencia**, se muestra como hipótesis prudente para revisión, sin darlo por confirmado.
 - **Sugerencias de ingrediente manuales útiles**: el pipeline distingue entre:
   - `auto/high confidence` (señal fuerte y dominante);
   - `manual suggestion candidate` (útil para aceptar con 1 clic sin auto-validar);
