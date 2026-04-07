@@ -985,18 +985,27 @@ function mapDocumentKind(docType?: string): 'invoice' | 'delivery_note' | 'other
 
 function detectPossibleDuplicateLines(lines: OcrLineDetected[]): OcrPossibleDuplicate[] {
   const hints: OcrPossibleDuplicate[] = [];
-  const normalizeDescription = (value: string): string =>
-    normalizeProcurementText(
-      value
-        .replace(/^\s*(?:cod(?:igo)?|ref(?:erencia)?|art(?:iculo)?)\s*[:#-]?\s*[a-z0-9-]{2,16}\s+/i, '')
-        .replace(/^\s*[a-z]{1,3}\d{2,8}\s+/i, '')
-        .replace(/^\s*\d{4,12}(?:[-/][a-z0-9]{1,8})?\s+/i, ''),
-    ) ?? '';
+  const stripLeadingCodePrefix = (value: string): string =>
+    value
+      .replace(/^\s*(?:cod(?:igo)?|ref(?:erencia)?|art(?:iculo)?)\s*[:#-]?\s*[a-z0-9-]{2,16}\s+/i, '')
+      .replace(/^\s*[a-z]{1,3}\d{2,8}\s+/i, '')
+      .replace(/^\s*\d{3,12}(?:[-/][a-z0-9]{1,8})?\s+/i, '');
+  const normalizeDescription = (value: string): string => normalizeProcurementText(stripLeadingCodePrefix(value)) ?? '';
   const normalizeDescriptionWithoutStripping = (value: string): string => normalizeProcurementText(value) ?? '';
   const startsWithCodeLikePrefix = (value: string): boolean =>
     /^\s*(?:(?:cod(?:igo)?|ref(?:erencia)?|art(?:iculo)?)\s*[:#-]?\s*[a-z0-9-]{2,16}|\d{2,12}(?:[-/][a-z0-9]{1,8})?|[a-z]{1,3}\d{2,8})\b/i.test(
       value,
     );
+  const tokenizeCoreDescription = (value: string): string[] => {
+    const normalized = normalizeDescription(value);
+    if (!normalized) return [];
+    return normalized
+      .split(' ')
+      .map((token) => token.trim())
+      .filter((token) => token.length >= 3)
+      .filter((token) => !/^\d+(?:[.,]\d+)?$/.test(token))
+      .filter((token) => !/\d/.test(token));
+  };
   const hasValidQuantity = (line: OcrLineDetected): boolean =>
     typeof line.raw_quantity === 'number' && Number.isFinite(line.raw_quantity) && line.raw_quantity > 0;
   const hasPlaceholderUnit = (line: OcrLineDetected): boolean => {
@@ -1024,23 +1033,42 @@ function detectPossibleDuplicateLines(lines: OcrLineDetected[]): OcrPossibleDupl
       (typeof line.raw_line_total === 'number' && Number.isFinite(line.raw_line_total) && line.raw_line_total > 0);
     return hasMeaningfulAmount && !hasPlaceholderUnit(line) && hasConsistentTotals(line);
   };
+  const lineRichnessScore = (line: OcrLineDetected): number => {
+    let score = tokenizeCoreDescription(line.raw_description).length;
+    if (hasValidQuantity(line)) score += 1.5;
+    if (typeof line.raw_line_total === 'number' && Number.isFinite(line.raw_line_total) && line.raw_line_total > 0) score += 1;
+    if (typeof line.raw_unit_price === 'number' && Number.isFinite(line.raw_unit_price) && line.raw_unit_price > 0) score += 1;
+    if (line.product_code) score += 0.5;
+    return score;
+  };
 
   for (let i = 0; i < lines.length; i += 1) {
     const left = lines[i];
     const leftDesc = normalizeDescription(left.raw_description);
     const leftDescRaw = normalizeDescriptionWithoutStripping(left.raw_description);
+    const leftCoreTokens = tokenizeCoreDescription(left.raw_description);
     if (!leftDesc) continue;
     for (let j = i + 1; j < Math.min(lines.length, i + 4); j += 1) {
       const right = lines[j];
       const rightDesc = normalizeDescription(right.raw_description);
       const rightDescRaw = normalizeDescriptionWithoutStripping(right.raw_description);
+      const rightCoreTokens = tokenizeCoreDescription(right.raw_description);
       if (!rightDesc) continue;
-      const sameDesc = leftDesc === rightDesc || leftDesc.includes(rightDesc) || rightDesc.includes(leftDesc);
+
+      const coreOverlap =
+        leftCoreTokens.length > 0 && rightCoreTokens.length > 0
+          ? leftCoreTokens.filter((token) => rightCoreTokens.includes(token)).length / Math.min(leftCoreTokens.length, rightCoreTokens.length)
+          : 0;
+      const sameDesc = leftDesc === rightDesc || leftDesc.includes(rightDesc) || rightDesc.includes(leftDesc) || coreOverlap >= 0.75;
       if (!sameDesc) continue;
+
       const leftHasPrefix = startsWithCodeLikePrefix(left.raw_description);
       const rightHasPrefix = startsWithCodeLikePrefix(right.raw_description);
       const prefixMismatch = leftHasPrefix !== rightHasPrefix;
       const similarityDependsOnPrefixStripping = prefixMismatch && leftDescRaw !== rightDescRaw;
+      const lengthRatio = Math.min(leftDesc.length, rightDesc.length) / Math.max(leftDesc.length, rightDesc.length);
+      const clearLengthAsymmetry = lengthRatio < 0.7;
+      const lowInformationTokens = leftCoreTokens.length <= 1 || rightCoreTokens.length <= 1;
       const hasQualitySignalsForShadow =
         !hasValidQuantity(left) ||
         !hasValidQuantity(right) ||
@@ -1048,20 +1076,34 @@ function detectPossibleDuplicateLines(lines: OcrLineDetected[]): OcrPossibleDupl
         hasPlaceholderUnit(right) ||
         !hasConsistentTotals(left) ||
         !hasConsistentTotals(right);
-      if (similarityDependsOnPrefixStripping && hasQualitySignalsForShadow) {
+
+      const looksLikeShadowPair =
+        similarityDependsOnPrefixStripping ||
+        clearLengthAsymmetry ||
+        lowInformationTokens ||
+        hasQualitySignalsForShadow;
+
+      if (looksLikeShadowPair) {
+        const leftRichness = lineRichnessScore(left);
+        const rightRichness = lineRichnessScore(right);
+        const shadowIsRight = rightRichness <= leftRichness;
+        const shadowLineNumber = shadowIsRight ? j + 1 : i + 1;
+        const mainLineNumber = shadowIsRight ? i + 1 : j + 1;
         hints.push({
-          line_number: j + 1,
-          duplicate_of_line_number: i + 1,
+          line_number: shadowLineNumber,
+          duplicate_of_line_number: mainLineNumber,
           confidence: 'medium',
           hint_type: 'possible_shadow_code_line',
-          reason: 'Línea potencialmente sombra por código/prefijo; revisar manualmente antes de eliminar.',
+          reason: 'Líneas parecidas, pero una parece parcial/codificada o con peor calidad; revisar manualmente.',
         });
         continue;
       }
 
       const samePrice = left.raw_unit_price !== null && right.raw_unit_price !== null && Math.abs(left.raw_unit_price - right.raw_unit_price) <= 0.001;
       const sameTotal = left.raw_line_total !== null && right.raw_line_total !== null && Math.abs(left.raw_line_total - right.raw_line_total) <= 0.001;
+      const strongDescriptionMatch = leftDescRaw === rightDescRaw || coreOverlap >= 0.9;
       if (!samePrice && !sameTotal) continue;
+      if (!strongDescriptionMatch) continue;
       if (!isCoherentStandaloneLine(left) || !isCoherentStandaloneLine(right)) continue;
       const confidence: 'high' | 'medium' = samePrice && sameTotal ? 'high' : 'medium';
       hints.push({
@@ -1069,7 +1111,7 @@ function detectPossibleDuplicateLines(lines: OcrLineDetected[]): OcrPossibleDupl
         duplicate_of_line_number: i + 1,
         confidence,
         hint_type: 'duplicate',
-        reason: 'Descripción muy similar con precio/importe coincidente en filas cercanas.',
+        reason: 'Coincidencia fuerte de descripción y precio/importe entre filas cercanas.',
       });
     }
   }

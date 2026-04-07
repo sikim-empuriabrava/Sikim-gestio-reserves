@@ -60,10 +60,10 @@ Si hay sugerencia de proveedor existente en payload interpretado, la UI de detal
 ### 2.5 Hints de revisión en líneas
 La UI diferencia tipos de hint documentados en payload:
 
-- `duplicate`;
-- `possible_shadow_code_line`.
+- `duplicate` (reservado para coincidencia fuerte de descripción + precio/importe con líneas coherentes);
+- `possible_shadow_code_line` (repetición parcial/codificada o de menor calidad donde conviene revisión manual prudente).
 
-Se muestran con mensaje distinto y permiten revisión manual contextual.
+El criterio vigente prioriza evitar deduplicación agresiva: ante dudas de prefijo/código, texto parcial o señal económica incompleta, se degrada a warning conservador en lugar de `duplicate`.
 
 ---
 
