@@ -6,6 +6,10 @@ import { getAllowlistRoleForUserEmail, isAdmin } from '@/lib/auth/requireRole';
 export type CheffingRouteAccess = {
   supabaseResponse: NextResponse;
   response?: NextResponse;
+  role?: string | null;
+  canCheffing?: boolean;
+  canMantenimiento?: boolean;
+  isAdmin?: boolean;
 };
 
 export async function requireCheffingRouteAccess(options?: { allowMantenimiento?: boolean }): Promise<CheffingRouteAccess> {
@@ -42,11 +46,10 @@ export async function requireCheffingRouteAccess(options?: { allowMantenimiento?
     return { supabaseResponse, response: forbidden };
   }
 
-  const canAccessCheffingRoute = Boolean(
-    isAdmin(allowlistInfo.role) ||
-      allowlistInfo.allowedUser?.can_cheffing ||
-      (options?.allowMantenimiento && allowlistInfo.allowedUser?.can_mantenimiento),
-  );
+  const isAdminUser = isAdmin(allowlistInfo.role);
+  const canCheffing = Boolean(allowlistInfo.allowedUser?.can_cheffing);
+  const canMantenimiento = Boolean(allowlistInfo.allowedUser?.can_mantenimiento);
+  const canAccessCheffingRoute = Boolean(isAdminUser || canCheffing || (options?.allowMantenimiento && canMantenimiento));
 
   if (!canAccessCheffingRoute) {
     const forbidden = NextResponse.json({ error: 'Forbidden' }, { status: 403 });
@@ -54,5 +57,11 @@ export async function requireCheffingRouteAccess(options?: { allowMantenimiento?
     return { supabaseResponse, response: forbidden };
   }
 
-  return { supabaseResponse };
+  return {
+    supabaseResponse,
+    role: allowlistInfo.role,
+    canCheffing,
+    canMantenimiento,
+    isAdmin: isAdminUser,
+  };
 }

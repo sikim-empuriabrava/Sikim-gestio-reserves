@@ -43,6 +43,7 @@ export default async function MantenimientoStockPage() {
       <SharedProcurementDocumentIntake
         title="Subir albarán/factura"
         description="Entrada rápida para mantenimiento: hacer foto, usar galería o subir PDF y enviar el borrador a revisión de Cheffing."
+        initialDocumentKind="delivery_note"
         runOcrAfterUpload
         showDocumentLinkOnSuccess={false}
       />

@@ -144,6 +144,7 @@ export function ProcurementDocumentsManager({
       <SharedProcurementDocumentIntake
         title="Pase 1 OCR (factura/albarán)"
         description="Sube una foto, imagen o PDF para crear el draft y lanzar el OCR inicial automáticamente."
+        initialDocumentKind="delivery_note"
         runOcrAfterUpload
         redirectToDetailOnSuccess
       />

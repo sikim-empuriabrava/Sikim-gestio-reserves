@@ -9,6 +9,7 @@ import { type ProcurementDocumentKind } from '@/lib/cheffing/procurement';
 type SharedProcurementDocumentIntakeProps = {
   title?: string;
   description?: string;
+  initialDocumentKind?: ProcurementDocumentKind;
   runOcrAfterUpload?: boolean;
   redirectToDetailOnSuccess?: boolean;
   showDocumentLinkOnSuccess?: boolean;
@@ -18,6 +19,7 @@ type SharedProcurementDocumentIntakeProps = {
 export function SharedProcurementDocumentIntake({
   title = 'Entrada documental móvil',
   description = 'Sube una factura o albarán (foto, imagen o PDF) para crear un borrador revisable en Compras.',
+  initialDocumentKind = 'delivery_note',
   runOcrAfterUpload = false,
   redirectToDetailOnSuccess = false,
   showDocumentLinkOnSuccess = true,
@@ -28,16 +30,22 @@ export function SharedProcurementDocumentIntake({
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [currentStep, setCurrentStep] = useState<'creating_draft' | 'uploading_file' | 'running_ocr' | null>(null);
+  const [isUploadCompleted, setIsUploadCompleted] = useState(false);
+  const [isOcrCompleted, setIsOcrCompleted] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [createdDocumentId, setCreatedDocumentId] = useState<string | null>(null);
-  const [documentKind, setDocumentKind] = useState<ProcurementDocumentKind>('delivery_note');
+  const [documentKind, setDocumentKind] = useState<ProcurementDocumentKind>(initialDocumentKind);
 
   async function createDraftFromFile(file: File | null) {
     if (!file) return;
 
     setError(null);
     setCreatedDocumentId(null);
+    setIsUploadCompleted(false);
+    setIsOcrCompleted(false);
     setIsSubmitting(true);
+    setCurrentStep('creating_draft');
 
     try {
       const today = new Date().toISOString().slice(0, 10);
@@ -60,6 +68,7 @@ export function SharedProcurementDocumentIntake({
 
       const formData = new FormData();
       formData.set('file', file);
+      setCurrentStep('uploading_file');
       const uploadResponse = await fetch(`/api/cheffing/procurement/documents/${documentId}/source-file`, {
         method: 'POST',
         body: formData,
@@ -69,8 +78,10 @@ export function SharedProcurementDocumentIntake({
         setCreatedDocumentId(documentId);
         throw new Error(uploadPayload?.error ?? 'No se pudo subir el archivo');
       }
+      setIsUploadCompleted(true);
 
       if (runOcrAfterUpload) {
+        setCurrentStep('running_ocr');
         const ocrResponse = await fetch(`/api/cheffing/procurement/documents/${documentId}/ocr`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -81,6 +92,7 @@ export function SharedProcurementDocumentIntake({
           setCreatedDocumentId(documentId);
           throw new Error(ocrPayload?.error ?? 'OCR no disponible para este documento');
         }
+        setIsOcrCompleted(true);
       }
 
       setCreatedDocumentId(documentId);
@@ -96,9 +108,14 @@ export function SharedProcurementDocumentIntake({
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Error desconocido');
     } finally {
+      setCurrentStep(null);
       setIsSubmitting(false);
     }
   }
+
+  const flowCompletedSuccessfully = Boolean(
+    createdDocumentId && !error && isUploadCompleted && (!runOcrAfterUpload || isOcrCompleted),
+  );
 
   return (
     <section className={className ?? 'space-y-3 rounded-xl border border-slate-800 bg-slate-950/40 p-4'}>
@@ -159,11 +176,19 @@ export function SharedProcurementDocumentIntake({
 
       {isSubmitting ? (
         <p className="text-sm text-sky-300">
-          {runOcrAfterUpload ? 'Subiendo documento, creando borrador y lanzando OCR…' : 'Subiendo documento y creando borrador…'}
+          {currentStep === 'creating_draft'
+            ? 'Creando borrador…'
+            : currentStep === 'uploading_file'
+              ? 'Subiendo archivo original…'
+              : currentStep === 'running_ocr'
+                ? 'Procesando OCR inicial…'
+                : runOcrAfterUpload
+                  ? 'Subiendo documento, creando borrador y lanzando OCR…'
+                  : 'Subiendo documento y creando borrador…'}
         </p>
       ) : null}
 
-      {createdDocumentId ? (
+      {flowCompletedSuccessfully ? (
         <p className="text-sm text-emerald-300">
           {runOcrAfterUpload
             ? 'Documento enviado y procesado con OCR inicial. Queda como borrador pendiente de revisión por Cheffing.'
@@ -182,7 +207,9 @@ export function SharedProcurementDocumentIntake({
 
       {error ? (
         <p className="text-sm text-rose-400">
-          {error}
+          {createdDocumentId
+            ? `El borrador se creó, pero el flujo no terminó correctamente: ${error}`
+            : error}
           {createdDocumentId && showDocumentLinkOnSuccess ? (
             <>
               {' '}

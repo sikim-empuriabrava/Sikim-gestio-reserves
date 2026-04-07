@@ -631,6 +631,25 @@ function normalizedComparableValue(field: 'tax_id' | 'email' | 'phone', value: s
   return normalizePhone(value);
 }
 
+function mergeUniqueContactValues(field: 'email' | 'phone', existingValue: string, detectedValue: string): string {
+  const splitRegex = /[;,|/]+/;
+  const values = `${existingValue}${field === 'email' ? ';' : ' / '}${detectedValue}`
+    .split(splitRegex)
+    .map((entry) => entry.trim())
+    .filter(Boolean);
+
+  const unique: string[] = [];
+  const seen = new Set<string>();
+  for (const value of values) {
+    const normalized = normalizedComparableValue(field, value);
+    if (!normalized || seen.has(normalized)) continue;
+    seen.add(normalized);
+    unique.push(value);
+  }
+
+  return unique.join(field === 'email' ? '; ' : ' / ');
+}
+
 function buildLineCandidates(input: {
   lineNumber: number;
   line: OcrLineDetected;
@@ -1951,7 +1970,22 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       warning: null,
     },
   };
-  if (suggestedExistingSupplier?.should_auto_select) {
+  const allowSupplierMutation = Boolean(access.isAdmin || access.canCheffing);
+  if (!allowSupplierMutation && suggestedExistingSupplier) {
+    supplierEnrichment = {
+      supplier_id: suggestedExistingSupplier.supplier_id,
+      auto_filled: [],
+      conflicts: [],
+      status: 'skipped_not_attempted',
+      summary: 'Enriquecimiento omitido: OCR lanzado en modo intake-only (sin mutación de maestro de proveedor).',
+      update_attempt: {
+        attempted: false,
+        applied: false,
+        warning: null,
+      },
+    };
+  }
+  if (allowSupplierMutation && suggestedExistingSupplier?.should_auto_select) {
     const { data: matchedSupplier } = await supabase
       .from('cheffing_suppliers')
       .select('id, tax_id, email, phone')
@@ -1994,12 +2028,24 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
         const detectedComparable = normalizedComparableValue(field.key, detectedTrimmed);
         if (!existingComparable || !detectedComparable) continue;
         if (existingComparable !== detectedComparable) {
-          conflicts.push({
-            field: field.key,
-            existing_value: existingTrimmed,
-            detected_value: detectedTrimmed,
-            reason: 'existing_value_differs_detected',
-          });
+          if (field.key === 'email' || field.key === 'phone') {
+            const merged = mergeUniqueContactValues(field.key, existingTrimmed, detectedTrimmed);
+            if (merged !== existingTrimmed) {
+              supplierUpdates[field.key] = merged;
+              autoFilled.push({
+                field: field.key,
+                value: merged,
+                source: hasReliableSupplierCleanup ? 'openai_cleanup' : 'ocr',
+              });
+            }
+          } else {
+            conflicts.push({
+              field: field.key,
+              existing_value: existingTrimmed,
+              detected_value: detectedTrimmed,
+              reason: 'existing_value_differs_detected',
+            });
+          }
         }
       }
 

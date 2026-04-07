@@ -183,6 +183,11 @@ Capacidades del intake inicial:
 - acciones explícitas para **hacer foto** (preferencia de cámara trasera cuando el navegador lo permite) y **galería/archivo**;
 - formatos aceptados: **imagen** y **PDF**;
 - flujo reutilizado: crear documento draft + subir archivo original + lanzar OCR automáticamente + confirmación de envío.
+- `document_kind` inicial explícito en intake compartido: `delivery_note` (albarán) en mantenimiento y compras, por decisión operativa de producto (sin impacto en elección de extractor Azure).
+
+Importante de permisos/mutación:
+- OCR desde mantenimiento se ejecuta en modo intake-only: genera payload/sugerencias y duplicate warnings, pero **no** muta maestro de proveedor.
+- La mutación/enriquecimiento de proveedor queda reservada al flujo de revisión en Compras (Pau/cheffing).
 
 ### 11.1 Señal prudente de posible duplicado documental (warning-first)
 
