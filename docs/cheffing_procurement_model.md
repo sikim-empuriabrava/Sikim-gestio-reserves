@@ -232,3 +232,31 @@ En la revisión de `/cheffing/compras/[id]` se ha endurecido el enfoque operativ
 - hardening final operativo: aceptar sugerencia mientras la fila está en edición ya no pisa otros campos locales no guardados;
 - el reset de snapshot local por re-render se evita cuando la fila está en edición con cambios pendientes (cancelar sigue volviendo al persistido real);
 - el combobox manual cierra de forma consistente en `Escape`/`Tab`/click fuera y evita quedarse abierto en estados inválidos (sin resultados tras filtro o limpieza).
+
+## 13) Fase C — multisubida conservadora con cola visual (2026-04-08)
+
+En `/cheffing/compras` se añade una segunda entrada de carga orientada a lote, sin cambiar el modelo de datos ni introducir colas backend nuevas:
+
+- **multisubida real** (selección de varios archivos en un mismo gesto) con los mismos formatos soportados por procurement (PDF/JPG/PNG/WEBP);
+- selección de `document_kind` inicial por lote (`delivery_note` o `invoice`);
+- cola visual por archivo con estado explícito:
+  - `pending`;
+  - `creating_draft`;
+  - `uploading_file`;
+  - `running_ocr`;
+  - `completed`;
+  - `failed`.
+
+### 13.1 Comportamiento operativo
+
+- procesamiento **secuencial** por defecto (prioridad robustez y trazabilidad frente a paralelización agresiva);
+- tolerancia a errores parciales: si un archivo falla, el lote continúa con el siguiente;
+- si un archivo falla tras crear draft, la cola conserva `documentId` y link al detalle para revisión manual;
+- no hay redirección automática al detalle durante multisubida; la bandeja se refresca al cerrar el lote.
+
+### 13.2 UX mínima aplicada
+
+- resumen de cola con contadores (`pendientes`, `en proceso`, `completados`, `fallidos`);
+- botón de procesado deshabilitado cuando no toca (sin pendientes o lote en curso);
+- botón para limpiar items finalizados (`completed` / `failed`) sin mezclar esta cola con tabs del listado principal;
+- se mantiene intacto el intake individual existente (foto/archivo 1 a 1), que sigue siendo válido para flujo rápido.

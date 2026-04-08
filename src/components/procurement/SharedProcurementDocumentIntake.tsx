@@ -10,6 +10,90 @@ import {
   type ProcurementDocumentKind,
 } from '@/lib/cheffing/procurement';
 
+export type ProcurementIntakeStep = 'creating_draft' | 'uploading_file' | 'running_ocr';
+
+export type ProcurementIntakeFlowResult = {
+  documentId: string | null;
+  uploadCompleted: boolean;
+  ocrCompleted: boolean;
+};
+
+type RunProcurementIntakeFlowOptions = {
+  file: File;
+  documentKind: ProcurementDocumentKind;
+  runOcrAfterUpload: boolean;
+  onStepChange?: (step: ProcurementIntakeStep | null) => void;
+};
+
+export async function runProcurementIntakeFlow({
+  file,
+  documentKind,
+  runOcrAfterUpload,
+  onStepChange,
+}: RunProcurementIntakeFlowOptions): Promise<ProcurementIntakeFlowResult> {
+  let documentId: string | null = null;
+  let uploadCompleted = false;
+  let ocrCompleted = false;
+
+  onStepChange?.('creating_draft');
+  const today = new Date().toISOString().slice(0, 10);
+  const createResponse = await fetch('/api/cheffing/procurement/documents', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      document_kind: documentKind,
+      document_number: '',
+      document_date: today,
+      supplier_id: null,
+    }),
+  });
+
+  const createdPayload = await createResponse.json().catch(() => ({}));
+  documentId = typeof createdPayload?.id === 'string' ? createdPayload.id : null;
+  if (!createResponse.ok || !documentId) {
+    throw new Error(createdPayload?.error ?? 'No se pudo crear el borrador');
+  }
+
+  const formData = new FormData();
+  formData.set('file', file);
+  onStepChange?.('uploading_file');
+  const uploadResponse = await fetch(`/api/cheffing/procurement/documents/${documentId}/source-file`, {
+    method: 'POST',
+    body: formData,
+  });
+  const uploadPayload = await uploadResponse.json().catch(() => ({}));
+  if (!uploadResponse.ok) {
+    const uploadError = new Error(uploadPayload?.error ?? 'No se pudo subir el archivo');
+    (uploadError as Error & { documentId?: string }).documentId = documentId;
+    throw uploadError;
+  }
+  uploadCompleted = true;
+
+  if (runOcrAfterUpload) {
+    onStepChange?.('running_ocr');
+    const ocrResponse = await fetch(`/api/cheffing/procurement/documents/${documentId}/ocr`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ allow_override_lines: false }),
+    });
+    const ocrPayload = await ocrResponse.json().catch(() => ({}));
+    if (!ocrResponse.ok) {
+      const ocrError = new Error(ocrPayload?.error ?? 'OCR no disponible para este documento');
+      (ocrError as Error & { documentId?: string }).documentId = documentId;
+      throw ocrError;
+    }
+    ocrCompleted = true;
+  }
+
+  onStepChange?.(null);
+
+  return {
+    documentId,
+    uploadCompleted,
+    ocrCompleted,
+  };
+}
+
 type SharedProcurementDocumentIntakeProps = {
   title?: string;
   description?: string;
@@ -34,7 +118,7 @@ export function SharedProcurementDocumentIntake({
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [currentStep, setCurrentStep] = useState<'creating_draft' | 'uploading_file' | 'running_ocr' | null>(null);
+  const [currentStep, setCurrentStep] = useState<ProcurementIntakeStep | null>(null);
   const [isUploadCompleted, setIsUploadCompleted] = useState(false);
   const [isOcrCompleted, setIsOcrCompleted] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -52,53 +136,15 @@ export function SharedProcurementDocumentIntake({
     setCurrentStep('creating_draft');
 
     try {
-      const today = new Date().toISOString().slice(0, 10);
-      const createResponse = await fetch('/api/cheffing/procurement/documents', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          document_kind: documentKind,
-          document_number: '',
-          document_date: today,
-          supplier_id: null,
-        }),
+      const result = await runProcurementIntakeFlow({
+        file,
+        documentKind,
+        runOcrAfterUpload,
+        onStepChange: setCurrentStep,
       });
-
-      const createdPayload = await createResponse.json().catch(() => ({}));
-      const documentId = typeof createdPayload?.id === 'string' ? createdPayload.id : null;
-      if (!createResponse.ok || !documentId) {
-        throw new Error(createdPayload?.error ?? 'No se pudo crear el borrador');
-      }
-
-      const formData = new FormData();
-      formData.set('file', file);
-      setCurrentStep('uploading_file');
-      const uploadResponse = await fetch(`/api/cheffing/procurement/documents/${documentId}/source-file`, {
-        method: 'POST',
-        body: formData,
-      });
-      const uploadPayload = await uploadResponse.json().catch(() => ({}));
-      if (!uploadResponse.ok) {
-        setCreatedDocumentId(documentId);
-        throw new Error(uploadPayload?.error ?? 'No se pudo subir el archivo');
-      }
-      setIsUploadCompleted(true);
-
-      if (runOcrAfterUpload) {
-        setCurrentStep('running_ocr');
-        const ocrResponse = await fetch(`/api/cheffing/procurement/documents/${documentId}/ocr`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ allow_override_lines: false }),
-        });
-        const ocrPayload = await ocrResponse.json().catch(() => ({}));
-        if (!ocrResponse.ok) {
-          setCreatedDocumentId(documentId);
-          throw new Error(ocrPayload?.error ?? 'OCR no disponible para este documento');
-        }
-        setIsOcrCompleted(true);
-      }
-
+      const documentId = result.documentId;
+      setIsUploadCompleted(result.uploadCompleted);
+      setIsOcrCompleted(result.ocrCompleted);
       setCreatedDocumentId(documentId);
       if (cameraInputRef.current) cameraInputRef.current.value = '';
       if (fileInputRef.current) fileInputRef.current.value = '';
@@ -110,6 +156,8 @@ export function SharedProcurementDocumentIntake({
 
       router.refresh();
     } catch (err) {
+      const erroredDocumentId = (err as Error & { documentId?: string })?.documentId ?? null;
+      if (erroredDocumentId) setCreatedDocumentId(erroredDocumentId);
       setError(err instanceof Error ? err.message : 'Error desconocido');
     } finally {
       setCurrentStep(null);
