@@ -1,4 +1,6 @@
 import { redirect } from 'next/navigation';
+
+import { SharedProcurementDocumentIntake } from '@/components/procurement/SharedProcurementDocumentIntake';
 import { ModulePlaceholder } from '@/components/ModulePlaceholder';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 
@@ -37,11 +39,21 @@ export default async function MantenimientoStockPage() {
   }
 
   return (
-    <ModulePlaceholder
-      title="Stock y reposición"
-      subtitle="Controla el inventario técnico y las reposiciones necesarias para mantenimiento y reparaciones."
-      cards={cards}
-      quickNotes={quickNotes}
-    />
+    <section className="space-y-6">
+      <SharedProcurementDocumentIntake
+        title="Subir albarán/factura"
+        description="Entrada rápida para mantenimiento: hacer foto, usar galería o subir PDF y enviar el borrador a revisión de Cheffing."
+        initialDocumentKind="delivery_note"
+        runOcrAfterUpload
+        showDocumentLinkOnSuccess={false}
+      />
+
+      <ModulePlaceholder
+        title="Stock y reposición"
+        subtitle="Controla el inventario técnico y las reposiciones necesarias para mantenimiento y reparaciones."
+        cards={cards}
+        quickNotes={quickNotes}
+      />
+    </section>
   );
 }

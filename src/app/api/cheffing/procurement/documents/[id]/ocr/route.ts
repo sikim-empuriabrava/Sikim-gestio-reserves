@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createSupabaseAdminClient } from '@/lib/supabaseAdmin';
 import { normalizeProcurementCanonicalUnit, normalizeProcurementText, type ProcurementCanonicalUnit } from '@/lib/cheffing/procurement';
 import { runOpenAiOcrCleanup, shouldRunOpenAiOcrCleanup, type OpenAiOcrCleanupLine } from '@/lib/cheffing/procurement/openaiOcrCleanup';
+import { upsertPossibleDocumentDuplicateSignal } from '@/lib/cheffing/procurementDuplicateSignal';
 import { requireCheffingRouteAccess } from '@/lib/cheffing/requireCheffingRoute';
 import { mergeResponseCookies } from '@/lib/supabase/route';
 
@@ -610,24 +611,6 @@ function getSuggestedExistingSupplier(candidates: SupplierCandidateHint[]): Supp
       isDominant &&
       (hasIdentitySignal || (hasExactNameSignal && (dominanceGap === null || dominanceGap >= 35)) || (hasNameSignal && top.score_hint >= 95)),
   };
-}
-
-function isSupplierFieldConfident(params: {
-  field: 'tax_id' | 'email' | 'phone';
-  trace: { email_source: 'vendor_fields' | 'key_value_pairs' | 'none'; phone_source: 'vendor_fields' | 'key_value_pairs' | 'none'; tax_id_source: 'vendor_fields' | 'key_value_pairs' | 'none' };
-  hasReliableSupplierCleanup: boolean;
-}): boolean {
-  if (params.hasReliableSupplierCleanup) return true;
-  if (params.field === 'email') return params.trace.email_source === 'vendor_fields';
-  if (params.field === 'phone') return params.trace.phone_source === 'vendor_fields';
-  return params.trace.tax_id_source === 'vendor_fields';
-}
-
-function normalizedComparableValue(field: 'tax_id' | 'email' | 'phone', value: string | null): string | null {
-  if (!value) return null;
-  if (field === 'tax_id') return normalizeProcurementText(value.replace(/[^a-zA-Z0-9]/g, ''));
-  if (field === 'email') return normalizeProcurementText(value.trim().toLowerCase());
-  return normalizePhone(value);
 }
 
 function buildLineCandidates(input: {
@@ -1522,7 +1505,7 @@ function detectAutoExcludedLines(input: {
 }
 
 export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
-  const access = await requireCheffingRouteAccess();
+  const access = await requireCheffingRouteAccess({ allowMantenimiento: true });
   if (access.response) return access.response;
 
   const azureEndpoint = process.env.AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT?.trim();
@@ -1934,7 +1917,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
         : documentDetectedRaw.document_date,
   };
 
-  let supplierEnrichment: SupplierEnrichmentResult | null = {
+  const supplierEnrichment: SupplierEnrichmentResult | null = {
     supplier_id: suggestedExistingSupplier?.supplier_id ?? '',
     auto_filled: [],
     conflicts: [],
@@ -1942,7 +1925,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       ? 'skipped_not_attempted'
       : 'skipped_no_supplier_detected',
     summary: suggestedExistingSupplier
-      ? 'No se intentó enriquecer: proveedor sugerido no confirmado automáticamente.'
+      ? 'Enriquecimiento diferido: los datos de proveedor solo se aplican al guardar cabecera.'
       : 'No se intentó enriquecer: no hay proveedor existente sugerido.',
     update_attempt: {
       attempted: false,
@@ -1950,112 +1933,6 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       warning: null,
     },
   };
-  if (suggestedExistingSupplier?.should_auto_select) {
-    const { data: matchedSupplier } = await supabase
-      .from('cheffing_suppliers')
-      .select('id, tax_id, email, phone')
-      .eq('id', suggestedExistingSupplier.supplier_id)
-      .maybeSingle();
-
-    if (matchedSupplier) {
-      const autoFilled: SupplierEnrichmentResult['auto_filled'] = [];
-      const conflicts: SupplierEnrichmentResult['conflicts'] = [];
-      const supplierUpdates: Record<string, string> = {};
-
-      const fields: Array<{ key: 'tax_id' | 'email' | 'phone'; detectedValue: string | null; existingValue: string | null }> = [
-        { key: 'tax_id', detectedValue: supplierDetected.tax_id, existingValue: matchedSupplier.tax_id },
-        { key: 'email', detectedValue: supplierDetected.email, existingValue: matchedSupplier.email },
-        { key: 'phone', detectedValue: supplierDetected.phone, existingValue: matchedSupplier.phone },
-      ];
-
-      for (const field of fields) {
-        const detectedTrimmed = field.detectedValue?.trim() ?? null;
-        if (!detectedTrimmed) continue;
-        const isConfident = isSupplierFieldConfident({
-          field: field.key,
-          trace: supplierTrace,
-          hasReliableSupplierCleanup,
-        });
-        if (!isConfident) continue;
-
-        const existingTrimmed = field.existingValue?.trim() ?? null;
-        if (!existingTrimmed) {
-          supplierUpdates[field.key] = detectedTrimmed;
-          autoFilled.push({
-            field: field.key,
-            value: detectedTrimmed,
-            source: hasReliableSupplierCleanup ? 'openai_cleanup' : 'ocr',
-          });
-          continue;
-        }
-
-        const existingComparable = normalizedComparableValue(field.key, existingTrimmed);
-        const detectedComparable = normalizedComparableValue(field.key, detectedTrimmed);
-        if (!existingComparable || !detectedComparable) continue;
-        if (existingComparable !== detectedComparable) {
-          conflicts.push({
-            field: field.key,
-            existing_value: existingTrimmed,
-            detected_value: detectedTrimmed,
-            reason: 'existing_value_differs_detected',
-          });
-        }
-      }
-
-      let appliedAutoFilled = autoFilled;
-      let updateAttempt: SupplierEnrichmentResult['update_attempt'] = {
-        attempted: false,
-        applied: false,
-        warning: null,
-      };
-      if (Object.keys(supplierUpdates).length > 0) {
-        updateAttempt = { attempted: true, applied: false, warning: null };
-        const { error: supplierUpdateError } = await supabase
-          .from('cheffing_suppliers')
-          .update(supplierUpdates)
-          .eq('id', suggestedExistingSupplier.supplier_id);
-        if (supplierUpdateError) {
-          appliedAutoFilled = [];
-          updateAttempt = {
-            attempted: true,
-            applied: false,
-            warning: `Supplier enrichment update failed: ${supplierUpdateError.message}`,
-          };
-          console.warn('[procurement OCR] supplier enrichment update failed; auto-fill not applied', {
-            document_id: params.id,
-            supplier_id: suggestedExistingSupplier.supplier_id,
-            attempted_fields: Object.keys(supplierUpdates),
-            error: supplierUpdateError.message,
-          });
-        } else {
-          updateAttempt = { attempted: true, applied: true, warning: null };
-        }
-      }
-
-      supplierEnrichment = {
-        supplier_id: suggestedExistingSupplier.supplier_id,
-        auto_filled: appliedAutoFilled,
-        conflicts,
-        status:
-          updateAttempt.warning
-            ? 'attempted_failed'
-            : appliedAutoFilled.length > 0
-              ? 'attempted_applied'
-              : conflicts.length > 0
-                ? 'matched_conflicts_only'
-                : 'matched_no_new_data',
-        summary:
-          updateAttempt.warning
-            ? 'Se intentó enriquecer, pero falló la actualización del proveedor.'
-            : appliedAutoFilled.length > 0
-              ? `Proveedor enriquecido automáticamente con ${appliedAutoFilled.length} campo(s).`
-              : conflicts.length > 0
-                ? 'Proveedor detectado, pero solo hubo conflictos y no se sobreescribieron campos.'
-                : 'No había datos nuevos que enriquecer.',
-        update_attempt: updateAttempt,
-      };
-    }
-  }
 
   const interpretedPayload = {
     supplier_detected: supplierDetected,
@@ -2201,6 +2078,15 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   }
   if (refsError) {
     console.warn('[procurement OCR] supplier refs not available for OpenAI cleanup context', refsError.message);
+  }
+
+  try {
+    await upsertPossibleDocumentDuplicateSignal({ supabase, documentId: params.id });
+  } catch (signalError) {
+    console.warn('[procurement OCR] Duplicate signal check failed after OCR', {
+      document_id: params.id,
+      error: signalError instanceof Error ? signalError.message : 'unknown',
+    });
   }
 
   const response = NextResponse.json({

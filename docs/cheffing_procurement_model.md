@@ -169,3 +169,36 @@ Este documento describe **estado actual implementado** en repo. Para decisiones 
   - `manual suggestion candidate` (útil para aceptar con 1 clic sin auto-validar);
   - candidatos débiles (no sugerir fuerte).
 - **Prudencia en variedades**: se evita promover con demasiada fuerza casos con riesgo de variante distinta (p.ej. diferentes tipos de tomate cherry) aunque el parecido textual sea razonable.
+
+
+## 11) Entrada documental móvil compartida (Bloque 1)
+
+Desde **2026-04-07** existe un punto de entrada documental compartido para subir 1 documento y crear borrador draft reutilizando el pipeline actual de procurement.
+
+Separación operativa vigente:
+- `/mantenimiento/stock`: rol **upload-only intake** (hacer foto/galería/archivo, crear draft y subir original). No incluye listado/revisión de compras ni navegación a módulos de Cheffing.
+- `/cheffing/compras`: mantiene el flujo completo de revisión (listado, detalle, OCR, validación y aplicación).
+
+Capacidades del intake inicial:
+- acciones explícitas para **hacer foto** (preferencia de cámara trasera cuando el navegador lo permite) y **galería/archivo**;
+- formatos aceptados: **imagen** y **PDF**;
+- flujo reutilizado: crear documento draft + subir archivo original + lanzar OCR automáticamente + confirmación de envío.
+- `document_kind` inicial explícito en intake compartido: `delivery_note` (albarán) en mantenimiento y compras, por decisión operativa de producto (sin impacto en elección de extractor Azure).
+
+Importante de permisos/mutación:
+- OCR desde mantenimiento se ejecuta en modo intake-only: genera payload/sugerencias y duplicate warnings, pero **no** muta maestro de proveedor.
+- OCR en cualquier flujo (mantenimiento, cheffing o admin) **no muta** `cheffing_suppliers`; solo interpreta y persiste sugerencias/warnings.
+- La mutación/enriquecimiento de proveedor queda reservada a **Guardar cabecera** en el borrador desde Compras (Pau/cheffing).
+- En cabecera del borrador se muestran sugerencias OCR editables (teléfono/email y, si aplica, tax_id) para confirmación manual antes de guardar.
+- Política de aplicación al guardar cabecera:
+  - `tax_id`: no se sobreescribe automáticamente si entra en conflicto con valor previo.
+  - `email` y `phone`: merge no destructivo, manteniendo existentes y agregando nuevos valores únicos.
+
+### 11.1 Señal prudente de posible duplicado documental (warning-first)
+
+Como base del siguiente bloque, los documentos draft calculan una señal conservadora de `possible_document_duplicate` y se persiste dentro de `interpreted_payload`:
+- estado (`none` o `possible_duplicate`), score, motivos y candidatos;
+- heurística prudente con metadatos disponibles (tipo, número, fecha, proveedor, total declarado), con fallback desde `document_detected` y `supplier_existing_suggestion` cuando la cabecera DB aún está vacía;
+- **sin** auto-descartar, auto-borrar ni bloquear irreversiblemente.
+
+La política actual es de advertencia y trazabilidad para revisión manual posterior.

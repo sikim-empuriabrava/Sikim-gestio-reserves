@@ -5,6 +5,7 @@ import { mergeResponseCookies } from '@/lib/supabase/route';
 import { requireCheffingRouteAccess } from '@/lib/cheffing/requireCheffingRoute';
 import { mapCheffingPostgresError } from '@/lib/cheffing/postgresErrors';
 import { PROCUREMENT_DOCUMENT_KINDS } from '@/lib/cheffing/procurement';
+import { upsertPossibleDocumentDuplicateSignal } from '@/lib/cheffing/procurementDuplicateSignal';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -32,7 +33,7 @@ export async function GET() {
 }
 
 export async function POST(req: NextRequest) {
-  const access = await requireCheffingRouteAccess();
+  const access = await requireCheffingRouteAccess({ allowMantenimiento: true });
   if (access.response) return access.response;
 
   const body = await req.json().catch(() => null);
@@ -69,6 +70,17 @@ export async function POST(req: NextRequest) {
     const response = NextResponse.json({ error: mapped.message }, { status: mapped.status });
     mergeResponseCookies(access.supabaseResponse, response);
     return response;
+  }
+
+  if (data?.id) {
+    try {
+      await upsertPossibleDocumentDuplicateSignal({ supabase, documentId: data.id });
+    } catch (signalError) {
+      console.warn('[cheffing][procurement] Duplicate signal check failed on document create', {
+        documentId: data.id,
+        error: signalError instanceof Error ? signalError.message : 'unknown',
+      });
+    }
   }
 
   const response = NextResponse.json({ ok: true, id: data?.id ?? null });
