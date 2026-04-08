@@ -212,5 +212,6 @@ En la revisión de `/cheffing/compras/[id]` se ha endurecido el enfoque operativ
 - se mantiene warning explícito cuando no hay match OCR suficientemente fiable;
 - se mantiene acción **Aceptar sugerencia** (1 clic) por línea, orientada a dejar la línea lista para guardado sin atajos de persistencia inesperados;
 - el selector manual de ingrediente pasa a interacción tipo combobox buscable (más usable en listados largos);
+- el combobox manual de ingrediente ya soporta cierre por click fuera + teclado básico (`ArrowUp/Down`, `Enter`, `Escape`) con resaltado de opción activa y scroll interno al navegar;
 - al crear ingrediente desde línea, se preserva el snapshot editado de la fila para no perder cambios locales;
 - la unidad canónica de la fila se precompleta con inferencia prudente (`validated_unit`/`normalized_unit_code`/señal pipeline) cuando existe, evitando vacíos innecesarios.

@@ -1904,7 +1904,10 @@ function EditableLineRow({ line, ingredients, suggestedIngredientId, suggestedHi
 function SearchableIngredientSelect({ value, onChange, ingredients, placeholder }: { value: string; onChange: (value: string) => void; ingredients: Ingredient[]; placeholder: string }) {
   const [query, setQuery] = useState('');
   const [isOpen, setIsOpen] = useState(false);
+  const [activeIndex, setActiveIndex] = useState(-1);
   const skipNextValueSyncRef = useRef(false);
+  const rootRef = useRef<HTMLDivElement | null>(null);
+  const optionRefs = useRef<Array<HTMLButtonElement | null>>([]);
   const selectedIngredient = useMemo(() => ingredients.find((ingredient) => ingredient.id === value) ?? null, [ingredients, value]);
   const filtered = useMemo(() => {
     const normalized = query.trim().toLowerCase();
@@ -1923,15 +1926,100 @@ function SearchableIngredientSelect({ value, onChange, ingredients, placeholder 
     setQuery(selectedIngredient?.name ?? '');
   }, [selectedIngredient?.name, value]);
 
+  useEffect(() => {
+    if (!isOpen) return;
+    const onPointerDownOutside = (event: MouseEvent) => {
+      const target = event.target;
+      if (!(target instanceof Node)) return;
+      if (!rootRef.current?.contains(target)) {
+        setIsOpen(false);
+        setActiveIndex(-1);
+      }
+    };
+    document.addEventListener('mousedown', onPointerDownOutside);
+    return () => document.removeEventListener('mousedown', onPointerDownOutside);
+  }, [isOpen]);
+
+  useEffect(() => {
+    if (!isOpen) {
+      setActiveIndex(-1);
+      return;
+    }
+    if (!filtered.length) {
+      setActiveIndex(-1);
+      return;
+    }
+    setActiveIndex((current) => {
+      if (current >= 0 && current < filtered.length) return current;
+      const selectedIndex = filtered.findIndex((ingredient) => ingredient.id === value);
+      return selectedIndex >= 0 ? selectedIndex : 0;
+    });
+  }, [filtered, isOpen, value]);
+
+  useEffect(() => {
+    if (!isOpen || activeIndex < 0) return;
+    optionRefs.current[activeIndex]?.scrollIntoView({ block: 'nearest' });
+  }, [activeIndex, isOpen]);
+
+  useEffect(() => {
+    optionRefs.current = optionRefs.current.slice(0, filtered.length);
+  }, [filtered.length]);
+
+  const selectIngredient = useCallback(
+    (ingredient: Ingredient) => {
+      onChange(ingredient.id);
+      setQuery(ingredient.name);
+      setIsOpen(false);
+      setActiveIndex(-1);
+    },
+    [onChange],
+  );
+
   return (
-    <div className="relative space-y-1 md:col-span-2">
+    <div ref={rootRef} className="relative space-y-1 md:col-span-2">
       <div className="flex items-center gap-1 rounded-md border border-slate-700 bg-slate-950/70 px-2 py-1">
         <input
           value={query}
           onFocus={() => setIsOpen(true)}
+          onKeyDown={(event) => {
+            if (event.key === 'ArrowDown') {
+              event.preventDefault();
+              setIsOpen(true);
+              setActiveIndex((current) => {
+                if (!filtered.length) return -1;
+                if (current < 0) return 0;
+                return Math.min(current + 1, filtered.length - 1);
+              });
+              return;
+            }
+            if (event.key === 'ArrowUp') {
+              event.preventDefault();
+              setIsOpen(true);
+              setActiveIndex((current) => {
+                if (!filtered.length) return -1;
+                if (current < 0) return filtered.length - 1;
+                return Math.max(current - 1, 0);
+              });
+              return;
+            }
+            if (event.key === 'Enter') {
+              if (!isOpen) return;
+              event.preventDefault();
+              if (activeIndex < 0 || activeIndex >= filtered.length) return;
+              selectIngredient(filtered[activeIndex]);
+              return;
+            }
+            if (event.key === 'Escape') {
+              if (!isOpen) return;
+              event.preventDefault();
+              setIsOpen(false);
+              setActiveIndex(-1);
+            }
+          }}
           onChange={(event) => {
             setQuery(event.target.value);
             setIsOpen(true);
+            setActiveIndex(-1);
             if (value) {
               skipNextValueSyncRef.current = true;
               onChange('');
@@ -1948,6 +2036,7 @@ function SearchableIngredientSelect({ value, onChange, ingredients, placeholder 
               onChange('');
               setQuery('');
               setIsOpen(false);
+              setActiveIndex(-1);
             }}
             className="rounded border border-slate-700 px-1.5 py-0.5 text-[10px] text-slate-300"
           >
@@ -1959,17 +2048,20 @@ function SearchableIngredientSelect({ value, onChange, ingredients, placeholder 
       {isOpen ? (
         <div className="absolute z-20 max-h-56 w-full overflow-auto rounded-md border border-slate-700 bg-slate-950 shadow-xl">
           {filtered.length === 0 ? <p className="px-2 py-2 text-xs text-slate-500">Sin resultados</p> : null}
-          {filtered.map((ingredient) => (
+          {filtered.map((ingredient, index) => (
             <button
               key={ingredient.id}
               type="button"
+              ref={(node) => {
+                optionRefs.current[index] = node;
+              }}
               onMouseDown={(event) => {
                 event.preventDefault();
-                onChange(ingredient.id);
-                setQuery(ingredient.name);
-                setIsOpen(false);
+                selectIngredient(ingredient);
               }}
-              className={`block w-full px-2 py-1.5 text-left text-xs hover:bg-slate-800 ${value === ingredient.id ? 'bg-slate-800 text-emerald-200' : 'text-slate-200'}`}
+              className={`block w-full px-2 py-1.5 text-left text-xs hover:bg-slate-800 ${
+                activeIndex === index ? 'bg-slate-700 text-white' : ''
+              } ${value === ingredient.id ? 'text-emerald-200' : 'text-slate-200'}`}
             >
               {ingredient.name}
             </button>
