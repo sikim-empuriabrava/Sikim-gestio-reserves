@@ -133,7 +133,14 @@ type DuplicateHint = {
 };
 
 type LineSuggestionHint = {
-  reasonLabel: string;
+  suggestedIngredientId: string;
+  suggestedIngredientName: string | null;
+  scoreHint: number | null;
+  reasonLabel: string | null;
+  topReasons: string[];
+  hasAmbiguousTopMatch: boolean;
+  hasNoStrongMatch: boolean;
+  candidatesCount: number;
   isManualSuggestionCandidate: boolean;
   isAutoHighConfidence: boolean;
 };
@@ -158,11 +165,12 @@ const emptySupplierForm = {
 };
 
 function lineToFormSnapshot(line: Line) {
+  const inferredCanonicalUnit = normalizeProcurementCanonicalUnit(line.validated_unit ?? line.normalized_unit_code ?? line.interpreted_unit ?? '');
   return {
     raw_description: line.raw_description,
     raw_quantity: line.raw_quantity?.toString() ?? '',
     raw_unit: line.raw_unit ?? '',
-    validated_unit: line.validated_unit ?? '',
+    validated_unit: typeof inferredCanonicalUnit === 'string' ? inferredCanonicalUnit : '',
     raw_unit_price: line.raw_unit_price?.toString() ?? '',
     raw_line_total: line.raw_line_total?.toString() ?? '',
     validated_ingredient_id: line.validated_ingredient_id ?? '',
@@ -363,7 +371,7 @@ export function ProcurementDocumentDetailManager({
   const [isProcessingOcr, setIsProcessingOcr] = useState(false);
   const [ocrMessage, setOcrMessage] = useState<{ kind: 'success' | 'error'; text: string } | null>(null);
   const [newSupplierForm, setNewSupplierForm] = useState(emptySupplierForm);
-  const [isCreatingIngredient, setIsCreatingIngredient] = useState<null | { lineId: string; name: string; unitCode: string; packQty: string; price: string }>(null);
+  const [isCreatingIngredient, setIsCreatingIngredient] = useState<null | { lineId: string; name: string; unitCode: string; packQty: string; price: string; lineSnapshot: ReturnType<typeof lineToFormSnapshot> }>(null);
   const [localIngredients, setLocalIngredients] = useState<Ingredient[]>(ingredients);
   const [localLines, setLocalLines] = useState<Line[]>(sortLinesByNumberAsc(document.cheffing_purchase_document_lines ?? []));
   const [modelDirtyLineIds, setModelDirtyLineIds] = useState<Set<string>>(new Set());
@@ -529,9 +537,24 @@ export function ProcurementDocumentDetailManager({
       const topRecord = top as Record<string, unknown>;
       const reasons = Array.isArray(topRecord.match_reasons) ? topRecord.match_reasons.filter((reason): reason is string => typeof reason === 'string') : [];
       const ingredientName = typeof topRecord.ingredient_name === 'string' ? topRecord.ingredient_name : null;
-      if (!ingredientName) continue;
+      const suggestedIngredientId = typeof topRecord.ingredient_id === 'string' ? topRecord.ingredient_id : null;
+      if (!suggestedIngredientId) continue;
+      const candidatesCount = record.candidates.length;
+      const second = record.candidates[1];
+      const secondRecord = second && typeof second === 'object' ? (second as Record<string, unknown>) : null;
+      const topScoreHint = typeof topRecord.score_hint === 'number' ? topRecord.score_hint : null;
+      const secondScoreHint = typeof secondRecord?.score_hint === 'number' ? secondRecord.score_hint : null;
+      const scoreGap = topScoreHint !== null && secondScoreHint !== null ? topScoreHint - secondScoreHint : null;
+      const hasAmbiguousTopMatch = candidatesCount > 1 && scoreGap !== null && scoreGap < 12;
       out.set(record.line_number, {
-        reasonLabel: reasons.length > 0 ? `${ingredientName} (${reasons.join(', ')})` : ingredientName,
+        suggestedIngredientId,
+        suggestedIngredientName: ingredientName,
+        scoreHint: topScoreHint,
+        reasonLabel: reasons.length > 0 ? reasons.slice(0, 3).join(', ') : null,
+        topReasons: reasons,
+        hasAmbiguousTopMatch,
+        hasNoStrongMatch: candidatesCount === 0 || topScoreHint === null || topScoreHint < 66,
+        candidatesCount,
         isManualSuggestionCandidate: topRecord.is_manual_suggestion_candidate === true,
         isAutoHighConfidence: topRecord.is_auto_high_confidence === true,
       });
@@ -1002,14 +1025,8 @@ export function ProcurementDocumentDetailManager({
         return [...current, { id: createResult.id, name: createdIngredientName }].sort((a, b) => a.name.localeCompare(b.name, 'es'));
       });
       await saveLine(targetLine, {
-        raw_description: targetLine.raw_description,
-        raw_quantity: targetLine.raw_quantity?.toString() ?? '',
-        raw_unit: targetLine.raw_unit ?? '',
-        validated_unit: (targetLine.validated_unit ?? targetLine.normalized_unit_code ?? '') as string,
-        raw_unit_price: targetLine.raw_unit_price?.toString() ?? '',
-        raw_line_total: targetLine.raw_line_total?.toString() ?? '',
+        ...isCreatingIngredient.lineSnapshot,
         validated_ingredient_id: createResult.id,
-        user_note: targetLine.user_note ?? '',
       }, createdIngredientName);
       setIsCreatingIngredient(null);
     } catch (err) {
@@ -1455,8 +1472,8 @@ export function ProcurementDocumentDetailManager({
                     key={line.id}
                     line={line}
                     ingredients={localIngredients}
-                    suggestedIngredientId={line.suggested_ingredient_id}
-                      suggestedHint={lineSuggestionHintByLineNumber.get(line.line_number) ?? null}
+                    suggestedIngredientId={line.suggested_ingredient_id ?? lineSuggestionHintByLineNumber.get(line.line_number)?.suggestedIngredientId ?? null}
+                    suggestedHint={lineSuggestionHintByLineNumber.get(line.line_number) ?? null}
                     isDraft={isDraft}
                     isEditing={editingLineId === line.id}
                     onEdit={() => setEditingLineId(line.id)}
@@ -1466,13 +1483,14 @@ export function ProcurementDocumentDetailManager({
                     onAcceptSuggestion={acceptSuggestedLine}
                     isDirty={modelDirtyLineIds.has(line.id) || formDirtyLineIds.has(line.id)}
                     onFormDirtyChange={handleFormDirtyChange}
-                    onCreateIngredient={(targetLine) =>
+                    onCreateIngredient={(targetLine, lineSnapshot) =>
                       setIsCreatingIngredient({
                         lineId: targetLine.id,
                         name: targetLine.interpreted_description?.trim() || targetLine.raw_description,
-                        unitCode: targetLine.normalized_unit_code || 'ud',
+                        unitCode: lineSnapshot.validated_unit || targetLine.normalized_unit_code || 'ud',
                         packQty: '1',
                         price: targetLine.raw_unit_price?.toString() ?? '0',
+                        lineSnapshot,
                       })
                     }
                     duplicateHint={duplicateHintByLineNumber.get(line.line_number) ?? null}
@@ -1715,7 +1733,7 @@ function LineForm({ value, onChange, ingredients }: { value: typeof emptyLine; o
   );
 }
 
-function EditableLineRow({ line, ingredients, suggestedIngredientId, suggestedHint, isDraft, isEditing, isDirty, onEdit, onCancel, onSave, onDelete, onAcceptSuggestion, onCreateIngredient, onFormDirtyChange, duplicateHint, isSaving, isDeleting, isCreatingIngredient }: { line: Line; ingredients: Ingredient[]; suggestedIngredientId: string | null; suggestedHint: LineSuggestionHint | null; isDraft: boolean; isEditing: boolean; isDirty: boolean; onEdit: () => void; onCancel: () => void; onSave: (line: Line, updates: typeof emptyLine) => void; onDelete: (lineId: string) => void; onAcceptSuggestion: (line: Line) => void; onCreateIngredient: (line: Line) => void; onFormDirtyChange: (lineId: string, dirty: boolean) => void; duplicateHint: DuplicateHint | null; isSaving: boolean; isDeleting: boolean; isCreatingIngredient: boolean }) {
+function EditableLineRow({ line, ingredients, suggestedIngredientId, suggestedHint, isDraft, isEditing, isDirty, onEdit, onCancel, onSave, onDelete, onAcceptSuggestion, onCreateIngredient, onFormDirtyChange, duplicateHint, isSaving, isDeleting, isCreatingIngredient }: { line: Line; ingredients: Ingredient[]; suggestedIngredientId: string | null; suggestedHint: LineSuggestionHint | null; isDraft: boolean; isEditing: boolean; isDirty: boolean; onEdit: () => void; onCancel: () => void; onSave: (line: Line, updates: typeof emptyLine) => void; onDelete: (lineId: string) => void; onAcceptSuggestion: (line: Line) => void; onCreateIngredient: (line: Line, snapshot: typeof emptyLine) => void; onFormDirtyChange: (lineId: string, dirty: boolean) => void; duplicateHint: DuplicateHint | null; isSaving: boolean; isDeleting: boolean; isCreatingIngredient: boolean }) {
   const ingredientName = useMemo(() => {
     const source = line.validated_ingredient;
     return Array.isArray(source) ? source[0]?.name : source?.name;
@@ -1731,6 +1749,10 @@ function EditableLineRow({ line, ingredients, suggestedIngredientId, suggestedHi
     () => ingredients.find((ingredient) => ingredient.id === form.validated_ingredient_id)?.name ?? null,
     [form.validated_ingredient_id, ingredients],
   );
+  const suggestedSummaryLabel = suggestedHint?.suggestedIngredientName ?? suggestedIngredientName;
+  const suggestedIsAlreadySelected =
+    Boolean(suggestedIngredientId) &&
+    (line.validated_ingredient_id === suggestedIngredientId || form.validated_ingredient_id === suggestedIngredientId);
 
   useEffect(() => {
     setForm(lineToFormSnapshot(line));
@@ -1749,18 +1771,27 @@ function EditableLineRow({ line, ingredients, suggestedIngredientId, suggestedHi
         <div className="space-y-1">
           <p>{ingredientName ?? '—'}</p>
           {isDirty ? <p className="text-[11px] font-medium text-amber-300">Cambios pendientes</p> : null}
-          {suggestedIngredientName ? <p className="text-xs text-sky-300">Sugerido: {suggestedIngredientName}</p> : null}
-          {suggestedHint ? <p className="text-[11px] text-slate-500">{suggestedHint.reasonLabel}</p> : null}
+          {suggestedSummaryLabel ? (
+            <p className="text-xs text-sky-300">
+              Sugerido: {suggestedSummaryLabel}
+              {typeof suggestedHint?.scoreHint === 'number' ? ` · score ${suggestedHint.scoreHint.toFixed(0)}` : ''}
+            </p>
+          ) : null}
+          {suggestedHint?.reasonLabel ? <p className="text-[11px] text-slate-500">Motivo: {suggestedHint.reasonLabel}</p> : null}
           {suggestedHint?.isManualSuggestionCandidate ? <p className="text-[11px] text-emerald-300">Sugerencia manual útil (1 clic)</p> : null}
           {suggestedHint?.isAutoHighConfidence ? <p className="text-[11px] text-sky-300">Match alto (pipeline)</p> : null}
+          {suggestedHint?.hasAmbiguousTopMatch ? (
+            <p className="text-[11px] text-amber-300">Ambigüedad: hay más de un candidato fuerte para esta línea.</p>
+          ) : null}
+          {!suggestedIngredientId ? <p className="text-[11px] text-amber-300">Sin sugerencia directa: busca manualmente o crea ingrediente.</p> : null}
           {isFormDirty && pendingIngredientName && pendingIngredientName !== ingredientName ? (
             <p className="text-[11px] text-amber-300">Selección pendiente: {pendingIngredientName}</p>
           ) : null}
           {isDraft ? (
             <>
-              {suggestedIngredientName ? (
-                <button type="button" onClick={() => onAcceptSuggestion(line)} className="rounded-full border border-emerald-500/60 px-2 py-0.5 text-[11px] text-emerald-200">
-                  ✓ Aceptar sugerencia
+              {suggestedIngredientId ? (
+                <button type="button" disabled={suggestedIsAlreadySelected || isRowBusy} onClick={() => onAcceptSuggestion(line)} className="rounded-full border border-emerald-500/60 px-2 py-0.5 text-[11px] text-emerald-200 disabled:cursor-not-allowed disabled:border-slate-700 disabled:text-slate-500">
+                  {suggestedIsAlreadySelected ? 'Sugerencia ya aplicada' : '✓ Aceptar sugerencia'}
                 </button>
               ) : null}
               <SearchableIngredientSelect
@@ -1769,7 +1800,7 @@ function EditableLineRow({ line, ingredients, suggestedIngredientId, suggestedHi
                 onChange={(nextId) => setForm({ ...form, validated_ingredient_id: nextId })}
                 placeholder="Sin validar"
               />
-              <button type="button" onClick={() => onCreateIngredient(line)} disabled={isRowBusy} className="rounded-full border border-sky-500/60 px-2 py-0.5 text-[11px] text-sky-200 disabled:cursor-not-allowed disabled:border-slate-700 disabled:text-slate-500">
+              <button type="button" onClick={() => onCreateIngredient(line, form)} disabled={isRowBusy} className="rounded-full border border-sky-500/60 px-2 py-0.5 text-[11px] text-sky-200 disabled:cursor-not-allowed disabled:border-slate-700 disabled:text-slate-500">
                 {isCreatingIngredient ? 'Creando…' : 'Crear ingrediente'}
               </button>
             </>
@@ -1793,6 +1824,7 @@ function EditableLineRow({ line, ingredients, suggestedIngredientId, suggestedHi
             <p className="text-[11px] text-slate-500">
               {line.validated_unit ? 'Unidad validada' : line.normalized_unit_code ? 'Unidad sugerida por pipeline (pendiente de validar)' : 'Sin unidad sugerida'}
             </p>
+            {!line.validated_unit && line.normalized_unit_code ? <p className="text-[11px] text-emerald-300">Base sugerida para validar: {line.normalized_unit_code}</p> : null}
             <p className="text-xs text-slate-500">Original: {line.raw_unit ?? '—'}</p>
             {line.interpreted_unit ? <p className="text-[11px] text-sky-300">Sugerida pipeline: {line.interpreted_unit}</p> : null}
           </div>
@@ -1801,7 +1833,7 @@ function EditableLineRow({ line, ingredients, suggestedIngredientId, suggestedHi
       <td className="px-4 py-3">{isEditing ? <input type="number" value={form.raw_unit_price} onChange={(event) => setForm({ ...form, raw_unit_price: event.target.value })} className="w-24 rounded-md border border-slate-700 bg-slate-950/70 px-2 py-1" /> : (line.raw_unit_price ?? '—')}</td>
       <td className="px-4 py-3">{isEditing ? <input type="number" value={form.raw_line_total} onChange={(event) => setForm({ ...form, raw_line_total: event.target.value })} className="w-24 rounded-md border border-slate-700 bg-slate-950/70 px-2 py-1" /> : (line.raw_line_total ?? '—')}</td>
       <td className="px-4 py-3 text-xs text-slate-400">
-        {line.warning_notes ?? '—'}
+        {dedupeWarnings(line.warning_notes, suggestedHint) || '—'}
         {duplicateHint?.hintType === 'duplicate' ? <p className="mt-1 text-amber-300">Posible duplicado de línea #{duplicateHint.duplicateOfLineNumber}: {duplicateHint.reason}</p> : null}
         {duplicateHint?.hintType === 'possible_shadow_code_line' ? <p className="mt-1 text-sky-300">Aviso línea sombra/código (relación con línea #{duplicateHint.duplicateOfLineNumber}): {duplicateHint.reason}</p> : null}
       </td>
@@ -1860,18 +1892,89 @@ function EditableLineRow({ line, ingredients, suggestedIngredientId, suggestedHi
 
 function SearchableIngredientSelect({ value, onChange, ingredients, placeholder }: { value: string; onChange: (value: string) => void; ingredients: Ingredient[]; placeholder: string }) {
   const [query, setQuery] = useState('');
+  const [isOpen, setIsOpen] = useState(false);
+  const selectedIngredient = useMemo(() => ingredients.find((ingredient) => ingredient.id === value) ?? null, [ingredients, value]);
   const filtered = useMemo(() => {
     const normalized = query.trim().toLowerCase();
-    if (!normalized) return ingredients.slice(0, 80);
+    if (!normalized) return ingredients.slice(0, 50);
+    if (selectedIngredient && selectedIngredient.name.toLowerCase() === normalized) {
+      return ingredients.slice(0, 50);
+    }
     return ingredients.filter((ingredient) => ingredient.name.toLowerCase().includes(normalized)).slice(0, 80);
-  }, [ingredients, query]);
+  }, [ingredients, query, selectedIngredient]);
+
+  useEffect(() => {
+    if (selectedIngredient && selectedIngredient.name !== query) {
+      setQuery(selectedIngredient.name);
+    }
+    if (!selectedIngredient && !value && query) {
+      setQuery('');
+    }
+  }, [query, selectedIngredient, value]);
+
   return (
-    <div className="space-y-1 md:col-span-2">
-      <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Buscar ingrediente…" className="w-full rounded-md border border-slate-700 bg-slate-950/70 px-2 py-1 text-xs text-slate-200" />
-      <select value={value} onChange={(event) => onChange(event.target.value)} className="w-full rounded-md border border-slate-700 bg-slate-950/70 px-2 py-1 text-white">
-        <option value="">{placeholder}</option>
-        {filtered.map((ingredient) => <option key={ingredient.id} value={ingredient.id}>{ingredient.name}</option>)}
-      </select>
+    <div className="relative space-y-1 md:col-span-2">
+      <div className="flex items-center gap-1 rounded-md border border-slate-700 bg-slate-950/70 px-2 py-1">
+        <input
+          value={query}
+          onFocus={() => setIsOpen(true)}
+          onChange={(event) => {
+            setQuery(event.target.value);
+            setIsOpen(true);
+            if (!event.target.value.trim()) onChange('');
+          }}
+          placeholder="Buscar ingrediente…"
+          className="w-full bg-transparent text-xs text-slate-200 outline-none"
+        />
+        {value ? (
+          <button
+            type="button"
+            onClick={() => {
+              onChange('');
+              setQuery('');
+              setIsOpen(false);
+            }}
+            className="rounded border border-slate-700 px-1.5 py-0.5 text-[10px] text-slate-300"
+          >
+            Limpiar
+          </button>
+        ) : null}
+      </div>
+      <p className="text-[11px] text-slate-500">{selectedIngredient ? `Seleccionado: ${selectedIngredient.name}` : placeholder}</p>
+      {isOpen ? (
+        <div className="absolute z-20 max-h-56 w-full overflow-auto rounded-md border border-slate-700 bg-slate-950 shadow-xl">
+          {filtered.length === 0 ? <p className="px-2 py-2 text-xs text-slate-500">Sin resultados</p> : null}
+          {filtered.map((ingredient) => (
+            <button
+              key={ingredient.id}
+              type="button"
+              onMouseDown={(event) => {
+                event.preventDefault();
+                onChange(ingredient.id);
+                setQuery(ingredient.name);
+                setIsOpen(false);
+              }}
+              className={`block w-full px-2 py-1.5 text-left text-xs hover:bg-slate-800 ${value === ingredient.id ? 'bg-slate-800 text-emerald-200' : 'text-slate-200'}`}
+            >
+              {ingredient.name}
+            </button>
+          ))}
+        </div>
+      ) : null}
+      <input type="hidden" value={value} readOnly />
+      <button type="button" onClick={() => setIsOpen((current) => !current)} className="text-[10px] text-slate-500 underline">
+        {isOpen ? 'Ocultar resultados' : 'Mostrar resultados'}
+      </button>
+      <button type="button" onClick={() => setIsOpen(false)} className="ml-2 text-[10px] text-slate-500 underline">
+        Cerrar
+      </button>
     </div>
   );
+}
+
+function dedupeWarnings(lineWarning: string | null, suggestedHint: LineSuggestionHint | null): string {
+  const warnings = [lineWarning];
+  if (suggestedHint?.hasAmbiguousTopMatch) warnings.push('Coincidencia ambigua en candidatos OCR.');
+  if (!suggestedHint?.suggestedIngredientId) warnings.push('Sin match OCR fiable.');
+  return Array.from(new Set(warnings.filter((warning): warning is string => Boolean(warning && warning.trim())))).join(' · ');
 }

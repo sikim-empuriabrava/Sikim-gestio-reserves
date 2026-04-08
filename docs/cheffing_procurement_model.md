@@ -202,3 +202,15 @@ Como base del siguiente bloque, los documentos draft calculan una señal conserv
 - **sin** auto-descartar, auto-borrar ni bloquear irreversiblemente.
 
 La política actual es de advertencia y trazabilidad para revisión manual posterior.
+
+## 12) Ajustes UX revisión línea a línea (Fase A OCR procurement)
+
+En la revisión de `/cheffing/compras/[id]` se ha endurecido el enfoque operativo por línea:
+
+- cada línea muestra mejor la sugerencia principal de ingrediente (nombre + score + motivo resumido cuando existe);
+- se añade warning visual de ambigüedad cuando hay más de un candidato cercano;
+- se mantiene warning explícito cuando no hay match OCR suficientemente fiable;
+- se mantiene acción **Aceptar sugerencia** (1 clic) por línea, orientada a dejar la línea lista para guardado sin atajos de persistencia inesperados;
+- el selector manual de ingrediente pasa a interacción tipo combobox buscable (más usable en listados largos);
+- al crear ingrediente desde línea, se preserva el snapshot editado de la fila para no perder cambios locales;
+- la unidad canónica de la fila se precompleta con inferencia prudente (`validated_unit`/`normalized_unit_code`/señal pipeline) cuando existe, evitando vacíos innecesarios.
