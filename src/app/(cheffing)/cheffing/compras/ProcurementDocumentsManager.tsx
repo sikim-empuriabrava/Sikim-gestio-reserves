@@ -135,9 +135,13 @@ function resolveOperationalStatus(document: PurchaseDocument, supplierName: stri
   const missingApplicableCostCount = lines.filter((line) => line.raw_unit_price === null).length;
 
   if (unresolvedCount > 0 || missingIngredientCount > 0 || missingApplicableCostCount > 0) {
+    const pendingSegments: string[] = [];
+    if (unresolvedCount > 0) pendingSegments.push(`${unresolvedCount} sin resolver`);
+    if (missingIngredientCount > 0) pendingSegments.push(`${missingIngredientCount} sin ingrediente validado`);
+    if (missingApplicableCostCount > 0) pendingSegments.push(`${missingApplicableCostCount} sin coste`);
     return {
       label: 'Líneas pendientes',
-      description: `${unresolvedCount} sin resolver · ${missingIngredientCount} sin ingrediente validado · ${missingApplicableCostCount} sin coste`,
+      description: pendingSegments.length ? pendingSegments.join(' · ') : 'Revisión pendiente',
       tone: 'warning',
     };
   }
@@ -185,7 +189,21 @@ export function ProcurementDocumentsManager({
   }, [initialDocuments]);
 
   const visibleDocuments = useMemo(() => {
+    function getOperationalPriority(document: PurchaseDocument): number {
+      const supplierName = resolveSupplierName(document);
+      const operationalStatus = resolveOperationalStatus(document, supplierName);
+      if (operationalStatus.label === 'Sin proveedor confirmado') return 0;
+      if (operationalStatus.label === 'Líneas pendientes') return 1;
+      if (operationalStatus.label === 'Listo para revisar') return 2;
+      return 3;
+    }
+
     return [...documentsByTab[activeTab]].sort((a, b) => {
+      if (activeTab === 'draft') {
+        const aPriority = getOperationalPriority(a);
+        const bPriority = getOperationalPriority(b);
+        if (aPriority !== bPriority) return aPriority - bPriority;
+      }
       const aDate = new Date(a.document_date).getTime();
       const bDate = new Date(b.document_date).getTime();
       if (aDate !== bDate) return bDate - aDate;
@@ -374,7 +392,7 @@ export function ProcurementDocumentsManager({
                           {operationalStatus.label}
                         </span>
                         <p className="text-xs text-slate-400">{operationalStatus.description}</p>
-                        {possibleDuplicateSignal.isPossibleDuplicate ? (
+                        {document.status === 'draft' && possibleDuplicateSignal.isPossibleDuplicate ? (
                           <p className="inline-flex rounded-full border border-amber-400/50 bg-amber-500/10 px-2 py-1 text-xs font-medium text-amber-100">
                             Posible duplicado · revisar antes de aplicar
                           </p>
