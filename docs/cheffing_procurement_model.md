@@ -172,6 +172,7 @@ Ruta interna preparada para ejecución manual o cron:
 Protección:
 - requiere secreto por `Authorization: Bearer <PROCUREMENT_RETENTION_SECRET>` (o `x-procurement-retention-secret`);
 - `mode=execute` queda bloqueado si `PROCUREMENT_RETENTION_ENABLED` no está activo.
+- si `mode` llega informado con valor inválido, la ruta responde `400` (no degrada silenciosamente a `dry-run`).
 
 ### 7.2 Política de selección conservadora
 
@@ -190,6 +191,7 @@ Protección:
 
 - `dry-run`: lista candidatos y resumen, sin mutaciones;
 - `execute`: intenta purgar por candidato, continúa ante errores parciales y devuelve resumen (candidatos/procesados/purgados/omitidos/errores + IDs afectados).
+- `execute` aplica defensa en profundidad: bloqueo por flag tanto en la ruta interna como en el helper server-side.
 
 ---
 

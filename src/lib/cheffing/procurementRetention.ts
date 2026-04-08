@@ -92,8 +92,20 @@ function resolveCutoff(now: Date, discardedDays: number): Date {
 }
 
 function isStorageMissingErrorMessage(message: string | undefined): boolean {
-  const normalized = (message ?? '').toLowerCase();
-  return normalized.includes('not found') || normalized.includes('no such file') || normalized.includes('already deleted');
+  // Heuristic based on provider/SDK error text; wording may vary across versions.
+  const normalized = (message ?? '').trim().toLowerCase();
+  if (!normalized) return false;
+
+  const missingPatterns = [
+    'not found',
+    'no such file',
+    'already deleted',
+    'does not exist',
+    'resource not found',
+    'the resource was not found',
+  ];
+
+  return missingPatterns.some((pattern) => normalized.includes(pattern));
 }
 
 async function fetchCandidates(cutoffIso: string, batchLimit: number) {
@@ -153,6 +165,10 @@ async function fetchCandidates(cutoffIso: string, batchLimit: number) {
 
 export async function runProcurementDiscardedRetention(mode: ProcurementRetentionMode): Promise<ProcurementRetentionResult> {
   const config = getProcurementRetentionConfig();
+  if (mode === 'execute' && !config.enabled) {
+    throw new Error('Retention execute mode disabled by PROCUREMENT_RETENTION_ENABLED');
+  }
+
   const now = new Date();
   const cutoff = resolveCutoff(now, config.discardedDays);
   const cutoffIso = cutoff.toISOString();

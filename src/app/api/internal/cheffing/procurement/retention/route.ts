@@ -9,10 +9,22 @@ function unauthorizedResponse() {
   return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 }
 
-function parseMode(req: NextRequest): ProcurementRetentionMode {
+type ParsedModeResult =
+  | { ok: true; mode: ProcurementRetentionMode }
+  | { ok: false; error: string };
+
+function parseMode(req: NextRequest): ParsedModeResult {
   const fromQuery = req.nextUrl.searchParams.get('mode')?.trim().toLowerCase();
-  if (fromQuery === 'execute') return 'execute';
-  return 'dry-run';
+
+  if (!fromQuery) {
+    return { ok: true, mode: 'dry-run' };
+  }
+
+  if (fromQuery === 'dry-run' || fromQuery === 'execute') {
+    return { ok: true, mode: fromQuery };
+  }
+
+  return { ok: false, error: 'Invalid retention mode. Use dry-run or execute.' };
 }
 
 function requestSecret(req: NextRequest): string {
@@ -21,7 +33,6 @@ function requestSecret(req: NextRequest): string {
 
   const headerToken = req.headers.get('x-procurement-retention-secret')?.trim();
   if (headerToken) return headerToken;
-
 
   return '';
 }
@@ -49,7 +60,12 @@ async function handleRun(req: NextRequest) {
   const unauthorized = ensureAuthorized(req);
   if (unauthorized) return unauthorized;
 
-  const mode = parseMode(req);
+  const parsedMode = parseMode(req);
+  if (!parsedMode.ok) {
+    return NextResponse.json({ ok: false, error: parsedMode.error }, { status: 400 });
+  }
+
+  const mode = parsedMode.mode;
 
   let config;
   try {
