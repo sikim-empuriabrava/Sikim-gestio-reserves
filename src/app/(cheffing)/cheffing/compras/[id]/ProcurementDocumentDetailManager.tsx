@@ -962,17 +962,22 @@ export function ProcurementDocumentDetailManager({
     }
   }
 
-  function acceptSuggestedLine(line: Line) {
-    if (!line.suggested_ingredient_id) return;
+  function resolveLineSuggestedIngredientId(line: Line): string | null {
+    return line.suggested_ingredient_id ?? lineSuggestionHintByLineNumber.get(line.line_number)?.suggestedIngredientId ?? null;
+  }
+
+  function acceptSuggestedLine(line: Line, suggestedIngredientId?: string | null) {
+    const resolvedSuggestedIngredientId = suggestedIngredientId ?? resolveLineSuggestedIngredientId(line);
+    if (!resolvedSuggestedIngredientId) return;
     const suggestedCanonicalUnit = normalizeProcurementCanonicalUnit(line.validated_unit ?? line.normalized_unit_code ?? '');
-    const nextIngredientName = localIngredients.find((ingredient) => ingredient.id === line.suggested_ingredient_id)?.name ?? null;
+    const nextIngredientName = localIngredients.find((ingredient) => ingredient.id === resolvedSuggestedIngredientId)?.name ?? null;
     setLocalLines((current) =>
       sortLinesByNumberAsc(
         current.map((entry) =>
           entry.id === line.id
             ? {
                 ...entry,
-                validated_ingredient_id: line.suggested_ingredient_id,
+                validated_ingredient_id: resolvedSuggestedIngredientId,
                 line_status: 'resolved',
                 validated_unit: typeof suggestedCanonicalUnit === 'string' ? suggestedCanonicalUnit : entry.validated_unit,
                 validated_ingredient: { name: nextIngredientName },
@@ -1467,12 +1472,14 @@ export function ProcurementDocumentDetailManager({
                 </tr>
               </thead>
               <tbody>
-                {lines.map((line) => (
+                {lines.map((line) => {
+                  const resolvedSuggestedIngredientId = resolveLineSuggestedIngredientId(line);
+                  return (
                   <EditableLineRow
                     key={line.id}
                     line={line}
                     ingredients={localIngredients}
-                    suggestedIngredientId={line.suggested_ingredient_id ?? lineSuggestionHintByLineNumber.get(line.line_number)?.suggestedIngredientId ?? null}
+                    suggestedIngredientId={resolvedSuggestedIngredientId}
                     suggestedHint={lineSuggestionHintByLineNumber.get(line.line_number) ?? null}
                     isDraft={isDraft}
                     isEditing={editingLineId === line.id}
@@ -1498,7 +1505,8 @@ export function ProcurementDocumentDetailManager({
                     isDeleting={deletingLineIds.has(line.id)}
                     isCreatingIngredient={isCreatingIngredient?.lineId === line.id}
                   />
-                ))}
+                  );
+                })}
               </tbody>
             </table>
           </section>
@@ -1733,7 +1741,7 @@ function LineForm({ value, onChange, ingredients }: { value: typeof emptyLine; o
   );
 }
 
-function EditableLineRow({ line, ingredients, suggestedIngredientId, suggestedHint, isDraft, isEditing, isDirty, onEdit, onCancel, onSave, onDelete, onAcceptSuggestion, onCreateIngredient, onFormDirtyChange, duplicateHint, isSaving, isDeleting, isCreatingIngredient }: { line: Line; ingredients: Ingredient[]; suggestedIngredientId: string | null; suggestedHint: LineSuggestionHint | null; isDraft: boolean; isEditing: boolean; isDirty: boolean; onEdit: () => void; onCancel: () => void; onSave: (line: Line, updates: typeof emptyLine) => void; onDelete: (lineId: string) => void; onAcceptSuggestion: (line: Line) => void; onCreateIngredient: (line: Line, snapshot: typeof emptyLine) => void; onFormDirtyChange: (lineId: string, dirty: boolean) => void; duplicateHint: DuplicateHint | null; isSaving: boolean; isDeleting: boolean; isCreatingIngredient: boolean }) {
+function EditableLineRow({ line, ingredients, suggestedIngredientId, suggestedHint, isDraft, isEditing, isDirty, onEdit, onCancel, onSave, onDelete, onAcceptSuggestion, onCreateIngredient, onFormDirtyChange, duplicateHint, isSaving, isDeleting, isCreatingIngredient }: { line: Line; ingredients: Ingredient[]; suggestedIngredientId: string | null; suggestedHint: LineSuggestionHint | null; isDraft: boolean; isEditing: boolean; isDirty: boolean; onEdit: () => void; onCancel: () => void; onSave: (line: Line, updates: typeof emptyLine) => void; onDelete: (lineId: string) => void; onAcceptSuggestion: (line: Line, suggestedIngredientId?: string | null) => void; onCreateIngredient: (line: Line, snapshot: typeof emptyLine) => void; onFormDirtyChange: (lineId: string, dirty: boolean) => void; duplicateHint: DuplicateHint | null; isSaving: boolean; isDeleting: boolean; isCreatingIngredient: boolean }) {
   const ingredientName = useMemo(() => {
     const source = line.validated_ingredient;
     return Array.isArray(source) ? source[0]?.name : source?.name;
@@ -1783,6 +1791,9 @@ function EditableLineRow({ line, ingredients, suggestedIngredientId, suggestedHi
           {suggestedHint?.hasAmbiguousTopMatch ? (
             <p className="text-[11px] text-amber-300">Ambigüedad: hay más de un candidato fuerte para esta línea.</p>
           ) : null}
+          {suggestedIngredientId && suggestedHint?.hasNoStrongMatch ? (
+            <p className="text-[11px] text-amber-300">Match débil: sugerencia útil pero no suficientemente fiable.</p>
+          ) : null}
           {!suggestedIngredientId ? <p className="text-[11px] text-amber-300">Sin sugerencia directa: busca manualmente o crea ingrediente.</p> : null}
           {isFormDirty && pendingIngredientName && pendingIngredientName !== ingredientName ? (
             <p className="text-[11px] text-amber-300">Selección pendiente: {pendingIngredientName}</p>
@@ -1790,7 +1801,7 @@ function EditableLineRow({ line, ingredients, suggestedIngredientId, suggestedHi
           {isDraft ? (
             <>
               {suggestedIngredientId ? (
-                <button type="button" disabled={suggestedIsAlreadySelected || isRowBusy} onClick={() => onAcceptSuggestion(line)} className="rounded-full border border-emerald-500/60 px-2 py-0.5 text-[11px] text-emerald-200 disabled:cursor-not-allowed disabled:border-slate-700 disabled:text-slate-500">
+                <button type="button" disabled={suggestedIsAlreadySelected || isRowBusy} onClick={() => onAcceptSuggestion(line, suggestedIngredientId)} className="rounded-full border border-emerald-500/60 px-2 py-0.5 text-[11px] text-emerald-200 disabled:cursor-not-allowed disabled:border-slate-700 disabled:text-slate-500">
                   {suggestedIsAlreadySelected ? 'Sugerencia ya aplicada' : '✓ Aceptar sugerencia'}
                 </button>
               ) : null}
@@ -1904,13 +1915,8 @@ function SearchableIngredientSelect({ value, onChange, ingredients, placeholder 
   }, [ingredients, query, selectedIngredient]);
 
   useEffect(() => {
-    if (selectedIngredient && selectedIngredient.name !== query) {
-      setQuery(selectedIngredient.name);
-    }
-    if (!selectedIngredient && !value && query) {
-      setQuery('');
-    }
-  }, [query, selectedIngredient, value]);
+    setQuery(selectedIngredient?.name ?? '');
+  }, [selectedIngredient, value]);
 
   return (
     <div className="relative space-y-1 md:col-span-2">
@@ -1921,7 +1927,8 @@ function SearchableIngredientSelect({ value, onChange, ingredients, placeholder 
           onChange={(event) => {
             setQuery(event.target.value);
             setIsOpen(true);
-            if (!event.target.value.trim()) onChange('');
+            if (value) onChange('');
+            else if (!event.target.value.trim()) onChange('');
           }}
           placeholder="Buscar ingrediente…"
           className="w-full bg-transparent text-xs text-slate-200 outline-none"
@@ -1976,5 +1983,6 @@ function dedupeWarnings(lineWarning: string | null, suggestedHint: LineSuggestio
   const warnings = [lineWarning];
   if (suggestedHint?.hasAmbiguousTopMatch) warnings.push('Coincidencia ambigua en candidatos OCR.');
   if (!suggestedHint?.suggestedIngredientId) warnings.push('Sin match OCR fiable.');
+  if (suggestedHint?.suggestedIngredientId && suggestedHint.hasNoStrongMatch) warnings.push('Match OCR débil para la sugerencia actual.');
   return Array.from(new Set(warnings.filter((warning): warning is string => Boolean(warning && warning.trim())))).join(' · ');
 }
