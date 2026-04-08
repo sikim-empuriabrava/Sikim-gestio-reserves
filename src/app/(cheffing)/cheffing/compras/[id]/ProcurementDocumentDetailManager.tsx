@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 
 import {
@@ -1904,6 +1904,7 @@ function EditableLineRow({ line, ingredients, suggestedIngredientId, suggestedHi
 function SearchableIngredientSelect({ value, onChange, ingredients, placeholder }: { value: string; onChange: (value: string) => void; ingredients: Ingredient[]; placeholder: string }) {
   const [query, setQuery] = useState('');
   const [isOpen, setIsOpen] = useState(false);
+  const skipNextValueSyncRef = useRef(false);
   const selectedIngredient = useMemo(() => ingredients.find((ingredient) => ingredient.id === value) ?? null, [ingredients, value]);
   const filtered = useMemo(() => {
     const normalized = query.trim().toLowerCase();
@@ -1915,8 +1916,12 @@ function SearchableIngredientSelect({ value, onChange, ingredients, placeholder 
   }, [ingredients, query, selectedIngredient]);
 
   useEffect(() => {
+    if (skipNextValueSyncRef.current) {
+      skipNextValueSyncRef.current = false;
+      return;
+    }
     setQuery(selectedIngredient?.name ?? '');
-  }, [selectedIngredient, value]);
+  }, [selectedIngredient?.name, value]);
 
   return (
     <div className="relative space-y-1 md:col-span-2">
@@ -1927,8 +1932,10 @@ function SearchableIngredientSelect({ value, onChange, ingredients, placeholder 
           onChange={(event) => {
             setQuery(event.target.value);
             setIsOpen(true);
-            if (value) onChange('');
-            else if (!event.target.value.trim()) onChange('');
+            if (value) {
+              skipNextValueSyncRef.current = true;
+              onChange('');
+            }
           }}
           placeholder="Buscar ingrediente…"
           className="w-full bg-transparent text-xs text-slate-200 outline-none"
@@ -1937,6 +1944,7 @@ function SearchableIngredientSelect({ value, onChange, ingredients, placeholder 
           <button
             type="button"
             onClick={() => {
+              skipNextValueSyncRef.current = false;
               onChange('');
               setQuery('');
               setIsOpen(false);
