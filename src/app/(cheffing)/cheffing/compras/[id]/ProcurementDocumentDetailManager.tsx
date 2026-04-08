@@ -746,8 +746,13 @@ export function ProcurementDocumentDetailManager({
         throw new Error(assignPayload?.error ?? 'No se pudo asignar el proveedor al documento');
       }
 
-      const prefill = resolveSupplierContactPrefill(newSupplierId);
-      setHeader((current) => ({ ...current, supplier_id: newSupplierId, supplier_tax_id: prefill.tax_id, supplier_email: prefill.email, supplier_phone: prefill.phone }));
+      setHeader((current) => ({
+        ...current,
+        supplier_id: newSupplierId,
+        supplier_tax_id: newSupplierForm.tax_id.trim(),
+        supplier_email: newSupplierForm.email.trim(),
+        supplier_phone: newSupplierForm.phone.trim(),
+      }));
       setIsCreatingSupplier(false);
       setNewSupplierForm(emptySupplierForm);
       router.refresh();
