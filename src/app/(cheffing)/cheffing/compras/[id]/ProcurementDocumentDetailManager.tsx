@@ -374,6 +374,7 @@ export function ProcurementDocumentDetailManager({
   const [isCreatingIngredient, setIsCreatingIngredient] = useState<null | { lineId: string; name: string; unitCode: string; packQty: string; price: string; lineSnapshot: ReturnType<typeof lineToFormSnapshot> }>(null);
   const [localIngredients, setLocalIngredients] = useState<Ingredient[]>(ingredients);
   const [localLines, setLocalLines] = useState<Line[]>(sortLinesByNumberAsc(document.cheffing_purchase_document_lines ?? []));
+  const localLinesRef = useRef<Line[]>(sortLinesByNumberAsc(document.cheffing_purchase_document_lines ?? []));
   const [modelDirtyLineIds, setModelDirtyLineIds] = useState<Set<string>>(new Set());
   const [formDirtyLineIds, setFormDirtyLineIds] = useState<Set<string>>(new Set());
 
@@ -382,12 +383,18 @@ export function ProcurementDocumentDetailManager({
   }, [ingredients]);
 
   useEffect(() => {
-    setLocalLines(sortLinesByNumberAsc(document.cheffing_purchase_document_lines ?? []));
+    const nextLines = sortLinesByNumberAsc(document.cheffing_purchase_document_lines ?? []);
+    setLocalLines(nextLines);
+    localLinesRef.current = nextLines;
     setModelDirtyLineIds(new Set());
     setFormDirtyLineIds(new Set());
     setSavingLineIds(new Set());
     setDeletingLineIds(new Set());
   }, [document.cheffing_purchase_document_lines]);
+
+  useEffect(() => {
+    localLinesRef.current = localLines;
+  }, [localLines]);
 
   const lines = localLines;
   const hasDirtyLines = modelDirtyLineIds.size > 0 || formDirtyLineIds.size > 0;
@@ -1021,7 +1028,7 @@ export function ProcurementDocumentDetailManager({
       if (!createResponse.ok || typeof createResult?.id !== 'string') {
         throw new Error(createResult?.error ?? 'No se pudo crear el ingrediente');
       }
-      const targetLine = localLines.find((line) => line.id === isCreatingIngredient.lineId);
+      const targetLine = localLinesRef.current.find((line) => line.id === isCreatingIngredient.lineId);
       if (!targetLine) throw new Error('No se encontró la línea para vincular el ingrediente');
       const createdIngredientName = payload.name;
       setLocalIngredients((current) => {
