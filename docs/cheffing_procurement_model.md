@@ -215,3 +215,6 @@ En la revisión de `/cheffing/compras/[id]` se ha endurecido el enfoque operativ
 - el combobox manual de ingrediente ya soporta cierre por click fuera + teclado básico (`ArrowUp/Down`, `Enter`, `Escape`) con resaltado de opción activa y scroll interno al navegar;
 - al crear ingrediente desde línea, se preserva el snapshot editado de la fila para no perder cambios locales;
 - la unidad canónica de la fila se precompleta con inferencia prudente (`validated_unit`/`normalized_unit_code`/señal pipeline) cuando existe, evitando vacíos innecesarios.
+- hardening final operativo: aceptar sugerencia mientras la fila está en edición ya no pisa otros campos locales no guardados;
+- el reset de snapshot local por re-render se evita cuando la fila está en edición con cambios pendientes (cancelar sigue volviendo al persistido real);
+- el combobox manual cierra de forma consistente en `Escape`/`Tab`/click fuera y evita quedarse abierto en estados inválidos (sin resultados tras filtro o limpieza).
