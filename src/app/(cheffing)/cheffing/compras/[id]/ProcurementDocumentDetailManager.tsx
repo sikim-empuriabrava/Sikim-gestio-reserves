@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 
 import {
@@ -1906,6 +1906,7 @@ function SearchableIngredientSelect({ value, onChange, ingredients, placeholder 
   const [isOpen, setIsOpen] = useState(false);
   const [activeIndex, setActiveIndex] = useState(-1);
   const skipNextValueSyncRef = useRef(false);
+  const listboxId = useId();
   const rootRef = useRef<HTMLDivElement | null>(null);
   const optionRefs = useRef<Array<HTMLButtonElement | null>>([]);
   const selectedIngredient = useMemo(() => ingredients.find((ingredient) => ingredient.id === value) ?? null, [ingredients, value]);
@@ -1928,7 +1929,7 @@ function SearchableIngredientSelect({ value, onChange, ingredients, placeholder 
 
   useEffect(() => {
     if (!isOpen) return;
-    const onPointerDownOutside = (event: MouseEvent) => {
+    const onPointerDownOutside = (event: PointerEvent) => {
       const target = event.target;
       if (!(target instanceof Node)) return;
       if (!rootRef.current?.contains(target)) {
@@ -1936,8 +1937,8 @@ function SearchableIngredientSelect({ value, onChange, ingredients, placeholder 
         setActiveIndex(-1);
       }
     };
-    document.addEventListener('mousedown', onPointerDownOutside);
-    return () => document.removeEventListener('mousedown', onPointerDownOutside);
+    document.addEventListener('pointerdown', onPointerDownOutside);
+    return () => document.removeEventListener('pointerdown', onPointerDownOutside);
   }, [isOpen]);
 
   useEffect(() => {
@@ -1981,6 +1982,11 @@ function SearchableIngredientSelect({ value, onChange, ingredients, placeholder 
         <input
           value={query}
           onFocus={() => setIsOpen(true)}
+          role="combobox"
+          aria-autocomplete="list"
+          aria-expanded={isOpen}
+          aria-controls={isOpen ? listboxId : undefined}
+          aria-activedescendant={isOpen && activeIndex >= 0 && filtered[activeIndex] ? `${listboxId}-option-${filtered[activeIndex].id}` : undefined}
           onKeyDown={(event) => {
             if (event.key === 'ArrowDown') {
               event.preventDefault();
@@ -2012,6 +2018,11 @@ function SearchableIngredientSelect({ value, onChange, ingredients, placeholder 
             if (event.key === 'Escape') {
               if (!isOpen) return;
               event.preventDefault();
+              setIsOpen(false);
+              setActiveIndex(-1);
+              return;
+            }
+            if (event.key === 'Tab') {
               setIsOpen(false);
               setActiveIndex(-1);
             }
@@ -2046,12 +2057,15 @@ function SearchableIngredientSelect({ value, onChange, ingredients, placeholder 
       </div>
       <p className="text-[11px] text-slate-500">{selectedIngredient ? `Seleccionado: ${selectedIngredient.name}` : placeholder}</p>
       {isOpen ? (
-        <div className="absolute z-20 max-h-56 w-full overflow-auto rounded-md border border-slate-700 bg-slate-950 shadow-xl">
+        <div id={listboxId} role="listbox" className="absolute z-20 max-h-56 w-full overflow-auto rounded-md border border-slate-700 bg-slate-950 shadow-xl">
           {filtered.length === 0 ? <p className="px-2 py-2 text-xs text-slate-500">Sin resultados</p> : null}
           {filtered.map((ingredient, index) => (
             <button
               key={ingredient.id}
+              id={`${listboxId}-option-${ingredient.id}`}
               type="button"
+              role="option"
+              aria-selected={value === ingredient.id}
               ref={(node) => {
                 optionRefs.current[index] = node;
               }}
@@ -2059,11 +2073,18 @@ function SearchableIngredientSelect({ value, onChange, ingredients, placeholder 
                 event.preventDefault();
                 selectIngredient(ingredient);
               }}
-              className={`block w-full px-2 py-1.5 text-left text-xs hover:bg-slate-800 ${
-                activeIndex === index ? 'bg-slate-700 text-white' : ''
-              } ${value === ingredient.id ? 'text-emerald-200' : 'text-slate-200'}`}
+              className={`flex w-full items-center justify-between px-2 py-1.5 text-left text-xs hover:bg-slate-800 ${
+                activeIndex === index && value === ingredient.id
+                  ? 'bg-emerald-900/40 text-emerald-100'
+                  : activeIndex === index
+                    ? 'bg-slate-700 text-white'
+                    : value === ingredient.id
+                      ? 'bg-slate-800 text-emerald-200'
+                      : 'text-slate-200'
+              }`}
             >
-              {ingredient.name}
+              <span className="truncate">{ingredient.name}</span>
+              {value === ingredient.id ? <span className="ml-2 text-[10px] font-semibold uppercase tracking-wide text-emerald-300">✔</span> : null}
             </button>
           ))}
         </div>
