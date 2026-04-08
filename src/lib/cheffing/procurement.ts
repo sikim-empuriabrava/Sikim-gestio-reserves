@@ -12,6 +12,10 @@ export type ProcurementCanonicalUnit = (typeof PROCUREMENT_CANONICAL_UNITS)[numb
 
 export const PROCUREMENT_SOURCE_FILE_BUCKET = 'cheffing-procurement-documents';
 export const PROCUREMENT_SOURCE_FILE_ACCEPTED_MIME_TYPES = ['application/pdf', 'image/jpeg', 'image/png', 'image/webp'] as const;
+export const PROCUREMENT_SOURCE_FILE_ACCEPT_ATTRIBUTE = PROCUREMENT_SOURCE_FILE_ACCEPTED_MIME_TYPES.join(',');
+export const PROCUREMENT_SOURCE_IMAGE_FILE_ACCEPT_ATTRIBUTE = PROCUREMENT_SOURCE_FILE_ACCEPTED_MIME_TYPES
+  .filter((mimeType) => mimeType.startsWith('image/'))
+  .join(',');
 
 const MIME_TO_EXTENSION: Record<(typeof PROCUREMENT_SOURCE_FILE_ACCEPTED_MIME_TYPES)[number], string> = {
   'application/pdf': 'pdf',

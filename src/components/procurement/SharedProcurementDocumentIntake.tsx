@@ -4,7 +4,11 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useRef, useState } from 'react';
 
-import { type ProcurementDocumentKind } from '@/lib/cheffing/procurement';
+import {
+  PROCUREMENT_SOURCE_FILE_ACCEPT_ATTRIBUTE,
+  PROCUREMENT_SOURCE_IMAGE_FILE_ACCEPT_ATTRIBUTE,
+  type ProcurementDocumentKind,
+} from '@/lib/cheffing/procurement';
 
 type SharedProcurementDocumentIntakeProps = {
   title?: string;
@@ -159,7 +163,7 @@ export function SharedProcurementDocumentIntake({
       <input
         ref={cameraInputRef}
         type="file"
-        accept="image/*"
+        accept={PROCUREMENT_SOURCE_IMAGE_FILE_ACCEPT_ATTRIBUTE}
         capture="environment"
         className="hidden"
         onChange={(event) => createDraftFromFile(event.target.files?.[0] ?? null)}
@@ -167,7 +171,7 @@ export function SharedProcurementDocumentIntake({
       <input
         ref={fileInputRef}
         type="file"
-        accept="image/*,application/pdf"
+        accept={PROCUREMENT_SOURCE_FILE_ACCEPT_ATTRIBUTE}
         className="hidden"
         onChange={(event) => createDraftFromFile(event.target.files?.[0] ?? null)}
       />
