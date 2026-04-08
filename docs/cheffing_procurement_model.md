@@ -146,14 +146,50 @@ Sigue activa la decisión conservadora de V1:
 
 ---
 
-## 7) Retención de archivo original
+## 7) Retención de archivo original (Fase D — 2026-04-08)
 
-A nivel de modelo se mantiene `storage_delete_after` con trigger por estado documental:
+Desde Fase D ya existe automatización **conservadora** de limpieza física en Storage para documentos descartados: 
 
-- `applied` => fecha elegible de borrado (+7 días);
-- resto de estados => `null`.
+- alcance automático actual: solo `status = discarded`;
+- solo cuando el documento todavía mantiene `storage_bucket` + `storage_path`;
+- solo si supera antigüedad configurada por retención;
+- la purga elimina el archivo original en Supabase Storage y limpia referencias en DB (`storage_bucket = null`, `storage_path = null`).
 
-Sigue pendiente un **job automático real** que ejecute la purga física en Storage según esa fecha.
+Importante (limitación deliberada de fase):
+- no borra `draft`;
+- no borra `applied`;
+- no limpia de forma agresiva `ocr_raw_text`, `interpreted_payload` ni líneas;
+- no introduce colas backend nuevas ni migraciones de esquema para esta fase.
+
+### 7.1 Endpoint interno cron-ready
+
+Ruta interna preparada para ejecución manual o cron:
+
+- `GET /api/internal/cheffing/procurement/retention?mode=dry-run`
+- `GET /api/internal/cheffing/procurement/retention?mode=execute`
+- `POST /api/internal/cheffing/procurement/retention?mode=execute`
+
+Protección:
+- requiere secreto por `Authorization: Bearer <PROCUREMENT_RETENTION_SECRET>` (o `x-procurement-retention-secret`);
+- `mode=execute` queda bloqueado si `PROCUREMENT_RETENTION_ENABLED` no está activo.
+
+### 7.2 Política de selección conservadora
+
+- prioridad temporal: `discarded_at`;
+- fallback prudente: `updated_at` solo para descartados sin `discarded_at`;
+- límite de lote por ejecución (batch) configurable para evitar purgas masivas en un único run.
+
+### 7.3 Variables de entorno
+
+- `PROCUREMENT_RETENTION_ENABLED`: habilita/deshabilita `execute` (por defecto apagado);
+- `PROCUREMENT_RETENTION_SECRET`: secreto requerido por la ruta interna;
+- `PROCUREMENT_RETENTION_DISCARDED_DAYS`: días de retención para descartados;
+- `PROCUREMENT_RETENTION_BATCH_LIMIT`: máximo de candidatos por ejecución.
+
+### 7.4 Modos operativos
+
+- `dry-run`: lista candidatos y resumen, sin mutaciones;
+- `execute`: intenta purgar por candidato, continúa ante errores parciales y devuelve resumen (candidatos/procesados/purgados/omitidos/errores + IDs afectados).
 
 ---
 
@@ -165,7 +201,7 @@ Aunque el bloque está avanzado, no se documenta como final cerrado:
 - hay que seguir validando comportamiento con casos reales de proveedor/documento;
 - la estrategia final de duplicados y líneas sombra sigue afinándose (cuánto resolver en cleanup vs frontend/backend);
 - queda pendiente decidir el momento de migrar coste aplicado desde `raw_unit_price` a flujo normalizado estable;
-- la limpieza automática de Storage por retención todavía no está automatizada end-to-end.
+- la automatización de retención (Fase D) ya existe para descartados y purga física de originales; pendientes futuros quedan en ampliar alcance/políticas si producto lo decide.
 
 ---
 
