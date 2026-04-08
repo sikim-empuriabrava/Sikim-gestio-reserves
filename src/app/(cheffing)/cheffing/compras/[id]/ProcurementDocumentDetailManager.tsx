@@ -374,6 +374,7 @@ export function ProcurementDocumentDetailManager({
   const [isCreatingIngredient, setIsCreatingIngredient] = useState<null | { lineId: string; name: string; unitCode: string; packQty: string; price: string; lineSnapshot: ReturnType<typeof lineToFormSnapshot> }>(null);
   const [localIngredients, setLocalIngredients] = useState<Ingredient[]>(ingredients);
   const [localLines, setLocalLines] = useState<Line[]>(sortLinesByNumberAsc(document.cheffing_purchase_document_lines ?? []));
+  const localLinesRef = useRef<Line[]>(sortLinesByNumberAsc(document.cheffing_purchase_document_lines ?? []));
   const [modelDirtyLineIds, setModelDirtyLineIds] = useState<Set<string>>(new Set());
   const [formDirtyLineIds, setFormDirtyLineIds] = useState<Set<string>>(new Set());
 
@@ -382,12 +383,18 @@ export function ProcurementDocumentDetailManager({
   }, [ingredients]);
 
   useEffect(() => {
-    setLocalLines(sortLinesByNumberAsc(document.cheffing_purchase_document_lines ?? []));
+    const nextLines = sortLinesByNumberAsc(document.cheffing_purchase_document_lines ?? []);
+    setLocalLines(nextLines);
+    localLinesRef.current = nextLines;
     setModelDirtyLineIds(new Set());
     setFormDirtyLineIds(new Set());
     setSavingLineIds(new Set());
     setDeletingLineIds(new Set());
   }, [document.cheffing_purchase_document_lines]);
+
+  useEffect(() => {
+    localLinesRef.current = localLines;
+  }, [localLines]);
 
   const lines = localLines;
   const hasDirtyLines = modelDirtyLineIds.size > 0 || formDirtyLineIds.size > 0;
@@ -969,7 +976,7 @@ export function ProcurementDocumentDetailManager({
   function acceptSuggestedLine(line: Line, suggestedIngredientId?: string | null) {
     const resolvedSuggestedIngredientId = suggestedIngredientId ?? resolveLineSuggestedIngredientId(line);
     if (!resolvedSuggestedIngredientId) return;
-    const suggestedCanonicalUnit = normalizeProcurementCanonicalUnit(line.validated_unit ?? line.normalized_unit_code ?? '');
+    const suggestedCanonicalUnit = normalizeProcurementCanonicalUnit(line.validated_unit ?? line.normalized_unit_code ?? line.interpreted_unit ?? '');
     const nextIngredientName = localIngredients.find((ingredient) => ingredient.id === resolvedSuggestedIngredientId)?.name ?? null;
     setLocalLines((current) =>
       sortLinesByNumberAsc(
@@ -1021,7 +1028,7 @@ export function ProcurementDocumentDetailManager({
       if (!createResponse.ok || typeof createResult?.id !== 'string') {
         throw new Error(createResult?.error ?? 'No se pudo crear el ingrediente');
       }
-      const targetLine = lines.find((line) => line.id === isCreatingIngredient.lineId);
+      const targetLine = localLinesRef.current.find((line) => line.id === isCreatingIngredient.lineId);
       if (!targetLine) throw new Error('No se encontró la línea para vincular el ingrediente');
       const createdIngredientName = payload.name;
       setLocalIngredients((current) => {
@@ -1761,10 +1768,18 @@ function EditableLineRow({ line, ingredients, suggestedIngredientId, suggestedHi
   const suggestedIsAlreadySelected =
     Boolean(suggestedIngredientId) &&
     (line.validated_ingredient_id === suggestedIngredientId || form.validated_ingredient_id === suggestedIngredientId);
+  const matchingStateLabel = suggestedIngredientId
+    ? suggestedHint?.hasNoStrongMatch
+      ? 'Match OCR débil: requiere validación manual.'
+      : suggestedHint?.hasAmbiguousTopMatch
+        ? 'Match OCR ambiguo: revisa antes de confirmar.'
+        : 'Sugerencia OCR disponible.'
+    : 'Sin match OCR fiable: seleccionar manualmente.';
 
   useEffect(() => {
+    if (isEditing && isFormDirty) return;
     setForm(lineToFormSnapshot(line));
-  }, [line]);
+  }, [isEditing, isFormDirty, line]);
 
   useEffect(() => {
     onFormDirtyChange(line.id, isFormDirty);
@@ -1785,6 +1800,7 @@ function EditableLineRow({ line, ingredients, suggestedIngredientId, suggestedHi
               {typeof suggestedHint?.scoreHint === 'number' ? ` · score ${suggestedHint.scoreHint.toFixed(0)}` : ''}
             </p>
           ) : null}
+          <p className="text-[11px] text-slate-400">{matchingStateLabel}</p>
           {suggestedHint?.reasonLabel ? <p className="text-[11px] text-slate-500">Motivo: {suggestedHint.reasonLabel}</p> : null}
           {suggestedHint?.isManualSuggestionCandidate ? <p className="text-[11px] text-emerald-300">Sugerencia manual útil (1 clic)</p> : null}
           {suggestedHint?.isAutoHighConfidence ? <p className="text-[11px] text-sky-300">Match alto (pipeline)</p> : null}
@@ -1801,7 +1817,26 @@ function EditableLineRow({ line, ingredients, suggestedIngredientId, suggestedHi
           {isDraft ? (
             <>
               {suggestedIngredientId ? (
-                <button type="button" disabled={suggestedIsAlreadySelected || isRowBusy} onClick={() => onAcceptSuggestion(line, suggestedIngredientId)} className="rounded-full border border-emerald-500/60 px-2 py-0.5 text-[11px] text-emerald-200 disabled:cursor-not-allowed disabled:border-slate-700 disabled:text-slate-500">
+                <button
+                  type="button"
+                  disabled={suggestedIsAlreadySelected || isRowBusy}
+                  onClick={() => {
+                    if (!suggestedIngredientId) return;
+                    if (isEditing) {
+                      const suggestedCanonicalUnit = normalizeProcurementCanonicalUnit(line.validated_unit ?? line.normalized_unit_code ?? line.interpreted_unit ?? '');
+                      setForm((current) => ({
+                        ...current,
+                        validated_ingredient_id: suggestedIngredientId,
+                        validated_unit:
+                          current.validated_unit ||
+                          (typeof suggestedCanonicalUnit === 'string' ? suggestedCanonicalUnit : ''),
+                      }));
+                      return;
+                    }
+                    onAcceptSuggestion(line, suggestedIngredientId);
+                  }}
+                  className="rounded-full border border-emerald-500/60 px-2 py-0.5 text-[11px] text-emerald-200 disabled:cursor-not-allowed disabled:border-slate-700 disabled:text-slate-500"
+                >
                   {suggestedIsAlreadySelected ? 'Sugerencia ya aplicada' : '✓ Aceptar sugerencia'}
                 </button>
               ) : null}
@@ -1918,6 +1953,7 @@ function SearchableIngredientSelect({ value, onChange, ingredients, placeholder 
     }
     return ingredients.filter((ingredient) => ingredient.name.toLowerCase().includes(normalized)).slice(0, 80);
   }, [ingredients, query, selectedIngredient]);
+  const hasFilteredResults = filtered.length > 0;
 
   useEffect(() => {
     if (skipNextValueSyncRef.current) {
@@ -1946,7 +1982,8 @@ function SearchableIngredientSelect({ value, onChange, ingredients, placeholder 
       setActiveIndex(-1);
       return;
     }
-    if (!filtered.length) {
+    if (!hasFilteredResults) {
+      setIsOpen(false);
       setActiveIndex(-1);
       return;
     }
@@ -1955,7 +1992,7 @@ function SearchableIngredientSelect({ value, onChange, ingredients, placeholder 
       const selectedIndex = filtered.findIndex((ingredient) => ingredient.id === value);
       return selectedIndex >= 0 ? selectedIndex : 0;
     });
-  }, [filtered, isOpen, value]);
+  }, [filtered, hasFilteredResults, isOpen, value]);
 
   useEffect(() => {
     if (!isOpen || activeIndex < 0) return;
@@ -1966,14 +2003,18 @@ function SearchableIngredientSelect({ value, onChange, ingredients, placeholder 
     optionRefs.current = optionRefs.current.slice(0, filtered.length);
   }, [filtered.length]);
 
+  const closeDropdown = useCallback(() => {
+    setIsOpen(false);
+    setActiveIndex(-1);
+  }, []);
+
   const selectIngredient = useCallback(
     (ingredient: Ingredient) => {
       onChange(ingredient.id);
       setQuery(ingredient.name);
-      setIsOpen(false);
-      setActiveIndex(-1);
+      closeDropdown();
     },
-    [onChange],
+    [closeDropdown, onChange],
   );
 
   return (
@@ -1981,7 +2022,9 @@ function SearchableIngredientSelect({ value, onChange, ingredients, placeholder 
       <div className="flex items-center gap-1 rounded-md border border-slate-700 bg-slate-950/70 px-2 py-1">
         <input
           value={query}
-          onFocus={() => setIsOpen(true)}
+          onFocus={() => {
+            if (hasFilteredResults) setIsOpen(true);
+          }}
           role="combobox"
           aria-autocomplete="list"
           aria-expanded={isOpen}
@@ -2018,18 +2061,18 @@ function SearchableIngredientSelect({ value, onChange, ingredients, placeholder 
             if (event.key === 'Escape') {
               if (!isOpen) return;
               event.preventDefault();
-              setIsOpen(false);
-              setActiveIndex(-1);
+              closeDropdown();
               return;
             }
             if (event.key === 'Tab') {
-              setIsOpen(false);
-              setActiveIndex(-1);
+              closeDropdown();
             }
           }}
           onChange={(event) => {
-            setQuery(event.target.value);
-            setIsOpen(true);
+            const nextQuery = event.target.value;
+            setQuery(nextQuery);
+            const hasMatches = ingredients.some((ingredient) => ingredient.name.toLowerCase().includes(nextQuery.trim().toLowerCase()));
+            setIsOpen(hasMatches);
             setActiveIndex(-1);
             if (value) {
               skipNextValueSyncRef.current = true;
@@ -2046,8 +2089,7 @@ function SearchableIngredientSelect({ value, onChange, ingredients, placeholder 
               skipNextValueSyncRef.current = false;
               onChange('');
               setQuery('');
-              setIsOpen(false);
-              setActiveIndex(-1);
+              closeDropdown();
             }}
             className="rounded border border-slate-700 px-1.5 py-0.5 text-[10px] text-slate-300"
           >
@@ -2056,9 +2098,8 @@ function SearchableIngredientSelect({ value, onChange, ingredients, placeholder 
         ) : null}
       </div>
       <p className="text-[11px] text-slate-500">{selectedIngredient ? `Seleccionado: ${selectedIngredient.name}` : placeholder}</p>
-      {isOpen ? (
+      {isOpen && hasFilteredResults ? (
         <div id={listboxId} role="listbox" className="absolute z-20 max-h-56 w-full overflow-auto rounded-md border border-slate-700 bg-slate-950 shadow-xl">
-          {filtered.length === 0 ? <p className="px-2 py-2 text-xs text-slate-500">Sin resultados</p> : null}
           {filtered.map((ingredient, index) => (
             <button
               key={ingredient.id}
@@ -2090,10 +2131,10 @@ function SearchableIngredientSelect({ value, onChange, ingredients, placeholder 
         </div>
       ) : null}
       <input type="hidden" value={value} readOnly />
-      <button type="button" onClick={() => setIsOpen((current) => !current)} className="text-[10px] text-slate-500 underline">
+      <button type="button" onClick={() => setIsOpen((current) => (hasFilteredResults ? !current : false))} className="text-[10px] text-slate-500 underline">
         {isOpen ? 'Ocultar resultados' : 'Mostrar resultados'}
       </button>
-      <button type="button" onClick={() => setIsOpen(false)} className="ml-2 text-[10px] text-slate-500 underline">
+      <button type="button" onClick={closeDropdown} className="ml-2 text-[10px] text-slate-500 underline">
         Cerrar
       </button>
     </div>
