@@ -27,6 +27,20 @@ No se documenta aquí como “cerrado al 100%”: sigue habiendo heurística y d
 ### 2.1 Listado y entrada a detalle (`/cheffing/compras`)
 - El listado carga documentos y proveedores activos.
 - El copy de la página ya declara explícitamente “flujo draft revisable” y “pase inicial OCR”.
+- Desde **2026-04-08 (Fase B)** el listado funciona como **bandeja operativa**:
+  - tabs por estado (`Borradores`, `Aplicados`, `Descartados`) con contador visible;
+  - vista por defecto en `Borradores`;
+  - lectura por fila orientada a priorización diaria (estado DB + estado operativo + proveedor confirmado/provisional + líneas + importe útil).
+- En borradores se añade una señal prudente de “estado operativo” para priorizar:
+  - sin proveedor confirmado;
+  - líneas pendientes;
+  - coste pendiente en líneas (no marcar “listo para aplicar” mientras falte coste aplicable);
+  - listo para revisar;
+  - listo para aplicar.
+- La bandeja puede mostrar una señal warning-first de posible duplicado documental (si `possible_document_duplicate.status = possible_duplicate`) para revisión manual antes de aplicar.
+- La señal de posible duplicado se muestra de forma visible en la bandeja de **borradores** (no en aplicados/descartados) para evitar ruido fuera de contexto.
+- La descripción de “Líneas pendientes” en listado muestra solo motivos activos (sin contadores a cero) y la ordenación de borradores prioriza primero estados operativos más críticos.
+- Ordenación estable orientada a uso diario (fecha de documento descendente, con desempate por actualización/creación).
 
 ### 2.2 Detalle operativo (`/cheffing/compras/[id]`)
 En la ficha de documento existe revisión operativa real sobre cabecera + líneas:
