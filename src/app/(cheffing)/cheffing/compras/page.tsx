@@ -11,7 +11,7 @@ export default async function CheffingComprasPage() {
     supabase
       .from('cheffing_purchase_documents')
       .select(
-        'id, status, document_kind, document_number, document_date, created_at, updated_at, supplier_id, declared_total, interpreted_payload, cheffing_suppliers(trade_name), cheffing_purchase_document_lines(id, line_status, validated_ingredient_id)',
+        'id, status, document_kind, document_number, document_date, created_at, updated_at, supplier_id, declared_total, interpreted_payload, cheffing_suppliers(trade_name), cheffing_purchase_document_lines(id, line_status, validated_ingredient_id, raw_unit_price)',
       )
       .order('document_date', { ascending: false })
       .order('created_at', { ascending: false }),

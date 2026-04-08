@@ -13,6 +13,7 @@ type PurchaseDocumentLineLite = {
   id: string;
   line_status: 'unresolved' | 'resolved' | null;
   validated_ingredient_id: string | null;
+  raw_unit_price: number | null;
 };
 
 type PurchaseDocument = {
@@ -39,6 +40,10 @@ type OperationalStatus = {
   tone: OperationalStatusTone;
 };
 
+type PossibleDuplicateSignal = {
+  isPossibleDuplicate: boolean;
+};
+
 function formatDate(value: string): string {
   const parsed = new Date(value);
   if (Number.isNaN(parsed.getTime())) return value;
@@ -48,6 +53,15 @@ function formatDate(value: string): string {
 function formatCurrency(value: number | null): string {
   if (value === null || Number.isNaN(value)) return '—';
   return new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR' }).format(value);
+}
+
+function parsePrudentNumber(value: unknown): number | null {
+  if (typeof value === 'number' && Number.isFinite(value)) return value;
+  if (typeof value !== 'string') return null;
+  const normalized = value.trim();
+  if (!normalized.length) return null;
+  const parsed = Number(normalized.replace(',', '.'));
+  return Number.isFinite(parsed) ? parsed : null;
 }
 
 function resolveSupplierName(document: PurchaseDocument): string | null {
@@ -81,14 +95,23 @@ function resolveSupplierName(document: PurchaseDocument): string | null {
 }
 
 function resolveDetectedTotal(document: PurchaseDocument): number | null {
-  if (typeof document.declared_total === 'number' && Number.isFinite(document.declared_total)) {
-    return document.declared_total;
-  }
+  const declaredTotal = parsePrudentNumber(document.declared_total);
+  if (declaredTotal !== null) return declaredTotal;
   const payload = document.interpreted_payload && typeof document.interpreted_payload === 'object' ? document.interpreted_payload : null;
   const detected = payload?.document_detected;
   if (!detected || typeof detected !== 'object') return null;
   const typed = detected as Record<string, unknown>;
-  return typeof typed.declared_total === 'number' && Number.isFinite(typed.declared_total) ? typed.declared_total : null;
+  return parsePrudentNumber(typed.declared_total);
+}
+
+function resolvePossibleDuplicateSignal(document: PurchaseDocument): PossibleDuplicateSignal {
+  const payload = document.interpreted_payload && typeof document.interpreted_payload === 'object' ? document.interpreted_payload : null;
+  const possibleDuplicate = payload?.possible_document_duplicate;
+  if (!possibleDuplicate || typeof possibleDuplicate !== 'object') {
+    return { isPossibleDuplicate: false };
+  }
+  const typed = possibleDuplicate as Record<string, unknown>;
+  return { isPossibleDuplicate: typed.status === 'possible_duplicate' };
 }
 
 function resolveOperationalStatus(document: PurchaseDocument, supplierName: string | null): OperationalStatus {
@@ -109,11 +132,12 @@ function resolveOperationalStatus(document: PurchaseDocument, supplierName: stri
 
   const unresolvedCount = lines.filter((line) => line.line_status !== 'resolved').length;
   const missingIngredientCount = lines.filter((line) => !line.validated_ingredient_id).length;
+  const missingApplicableCostCount = lines.filter((line) => line.raw_unit_price === null).length;
 
-  if (unresolvedCount > 0 || missingIngredientCount > 0) {
+  if (unresolvedCount > 0 || missingIngredientCount > 0 || missingApplicableCostCount > 0) {
     return {
       label: 'Líneas pendientes',
-      description: `${unresolvedCount} sin resolver · ${missingIngredientCount} sin ingrediente validado`,
+      description: `${unresolvedCount} sin resolver · ${missingIngredientCount} sin ingrediente validado · ${missingApplicableCostCount} sin coste`,
       tone: 'warning',
     };
   }
@@ -335,6 +359,7 @@ export function ProcurementDocumentsManager({
                 const linesCount = document.cheffing_purchase_document_lines?.length ?? 0;
                 const operationalStatus = resolveOperationalStatus(document, supplierName);
                 const declaredTotal = resolveDetectedTotal(document);
+                const possibleDuplicateSignal = resolvePossibleDuplicateSignal(document);
 
                 return (
                   <tr key={document.id} className="border-t border-slate-800/60 align-top">
@@ -349,6 +374,11 @@ export function ProcurementDocumentsManager({
                           {operationalStatus.label}
                         </span>
                         <p className="text-xs text-slate-400">{operationalStatus.description}</p>
+                        {possibleDuplicateSignal.isPossibleDuplicate ? (
+                          <p className="inline-flex rounded-full border border-amber-400/50 bg-amber-500/10 px-2 py-1 text-xs font-medium text-amber-100">
+                            Posible duplicado · revisar antes de aplicar
+                          </p>
+                        ) : null}
                       </div>
                     </td>
                     <td className="px-4 py-3">{documentKindLabel(document.document_kind)}</td>

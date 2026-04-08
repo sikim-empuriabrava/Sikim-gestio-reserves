@@ -34,8 +34,10 @@ No se documenta aquí como “cerrado al 100%”: sigue habiendo heurística y d
 - En borradores se añade una señal prudente de “estado operativo” para priorizar:
   - sin proveedor confirmado;
   - líneas pendientes;
+  - coste pendiente en líneas (no marcar “listo para aplicar” mientras falte coste aplicable);
   - listo para revisar;
   - listo para aplicar.
+- La bandeja puede mostrar una señal warning-first de posible duplicado documental (si `possible_document_duplicate.status = possible_duplicate`) para revisión manual antes de aplicar.
 - Ordenación estable orientada a uso diario (fecha de documento descendente, con desempate por actualización/creación).
 
 ### 2.2 Detalle operativo (`/cheffing/compras/[id]`)
