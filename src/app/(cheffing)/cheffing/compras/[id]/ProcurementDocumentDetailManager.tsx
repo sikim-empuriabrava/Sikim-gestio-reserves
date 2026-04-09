@@ -94,6 +94,12 @@ type SupplierEnrichmentView = {
   };
 };
 
+type SupplierTaxIdSignalView = {
+  value: string | null;
+  status: 'suggested' | 'blocked_prudence' | 'none';
+  reason: string | null;
+};
+
 function supplierEnrichmentStatusMessage(status: string): string {
   switch (status) {
     case 'matched_no_new_data':
@@ -460,6 +466,63 @@ export function ProcurementDocumentDetailManager({
       email: typeof supplier.email === 'string' ? supplier.email : null,
       phone: typeof supplier.phone === 'string' ? supplier.phone : null,
       matchHint: typeof supplier.match_hint === 'string' ? supplier.match_hint : null,
+    };
+  }, [interpretedPayload]);
+
+  const supplierTaxIdSignal = useMemo<SupplierTaxIdSignalView>(() => {
+    const supplierDetected = interpretedPayload?.supplier_detected;
+    const supplierDetectedRaw = interpretedPayload?.supplier_detected_raw;
+    const openAiCleanup = interpretedPayload?.openai_cleanup;
+    const cleanupMetaRaw = interpretedPayload?.cleanup_meta;
+
+    const detectedRecord =
+      supplierDetected && typeof supplierDetected === 'object' ? (supplierDetected as Record<string, unknown>) : null;
+    const detectedRawRecord =
+      supplierDetectedRaw && typeof supplierDetectedRaw === 'object' ? (supplierDetectedRaw as Record<string, unknown>) : null;
+    const cleanupRecord = openAiCleanup && typeof openAiCleanup === 'object' ? (openAiCleanup as Record<string, unknown>) : null;
+    const supplierCleanup =
+      cleanupRecord?.supplier_cleanup && typeof cleanupRecord.supplier_cleanup === 'object'
+        ? (cleanupRecord.supplier_cleanup as Record<string, unknown>)
+        : null;
+    const cleanupMeta = cleanupMetaRaw && typeof cleanupMetaRaw === 'object' ? (cleanupMetaRaw as Record<string, unknown>) : null;
+
+    const promotedTaxId = typeof detectedRecord?.tax_id === 'string' && detectedRecord.tax_id.trim() ? detectedRecord.tax_id.trim() : null;
+    const rawTaxId = typeof detectedRawRecord?.tax_id === 'string' && detectedRawRecord.tax_id.trim() ? detectedRawRecord.tax_id.trim() : null;
+    const cleanedTaxId = typeof supplierCleanup?.cleaned_tax_id === 'string' && supplierCleanup.cleaned_tax_id.trim()
+      ? supplierCleanup.cleaned_tax_id.trim()
+      : null;
+    const candidateTaxId = promotedTaxId ?? rawTaxId ?? cleanedTaxId;
+
+    if (!candidateTaxId) {
+      return { value: null, status: 'none', reason: null };
+    }
+    if (promotedTaxId) {
+      return { value: promotedTaxId, status: 'suggested', reason: null };
+    }
+
+    const supplierWarnings = Array.isArray(supplierCleanup?.warnings)
+      ? supplierCleanup.warnings.filter((entry): entry is string => typeof entry === 'string' && entry.trim().length > 0)
+      : [];
+    const globalWarnings =
+      cleanupRecord && Array.isArray(cleanupRecord.global_warnings)
+        ? cleanupRecord.global_warnings.filter((entry): entry is string => typeof entry === 'string' && entry.trim().length > 0)
+        : [];
+    const allWarnings = [...supplierWarnings, ...globalWarnings];
+    const taxRelatedWarning =
+      allWarnings.find((entry) => /(cif|nif|tax|vat|cliente|customer|buyer|ambigu|proveedor)/i.test(entry)) ??
+      (typeof cleanupMeta?.warning === 'string' && cleanupMeta.warning.trim().length > 0 ? cleanupMeta.warning : null);
+    const supplierCleanupConfidence = typeof supplierCleanup?.confidence === 'number' ? supplierCleanup.confidence : null;
+
+    const reason =
+      taxRelatedWarning ??
+      (supplierCleanupConfidence !== null && supplierCleanupConfidence < 0.75
+        ? `Confianza cleanup insuficiente (${Math.round(supplierCleanupConfidence * 100)}%).`
+        : 'Señal detectada pero no autocompletada por prudencia (contexto ambiguo o no concluyente).');
+
+    return {
+      value: candidateTaxId,
+      status: 'blocked_prudence',
+      reason,
     };
   }, [interpretedPayload]);
 
@@ -1197,7 +1260,13 @@ export function ProcurementDocumentDetailManager({
             {detectedSupplier ? (
               <div className="mt-1 space-y-1 text-sm text-slate-200">
                 <p>{detectedSupplier.name ?? 'Sin nombre detectado'}</p>
-                <p className="text-xs text-slate-400">NIF/CIF: {detectedSupplier.taxId ?? '—'} · Email: {detectedSupplier.email ?? '—'} · Tel: {detectedSupplier.phone ?? '—'}</p>
+                <p className="text-xs text-slate-400">
+                  NIF/CIF:{' '}
+                  {supplierTaxIdSignal.status === 'none'
+                    ? '—'
+                    : `${supplierTaxIdSignal.value}${supplierTaxIdSignal.status === 'blocked_prudence' ? ' (detectado, no autocompletado)' : ''}`}{' '}
+                  · Email: {detectedSupplier.email ?? '—'} · Tel: {detectedSupplier.phone ?? '—'}
+                </p>
                 <p className="text-xs text-slate-400">Match sugerido: {detectedSupplier.matchHint ?? 'Sugerencia OCR sin confirmación automática'}</p>
               </div>
             ) : (
@@ -1340,7 +1409,13 @@ export function ProcurementDocumentDetailManager({
                     placeholder="CIF/NIF proveedor (cabecera)"
                     className="rounded-md border border-slate-700 bg-slate-950/70 px-3 py-2 text-white"
                   />
-                  <p className="text-[11px] text-slate-400">Sugerido OCR: {detectedSupplier?.taxId ?? '—'}.</p>
+                  <p className="text-[11px] text-slate-400">
+                    {supplierTaxIdSignal.status === 'suggested'
+                      ? `CIF/NIF sugerido por OCR: ${supplierTaxIdSignal.value}.`
+                      : supplierTaxIdSignal.status === 'blocked_prudence'
+                        ? `CIF/NIF detectado por OCR: ${supplierTaxIdSignal.value}. No autocompletado por prudencia. Motivo: ${supplierTaxIdSignal.reason ?? 'señal no confirmada'}.`
+                        : 'Sugerido OCR: —.'}
+                  </p>
                   <input
                     disabled={!isDraft}
                     value={header.supplier_email}

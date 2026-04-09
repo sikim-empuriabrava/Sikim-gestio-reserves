@@ -242,9 +242,14 @@ Importante de permisos/mutación:
 - OCR en cualquier flujo (mantenimiento, cheffing o admin) **no muta** `cheffing_suppliers`; solo interpreta y persiste sugerencias/warnings.
 - La mutación/enriquecimiento de proveedor queda reservada a **Guardar cabecera** en el borrador desde Compras (Pau/cheffing).
 - En cabecera del borrador se muestran sugerencias OCR editables (teléfono/email y, si aplica, tax_id) para confirmación manual antes de guardar.
+- El `tax_id` de proveedor en cabecera puede quedar en tres estados visibles:
+  - sugerencia OCR normal (señal suficientemente fiable),
+  - detección OCR bloqueada por prudencia (se enseña valor detectado + motivo, sin autocompletar),
+  - sin detección útil (`—`).
 - Política de aplicación al guardar cabecera:
   - `tax_id`: no se sobreescribe automáticamente si entra en conflicto con valor previo.
   - `email` y `phone`: merge no destructivo, manteniendo existentes y agregando nuevos valores únicos.
+- Invariante funcional: acciones de borrador (OCR, guardar cabecera, guardar línea y aceptar sugerencias) persisten estado revisable, pero los efectos definitivos de negocio quedan reservados a **Aplicar documento**.
 
 ### 11.1 Señal prudente de posible duplicado documental (warning-first)
 
