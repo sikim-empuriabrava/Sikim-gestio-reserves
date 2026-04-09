@@ -1957,6 +1957,8 @@ function EditableLineRow({ line, ingredients, suggestedIngredientId, suggestedHi
                   onCreateIngredient(line, form);
                 }}
                 disabled={isRowBusy || isCreateIngredientBlockedInDraft}
+                aria-disabled={isRowBusy || isCreateIngredientBlockedInDraft}
+                title={isCreateIngredientBlockedInDraft ? 'Disponible tras aplicar documento' : 'Crear ingrediente y vincular a la línea'}
                 className="rounded-full border border-sky-500/60 px-2 py-0.5 text-[11px] text-sky-200 disabled:cursor-not-allowed disabled:border-slate-700 disabled:text-slate-500"
               >
                 {isCreatingIngredient ? 'Creando…' : isCreateIngredientBlockedInDraft ? 'Crear ingrediente (no disponible en draft)' : 'Crear ingrediente'}

@@ -164,7 +164,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     return response;
   }
 
-  const patchPayload: Record<string, string | number | null | Record<string, unknown>> = { ...updates };
+  const patchPayload: Record<string, unknown> = { ...updates };
   if (hasExplicitSupplierContactUpdates) {
     patchPayload.interpreted_payload = upsertDraftSupplierContactReview({
       interpretedPayload: current.interpreted_payload,
@@ -172,6 +172,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     });
   }
 
+  // Persistimos cabecera + revisión de contacto draft en una sola operación para evitar éxito parcial en este endpoint.
   const { error } = await supabase.from('cheffing_purchase_documents').update(patchPayload).eq('id', params.id);
   if (error) {
     const mapped = mapCheffingPostgresError(error);

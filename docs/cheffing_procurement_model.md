@@ -265,6 +265,7 @@ Importante de permisos/mutación:
   - no: no ejecuta efectos de negocio definitivos.
 - **Crear ingrediente desde línea (draft)**:
   - hardening conservador activo: acción visible pero deshabilitada en revisión draft, con copy de “no disponible en draft” para evitar falsa disponibilidad.
+  - micro-UX: el botón expone ayuda contextual breve (tooltip/`title`) indicando que queda disponible tras aplicar documento.
   - sigue bloqueada para evitar mutación de maestro (`cheffing_ingredients`) antes de aplicar.
 - **OCR (draft)**:
   - sí: actualiza `ocr_raw_text`, `interpreted_payload` y, si procede, inserta líneas sugeridas en `cheffing_purchase_document_lines`;
