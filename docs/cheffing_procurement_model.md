@@ -254,7 +254,8 @@ Importante de permisos/mutación:
 ### 11.1 Matriz de mutaciones auditada (draft vs apply)
 
 - **Guardar cabecera (draft)**:
-  - sí: actualiza `cheffing_purchase_documents` (cabecera) y persiste revisión de contacto en `interpreted_payload.supplier_contact_review`;
+  - sí: actualiza `cheffing_purchase_documents` (cabecera) y persiste revisión de contacto en `interpreted_payload.supplier_contact_review` en una misma operación de persistencia;
+  - si falla cualquier parte (incluida la persistencia de `supplier_contact_review`), la request responde error y no devuelve `ok: true`;
   - no: no actualiza `cheffing_suppliers`, no recalcula costes oficiales.
 - **Guardar línea (draft)**:
   - sí: actualiza `cheffing_purchase_document_lines` del documento draft;
@@ -263,7 +264,9 @@ Importante de permisos/mutación:
   - sí: prepara cambios locales de revisión y, tras guardar línea, persiste en `cheffing_purchase_document_lines`;
   - no: no ejecuta efectos de negocio definitivos.
 - **Crear ingrediente desde línea (draft)**:
-  - hardening conservador activo: acción bloqueada en revisión draft para evitar mutación de maestro (`cheffing_ingredients`) antes de aplicar.
+  - hardening conservador activo: acción visible pero deshabilitada en revisión draft, con copy de “no disponible en draft” para evitar falsa disponibilidad.
+  - micro-UX: el botón expone ayuda contextual breve (tooltip/`title`) indicando que queda disponible tras aplicar documento.
+  - sigue bloqueada para evitar mutación de maestro (`cheffing_ingredients`) antes de aplicar.
 - **OCR (draft)**:
   - sí: actualiza `ocr_raw_text`, `interpreted_payload` y, si procede, inserta líneas sugeridas en `cheffing_purchase_document_lines`;
   - no: no muta costes oficiales ni stock, ni maestro de proveedor.
