@@ -276,13 +276,13 @@ En la revisión de `/cheffing/compras/[id]` se ha endurecido el enfoque operativ
 - el reset de snapshot local por re-render se evita cuando la fila está en edición con cambios pendientes (cancelar sigue volviendo al persistido real);
 - el combobox manual cierra de forma consistente en `Escape`/`Tab`/click fuera y evita quedarse abierto en estados inválidos (sin resultados tras filtro o limpieza).
 
-## 13) Fase C — multisubida conservadora con cola visual (2026-04-08)
+## 13) Intake documental unificado con cola visual conservadora (2026-04-08 / 2026-04-09)
 
-En `/cheffing/compras` se añade una segunda entrada de carga orientada a lote, sin cambiar el modelo de datos ni introducir colas backend nuevas:
+En `/cheffing/compras` la entrada documental queda unificada en un único bloque de intake (sin separación visual entre “individual” y “batch”), sin cambiar el modelo de datos ni introducir colas backend nuevas:
 
-- **multisubida real** (selección de varios archivos en un mismo gesto) con los mismos formatos soportados por procurement (PDF/JPG/PNG/WEBP);
-- selección de `document_kind` inicial por lote (`delivery_note` o `invoice`);
-- cola visual por archivo con estado explícito:
+- selección de 1 o varios archivos en el mismo control (`PDF/JPG/PNG/WEBP`);
+- selección única de `document_kind` para los archivos que se añaden en ese gesto (`delivery_note` o `invoice`);
+- misma cola visual por archivo para ambos casos (1 archivo = cola de 1 item), con estado explícito:
   - `pending`;
   - `creating_draft`;
   - `uploading_file`;
@@ -295,11 +295,11 @@ En `/cheffing/compras` se añade una segunda entrada de carga orientada a lote, 
 - procesamiento **secuencial** por defecto (prioridad robustez y trazabilidad frente a paralelización agresiva);
 - tolerancia a errores parciales: si un archivo falla, el lote continúa con el siguiente;
 - si un archivo falla tras crear draft, la cola conserva `documentId` y link al detalle para revisión manual;
-- no hay redirección automática al detalle durante multisubida; la bandeja se refresca al cerrar el lote.
+- no hay redirección automática al detalle durante el intake en cola; la bandeja se refresca al cerrar el lote.
+- cuando ya existe señal fiable en el payload del documento (`possible_document_duplicate`), la cola también puede mostrar badge de **posible duplicado** por item además de la bandeja `draft`.
 
 ### 13.2 UX mínima aplicada
 
 - resumen de cola con contadores (`pendientes`, `en proceso`, `completados`, `fallidos`);
 - botón de procesado deshabilitado cuando no toca (sin pendientes o lote en curso);
-- botón para limpiar items finalizados (`completed` / `failed`) sin mezclar esta cola con tabs del listado principal;
-- se mantiene intacto el intake individual existente (foto/archivo 1 a 1), que sigue siendo válido para flujo rápido.
+- botón para limpiar items finalizados (`completed` / `failed`) sin mezclar esta cola con tabs del listado principal.
