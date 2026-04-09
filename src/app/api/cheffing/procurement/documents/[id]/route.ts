@@ -164,33 +164,20 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     return response;
   }
 
-  if (Object.keys(updates).length > 0) {
-    const { error } = await supabase.from('cheffing_purchase_documents').update(updates).eq('id', params.id);
-    if (error) {
-      const mapped = mapCheffingPostgresError(error);
-      const response = NextResponse.json({ error: mapped.message }, { status: mapped.status });
-      mergeResponseCookies(access.supabaseResponse, response);
-      return response;
-    }
-  }
-
+  const patchPayload: Record<string, string | number | null | Record<string, unknown>> = { ...updates };
   if (hasExplicitSupplierContactUpdates) {
-    const nextInterpretedPayload = upsertDraftSupplierContactReview({
+    patchPayload.interpreted_payload = upsertDraftSupplierContactReview({
       interpretedPayload: current.interpreted_payload,
       supplierContactUpdates: supplierContactUpdates ?? {},
     });
+  }
 
-    const { error: interpretedPayloadError } = await supabase
-      .from('cheffing_purchase_documents')
-      .update({ interpreted_payload: nextInterpretedPayload })
-      .eq('id', params.id);
-
-    if (interpretedPayloadError) {
-      console.warn('[cheffing][procurement] Could not persist draft supplier contact review', {
-        documentId: params.id,
-        error: interpretedPayloadError.message,
-      });
-    }
+  const { error } = await supabase.from('cheffing_purchase_documents').update(patchPayload).eq('id', params.id);
+  if (error) {
+    const mapped = mapCheffingPostgresError(error);
+    const response = NextResponse.json({ error: mapped.message }, { status: mapped.status });
+    mergeResponseCookies(access.supabaseResponse, response);
+    return response;
   }
 
   try {

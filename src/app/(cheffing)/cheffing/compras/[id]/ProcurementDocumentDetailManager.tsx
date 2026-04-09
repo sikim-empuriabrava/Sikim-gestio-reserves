@@ -1878,6 +1878,7 @@ function EditableLineRow({ line, ingredients, suggestedIngredientId, suggestedHi
         ? 'Match OCR ambiguo: revisa antes de confirmar.'
         : 'Sugerencia OCR disponible.'
     : 'Sin match OCR fiable: seleccionar manualmente.';
+  const isCreateIngredientBlockedInDraft = isDraft;
 
   useEffect(() => {
     if (isEditing && isFormDirty) return;
@@ -1949,9 +1950,22 @@ function EditableLineRow({ line, ingredients, suggestedIngredientId, suggestedHi
                 onChange={(nextId) => setForm({ ...form, validated_ingredient_id: nextId })}
                 placeholder="Sin validar"
               />
-              <button type="button" onClick={() => onCreateIngredient(line, form)} disabled={isRowBusy} className="rounded-full border border-sky-500/60 px-2 py-0.5 text-[11px] text-sky-200 disabled:cursor-not-allowed disabled:border-slate-700 disabled:text-slate-500">
-                {isCreatingIngredient ? 'Creando…' : 'Crear ingrediente'}
+              <button
+                type="button"
+                onClick={() => {
+                  if (isCreateIngredientBlockedInDraft) return;
+                  onCreateIngredient(line, form);
+                }}
+                disabled={isRowBusy || isCreateIngredientBlockedInDraft}
+                className="rounded-full border border-sky-500/60 px-2 py-0.5 text-[11px] text-sky-200 disabled:cursor-not-allowed disabled:border-slate-700 disabled:text-slate-500"
+              >
+                {isCreatingIngredient ? 'Creando…' : isCreateIngredientBlockedInDraft ? 'Crear ingrediente (no disponible en draft)' : 'Crear ingrediente'}
               </button>
+              {isCreateIngredientBlockedInDraft ? (
+                <p className="text-[11px] text-slate-500">
+                  Disponible tras aplicar: en borrador se bloquea para mantener el invariante draft ≠ apply.
+                </p>
+              ) : null}
             </>
           ) : null}
         </div>
