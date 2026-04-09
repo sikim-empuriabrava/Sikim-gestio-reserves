@@ -6,7 +6,6 @@ import { useMemo, useState } from 'react';
 
 import {
   runProcurementIntakeFlow,
-  SharedProcurementDocumentIntake,
   type ProcurementIntakeStep,
 } from '@/components/procurement/SharedProcurementDocumentIntake';
 import {
@@ -255,6 +254,13 @@ export function ProcurementDocumentsManager({
 
     return summary;
   }, [batchQueue]);
+  const possibleDuplicateByDocumentId = useMemo(() => {
+    const map = new Map<string, boolean>();
+    for (const document of initialDocuments) {
+      map.set(document.id, resolvePossibleDuplicateSignal(document).isPossibleDuplicate);
+    }
+    return map;
+  }, [initialDocuments]);
 
   const hasBatchItems = batchQueue.length > 0;
   const isBatchFinished = hasBatchItems && !isBatchRunning && batchSummary.pending === 0 && batchSummary.inProgress === 0;
@@ -453,19 +459,11 @@ export function ProcurementDocumentsManager({
         {manualError ? <p className="text-sm text-rose-400">{manualError}</p> : null}
       </div>
 
-      <SharedProcurementDocumentIntake
-        title="Pase 1 OCR (factura/albarán)"
-        description="Sube una foto, imagen o PDF para crear el draft y lanzar el OCR inicial automáticamente."
-        initialDocumentKind="delivery_note"
-        runOcrAfterUpload
-        redirectToDetailOnSuccess
-      />
-
       <div className="space-y-4 rounded-xl border border-slate-800 bg-slate-950/40 p-4">
         <div className="space-y-1">
-          <h3 className="text-sm font-semibold text-white">Multisubida OCR por lote</h3>
+          <h3 className="text-sm font-semibold text-white">Intake documental OCR (1 o varios archivos)</h3>
           <p className="text-xs text-slate-400">
-            Selecciona varios archivos para crear borradores draft, subir el original y lanzar OCR de forma secuencial.
+            Usa una sola entrada para añadir uno o varios archivos. Cada archivo crea borrador, sube original y ejecuta OCR de forma secuencial.
           </p>
         </div>
 
@@ -568,13 +566,20 @@ export function ProcurementDocumentsManager({
                     </span>
                   </td>
                   <td className="px-4 py-3">
-                    {item.documentId ? (
-                      <Link href={`/cheffing/compras/${item.documentId}`} className="text-sky-300 underline">
-                        Abrir {item.documentId.slice(0, 8)}…
-                      </Link>
-                    ) : (
-                      <span className="text-slate-500">—</span>
-                    )}
+                    <div className="space-y-1">
+                      {item.documentId ? (
+                        <Link href={`/cheffing/compras/${item.documentId}`} className="text-sky-300 underline">
+                          Abrir {item.documentId.slice(0, 8)}…
+                        </Link>
+                      ) : (
+                        <span className="text-slate-500">—</span>
+                      )}
+                      {item.documentId && item.status === 'completed' && possibleDuplicateByDocumentId.get(item.documentId) ? (
+                        <span className="inline-flex rounded-full border border-amber-400/50 bg-amber-500/10 px-2 py-1 text-[11px] font-medium text-amber-100">
+                          Posible duplicado
+                        </span>
+                      ) : null}
+                    </div>
                   </td>
                   <td className="px-4 py-3 text-xs text-rose-300">{item.error ?? '—'}</td>
                 </tr>
