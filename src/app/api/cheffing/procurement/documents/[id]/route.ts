@@ -6,37 +6,12 @@ import { requireCheffingRouteAccess } from '@/lib/cheffing/requireCheffingRoute'
 import { mapCheffingPostgresError } from '@/lib/cheffing/postgresErrors';
 import { PROCUREMENT_DOCUMENT_KINDS, PROCUREMENT_DOCUMENT_STATUSES } from '@/lib/cheffing/procurement';
 import { upsertPossibleDocumentDuplicateSignal } from '@/lib/cheffing/procurementDuplicateSignal';
+import {
+  upsertDraftSupplierContactReview,
+} from '@/lib/cheffing/procurementDraftInvariant';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
-
-function normalizeSupplierComparable(field: 'tax_id' | 'email' | 'phone', value: string | null): string | null {
-  if (!value) return null;
-  const trimmed = value.trim();
-  if (!trimmed) return null;
-  if (field === 'tax_id') return trimmed.replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
-  if (field === 'email') return trimmed.toLowerCase();
-  return trimmed.replace(/[^\d+]/g, '');
-}
-
-function mergeUniqueSupplierContactValues(field: 'email' | 'phone', existingValue: string, detectedValue: string): string {
-  const splitRegex = /[;,|/]+/;
-  const values = `${existingValue}${field === 'email' ? ';' : ' / '}${detectedValue}`
-    .split(splitRegex)
-    .map((entry) => entry.trim())
-    .filter(Boolean);
-
-  const unique: string[] = [];
-  const seen = new Set<string>();
-  for (const value of values) {
-    const normalized = normalizeSupplierComparable(field, value);
-    if (!normalized || seen.has(normalized)) continue;
-    seen.add(normalized);
-    unique.push(value);
-  }
-
-  return unique.join(field === 'email' ? '; ' : ' / ');
-}
 
 export async function GET(_req: NextRequest, { params }: { params: { id: string } }) {
   const access = await requireCheffingRouteAccess();
@@ -161,7 +136,12 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     }
   }
 
-  if (Object.keys(updates).length === 0) {
+  const hasExplicitSupplierContactUpdates = Boolean(
+    supplierContactUpdates &&
+      Object.values(supplierContactUpdates).some((value) => value !== undefined),
+  );
+
+  if (Object.keys(updates).length === 0 && !hasExplicitSupplierContactUpdates) {
     const response = NextResponse.json({ error: 'No updates provided' }, { status: 400 });
     mergeResponseCookies(access.supabaseResponse, response);
     return response;
@@ -170,7 +150,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   const supabase = createSupabaseAdminClient();
   const { data: current, error: currentError } = await supabase
     .from('cheffing_purchase_documents')
-    .select('status')
+    .select('status, interpreted_payload')
     .eq('id', params.id)
     .maybeSingle();
   if (currentError || !current) {
@@ -184,87 +164,32 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     return response;
   }
 
-  const { error } = await supabase.from('cheffing_purchase_documents').update(updates).eq('id', params.id);
-  if (error) {
-    const mapped = mapCheffingPostgresError(error);
-    const response = NextResponse.json({ error: mapped.message }, { status: mapped.status });
-    mergeResponseCookies(access.supabaseResponse, response);
-    return response;
+  if (Object.keys(updates).length > 0) {
+    const { error } = await supabase.from('cheffing_purchase_documents').update(updates).eq('id', params.id);
+    if (error) {
+      const mapped = mapCheffingPostgresError(error);
+      const response = NextResponse.json({ error: mapped.message }, { status: mapped.status });
+      mergeResponseCookies(access.supabaseResponse, response);
+      return response;
+    }
   }
 
-  const hasExplicitSupplierContactUpdates = Boolean(
-    supplierContactUpdates &&
-      Object.values(supplierContactUpdates).some((value) => value !== undefined),
-  );
   if (hasExplicitSupplierContactUpdates) {
-    const { data: updatedDocumentAfterPatch, error: updatedDocumentAfterPatchError } = await supabase
+    const nextInterpretedPayload = upsertDraftSupplierContactReview({
+      interpretedPayload: current.interpreted_payload,
+      supplierContactUpdates: supplierContactUpdates ?? {},
+    });
+
+    const { error: interpretedPayloadError } = await supabase
       .from('cheffing_purchase_documents')
-      .select('id, supplier_id')
-      .eq('id', params.id)
-      .maybeSingle();
+      .update({ interpreted_payload: nextInterpretedPayload })
+      .eq('id', params.id);
 
-    const confirmedSupplierId = typeof updatedDocumentAfterPatch?.supplier_id === 'string' ? updatedDocumentAfterPatch.supplier_id : null;
-    if (!updatedDocumentAfterPatchError && updatedDocumentAfterPatch && confirmedSupplierId) {
-      const finalTaxId = supplierContactUpdates?.tax_id ?? null;
-      const finalEmail = supplierContactUpdates?.email ?? null;
-      const finalPhone = supplierContactUpdates?.phone ?? null;
-
-      const { data: supplierRow, error: supplierError } = await supabase
-        .from('cheffing_suppliers')
-        .select('id, tax_id, email, phone')
-        .eq('id', confirmedSupplierId)
-        .maybeSingle();
-
-      if (!supplierError && supplierRow) {
-        const supplierUpdates: Record<string, string> = {};
-
-        if (finalTaxId) {
-          const existingTaxComparable = normalizeSupplierComparable('tax_id', supplierRow.tax_id);
-          const detectedTaxComparable = normalizeSupplierComparable('tax_id', finalTaxId);
-          if (!existingTaxComparable) {
-            supplierUpdates.tax_id = finalTaxId;
-          } else if (detectedTaxComparable && existingTaxComparable !== detectedTaxComparable) {
-            console.info('[cheffing][procurement] Supplier tax_id conflict detected on header save; no auto-overwrite', {
-              documentId: params.id,
-              supplierId: confirmedSupplierId,
-            });
-          }
-        }
-
-        if (finalEmail) {
-          const existingEmail = supplierRow.email?.trim() || null;
-          if (!existingEmail) {
-            supplierUpdates.email = finalEmail;
-          } else {
-            const merged = mergeUniqueSupplierContactValues('email', existingEmail, finalEmail);
-            if (merged !== existingEmail) supplierUpdates.email = merged;
-          }
-        }
-
-        if (finalPhone) {
-          const existingPhone = supplierRow.phone?.trim() || null;
-          if (!existingPhone) {
-            supplierUpdates.phone = finalPhone;
-          } else {
-            const merged = mergeUniqueSupplierContactValues('phone', existingPhone, finalPhone);
-            if (merged !== existingPhone) supplierUpdates.phone = merged;
-          }
-        }
-
-        if (Object.keys(supplierUpdates).length > 0) {
-          const { error: supplierUpdateError } = await supabase
-            .from('cheffing_suppliers')
-            .update(supplierUpdates)
-            .eq('id', confirmedSupplierId);
-          if (supplierUpdateError) {
-            console.warn('[cheffing][procurement] Supplier enrichment on header save failed', {
-              documentId: params.id,
-              supplierId: confirmedSupplierId,
-              error: supplierUpdateError.message,
-            });
-          }
-        }
-      }
+    if (interpretedPayloadError) {
+      console.warn('[cheffing][procurement] Could not persist draft supplier contact review', {
+        documentId: params.id,
+        error: interpretedPayloadError.message,
+      });
     }
   }
 

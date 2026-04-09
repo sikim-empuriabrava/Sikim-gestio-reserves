@@ -240,18 +240,37 @@ Capacidades del intake inicial:
 Importante de permisos/mutación:
 - OCR desde mantenimiento se ejecuta en modo intake-only: genera payload/sugerencias y duplicate warnings, pero **no** muta maestro de proveedor.
 - OCR en cualquier flujo (mantenimiento, cheffing o admin) **no muta** `cheffing_suppliers`; solo interpreta y persiste sugerencias/warnings.
-- La mutación/enriquecimiento de proveedor queda reservada a **Guardar cabecera** en el borrador desde Compras (Pau/cheffing).
+- **Guardar cabecera en draft no muta maestro**: desde el hardening de invariantes (2026-04-09), los datos de contacto confirmados en cabecera (`tax_id`, `email`, `phone`) se guardan en `interpreted_payload.supplier_contact_review` como revisión persistida del borrador.
 - En cabecera del borrador se muestran sugerencias OCR editables (teléfono/email y, si aplica, tax_id) para confirmación manual antes de guardar.
 - El `tax_id` de proveedor en cabecera puede quedar en tres estados visibles:
   - sugerencia OCR normal (señal suficientemente fiable),
   - detección OCR bloqueada por prudencia (se enseña valor detectado + motivo, sin autocompletar),
   - sin detección útil (`—`).
-- Política de aplicación al guardar cabecera:
+- Política de aplicación al **aplicar documento**:
   - `tax_id`: no se sobreescribe automáticamente si entra en conflicto con valor previo.
   - `email` y `phone`: merge no destructivo, manteniendo existentes y agregando nuevos valores únicos.
-- Invariante funcional: acciones de borrador (OCR, guardar cabecera, guardar línea y aceptar sugerencias) persisten estado revisable, pero los efectos definitivos de negocio quedan reservados a **Aplicar documento**.
+- Invariante funcional reforzado: acciones de borrador (OCR, guardar cabecera, guardar línea y aceptar sugerencias) persisten estado revisable, pero los efectos definitivos de negocio quedan reservados a **Aplicar documento**.
 
-### 11.1 Señal prudente de posible duplicado documental (warning-first)
+### 11.1 Matriz de mutaciones auditada (draft vs apply)
+
+- **Guardar cabecera (draft)**:
+  - sí: actualiza `cheffing_purchase_documents` (cabecera) y persiste revisión de contacto en `interpreted_payload.supplier_contact_review`;
+  - no: no actualiza `cheffing_suppliers`, no recalcula costes oficiales.
+- **Guardar línea (draft)**:
+  - sí: actualiza `cheffing_purchase_document_lines` del documento draft;
+  - no: no toca `cheffing_ingredients.purchase_price`, stock ni auditoría de costes.
+- **Aceptar sugerencia (draft)**:
+  - sí: prepara cambios locales de revisión y, tras guardar línea, persiste en `cheffing_purchase_document_lines`;
+  - no: no ejecuta efectos de negocio definitivos.
+- **Crear ingrediente desde línea (draft)**:
+  - hardening conservador activo: acción bloqueada en revisión draft para evitar mutación de maestro (`cheffing_ingredients`) antes de aplicar.
+- **OCR (draft)**:
+  - sí: actualiza `ocr_raw_text`, `interpreted_payload` y, si procede, inserta líneas sugeridas en `cheffing_purchase_document_lines`;
+  - no: no muta costes oficiales ni stock, ni maestro de proveedor.
+- **Aplicar documento**:
+  - único punto que ejecuta efectos definitivos: cambio de estado a `applied`, auditoría de costes (`cheffing_ingredient_cost_audit`), actualización de `cheffing_ingredients.purchase_price`, y enriquecimiento final de contacto de proveedor desde revisión draft.
+
+### 11.2 Señal prudente de posible duplicado documental (warning-first)
 
 Como base del siguiente bloque, los documentos draft calculan una señal conservadora de `possible_document_duplicate` y se persiste dentro de `interpreted_payload`:
 - estado (`none` o `possible_duplicate`), score, motivos y candidatos;

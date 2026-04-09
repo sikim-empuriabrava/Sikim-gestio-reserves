@@ -301,6 +301,10 @@ export function ProcurementDocumentDetailManager({
     interpretedPayload?.supplier_detected && typeof interpretedPayload.supplier_detected === 'object'
       ? (interpretedPayload.supplier_detected as Record<string, unknown>)
       : null;
+  const draftSupplierContactReview =
+    interpretedPayload?.supplier_contact_review && typeof interpretedPayload.supplier_contact_review === 'object'
+      ? (interpretedPayload.supplier_contact_review as Record<string, unknown>)
+      : null;
   const detectedDocument = useMemo(() => parseDetectedDocument(interpretedPayload), [interpretedPayload]);
 
   const possibleDocumentDuplicate = useMemo(() => {
@@ -329,12 +333,21 @@ export function ProcurementDocumentDetailManager({
     (supplierId: string) => {
       const selectedSupplier = suppliers.find((supplier) => supplier.id === supplierId) ?? null;
       return {
-        tax_id: selectedSupplier?.tax_id ?? (typeof detectedSupplierRecord?.tax_id === 'string' ? detectedSupplierRecord.tax_id : ''),
-        email: selectedSupplier?.email ?? (typeof detectedSupplierRecord?.email === 'string' ? detectedSupplierRecord.email : ''),
-        phone: selectedSupplier?.phone ?? (typeof detectedSupplierRecord?.phone === 'string' ? detectedSupplierRecord.phone : ''),
+        tax_id:
+          (typeof draftSupplierContactReview?.tax_id === 'string' ? draftSupplierContactReview.tax_id : null) ??
+          selectedSupplier?.tax_id ??
+          (typeof detectedSupplierRecord?.tax_id === 'string' ? detectedSupplierRecord.tax_id : ''),
+        email:
+          (typeof draftSupplierContactReview?.email === 'string' ? draftSupplierContactReview.email : null) ??
+          selectedSupplier?.email ??
+          (typeof detectedSupplierRecord?.email === 'string' ? detectedSupplierRecord.email : ''),
+        phone:
+          (typeof draftSupplierContactReview?.phone === 'string' ? draftSupplierContactReview.phone : null) ??
+          selectedSupplier?.phone ??
+          (typeof detectedSupplierRecord?.phone === 'string' ? detectedSupplierRecord.phone : ''),
       };
     },
-    [detectedSupplierRecord, suppliers],
+    [detectedSupplierRecord, draftSupplierContactReview, suppliers],
   );
   const [header, setHeader] = useState({
     document_kind: document.document_kind,
@@ -415,9 +428,18 @@ export function ProcurementDocumentDetailManager({
   const hasLinesWithoutApplicableCost = lines.some((line) => line.raw_unit_price === null);
   const sourceFileKind = inferProcurementSourceFileKind(document.storage_path);
   const persistedSupplierData = suppliers.find((supplier) => supplier.id === document.supplier_id) ?? null;
-  const initialHeaderSupplierTaxId = persistedSupplierData?.tax_id ?? (typeof detectedSupplierRecord?.tax_id === 'string' ? detectedSupplierRecord.tax_id : '');
-  const initialHeaderSupplierEmail = persistedSupplierData?.email ?? (typeof detectedSupplierRecord?.email === 'string' ? detectedSupplierRecord.email : '');
-  const initialHeaderSupplierPhone = persistedSupplierData?.phone ?? (typeof detectedSupplierRecord?.phone === 'string' ? detectedSupplierRecord.phone : '');
+  const initialHeaderSupplierTaxId =
+    (typeof draftSupplierContactReview?.tax_id === 'string' ? draftSupplierContactReview.tax_id : null) ??
+    persistedSupplierData?.tax_id ??
+    (typeof detectedSupplierRecord?.tax_id === 'string' ? detectedSupplierRecord.tax_id : '');
+  const initialHeaderSupplierEmail =
+    (typeof draftSupplierContactReview?.email === 'string' ? draftSupplierContactReview.email : null) ??
+    persistedSupplierData?.email ??
+    (typeof detectedSupplierRecord?.email === 'string' ? detectedSupplierRecord.email : '');
+  const initialHeaderSupplierPhone =
+    (typeof draftSupplierContactReview?.phone === 'string' ? draftSupplierContactReview.phone : null) ??
+    persistedSupplierData?.phone ??
+    (typeof detectedSupplierRecord?.phone === 'string' ? detectedSupplierRecord.phone : '');
 
   const hasUnsavedHeaderChanges =
     header.supplier_id !== (document.supplier_id ?? '') ||
@@ -1061,6 +1083,12 @@ export function ProcurementDocumentDetailManager({
 
   async function createIngredientForLine() {
     if (!isCreatingIngredient) return;
+    if (isDraft) {
+      setError(
+        'Crear ingrediente desde revisión draft queda bloqueado para preservar el invariante: los efectos definitivos solo ocurren al aplicar documento.',
+      );
+      return;
+    }
     setError(null);
     setIsSubmitting(true);
     try {
