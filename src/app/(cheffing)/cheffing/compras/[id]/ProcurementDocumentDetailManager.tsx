@@ -436,6 +436,7 @@ export function ProcurementDocumentDetailManager({
   const [headerSaveMessage, setHeaderSaveMessage] = useState<string | null>(null);
   const [acceptedHeaderSuggestionKeys, setAcceptedHeaderSuggestionKeys] = useState<Set<HeaderSuggestionKey>>(new Set());
   const hasMountedHeaderRef = useRef(false);
+  const previousHeaderRef = useRef(header);
   const [newSupplierForm, setNewSupplierForm] = useState(emptySupplierForm);
   const [isCreatingIngredient, setIsCreatingIngredient] = useState<null | { lineId: string; name: string; unitCode: string; packQty: string; price: string; lineSnapshot: ReturnType<typeof lineToFormSnapshot> }>(null);
   const [localIngredients, setLocalIngredients] = useState<Ingredient[]>(ingredients);
@@ -451,9 +452,12 @@ export function ProcurementDocumentDetailManager({
   useEffect(() => {
     if (!hasMountedHeaderRef.current) {
       hasMountedHeaderRef.current = true;
+      previousHeaderRef.current = header;
       return;
     }
-    if (headerSaveMessage) setHeaderSaveMessage(null);
+    const headerChanged = previousHeaderRef.current !== header;
+    previousHeaderRef.current = header;
+    if (headerChanged && headerSaveMessage) setHeaderSaveMessage(null);
   }, [header, headerSaveMessage]);
 
   useEffect(() => {
