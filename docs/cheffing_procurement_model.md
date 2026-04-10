@@ -319,7 +319,7 @@ En `/cheffing/compras` y `/mantenimiento/stock` la entrada documental reutiliza 
 
 - procesamiento **secuencial** por defecto (prioridad robustez y trazabilidad frente a paralelización agresiva);
 - tolerancia a errores parciales: si un archivo falla, el lote continúa con el siguiente;
-- si un archivo falla tras crear draft, la cola conserva `documentId` y link al detalle para revisión manual;
+- si un archivo falla tras crear draft, la cola conserva `documentId`; el enlace navegable al detalle depende del contexto/permisos (por ejemplo, en Compras sí y en Mantenimiento no);
 - no hay redirección automática al detalle durante el intake en cola; la vista se refresca al cerrar el lote.
 - cuando ya existe señal fiable en el payload del documento (`possible_document_duplicate`), la cola también puede mostrar badge de **posible duplicado** por item además de la bandeja `draft`.
 - el intake batch de mantenimiento es upload-only y no altera invariantes de negocio: `draft != apply` se mantiene intacto.
