@@ -266,7 +266,7 @@ function parseSupplierExistingSuggestion(payload: Record<string, unknown> | null
   if (typeof record.supplier_id !== 'string') return null;
   return {
     supplierId: record.supplier_id,
-    tradeName: typeof record.trade_name === 'string' ? record.trade_name : 'Proveedor sugerido',
+    tradeName: typeof record.trade_name === 'string' ? record.trade_name.trim() : '',
     scoreHint: typeof record.score_hint === 'number' ? record.score_hint : 0,
     shouldAutoSelect: record.should_auto_select === true,
     isStrongMatch: record.is_strong_match === true,
@@ -370,9 +370,12 @@ export function ProcurementDocumentDetailManager({
     };
   }, [interpretedPayload]);
   const suggestedExistingSupplier = parseSupplierExistingSuggestion(interpretedPayload);
+  const hasRealSuggestedExistingSupplier = Boolean(
+    suggestedExistingSupplier?.supplierId && suggestedExistingSupplier.tradeName.trim().length > 0,
+  );
   const defaultSupplierId =
     document.supplier_id ??
-    (suggestedExistingSupplier?.shouldAutoSelect ? suggestedExistingSupplier.supplierId : null);
+    (hasRealSuggestedExistingSupplier && suggestedExistingSupplier?.shouldAutoSelect ? suggestedExistingSupplier.supplierId : null);
   const resolveSupplierContactPrefill = useCallback(
     (supplierId: string) => {
       const selectedSupplier = suppliers.find((supplier) => supplier.id === supplierId) ?? null;
@@ -615,8 +618,8 @@ export function ProcurementDocumentDetailManager({
     const documentNumberSuggestion = detectedDocument.documentNumber.trim();
     const documentDateSuggestion = detectedDocument.documentDate.trim();
     const declaredTotalSuggestion = detectedDocument.declaredTotal.trim();
-    const supplierSuggestionId = suggestedExistingSupplier?.supplierId?.trim() ?? '';
-    const supplierSuggestionLabel = suggestedExistingSupplier?.tradeName?.trim() ?? '';
+    const supplierSuggestionId = hasRealSuggestedExistingSupplier ? suggestedExistingSupplier?.supplierId?.trim() ?? '' : '';
+    const supplierSuggestionLabel = hasRealSuggestedExistingSupplier ? suggestedExistingSupplier?.tradeName?.trim() ?? '' : '';
     const supplierTaxSuggestion = supplierTaxIdSignal.value?.trim() ?? '';
     const supplierEmailSuggestion = detectedSupplier?.email?.trim() ?? '';
     const supplierPhoneSuggestion = detectedSupplier?.phone?.trim() ?? '';
@@ -702,6 +705,7 @@ export function ProcurementDocumentDetailManager({
     header.supplier_phone,
     header.supplier_tax_id,
     selectedSupplierLabel,
+    hasRealSuggestedExistingSupplier,
     suggestedExistingSupplier?.supplierId,
     suggestedExistingSupplier?.tradeName,
     supplierTaxIdSignal.value,
@@ -1017,7 +1021,7 @@ export function ProcurementDocumentDetailManager({
   }
 
   async function confirmSuggestedSupplierAndSave() {
-    if (!suggestedExistingSupplier?.shouldAutoSelect) return;
+    if (!hasRealSuggestedExistingSupplier || !suggestedExistingSupplier?.shouldAutoSelect) return;
     const prefill = resolveSupplierContactPrefill(suggestedExistingSupplier.supplierId);
     const nextHeader = { ...header, supplier_id: suggestedExistingSupplier.supplierId, supplier_tax_id: prefill.tax_id, supplier_email: prefill.email, supplier_phone: prefill.phone };
     setHeader(nextHeader);
@@ -1611,10 +1615,10 @@ export function ProcurementDocumentDetailManager({
                     </option>
                   ))}
                 </select>
-                {isDraft && suggestedExistingSupplier ? (
+                {isDraft && hasRealSuggestedExistingSupplier && suggestedExistingSupplier ? (
                   <div className="rounded-lg border border-sky-500/40 bg-sky-500/10 p-2 text-xs text-sky-100">
                     <p className="font-semibold">
-                      Sugerencia proveedor existente: {suggestedExistingSupplier.tradeName} · score {suggestedExistingSupplier.scoreHint}
+                      Sugerencia proveedor existente: {suggestedExistingSupplier.tradeName || 'Proveedor sugerido'} · score {suggestedExistingSupplier.scoreHint}
                     </p>
                     <p className="text-sky-200/90">
                       {suggestedExistingSupplier.shouldAutoSelect
@@ -1717,7 +1721,7 @@ export function ProcurementDocumentDetailManager({
                 </div>
                 {isDraft ? (
                   <div className="space-y-2">
-                    {!isCreatingSupplier && !suggestedExistingSupplier?.shouldAutoSelect ? (
+                    {!isCreatingSupplier && !(hasRealSuggestedExistingSupplier && suggestedExistingSupplier?.shouldAutoSelect) ? (
                       <button
                         type="button"
                         onClick={openNewSupplierForm}
@@ -1728,7 +1732,7 @@ export function ProcurementDocumentDetailManager({
                         Crear nuevo proveedor
                       </button>
                     ) : null}
-                    {!isCreatingSupplier && suggestedExistingSupplier?.shouldAutoSelect ? (
+                    {!isCreatingSupplier && hasRealSuggestedExistingSupplier && suggestedExistingSupplier?.shouldAutoSelect ? (
                       <p className="text-xs text-amber-300">Bloque “crear proveedor” oculto por match fuerte para evitar duplicados.</p>
                     ) : null}
                     {isCreatingSupplier ? (
