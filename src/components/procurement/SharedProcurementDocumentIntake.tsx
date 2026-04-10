@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 import {
   PROCUREMENT_SOURCE_FILE_ACCEPT_ATTRIBUTE,
@@ -124,6 +124,21 @@ export function SharedProcurementDocumentIntake({
   const [error, setError] = useState<string | null>(null);
   const [createdDocumentId, setCreatedDocumentId] = useState<string | null>(null);
   const [documentKind, setDocumentKind] = useState<ProcurementDocumentKind>(initialDocumentKind);
+  const [pendingCameraFile, setPendingCameraFile] = useState<File | null>(null);
+  const [cameraPreviewUrl, setCameraPreviewUrl] = useState<string | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (cameraPreviewUrl) URL.revokeObjectURL(cameraPreviewUrl);
+    };
+  }, [cameraPreviewUrl]);
+
+  function clearPendingCameraState() {
+    if (cameraPreviewUrl) URL.revokeObjectURL(cameraPreviewUrl);
+    setCameraPreviewUrl(null);
+    setPendingCameraFile(null);
+    if (cameraInputRef.current) cameraInputRef.current.value = '';
+  }
 
   async function createDraftFromFile(file: File | null) {
     if (!file) return;
@@ -146,7 +161,7 @@ export function SharedProcurementDocumentIntake({
       setIsUploadCompleted(result.uploadCompleted);
       setIsOcrCompleted(result.ocrCompleted);
       setCreatedDocumentId(documentId);
-      if (cameraInputRef.current) cameraInputRef.current.value = '';
+      clearPendingCameraState();
       if (fileInputRef.current) fileInputRef.current.value = '';
 
       if (redirectToDetailOnSuccess) {
@@ -163,6 +178,17 @@ export function SharedProcurementDocumentIntake({
       setCurrentStep(null);
       setIsSubmitting(false);
     }
+  }
+
+  function handleCameraFileSelection(file: File | null) {
+    if (!file || isSubmitting) return;
+    if (cameraPreviewUrl) URL.revokeObjectURL(cameraPreviewUrl);
+    setError(null);
+    setCreatedDocumentId(null);
+    setIsUploadCompleted(false);
+    setIsOcrCompleted(false);
+    setPendingCameraFile(file);
+    setCameraPreviewUrl(URL.createObjectURL(file));
   }
 
   const flowCompletedSuccessfully = Boolean(
@@ -214,7 +240,7 @@ export function SharedProcurementDocumentIntake({
         accept={PROCUREMENT_SOURCE_IMAGE_FILE_ACCEPT_ATTRIBUTE}
         capture="environment"
         className="hidden"
-        onChange={(event) => createDraftFromFile(event.target.files?.[0] ?? null)}
+        onChange={(event) => handleCameraFileSelection(event.target.files?.[0] ?? null)}
       />
       <input
         ref={fileInputRef}
@@ -224,7 +250,52 @@ export function SharedProcurementDocumentIntake({
         onChange={(event) => createDraftFromFile(event.target.files?.[0] ?? null)}
       />
 
-      <p className="text-xs text-slate-500">Soportado en este bloque: 1 documento por subida (imagen o PDF).</p>
+      <p className="text-xs text-slate-500">
+        Soportado en este bloque: 1 documento por subida (imagen o PDF). Si haces foto, primero verás una preview local y no se subirá hasta confirmar.
+      </p>
+
+      {pendingCameraFile && cameraPreviewUrl ? (
+        <div className="space-y-3 rounded-xl border border-slate-800/90 bg-slate-900/50 p-3">
+          <p className="text-xs text-amber-200">
+            Vista previa de cámara: esta imagen aún no se ha subido. Confirma para iniciar el intake real.
+          </p>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={cameraPreviewUrl}
+            alt={`Preview de cámara: ${pendingCameraFile.name}`}
+            className="max-h-[320px] w-full rounded-lg border border-slate-700 object-contain"
+          />
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={() => createDraftFromFile(pendingCameraFile)}
+              disabled={isSubmitting}
+              className="rounded-full border border-emerald-400/60 px-4 py-2 text-sm font-semibold text-emerald-200 disabled:cursor-not-allowed disabled:border-slate-700 disabled:text-slate-500"
+            >
+              Confirmar y subir
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                clearPendingCameraState();
+                cameraInputRef.current?.click();
+              }}
+              disabled={isSubmitting}
+              className="rounded-full border border-sky-400/60 px-4 py-2 text-sm font-semibold text-sky-200 disabled:cursor-not-allowed disabled:border-slate-700 disabled:text-slate-500"
+            >
+              Repetir foto
+            </button>
+            <button
+              type="button"
+              onClick={clearPendingCameraState}
+              disabled={isSubmitting}
+              className="rounded-full border border-slate-600 px-4 py-2 text-sm font-semibold text-slate-200 disabled:cursor-not-allowed disabled:border-slate-700 disabled:text-slate-500"
+            >
+              Cancelar
+            </button>
+          </div>
+        </div>
+      ) : null}
 
       {isSubmitting ? (
         <p className="text-sm text-sky-300">
