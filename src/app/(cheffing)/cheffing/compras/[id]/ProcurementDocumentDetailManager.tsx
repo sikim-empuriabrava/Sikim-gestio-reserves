@@ -112,8 +112,10 @@ type HeaderSuggestionKey =
 type HeaderSuggestionItem = {
   key: HeaderSuggestionKey;
   label: string;
+  hasSuggestion: boolean;
   currentValue: string;
   suggestedValue: string;
+  applyValue: string;
   canAccept: boolean;
 };
 
@@ -233,6 +235,27 @@ function parseNullableNumber(value: string): number | null {
 
 function valuesMatch(a: string, b: string): boolean {
   return a.trim() === b.trim();
+}
+
+function normalizeEmail(value: string): string {
+  return value.trim().toLowerCase();
+}
+
+function normalizePhone(value: string): string {
+  return value.replace(/[^\d]/g, '');
+}
+
+function normalizeTaxId(value: string): string {
+  return value.replace(/[\s.-]/g, '').toUpperCase();
+}
+
+function buildHeaderSaveSuccessMessage(params: { supplierConfirmedInDraft: boolean; acceptedSuggestionsCount: number }): string {
+  const fragments = ['Cabecera guardada en borrador.'];
+  if (params.supplierConfirmedInDraft) fragments.push('Proveedor confirmado en borrador.');
+  if (params.acceptedSuggestionsCount > 0) {
+    fragments.push(`Se guardaron ${params.acceptedSuggestionsCount} sugerencias aceptadas en cabecera.`);
+  }
+  return fragments.join(' ');
 }
 
 function parseSupplierExistingSuggestion(payload: Record<string, unknown> | null): SupplierExistingSuggestionView | null {
@@ -411,6 +434,7 @@ export function ProcurementDocumentDetailManager({
   const [isProcessingOcr, setIsProcessingOcr] = useState(false);
   const [ocrMessage, setOcrMessage] = useState<{ kind: 'success' | 'error'; text: string } | null>(null);
   const [headerSaveMessage, setHeaderSaveMessage] = useState<string | null>(null);
+  const [acceptedHeaderSuggestionKeys, setAcceptedHeaderSuggestionKeys] = useState<Set<HeaderSuggestionKey>>(new Set());
   const hasMountedHeaderRef = useRef(false);
   const [newSupplierForm, setNewSupplierForm] = useState(emptySupplierForm);
   const [isCreatingIngredient, setIsCreatingIngredient] = useState<null | { lineId: string; name: string; unitCode: string; packQty: string; price: string; lineSnapshot: ReturnType<typeof lineToFormSnapshot> }>(null);
@@ -431,6 +455,10 @@ export function ProcurementDocumentDetailManager({
     }
     if (headerSaveMessage) setHeaderSaveMessage(null);
   }, [header, headerSaveMessage]);
+
+  useEffect(() => {
+    setAcceptedHeaderSuggestionKeys(new Set());
+  }, [document.id]);
 
   useEffect(() => {
     const nextLines = sortLinesByNumberAsc(document.cheffing_purchase_document_lines ?? []);
@@ -593,43 +621,55 @@ export function ProcurementDocumentDetailManager({
       {
         key: 'supplier_id' as const,
         label: 'Proveedor',
+        hasSuggestion: Boolean(supplierSuggestionId && supplierSuggestionLabel),
         currentValue: selectedSupplierLabel ?? (header.supplier_id ? 'Proveedor seleccionado' : 'Sin proveedor'),
-        suggestedValue: supplierSuggestionLabel || 'Proveedor sugerido',
-        canAccept: Boolean(supplierSuggestionId) && header.supplier_id !== supplierSuggestionId,
+        suggestedValue: supplierSuggestionLabel,
+        applyValue: supplierSuggestionId,
+        canAccept: Boolean(supplierSuggestionId && supplierSuggestionLabel) && header.supplier_id !== supplierSuggestionId,
       },
       {
         key: 'supplier_tax_id' as const,
         label: 'CIF/NIF',
+        hasSuggestion: Boolean(supplierTaxSuggestion),
         currentValue: header.supplier_tax_id || '—',
-        suggestedValue: supplierTaxSuggestion || '—',
-        canAccept: Boolean(supplierTaxSuggestion) && !valuesMatch(header.supplier_tax_id, supplierTaxSuggestion),
+        suggestedValue: supplierTaxSuggestion,
+        applyValue: supplierTaxSuggestion,
+        canAccept: Boolean(supplierTaxSuggestion) && normalizeTaxId(header.supplier_tax_id) !== normalizeTaxId(supplierTaxSuggestion),
       },
       {
         key: 'supplier_email' as const,
         label: 'Email',
+        hasSuggestion: Boolean(supplierEmailSuggestion),
         currentValue: header.supplier_email || '—',
-        suggestedValue: supplierEmailSuggestion || '—',
-        canAccept: Boolean(supplierEmailSuggestion) && !valuesMatch(header.supplier_email, supplierEmailSuggestion),
+        suggestedValue: supplierEmailSuggestion,
+        applyValue: supplierEmailSuggestion,
+        canAccept: Boolean(supplierEmailSuggestion) && normalizeEmail(header.supplier_email) !== normalizeEmail(supplierEmailSuggestion),
       },
       {
         key: 'supplier_phone' as const,
         label: 'Teléfono',
+        hasSuggestion: Boolean(supplierPhoneSuggestion),
         currentValue: header.supplier_phone || '—',
-        suggestedValue: supplierPhoneSuggestion || '—',
-        canAccept: Boolean(supplierPhoneSuggestion) && !valuesMatch(header.supplier_phone, supplierPhoneSuggestion),
+        suggestedValue: supplierPhoneSuggestion,
+        applyValue: supplierPhoneSuggestion,
+        canAccept: Boolean(supplierPhoneSuggestion) && normalizePhone(header.supplier_phone) !== normalizePhone(supplierPhoneSuggestion),
       },
       {
         key: 'document_date' as const,
         label: 'Fecha documento',
+        hasSuggestion: Boolean(documentDateSuggestion),
         currentValue: header.document_date || '—',
-        suggestedValue: documentDateSuggestion || '—',
+        suggestedValue: documentDateSuggestion,
+        applyValue: documentDateSuggestion,
         canAccept: Boolean(documentDateSuggestion) && header.document_date !== documentDateSuggestion,
       },
       {
         key: 'declared_total' as const,
         label: 'Total declarado',
+        hasSuggestion: Boolean(declaredTotalSuggestion),
         currentValue: header.declared_total || '—',
-        suggestedValue: declaredTotalSuggestion || '—',
+        suggestedValue: declaredTotalSuggestion,
+        applyValue: declaredTotalSuggestion,
         canAccept:
           Boolean(declaredTotalSuggestion) &&
           parseNullableNumber(header.declared_total) !== parseNullableNumber(declaredTotalSuggestion),
@@ -637,11 +677,13 @@ export function ProcurementDocumentDetailManager({
       {
         key: 'document_number' as const,
         label: 'Número documento',
+        hasSuggestion: Boolean(documentNumberSuggestion),
         currentValue: header.document_number || '—',
-        suggestedValue: documentNumberSuggestion || '—',
+        suggestedValue: documentNumberSuggestion,
+        applyValue: documentNumberSuggestion,
         canAccept: Boolean(documentNumberSuggestion) && !valuesMatch(header.document_number, documentNumberSuggestion),
       },
-    ].filter((item) => item.suggestedValue !== '—');
+    ].filter((item) => item.hasSuggestion);
   }, [
     detectedDocument.declaredTotal,
     detectedDocument.documentDate,
@@ -668,59 +710,62 @@ export function ProcurementDocumentDetailManager({
 
   const applyHeaderSuggestion = useCallback(
     (key: HeaderSuggestionKey) => {
-      const supplierSuggestionId = suggestedExistingSupplier?.supplierId?.trim() ?? '';
-      const supplierTaxSuggestion = supplierTaxIdSignal.value?.trim() ?? '';
-      const supplierEmailSuggestion = detectedSupplier?.email?.trim() ?? '';
-      const supplierPhoneSuggestion = detectedSupplier?.phone?.trim() ?? '';
-      const documentDateSuggestion = detectedDocument.documentDate.trim();
-      const declaredTotalSuggestion = detectedDocument.declaredTotal.trim();
-      const documentNumberSuggestion = detectedDocument.documentNumber.trim();
+      const suggestion = headerSuggestions.find((item) => item.key === key);
+      if (!suggestion || !suggestion.hasSuggestion || !suggestion.canAccept) return false;
 
       setHeader((current) => {
         switch (key) {
           case 'supplier_id':
-            if (!supplierSuggestionId || current.supplier_id === supplierSuggestionId) return current;
-            return { ...current, supplier_id: supplierSuggestionId };
+            return { ...current, supplier_id: suggestion.applyValue };
           case 'supplier_tax_id':
-            if (!supplierTaxSuggestion || valuesMatch(current.supplier_tax_id, supplierTaxSuggestion)) return current;
-            return { ...current, supplier_tax_id: supplierTaxSuggestion };
+            return { ...current, supplier_tax_id: suggestion.applyValue };
           case 'supplier_email':
-            if (!supplierEmailSuggestion || valuesMatch(current.supplier_email, supplierEmailSuggestion)) return current;
-            return { ...current, supplier_email: supplierEmailSuggestion };
+            return { ...current, supplier_email: suggestion.applyValue };
           case 'supplier_phone':
-            if (!supplierPhoneSuggestion || valuesMatch(current.supplier_phone, supplierPhoneSuggestion)) return current;
-            return { ...current, supplier_phone: supplierPhoneSuggestion };
+            return { ...current, supplier_phone: suggestion.applyValue };
           case 'document_date':
-            if (!documentDateSuggestion || current.document_date === documentDateSuggestion) return current;
-            return { ...current, document_date: documentDateSuggestion };
+            return { ...current, document_date: suggestion.applyValue };
           case 'declared_total':
-            if (!declaredTotalSuggestion) return current;
-            if (parseNullableNumber(current.declared_total) === parseNullableNumber(declaredTotalSuggestion)) return current;
-            return { ...current, declared_total: declaredTotalSuggestion };
+            return { ...current, declared_total: suggestion.applyValue };
           case 'document_number':
-            if (!documentNumberSuggestion || valuesMatch(current.document_number, documentNumberSuggestion)) return current;
-            return { ...current, document_number: documentNumberSuggestion };
+            return { ...current, document_number: suggestion.applyValue };
           default:
             return current;
         }
       });
+      setAcceptedHeaderSuggestionKeys((current) => {
+        const next = new Set(current);
+        next.add(key);
+        return next;
+      });
       setHeaderSaveMessage(null);
+      return true;
     },
-    [
-      detectedDocument.declaredTotal,
-      detectedDocument.documentDate,
-      detectedDocument.documentNumber,
-      detectedSupplier?.email,
-      detectedSupplier?.phone,
-      suggestedExistingSupplier?.supplierId,
-      supplierTaxIdSignal.value,
-    ],
+    [headerSuggestions],
   );
 
   const applyAllHeaderSuggestions = useCallback(() => {
-    const keysToApply = headerSuggestions.filter((item) => item.canAccept).map((item) => item.key);
-    keysToApply.forEach((key) => applyHeaderSuggestion(key));
+    headerSuggestions
+      .filter((item) => item.canAccept)
+      .forEach((item) => {
+        applyHeaderSuggestion(item.key);
+      });
   }, [applyHeaderSuggestion, headerSuggestions]);
+
+  useEffect(() => {
+    setAcceptedHeaderSuggestionKeys((current) => {
+      if (current.size === 0) return current;
+      const validAcceptedKeys = new Set<HeaderSuggestionKey>();
+      current.forEach((key) => {
+        const suggestion = headerSuggestions.find((item) => item.key === key);
+        if (suggestion && suggestion.hasSuggestion && !suggestion.canAccept) {
+          validAcceptedKeys.add(key);
+        }
+      });
+      if (validAcceptedKeys.size === current.size) return current;
+      return validAcceptedKeys;
+    });
+  }, [headerSuggestions]);
 
   const cleanupMeta = useMemo(() => {
     const payload = interpretedPayload;
@@ -923,49 +968,10 @@ export function ProcurementDocumentDetailManager({
   }
 
   async function saveHeader() {
-    setError(null);
-    setHeaderSaveMessage(null);
-    setIsSubmitting(true);
-    try {
-      const response = await fetch(`/api/cheffing/procurement/documents/${document.id}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          document_kind: header.document_kind,
-          document_number: header.document_number,
-          document_date: header.document_date,
-          supplier_id: header.supplier_id || null,
-          supplier_contact_updates: {
-            tax_id: header.supplier_tax_id || null,
-            email: header.supplier_email || null,
-            phone: header.supplier_phone || null,
-          },
-          validation_notes: header.validation_notes,
-          declared_total: header.declared_total ? Number(header.declared_total) : null,
-        }),
-      });
-      if (!response.ok) {
-        const payload = await response.json().catch(() => ({}));
-        throw new Error(payload?.error ?? 'No se pudo guardar cabecera');
-      }
-      const acceptedCount = headerSuggestions.filter((item) => !item.canAccept).length;
-      const statusFragments = ['Cabecera guardada en borrador.'];
-      if (header.supplier_id) statusFragments.push('Proveedor confirmado en borrador.');
-      if (acceptedCount > 0) statusFragments.push(`Se guardaron ${acceptedCount} sugerencias aceptadas en cabecera.`);
-      setHeaderSaveMessage(statusFragments.join(' '));
-      router.refresh();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Error desconocido');
-    } finally {
-      setIsSubmitting(false);
-    }
+    await saveHeaderDraft(header);
   }
 
-  async function confirmSuggestedSupplierAndSave() {
-    if (!suggestedExistingSupplier?.shouldAutoSelect) return;
-    const prefill = resolveSupplierContactPrefill(suggestedExistingSupplier.supplierId);
-    const nextHeader = { ...header, supplier_id: suggestedExistingSupplier.supplierId, supplier_tax_id: prefill.tax_id, supplier_email: prefill.email, supplier_phone: prefill.phone };
-    setHeader(nextHeader);
+  async function saveHeaderDraft(nextHeader: typeof header, extraAcceptedKeys: HeaderSuggestionKey[] = []) {
     setError(null);
     setHeaderSaveMessage(null);
     setIsSubmitting(true);
@@ -989,14 +995,30 @@ export function ProcurementDocumentDetailManager({
       });
       if (!response.ok) {
         const payload = await response.json().catch(() => ({}));
-        throw new Error(payload?.error ?? 'No se pudo confirmar proveedor sugerido');
+        throw new Error(payload?.error ?? 'No se pudo guardar cabecera');
       }
+      const acceptedKeysForSave = new Set<HeaderSuggestionKey>([...acceptedHeaderSuggestionKeys, ...extraAcceptedKeys]);
+      const successMessage = buildHeaderSaveSuccessMessage({
+        supplierConfirmedInDraft: Boolean(nextHeader.supplier_id),
+        acceptedSuggestionsCount: acceptedKeysForSave.size,
+      });
+      setHeaderSaveMessage(successMessage);
+      setAcceptedHeaderSuggestionKeys(new Set());
       router.refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Error desconocido');
     } finally {
       setIsSubmitting(false);
     }
+  }
+
+  async function confirmSuggestedSupplierAndSave() {
+    if (!suggestedExistingSupplier?.shouldAutoSelect) return;
+    const prefill = resolveSupplierContactPrefill(suggestedExistingSupplier.supplierId);
+    const nextHeader = { ...header, supplier_id: suggestedExistingSupplier.supplierId, supplier_tax_id: prefill.tax_id, supplier_email: prefill.email, supplier_phone: prefill.phone };
+    setHeader(nextHeader);
+    const extraAcceptedKeys: HeaderSuggestionKey[] = header.supplier_id !== suggestedExistingSupplier.supplierId ? ['supplier_id'] : [];
+    await saveHeaderDraft(nextHeader, extraAcceptedKeys);
   }
 
   async function createAndAssignSupplier() {

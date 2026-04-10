@@ -241,7 +241,9 @@ Importante de permisos/mutación:
 - OCR desde mantenimiento se ejecuta en modo intake-only: genera payload/sugerencias y duplicate warnings, pero **no** muta maestro de proveedor.
 - OCR en cualquier flujo (mantenimiento, cheffing o admin) **no muta** `cheffing_suppliers`; solo interpreta y persiste sugerencias/warnings.
 - **Guardar cabecera en draft no muta maestro**: desde el hardening de invariantes (2026-04-09), los datos de contacto confirmados en cabecera (`tax_id`, `email`, `phone`) se guardan en `interpreted_payload.supplier_contact_review` como revisión persistida del borrador.
-- En cabecera del borrador se muestran sugerencias OCR editables (teléfono/email y, si aplica, tax_id) para confirmación manual antes de guardar.
+- En cabecera del borrador se muestran sugerencias OCR por campo (proveedor, CIF/NIF, email, teléfono, fecha, total y número cuando aplica), con aceptación individual y acción global de “aceptar todas” en modo draft.
+- Las sugerencias visibles requieren señal OCR real (sin tarjetas “fantasma” por textos fallback).
+- El feedback de guardado de cabecera en borrador reporta cuántas sugerencias se aceptaron realmente en la sesión de edición actual (no por inferencias de coincidencia inicial).
 - El `tax_id` de proveedor en cabecera puede quedar en tres estados visibles:
   - sugerencia OCR normal (señal suficientemente fiable),
   - detección OCR bloqueada por prudencia (se enseña valor detectado + motivo, sin autocompletar),
