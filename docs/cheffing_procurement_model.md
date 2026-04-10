@@ -228,7 +228,7 @@ Este documento describe **estado actual implementado** en repo. Para decisiones 
 Desde **2026-04-07** existe un punto de entrada documental compartido para subir 1 documento y crear borrador draft reutilizando el pipeline actual de procurement.
 
 Separación operativa vigente:
-- `/mantenimiento/stock`: rol **upload-only intake** (hacer foto/galería/archivo, crear draft y subir original). No incluye listado/revisión de compras ni navegación a módulos de Cheffing.
+- `/mantenimiento/stock`: rol **upload-only intake** (hacer foto/galería/archivo, crear draft y subir original), ahora con opción de **multisubida en cola** para intake secuencial. No incluye listado/revisión de compras ni navegación a módulos de Cheffing.
 - `/cheffing/compras`: mantiene el flujo completo de revisión (listado, detalle, OCR, validación y aplicación).
 
 Capacidades del intake inicial:
@@ -236,6 +236,7 @@ Capacidades del intake inicial:
 - formatos aceptados: **imagen** y **PDF**;
 - flujo reutilizado: crear documento draft + subir archivo original + lanzar OCR automáticamente + confirmación de envío.
 - `document_kind` inicial explícito en intake compartido: `delivery_note` (albarán) en mantenimiento y compras, por decisión operativa de producto (sin impacto en elección de extractor Azure).
+- en flujo de **cámara**, la captura entra primero en preview local y requiere confirmación explícita de usuario antes de iniciar `create draft + upload + OCR`; repetir/cancelar limpia estado temporal sin subir nada.
 
 Importante de permisos/mutación:
 - OCR desde mantenimiento se ejecuta en modo intake-only: genera payload/sugerencias y duplicate warnings, pero **no** muta maestro de proveedor.
@@ -300,9 +301,9 @@ En la revisión de `/cheffing/compras/[id]` se ha endurecido el enfoque operativ
 - el reset de snapshot local por re-render se evita cuando la fila está en edición con cambios pendientes (cancelar sigue volviendo al persistido real);
 - el combobox manual cierra de forma consistente en `Escape`/`Tab`/click fuera y evita quedarse abierto en estados inválidos (sin resultados tras filtro o limpieza).
 
-## 13) Intake documental unificado con cola visual conservadora (2026-04-08 / 2026-04-09)
+## 13) Intake documental unificado con cola visual conservadora (2026-04-08 / 2026-04-10)
 
-En `/cheffing/compras` la entrada documental queda unificada en un único bloque de intake (sin separación visual entre “individual” y “batch”), sin cambiar el modelo de datos ni introducir colas backend nuevas:
+En `/cheffing/compras` y `/mantenimiento/stock` la entrada documental reutiliza el mismo bloque de intake batch (sin cambiar el modelo de datos ni introducir colas backend nuevas):
 
 - selección de 1 o varios archivos en el mismo control (`PDF/JPG/PNG/WEBP`);
 - selección única de `document_kind` para los archivos que se añaden en ese gesto (`delivery_note` o `invoice`);
@@ -319,8 +320,9 @@ En `/cheffing/compras` la entrada documental queda unificada en un único bloque
 - procesamiento **secuencial** por defecto (prioridad robustez y trazabilidad frente a paralelización agresiva);
 - tolerancia a errores parciales: si un archivo falla, el lote continúa con el siguiente;
 - si un archivo falla tras crear draft, la cola conserva `documentId` y link al detalle para revisión manual;
-- no hay redirección automática al detalle durante el intake en cola; la bandeja se refresca al cerrar el lote.
+- no hay redirección automática al detalle durante el intake en cola; la vista se refresca al cerrar el lote.
 - cuando ya existe señal fiable en el payload del documento (`possible_document_duplicate`), la cola también puede mostrar badge de **posible duplicado** por item además de la bandeja `draft`.
+- el intake batch de mantenimiento es upload-only y no altera invariantes de negocio: `draft != apply` se mantiene intacto.
 
 ### 13.2 UX mínima aplicada
 
