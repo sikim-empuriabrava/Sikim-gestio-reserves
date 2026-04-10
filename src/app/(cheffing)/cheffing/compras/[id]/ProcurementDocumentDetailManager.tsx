@@ -100,6 +100,23 @@ type SupplierTaxIdSignalView = {
   reason: string | null;
 };
 
+type HeaderSuggestionKey =
+  | 'supplier_id'
+  | 'supplier_tax_id'
+  | 'supplier_email'
+  | 'supplier_phone'
+  | 'document_date'
+  | 'declared_total'
+  | 'document_number';
+
+type HeaderSuggestionItem = {
+  key: HeaderSuggestionKey;
+  label: string;
+  currentValue: string;
+  suggestedValue: string;
+  canAccept: boolean;
+};
+
 function supplierEnrichmentStatusMessage(status: string): string {
   switch (status) {
     case 'matched_no_new_data':
@@ -212,6 +229,10 @@ function parseNullableNumber(value: string): number | null {
   if (!normalized.length) return null;
   const parsed = Number(normalized);
   return Number.isNaN(parsed) ? null : parsed;
+}
+
+function valuesMatch(a: string, b: string): boolean {
+  return a.trim() === b.trim();
 }
 
 function parseSupplierExistingSuggestion(payload: Record<string, unknown> | null): SupplierExistingSuggestionView | null {
@@ -389,6 +410,8 @@ export function ProcurementDocumentDetailManager({
   const [isCreatingSupplier, setIsCreatingSupplier] = useState(false);
   const [isProcessingOcr, setIsProcessingOcr] = useState(false);
   const [ocrMessage, setOcrMessage] = useState<{ kind: 'success' | 'error'; text: string } | null>(null);
+  const [headerSaveMessage, setHeaderSaveMessage] = useState<string | null>(null);
+  const hasMountedHeaderRef = useRef(false);
   const [newSupplierForm, setNewSupplierForm] = useState(emptySupplierForm);
   const [isCreatingIngredient, setIsCreatingIngredient] = useState<null | { lineId: string; name: string; unitCode: string; packQty: string; price: string; lineSnapshot: ReturnType<typeof lineToFormSnapshot> }>(null);
   const [localIngredients, setLocalIngredients] = useState<Ingredient[]>(ingredients);
@@ -400,6 +423,14 @@ export function ProcurementDocumentDetailManager({
   useEffect(() => {
     setLocalIngredients(ingredients);
   }, [ingredients]);
+
+  useEffect(() => {
+    if (!hasMountedHeaderRef.current) {
+      hasMountedHeaderRef.current = true;
+      return;
+    }
+    if (headerSaveMessage) setHeaderSaveMessage(null);
+  }, [header, headerSaveMessage]);
 
   useEffect(() => {
     const nextLines = sortLinesByNumberAsc(document.cheffing_purchase_document_lines ?? []);
@@ -547,6 +578,149 @@ export function ProcurementDocumentDetailManager({
       reason,
     };
   }, [interpretedPayload]);
+
+  const headerSuggestions = useMemo<HeaderSuggestionItem[]>(() => {
+    const documentNumberSuggestion = detectedDocument.documentNumber.trim();
+    const documentDateSuggestion = detectedDocument.documentDate.trim();
+    const declaredTotalSuggestion = detectedDocument.declaredTotal.trim();
+    const supplierSuggestionId = suggestedExistingSupplier?.supplierId?.trim() ?? '';
+    const supplierSuggestionLabel = suggestedExistingSupplier?.tradeName?.trim() ?? '';
+    const supplierTaxSuggestion = supplierTaxIdSignal.value?.trim() ?? '';
+    const supplierEmailSuggestion = detectedSupplier?.email?.trim() ?? '';
+    const supplierPhoneSuggestion = detectedSupplier?.phone?.trim() ?? '';
+
+    return [
+      {
+        key: 'supplier_id' as const,
+        label: 'Proveedor',
+        currentValue: selectedSupplierLabel ?? (header.supplier_id ? 'Proveedor seleccionado' : 'Sin proveedor'),
+        suggestedValue: supplierSuggestionLabel || 'Proveedor sugerido',
+        canAccept: Boolean(supplierSuggestionId) && header.supplier_id !== supplierSuggestionId,
+      },
+      {
+        key: 'supplier_tax_id' as const,
+        label: 'CIF/NIF',
+        currentValue: header.supplier_tax_id || '—',
+        suggestedValue: supplierTaxSuggestion || '—',
+        canAccept: Boolean(supplierTaxSuggestion) && !valuesMatch(header.supplier_tax_id, supplierTaxSuggestion),
+      },
+      {
+        key: 'supplier_email' as const,
+        label: 'Email',
+        currentValue: header.supplier_email || '—',
+        suggestedValue: supplierEmailSuggestion || '—',
+        canAccept: Boolean(supplierEmailSuggestion) && !valuesMatch(header.supplier_email, supplierEmailSuggestion),
+      },
+      {
+        key: 'supplier_phone' as const,
+        label: 'Teléfono',
+        currentValue: header.supplier_phone || '—',
+        suggestedValue: supplierPhoneSuggestion || '—',
+        canAccept: Boolean(supplierPhoneSuggestion) && !valuesMatch(header.supplier_phone, supplierPhoneSuggestion),
+      },
+      {
+        key: 'document_date' as const,
+        label: 'Fecha documento',
+        currentValue: header.document_date || '—',
+        suggestedValue: documentDateSuggestion || '—',
+        canAccept: Boolean(documentDateSuggestion) && header.document_date !== documentDateSuggestion,
+      },
+      {
+        key: 'declared_total' as const,
+        label: 'Total declarado',
+        currentValue: header.declared_total || '—',
+        suggestedValue: declaredTotalSuggestion || '—',
+        canAccept:
+          Boolean(declaredTotalSuggestion) &&
+          parseNullableNumber(header.declared_total) !== parseNullableNumber(declaredTotalSuggestion),
+      },
+      {
+        key: 'document_number' as const,
+        label: 'Número documento',
+        currentValue: header.document_number || '—',
+        suggestedValue: documentNumberSuggestion || '—',
+        canAccept: Boolean(documentNumberSuggestion) && !valuesMatch(header.document_number, documentNumberSuggestion),
+      },
+    ].filter((item) => item.suggestedValue !== '—');
+  }, [
+    detectedDocument.declaredTotal,
+    detectedDocument.documentDate,
+    detectedDocument.documentNumber,
+    detectedSupplier?.email,
+    detectedSupplier?.phone,
+    header.declared_total,
+    header.document_date,
+    header.document_number,
+    header.supplier_email,
+    header.supplier_id,
+    header.supplier_phone,
+    header.supplier_tax_id,
+    selectedSupplierLabel,
+    suggestedExistingSupplier?.supplierId,
+    suggestedExistingSupplier?.tradeName,
+    supplierTaxIdSignal.value,
+  ]);
+
+  const headerSuggestionsAcceptableCount = useMemo(
+    () => headerSuggestions.filter((item) => item.canAccept).length,
+    [headerSuggestions],
+  );
+
+  const applyHeaderSuggestion = useCallback(
+    (key: HeaderSuggestionKey) => {
+      const supplierSuggestionId = suggestedExistingSupplier?.supplierId?.trim() ?? '';
+      const supplierTaxSuggestion = supplierTaxIdSignal.value?.trim() ?? '';
+      const supplierEmailSuggestion = detectedSupplier?.email?.trim() ?? '';
+      const supplierPhoneSuggestion = detectedSupplier?.phone?.trim() ?? '';
+      const documentDateSuggestion = detectedDocument.documentDate.trim();
+      const declaredTotalSuggestion = detectedDocument.declaredTotal.trim();
+      const documentNumberSuggestion = detectedDocument.documentNumber.trim();
+
+      setHeader((current) => {
+        switch (key) {
+          case 'supplier_id':
+            if (!supplierSuggestionId || current.supplier_id === supplierSuggestionId) return current;
+            return { ...current, supplier_id: supplierSuggestionId };
+          case 'supplier_tax_id':
+            if (!supplierTaxSuggestion || valuesMatch(current.supplier_tax_id, supplierTaxSuggestion)) return current;
+            return { ...current, supplier_tax_id: supplierTaxSuggestion };
+          case 'supplier_email':
+            if (!supplierEmailSuggestion || valuesMatch(current.supplier_email, supplierEmailSuggestion)) return current;
+            return { ...current, supplier_email: supplierEmailSuggestion };
+          case 'supplier_phone':
+            if (!supplierPhoneSuggestion || valuesMatch(current.supplier_phone, supplierPhoneSuggestion)) return current;
+            return { ...current, supplier_phone: supplierPhoneSuggestion };
+          case 'document_date':
+            if (!documentDateSuggestion || current.document_date === documentDateSuggestion) return current;
+            return { ...current, document_date: documentDateSuggestion };
+          case 'declared_total':
+            if (!declaredTotalSuggestion) return current;
+            if (parseNullableNumber(current.declared_total) === parseNullableNumber(declaredTotalSuggestion)) return current;
+            return { ...current, declared_total: declaredTotalSuggestion };
+          case 'document_number':
+            if (!documentNumberSuggestion || valuesMatch(current.document_number, documentNumberSuggestion)) return current;
+            return { ...current, document_number: documentNumberSuggestion };
+          default:
+            return current;
+        }
+      });
+      setHeaderSaveMessage(null);
+    },
+    [
+      detectedDocument.declaredTotal,
+      detectedDocument.documentDate,
+      detectedDocument.documentNumber,
+      detectedSupplier?.email,
+      detectedSupplier?.phone,
+      suggestedExistingSupplier?.supplierId,
+      supplierTaxIdSignal.value,
+    ],
+  );
+
+  const applyAllHeaderSuggestions = useCallback(() => {
+    const keysToApply = headerSuggestions.filter((item) => item.canAccept).map((item) => item.key);
+    keysToApply.forEach((key) => applyHeaderSuggestion(key));
+  }, [applyHeaderSuggestion, headerSuggestions]);
 
   const cleanupMeta = useMemo(() => {
     const payload = interpretedPayload;
@@ -750,6 +924,7 @@ export function ProcurementDocumentDetailManager({
 
   async function saveHeader() {
     setError(null);
+    setHeaderSaveMessage(null);
     setIsSubmitting(true);
     try {
       const response = await fetch(`/api/cheffing/procurement/documents/${document.id}`, {
@@ -773,6 +948,11 @@ export function ProcurementDocumentDetailManager({
         const payload = await response.json().catch(() => ({}));
         throw new Error(payload?.error ?? 'No se pudo guardar cabecera');
       }
+      const acceptedCount = headerSuggestions.filter((item) => !item.canAccept).length;
+      const statusFragments = ['Cabecera guardada en borrador.'];
+      if (header.supplier_id) statusFragments.push('Proveedor confirmado en borrador.');
+      if (acceptedCount > 0) statusFragments.push(`Se guardaron ${acceptedCount} sugerencias aceptadas en cabecera.`);
+      setHeaderSaveMessage(statusFragments.join(' '));
       router.refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Error desconocido');
@@ -787,6 +967,7 @@ export function ProcurementDocumentDetailManager({
     const nextHeader = { ...header, supplier_id: suggestedExistingSupplier.supplierId, supplier_tax_id: prefill.tax_id, supplier_email: prefill.email, supplier_phone: prefill.phone };
     setHeader(nextHeader);
     setError(null);
+    setHeaderSaveMessage(null);
     setIsSubmitting(true);
     try {
       const response = await fetch(`/api/cheffing/procurement/documents/${document.id}`, {
@@ -1301,12 +1482,15 @@ export function ProcurementDocumentDetailManager({
               <p className="mt-1 text-sm text-slate-400">Sin datos detectados todavía.</p>
             )}
             {cleanupMeta ? (
-              <p className={`mt-2 text-xs ${cleanupMeta.status === 'failed' ? 'text-amber-300' : 'text-slate-400'}`}>
-                Cleanup OpenAI: {cleanupMeta.status ?? 'sin estado'}
-                {cleanupMeta.model ? ` · modelo: ${cleanupMeta.model}` : ''}
-                {cleanupMeta.affectedLines !== null ? ` · líneas afectadas: ${cleanupMeta.affectedLines}` : ''}
-                {cleanupMeta.warning ? ` · aviso: ${cleanupMeta.warning}` : ''}
-              </p>
+              <details className="mt-2 rounded-md border border-slate-700/80 bg-slate-950/40 p-2">
+                <summary className="cursor-pointer text-xs text-slate-300">Ver detalle OCR/matching</summary>
+                <p className={`mt-1 text-xs ${cleanupMeta.status === 'failed' ? 'text-amber-300' : 'text-slate-400'}`}>
+                  Cleanup OpenAI: {cleanupMeta.status ?? 'sin estado'}
+                  {cleanupMeta.model ? ` · modelo: ${cleanupMeta.model}` : ''}
+                  {cleanupMeta.affectedLines !== null ? ` · líneas afectadas: ${cleanupMeta.affectedLines}` : ''}
+                  {cleanupMeta.warning ? ` · aviso: ${cleanupMeta.warning}` : ''}
+                </p>
+              </details>
             ) : null}
           </div>
           <HeaderDatum label="Tipo" value={documentKindLabel(header.document_kind)} />
@@ -1331,14 +1515,49 @@ export function ProcurementDocumentDetailManager({
           <section className="space-y-4 rounded-xl border border-slate-800 bg-slate-950/40 p-4">
             <div className="flex items-center justify-between gap-3">
               <h3 className="text-sm font-semibold text-white">Cabecera del documento</h3>
-              {isDraft ? (
-                <button disabled={isSubmitting} type="button" onClick={saveHeader} className="rounded-full border border-emerald-400/60 px-4 py-2 text-sm font-semibold text-emerald-200">
-                  Guardar cabecera
-                </button>
-              ) : (
-                <span className="text-xs text-slate-500">Solo lectura</span>
-              )}
+              <div className="flex flex-wrap items-center gap-2">
+                {isDraft ? (
+                  <>
+                    <button
+                      disabled={isSubmitting || headerSuggestionsAcceptableCount === 0}
+                      type="button"
+                      onClick={applyAllHeaderSuggestions}
+                      className="rounded-full border border-sky-400/60 px-4 py-2 text-sm font-semibold text-sky-100 disabled:cursor-not-allowed disabled:border-slate-700 disabled:text-slate-500"
+                    >
+                      Aceptar todas las sugerencias de cabecera
+                    </button>
+                    <button disabled={isSubmitting} type="button" onClick={saveHeader} className="rounded-full border border-emerald-400/60 px-4 py-2 text-sm font-semibold text-emerald-200">
+                      Guardar cabecera
+                    </button>
+                  </>
+                ) : (
+                  <span className="text-xs text-slate-500">Solo lectura</span>
+                )}
+              </div>
             </div>
+            {headerSaveMessage ? <p className="rounded-lg border border-emerald-500/40 bg-emerald-500/10 px-3 py-2 text-sm text-emerald-200">{headerSaveMessage}</p> : null}
+            {isDraft && headerSuggestions.length > 0 ? (
+              <div className="space-y-2 rounded-lg border border-slate-700 bg-slate-900/40 p-3">
+                <p className="text-xs uppercase tracking-wide text-slate-300">Sugerencias OCR de cabecera</p>
+                <div className="grid gap-2 md:grid-cols-2">
+                  {headerSuggestions.map((suggestion) => (
+                    <div key={suggestion.key} className="rounded-lg border border-slate-700/80 bg-slate-950/60 p-2">
+                      <p className="text-xs font-semibold text-slate-200">{suggestion.label}</p>
+                      <p className="mt-1 text-[11px] text-slate-400">Actual: <span className="text-slate-200">{suggestion.currentValue}</span></p>
+                      <p className="text-[11px] text-slate-400">OCR: <span className="text-sky-200">{suggestion.suggestedValue}</span></p>
+                      <button
+                        type="button"
+                        disabled={!suggestion.canAccept}
+                        onClick={() => applyHeaderSuggestion(suggestion.key)}
+                        className="mt-2 rounded-full border border-emerald-500/60 px-2.5 py-1 text-[11px] font-semibold text-emerald-200 disabled:cursor-not-allowed disabled:border-slate-700 disabled:text-slate-500"
+                      >
+                        {suggestion.canAccept ? 'Aceptar sugerencia' : 'Sugerencia ya aceptada'}
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : null}
 
             <div className="grid gap-3 md:grid-cols-2">
               <div className="space-y-1">
@@ -1371,23 +1590,11 @@ export function ProcurementDocumentDetailManager({
                     <p className="font-semibold">
                       Sugerencia proveedor existente: {suggestedExistingSupplier.tradeName} · score {suggestedExistingSupplier.scoreHint}
                     </p>
-                    {suggestedExistingSupplier.detectedNameNormalized || suggestedExistingSupplier.supplierNameNormalized ? (
-                      <p className="mt-1 text-sky-200/90">
-                        Nombre OCR normalizado: <code>{suggestedExistingSupplier.detectedNameNormalized ?? '—'}</code> ·
-                        candidato normalizado: <code>{suggestedExistingSupplier.supplierNameNormalized ?? '—'}</code>
-                      </p>
-                    ) : null}
                     <p className="text-sky-200/90">
                       {suggestedExistingSupplier.shouldAutoSelect
                         ? 'Match fuerte y dominante (preseleccionado en cabecera, pendiente de guardar).'
                         : 'Match no suficientemente fuerte/dominante: requiere selección manual.'}
                     </p>
-                    {suggestedExistingSupplier.reasons.length > 0 ? (
-                      <p className="mt-1 text-sky-200/90">Motivos: {suggestedExistingSupplier.reasons.join(', ')}</p>
-                    ) : null}
-                    {suggestedExistingSupplier.matchTrace.length > 0 ? (
-                      <p className="mt-1 text-sky-200/90">Trazabilidad: {suggestedExistingSupplier.matchTrace.join(' · ')}</p>
-                    ) : null}
                     {header.supplier_id !== suggestedExistingSupplier.supplierId ? (
                       <button
                         type="button"
@@ -1407,11 +1614,32 @@ export function ProcurementDocumentDetailManager({
                         Confirmar proveedor sugerido y guardar cabecera
                       </button>
                     ) : null}
+                    {(suggestedExistingSupplier.reasons.length > 0 ||
+                      suggestedExistingSupplier.matchTrace.length > 0 ||
+                      suggestedExistingSupplier.detectedNameNormalized ||
+                      suggestedExistingSupplier.supplierNameNormalized) ? (
+                      <details className="mt-2 rounded-md border border-sky-500/30 bg-slate-950/40 p-2">
+                        <summary className="cursor-pointer text-[11px] font-semibold text-sky-200">Ver detalle OCR/matching</summary>
+                        {suggestedExistingSupplier.detectedNameNormalized || suggestedExistingSupplier.supplierNameNormalized ? (
+                          <p className="mt-1 text-sky-200/90">
+                            Nombre OCR normalizado: <code>{suggestedExistingSupplier.detectedNameNormalized ?? '—'}</code> · candidato normalizado:{' '}
+                            <code>{suggestedExistingSupplier.supplierNameNormalized ?? '—'}</code>
+                          </p>
+                        ) : null}
+                        {suggestedExistingSupplier.reasons.length > 0 ? (
+                          <p className="mt-1 text-sky-200/90">Motivos: {suggestedExistingSupplier.reasons.join(', ')}</p>
+                        ) : null}
+                        {suggestedExistingSupplier.matchTrace.length > 0 ? (
+                          <p className="mt-1 text-sky-200/90">Trazabilidad: {suggestedExistingSupplier.matchTrace.join(' · ')}</p>
+                        ) : null}
+                      </details>
+                    ) : null}
                   </div>
                 ) : null}
                 {supplierEnrichment ? (
-                  <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 p-2 text-xs text-amber-100">
-                    <p className="font-semibold">Estado enriquecimiento proveedor: {supplierEnrichment.status}</p>
+                  <details className="rounded-lg border border-amber-500/40 bg-amber-500/10 p-2 text-xs text-amber-100">
+                    <summary className="cursor-pointer font-semibold">Ver detalle OCR/matching proveedor</summary>
+                    <p className="mt-1">Estado enriquecimiento proveedor: {supplierEnrichment.status}</p>
                     <p className="mt-1">{supplierEnrichment.summary}</p>
                     {supplierEnrichment.autoFilled.length > 0 ? (
                       <p className="mt-1">Campos añadidos: {supplierEnrichment.autoFilled.map((entry) => `${entry.field}=${entry.value}`).join(' · ')}</p>
@@ -1427,7 +1655,7 @@ export function ProcurementDocumentDetailManager({
                       Intento de guardado: {supplierEnrichment.updateAttempt.attempted ? (supplierEnrichment.updateAttempt.applied ? 'aplicado' : 'fallido') : 'no intentado'}.
                     </p>
                     {supplierEnrichment.updateAttempt.warning ? <p className="mt-1 text-rose-200">Aviso actualización proveedor: {supplierEnrichment.updateAttempt.warning}</p> : null}
-                  </div>
+                  </details>
                 ) : null}
                 <div className="mt-2 grid gap-2">
                   <input
