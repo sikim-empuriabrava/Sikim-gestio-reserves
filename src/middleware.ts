@@ -84,6 +84,7 @@ export async function middleware(req: NextRequest) {
     pathname.startsWith('/api/menus');
   const isMantenimientoPath = pathname.startsWith('/mantenimiento');
   const isCocinaPath = pathname.startsWith('/cocina');
+  const isDiscoPath = pathname.startsWith('/disco') || pathname.startsWith('/api/disco');
 
   if (!user) {
     return handleUnauthorized();
@@ -101,7 +102,7 @@ export async function middleware(req: NextRequest) {
   const { data: allowedUser, error: allowlistError } = await supabase
     .from('app_allowed_users')
     .select(
-      'email, role, is_active, can_reservas, can_mantenimiento, can_cocina, can_cheffing, cheffing_images_manage',
+      'email, role, is_active, can_reservas, can_mantenimiento, can_cocina, can_cheffing, view_live_capacity, manage_live_capacity, cheffing_images_manage',
     )
     .eq('email', requesterEmail)
     .eq('is_active', true)
@@ -144,6 +145,11 @@ export async function middleware(req: NextRequest) {
   }
 
   if (isCocinaPath && !isAdminUser && !allowedUser.can_cocina) {
+    return handleForbidden();
+  }
+
+  const canViewLiveCapacity = Boolean(allowedUser.view_live_capacity || allowedUser.manage_live_capacity);
+  if (isDiscoPath && !isAdminUser && !canViewLiveCapacity) {
     return handleForbidden();
   }
 
@@ -209,8 +215,11 @@ function getDefaultModulePath(allowedUser: {
   can_mantenimiento?: boolean | null;
   can_cocina?: boolean | null;
   can_cheffing?: boolean | null;
+  view_live_capacity?: boolean | null;
+  manage_live_capacity?: boolean | null;
 }) {
   if (allowedUser?.can_reservas) return '/reservas';
+  if (allowedUser?.view_live_capacity || allowedUser?.manage_live_capacity) return '/disco/aforo-en-directo';
   if (allowedUser?.can_mantenimiento) return '/mantenimiento';
   if (allowedUser?.can_cocina) return '/cocina';
   if (allowedUser?.can_cheffing) return '/cheffing';

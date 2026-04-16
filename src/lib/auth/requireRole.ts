@@ -12,6 +12,8 @@ export type AllowedUser = {
   can_mantenimiento: boolean;
   can_cocina: boolean;
   can_cheffing: boolean;
+  view_live_capacity: boolean;
+  manage_live_capacity: boolean;
   cheffing_images_manage: boolean;
 };
 
@@ -32,7 +34,7 @@ export async function getAllowlistRoleForUserEmail(email: string | null | undefi
   const { data, error } = await supabaseAdmin
     .from('app_allowed_users')
     .select(
-      'id, email, display_name, role, is_active, can_reservas, can_mantenimiento, can_cocina, can_cheffing, cheffing_images_manage',
+      'id, email, display_name, role, is_active, can_reservas, can_mantenimiento, can_cocina, can_cheffing, view_live_capacity, manage_live_capacity, cheffing_images_manage',
     )
     .eq('email', normalizedEmail)
     .limit(1)
@@ -59,6 +61,8 @@ export async function getAllowlistRoleForUserEmail(email: string | null | undefi
       can_mantenimiento: Boolean(data.can_mantenimiento),
       can_cocina: Boolean(data.can_cocina),
       can_cheffing: Boolean(data.can_cheffing),
+      view_live_capacity: Boolean(data.view_live_capacity),
+      manage_live_capacity: Boolean(data.manage_live_capacity),
       cheffing_images_manage: Boolean(data.cheffing_images_manage),
     },
     error: null,
@@ -72,10 +76,21 @@ export function isAdmin(role: string | null): boolean {
 export function getDefaultModulePath(allowedUser: AllowedUser | null): string {
   if (allowedUser?.role === 'admin') return '/admin';
   if (allowedUser?.can_reservas) return '/reservas';
+  if (allowedUser?.view_live_capacity || allowedUser?.manage_live_capacity) {
+    return '/disco/aforo-en-directo';
+  }
   if (allowedUser?.can_mantenimiento) return '/mantenimiento';
   if (allowedUser?.can_cocina) return '/cocina';
   if (allowedUser?.can_cheffing) return '/cheffing';
   return '/';
+}
+
+export function canViewLiveCapacity(role: string | null, allowedUser: AllowedUser | null): boolean {
+  return isAdmin(role) || Boolean(allowedUser?.view_live_capacity || allowedUser?.manage_live_capacity);
+}
+
+export function canManageLiveCapacity(role: string | null, allowedUser: AllowedUser | null): boolean {
+  return isAdmin(role) || Boolean(allowedUser?.manage_live_capacity);
 }
 
 export function hasRole(role: string | null, allowedRoles: string[]): boolean {

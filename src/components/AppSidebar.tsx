@@ -23,6 +23,8 @@ type AllowedUser = {
   can_mantenimiento: boolean;
   can_cocina: boolean;
   can_cheffing: boolean;
+  view_live_capacity: boolean;
+  manage_live_capacity: boolean;
 };
 
 type Props = {
@@ -84,6 +86,15 @@ function buildGroups(allowedUser: AllowedUser | null): NavigationGroup[] {
     });
   }
 
+  if (isAdmin || allowedUser?.view_live_capacity || allowedUser?.manage_live_capacity) {
+    groups.push({
+      label: 'Disco',
+      links: [
+        { label: 'Aforo en directo', href: '/disco/aforo-en-directo', basePath: '/disco/aforo-en-directo' },
+      ],
+    });
+  }
+
   if (isAdmin) {
     groups.push({
       label: 'Admin',
@@ -113,6 +124,8 @@ export function AppSidebar({ className, allowedUser }: Props) {
   const canMantenimiento = Boolean(allowedUser?.can_mantenimiento);
   const canCocina = Boolean(allowedUser?.can_cocina);
   const canCheffing = Boolean(allowedUser?.can_cheffing);
+  const canViewLiveCapacity = Boolean(allowedUser?.view_live_capacity);
+  const canManageLiveCapacity = Boolean(allowedUser?.manage_live_capacity);
   const groups = useMemo(
     () =>
       buildGroups({
@@ -121,8 +134,10 @@ export function AppSidebar({ className, allowedUser }: Props) {
         can_mantenimiento: canMantenimiento,
         can_cocina: canCocina,
         can_cheffing: canCheffing,
+        view_live_capacity: canViewLiveCapacity,
+        manage_live_capacity: canManageLiveCapacity,
       }),
-    [role, canReservas, canMantenimiento, canCocina, canCheffing],
+    [role, canReservas, canMantenimiento, canCocina, canCheffing, canViewLiveCapacity, canManageLiveCapacity],
   );
   const groupsRef = useRef(groups);
   const [openSection, setOpenSection] = useState<string | null>(() => {

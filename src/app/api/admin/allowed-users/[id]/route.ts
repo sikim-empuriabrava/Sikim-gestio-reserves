@@ -97,6 +97,12 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   if (body?.can_cheffing !== undefined) {
     updates.can_cheffing = Boolean(body.can_cheffing);
   }
+  if (body?.view_live_capacity !== undefined) {
+    updates.view_live_capacity = Boolean(body.view_live_capacity);
+  }
+  if (body?.manage_live_capacity !== undefined) {
+    updates.manage_live_capacity = Boolean(body.manage_live_capacity);
+  }
   if (body?.cheffing_images_manage !== undefined) {
     updates.cheffing_images_manage = Boolean(body.cheffing_images_manage);
   }
