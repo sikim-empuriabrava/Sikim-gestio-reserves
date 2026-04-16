@@ -54,7 +54,7 @@ export async function GET() {
   const { data, error } = await supabase
     .from('app_allowed_users')
     .select(
-      'id,email,display_name,role,is_active,can_reservas,can_mantenimiento,can_cocina,can_cheffing,cheffing_images_manage',
+      'id,email,display_name,role,is_active,can_reservas,can_mantenimiento,can_cocina,can_cheffing,view_live_capacity,manage_live_capacity,cheffing_images_manage',
     )
     .order('email', { ascending: true });
 
@@ -112,6 +112,8 @@ export async function POST(req: NextRequest) {
   const canMantenimiento = body?.can_mantenimiento ?? false;
   const canCocina = body?.can_cocina ?? false;
   const canCheffing = body?.can_cheffing ?? false;
+  const viewLiveCapacity = body?.view_live_capacity ?? false;
+  const manageLiveCapacity = body?.manage_live_capacity ?? false;
   const cheffingImagesManage = body?.cheffing_images_manage ?? false;
 
   if (!targetEmail) {
@@ -138,6 +140,8 @@ export async function POST(req: NextRequest) {
       can_mantenimiento: Boolean(canMantenimiento),
       can_cocina: Boolean(canCocina),
       can_cheffing: Boolean(canCheffing),
+      view_live_capacity: Boolean(viewLiveCapacity),
+      manage_live_capacity: Boolean(manageLiveCapacity),
       cheffing_images_manage: Boolean(cheffingImagesManage),
     })
     .select()

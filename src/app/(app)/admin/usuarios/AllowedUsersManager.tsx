@@ -13,6 +13,8 @@ type AllowedUser = {
   can_mantenimiento: boolean;
   can_cocina: boolean;
   can_cheffing: boolean;
+  view_live_capacity: boolean;
+  manage_live_capacity: boolean;
   cheffing_images_manage: boolean;
 };
 
@@ -25,6 +27,8 @@ type FormState = {
   can_mantenimiento: boolean;
   can_cocina: boolean;
   can_cheffing: boolean;
+  view_live_capacity: boolean;
+  manage_live_capacity: boolean;
   cheffing_images_manage: boolean;
 };
 
@@ -43,6 +47,8 @@ const defaultForm: FormState = {
   can_mantenimiento: false,
   can_cocina: false,
   can_cheffing: false,
+  view_live_capacity: false,
+  manage_live_capacity: false,
   cheffing_images_manage: false,
 };
 
@@ -163,7 +169,7 @@ export function AllowedUsersManager({
         <div>
           <h1 className="text-2xl font-semibold text-white">Usuarios y permisos</h1>
           <p className="text-sm text-slate-400">
-            Activa usuarios y controla el acceso a Reservas, Mantenimiento, Cocina y Cheffing.
+            Activa usuarios y controla el acceso a Reservas, Disco, Mantenimiento, Cocina y Cheffing.
           </p>
         </div>
         <div className="flex items-center gap-3 text-sm text-slate-300">
@@ -272,7 +278,7 @@ export function AllowedUsersManager({
 
         <div className="space-y-2">
           <p className="text-sm font-semibold text-slate-200">Permisos por módulo</p>
-          <div className="grid gap-3 md:grid-cols-5">
+          <div className="grid gap-3 md:grid-cols-7">
             <label className="flex items-center gap-3 rounded-lg border border-slate-800 bg-slate-950/40 px-3 py-2 text-sm text-slate-200">
               <input
                 type="checkbox"
@@ -308,6 +314,28 @@ export function AllowedUsersManager({
                 className="h-4 w-4 accent-emerald-500"
               />
               <span>Cheffing</span>
+            </label>
+            <label className="flex items-center gap-3 rounded-lg border border-slate-800 bg-slate-950/40 px-3 py-2 text-sm text-slate-200">
+              <input
+                type="checkbox"
+                checked={form.view_live_capacity}
+                onChange={(event) =>
+                  setForm((prev) => ({ ...prev, view_live_capacity: event.target.checked }))
+                }
+                className="h-4 w-4 accent-emerald-500"
+              />
+              <span>Disco ver</span>
+            </label>
+            <label className="flex items-center gap-3 rounded-lg border border-slate-800 bg-slate-950/40 px-3 py-2 text-sm text-slate-200">
+              <input
+                type="checkbox"
+                checked={form.manage_live_capacity}
+                onChange={(event) =>
+                  setForm((prev) => ({ ...prev, manage_live_capacity: event.target.checked }))
+                }
+                className="h-4 w-4 accent-emerald-500"
+              />
+              <span>Disco operar</span>
             </label>
             <label className="flex items-center gap-3 rounded-lg border border-slate-800 bg-slate-950/40 px-3 py-2 text-sm text-slate-200">
               <input
@@ -365,6 +393,8 @@ export function AllowedUsersManager({
                 <th className="px-4 py-3">Mantenimiento</th>
                 <th className="px-4 py-3">Cocina</th>
                 <th className="px-4 py-3">Cheffing</th>
+                <th className="px-4 py-3">Disco ver</th>
+                <th className="px-4 py-3">Disco operar</th>
                 <th className="px-4 py-3">Imágenes</th>
               </tr>
             </thead>
@@ -465,6 +495,28 @@ export function AllowedUsersManager({
                   <td className="px-4 py-3">
                     <input
                       type="checkbox"
+                      checked={user.view_live_capacity}
+                      onChange={(event) =>
+                        handleUpdate(user.id, { view_live_capacity: event.target.checked })
+                      }
+                      className="h-4 w-4 accent-emerald-500"
+                      disabled={savingId === user.id}
+                    />
+                  </td>
+                  <td className="px-4 py-3">
+                    <input
+                      type="checkbox"
+                      checked={user.manage_live_capacity}
+                      onChange={(event) =>
+                        handleUpdate(user.id, { manage_live_capacity: event.target.checked })
+                      }
+                      className="h-4 w-4 accent-emerald-500"
+                      disabled={savingId === user.id}
+                    />
+                  </td>
+                  <td className="px-4 py-3">
+                    <input
+                      type="checkbox"
                       checked={user.cheffing_images_manage}
                       onChange={(event) =>
                         handleUpdate(user.id, { cheffing_images_manage: event.target.checked })
@@ -477,14 +529,14 @@ export function AllowedUsersManager({
               ))}
               {users.length === 0 && loading && (
                 <tr>
-                  <td colSpan={9} className="px-4 py-6 text-center text-sm text-slate-400">
+                  <td colSpan={11} className="px-4 py-6 text-center text-sm text-slate-400">
                     Cargando usuarios...
                   </td>
                 </tr>
               )}
               {users.length === 0 && !loading && (
                 <tr>
-                  <td colSpan={9} className="px-4 py-6 text-center text-sm text-slate-400">
+                  <td colSpan={11} className="px-4 py-6 text-center text-sm text-slate-400">
                     No hay usuarios allowlisted todavía.
                   </td>
                 </tr>

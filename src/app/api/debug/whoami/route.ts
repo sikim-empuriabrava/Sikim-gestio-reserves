@@ -45,7 +45,7 @@ export async function GET() {
   const { data: allowedUser } = await supabaseAdmin
     .from('app_allowed_users')
     .select(
-      'id,email,display_name,is_active,role,can_reservas,can_mantenimiento,can_cocina,can_cheffing,cheffing_images_manage',
+      'id,email,display_name,is_active,role,can_reservas,can_mantenimiento,can_cocina,can_cheffing,view_live_capacity,manage_live_capacity,cheffing_images_manage',
     )
     .eq('email', requesterEmail)
     .maybeSingle();
@@ -62,6 +62,8 @@ export async function GET() {
           can_mantenimiento: allowlistInfo.allowedUser.can_mantenimiento,
           can_cocina: allowlistInfo.allowedUser.can_cocina,
           can_cheffing: allowlistInfo.allowedUser.can_cheffing,
+          view_live_capacity: allowlistInfo.allowedUser.view_live_capacity,
+          manage_live_capacity: allowlistInfo.allowedUser.manage_live_capacity,
           cheffing_images_manage: allowlistInfo.allowedUser.cheffing_images_manage,
         }
       : null,
