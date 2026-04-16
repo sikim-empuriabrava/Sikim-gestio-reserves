@@ -2,7 +2,7 @@ import 'server-only';
 
 import { createSupabaseAdminClient } from '@/lib/supabaseAdmin';
 
-const DEFAULT_VENUE_SLUG = 'sikim-discoteca';
+export const DEFAULT_VENUE_SLUG = 'sikim-discoteca';
 const RECENT_EVENTS_LIMIT = 12;
 
 type SessionRow = {
