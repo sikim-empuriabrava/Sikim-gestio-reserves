@@ -5,6 +5,7 @@ import { getAllowlistRoleForUserEmail, getDefaultModulePath, isAdmin } from '@/l
 import {
   getClosedCapacitySessionDetail,
   listClosedCapacitySessionsWithMetrics,
+  normalizeUuid,
   parseHistoryRange,
   type HistoryRange,
 } from '@/lib/disco/capacityHistory';
@@ -90,7 +91,7 @@ export default async function HistoricoAforoPage({ searchParams }: PageProps) {
   const range = parseHistoryRange(searchParams?.range);
   const sessions = await listClosedCapacitySessionsWithMetrics({ range, limit: 50 });
 
-  const selectedSessionId = searchParams?.session ?? sessions[0]?.session.id ?? null;
+  const selectedSessionId = normalizeUuid(searchParams?.session) ?? sessions[0]?.session.id ?? null;
   const detail = selectedSessionId ? await getClosedCapacitySessionDetail({ sessionId: selectedSessionId }) : null;
 
   return (
