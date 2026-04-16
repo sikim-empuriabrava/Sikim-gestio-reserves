@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 
 type CapacitySession = {
   id: string;
@@ -33,6 +33,15 @@ type Props = {
   canManage: boolean;
 };
 
+type PendingAdjust = {
+  id: number;
+  delta: number;
+  status: 'queued' | 'sending';
+  createdAt: string;
+};
+
+const RECENT_EVENTS_LIMIT = 12;
+
 function formatDateTime(value: string | null | undefined) {
   if (!value) return '—';
   try {
@@ -46,10 +55,48 @@ function formatDateTime(value: string | null | undefined) {
 }
 
 export function LiveCapacityPanel({ initialState, canManage }: Props) {
-  const [state, setState] = useState<LiveCapacityState>(initialState);
-  const [loadingAction, setLoadingAction] = useState<string | null>(null);
+  const [serverState, setServerState] = useState<LiveCapacityState>(initialState);
+  const [pendingAdjustments, setPendingAdjustments] = useState<PendingAdjust[]>([]);
+  const [loadingAction, setLoadingAction] = useState<'open_session' | 'close_session' | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
+  const nextAdjustmentIdRef = useRef(1);
+  const isProcessingAdjustmentsRef = useRef(false);
+  const pendingAdjustmentsRef = useRef<PendingAdjust[]>([]);
+
+  useEffect(() => {
+    pendingAdjustmentsRef.current = pendingAdjustments;
+  }, [pendingAdjustments]);
+
+  const state = useMemo<LiveCapacityState>(() => {
+    if (!serverState.activeSession) return serverState;
+    const activeSession = { ...serverState.activeSession };
+
+    const nextState: LiveCapacityState = {
+      activeSession,
+      recentEvents: [...serverState.recentEvents],
+      latestEvent: serverState.latestEvent,
+    };
+
+    for (const adjustment of pendingAdjustments) {
+      const nextCount = Math.max(0, activeSession.current_count + adjustment.delta);
+      activeSession.current_count = nextCount;
+      activeSession.peak_count = Math.max(activeSession.peak_count, nextCount);
+
+      const optimisticEvent: CapacityEvent = {
+        id: `optimistic-${adjustment.id}`,
+        delta: adjustment.delta,
+        resulting_count: nextCount,
+        actor_email: 'Guardando...',
+        note: null,
+        created_at: adjustment.createdAt,
+      };
+      nextState.recentEvents = [optimisticEvent, ...nextState.recentEvents].slice(0, RECENT_EVENTS_LIMIT);
+      nextState.latestEvent = optimisticEvent;
+    }
+
+    return nextState;
+  }, [pendingAdjustments, serverState]);
 
   const activeSession = state.activeSession;
   const isSessionOpen = Boolean(activeSession);
@@ -59,8 +106,83 @@ export function LiveCapacityPanel({ initialState, canManage }: Props) {
     return activeSession.status === 'open' ? 'Sesión abierta' : 'Sesión cerrada';
   }, [activeSession]);
 
-  const submitAction = async (payload: { action: 'open_session' | 'close_session' | 'adjust'; delta?: number }) => {
-    setLoadingAction(payload.action === 'adjust' ? `adjust-${payload.delta}` : payload.action);
+  const toUserFriendlyError = (actionError: unknown) => {
+    const text = actionError instanceof Error ? actionError.message : 'Error inesperado';
+    if (text.includes('below zero')) {
+      return 'No se puede restar por debajo de 0.';
+    }
+    if (text.includes('no open session')) {
+      return 'No hay sesión abierta.';
+    }
+    if (text.includes('already an open session')) {
+      return 'Ya existe una sesión abierta para esta discoteca.';
+    }
+    return text;
+  };
+
+  const processAdjustmentsQueue = async () => {
+    if (isProcessingAdjustmentsRef.current) return;
+    isProcessingAdjustmentsRef.current = true;
+
+    try {
+      while (true) {
+        const nextAdjust = pendingAdjustmentsRef.current.find((item) => item.status === 'queued');
+        if (!nextAdjust) break;
+
+        setPendingAdjustments((prev) =>
+          prev.map((item) => (item.id === nextAdjust.id ? { ...item, status: 'sending' } : item)),
+        );
+
+        try {
+          const response = await fetch('/api/disco/live-capacity', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ action: 'adjust', delta: nextAdjust.delta }),
+          });
+          const body = await response.json().catch(() => ({}));
+          if (!response.ok) {
+            throw new Error(body?.error || 'No se pudo completar la operación');
+          }
+
+          setServerState((prev) => body.state ?? prev);
+          setPendingAdjustments((prev) => prev.filter((item) => item.id !== nextAdjust.id));
+          setMessage('Aforo actualizado.');
+        } catch (actionError) {
+          setPendingAdjustments((prev) => prev.filter((item) => item.id !== nextAdjust.id));
+          setError(toUserFriendlyError(actionError));
+          setMessage(null);
+        }
+      }
+    } finally {
+      isProcessingAdjustmentsRef.current = false;
+    }
+  };
+
+  const queueAdjustAction = (delta: number) => {
+    const currentCount = state.activeSession?.current_count ?? 0;
+    if (currentCount + delta < 0) {
+      setError('No se puede restar por debajo de 0.');
+      setMessage(null);
+      return;
+    }
+
+    const nextAdjustment: PendingAdjust = {
+      id: nextAdjustmentIdRef.current++,
+      delta,
+      status: 'queued',
+      createdAt: new Date().toISOString(),
+    };
+
+    setError(null);
+    setMessage(null);
+    setPendingAdjustments((prev) => [...prev, nextAdjustment]);
+    queueMicrotask(() => {
+      void processAdjustmentsQueue();
+    });
+  };
+
+  const submitAction = async (payload: { action: 'open_session' | 'close_session' }) => {
+    setLoadingAction(payload.action);
     setError(null);
     setMessage(null);
 
@@ -76,22 +198,12 @@ export function LiveCapacityPanel({ initialState, canManage }: Props) {
         throw new Error(body?.error || 'No se pudo completar la operación');
       }
 
-      setState(body.state ?? state);
+      setServerState((prev) => body.state ?? prev);
 
       if (payload.action === 'open_session') setMessage('Sesión abierta.');
       if (payload.action === 'close_session') setMessage('Sesión cerrada.');
-      if (payload.action === 'adjust') setMessage('Aforo actualizado.');
     } catch (actionError) {
-      const text = actionError instanceof Error ? actionError.message : 'Error inesperado';
-      if (text.includes('below zero')) {
-        setError('No se puede restar por debajo de 0.');
-      } else if (text.includes('no open session')) {
-        setError('No hay sesión abierta.');
-      } else if (text.includes('already an open session')) {
-        setError('Ya existe una sesión abierta para esta discoteca.');
-      } else {
-        setError(text);
-      }
+      setError(toUserFriendlyError(actionError));
     } finally {
       setLoadingAction(null);
     }
@@ -123,7 +235,7 @@ export function LiveCapacityPanel({ initialState, canManage }: Props) {
         <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
           <button
             type="button"
-            disabled={isSessionOpen || loadingAction !== null}
+            disabled={isSessionOpen || loadingAction !== null || pendingAdjustments.length > 0}
             onClick={() => submitAction({ action: 'open_session' })}
             className="rounded-lg border border-emerald-700/70 bg-emerald-900/30 px-4 py-3 text-sm font-semibold text-emerald-100 transition hover:bg-emerald-900/50 disabled:cursor-not-allowed disabled:opacity-50"
           >
@@ -132,7 +244,7 @@ export function LiveCapacityPanel({ initialState, canManage }: Props) {
 
           <button
             type="button"
-            disabled={!isSessionOpen || loadingAction !== null}
+            disabled={!isSessionOpen || loadingAction !== null || pendingAdjustments.length > 0}
             onClick={() => submitAction({ action: 'close_session' })}
             className="rounded-lg border border-amber-700/70 bg-amber-900/30 px-4 py-3 text-sm font-semibold text-amber-100 transition hover:bg-amber-900/50 disabled:cursor-not-allowed disabled:opacity-50"
           >
@@ -142,19 +254,37 @@ export function LiveCapacityPanel({ initialState, canManage }: Props) {
           <button
             type="button"
             disabled={!isSessionOpen || loadingAction !== null}
-            onClick={() => submitAction({ action: 'adjust', delta: 1 })}
+            onClick={() => queueAdjustAction(1)}
             className="rounded-lg border border-sky-700/70 bg-sky-900/30 px-4 py-3 text-sm font-semibold text-sky-100 transition hover:bg-sky-900/50 disabled:cursor-not-allowed disabled:opacity-50"
           >
-            {loadingAction === 'adjust-1' ? 'Guardando...' : '+1'}
+            +1
+          </button>
+
+          <button
+            type="button"
+            disabled={!isSessionOpen || loadingAction !== null}
+            onClick={() => queueAdjustAction(5)}
+            className="rounded-lg border border-sky-700/70 bg-sky-900/30 px-4 py-3 text-sm font-semibold text-sky-100 transition hover:bg-sky-900/50 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            +5
           </button>
 
           <button
             type="button"
             disabled={!isSessionOpen || (activeSession?.current_count ?? 0) <= 0 || loadingAction !== null}
-            onClick={() => submitAction({ action: 'adjust', delta: -1 })}
+            onClick={() => queueAdjustAction(-1)}
             className="rounded-lg border border-rose-700/70 bg-rose-900/30 px-4 py-3 text-sm font-semibold text-rose-100 transition hover:bg-rose-900/50 disabled:cursor-not-allowed disabled:opacity-50"
           >
-            {loadingAction === 'adjust--1' ? 'Guardando...' : '-1'}
+            -1
+          </button>
+
+          <button
+            type="button"
+            disabled={!isSessionOpen || (activeSession?.current_count ?? 0) <= 0 || loadingAction !== null}
+            onClick={() => queueAdjustAction(-5)}
+            className="rounded-lg border border-rose-700/70 bg-rose-900/30 px-4 py-3 text-sm font-semibold text-rose-100 transition hover:bg-rose-900/50 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            -5
           </button>
         </div>
       ) : (
@@ -169,6 +299,10 @@ export function LiveCapacityPanel({ initialState, canManage }: Props) {
           {message ? <p className="text-sm text-emerald-300">{message}</p> : null}
         </div>
       )}
+
+      {pendingAdjustments.length > 0 ? (
+        <p className="text-xs text-slate-400">Sincronizando ajustes… ({pendingAdjustments.length} pendientes)</p>
+      ) : null}
 
       <div className="rounded-xl border border-slate-800 bg-slate-950/40 p-4">
         <h2 className="text-sm font-semibold text-slate-200">Últimos movimientos</h2>
