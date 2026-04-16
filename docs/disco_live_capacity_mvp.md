@@ -1,73 +1,65 @@
-# Disco · Aforo en directo (MVP fase 1)
+# Disco · Aforo (fase 1 + fase 2 básica)
 
-## Alcance de esta fase
+## Estado actual del bloque
 
-Esta iteración implementa solo el bloque **Disco > Aforo en directo** con foco operativo en puerta/seguridad:
+Actualmente el módulo Disco incluye dos piezas operativas:
 
-- abrir sesión de aforo,
-- sumar/restar aforo en tiempo real,
-- cerrar sesión,
-- ver estado actual, pico de sesión y últimos eventos.
+1. **Aforo en directo** (`/disco/aforo-en-directo`)
+   - abrir sesión de aforo,
+   - sumar/restar aforo en tiempo casi real,
+   - cerrar sesión,
+   - ver estado actual, pico de sesión y últimos eventos.
 
-### Fuera de alcance explícito
+2. **Histórico aforo (básico)** (`/disco/historico-aforo`)
+   - lista navegable de sesiones cerradas (últimas 50),
+   - filtros rápidos por rango (hoy, 7 días, 30 días, todas),
+   - detalle de una sesión con cronología completa de eventos,
+   - métricas básicas derivadas por sesión.
 
-- histórico multi-sesión,
-- dashboards y comparativas,
-- agregados por ventana temporal,
-- incidencias de mantenimiento,
-- realtime avanzado (websocket/subscriptions),
-- integración con facturación/POS para analítica.
+## Modelo de datos reutilizado
 
-## Modelo de datos creado
-
-Se añade una migración nueva con:
+No se añaden tablas nuevas en esta fase de histórico. Se reutiliza el modelo del MVP de aforo en directo:
 
 1. `public.discotheque_capacity_sessions`
-   - una sola sesión abierta por `venue_slug` (índice único parcial),
+   - sesión por recinto (`venue_slug`),
+   - estado `open/closed`,
    - contadores `current_count` y `peak_count`,
-   - metadatos de apertura/cierre y timestamps.
+   - metadatos de apertura/cierre.
 
 2. `public.discotheque_capacity_events`
    - eventos crudos (`delta`, `resulting_count`) por sesión,
-   - actor y timestamp,
-   - FK con `on delete cascade` hacia sesiones.
+   - actor, nota opcional y timestamp,
+   - FK a sesión con borrado en cascada.
 
-3. Funciones SQL para operaciones atómicas:
+3. Funciones SQL atómicas existentes:
    - `open_discotheque_capacity_session(...)`,
    - `adjust_discotheque_capacity(...)`,
    - `close_discotheque_capacity_session(...)`.
 
-Estas funciones resuelven las validaciones críticas en servidor/DB:
-- no abrir doble sesión,
-- no operar sin sesión abierta,
-- no permitir aforo por debajo de 0,
-- actualizar `peak_count` al alza automáticamente.
+## Permisos aplicados
 
-## Permisos (MVP)
+- **Aforo en directo**: mantiene la lógica actual.
+  - lectura: admin o `view_live_capacity` / `manage_live_capacity`,
+  - operación: admin o `manage_live_capacity`.
+- **Histórico aforo**: acceso restringido a **admin** en esta iteración.
 
-Se añaden dos flags en `public.app_allowed_users`:
+> En esta fase no se crean nuevos flags de permisos en `app_allowed_users` para histórico.
 
-- `view_live_capacity`
-- `manage_live_capacity`
+## Métricas básicas del histórico
 
-Regla aplicada en app:
+En cada sesión cerrada se calculan y muestran:
 
-- puede **ver** si es admin o tiene `view_live_capacity` o `manage_live_capacity`,
-- puede **operar** (abrir/cerrar/+1/-1) si es admin o tiene `manage_live_capacity`.
+- `total_entries`: suma de deltas positivos,
+- `total_exits`: suma absoluta de deltas negativos,
+- `event_count`: número total de eventos,
+- `duration_minutes`: minutos entre apertura y cierre.
 
-Además, se expone este control también en Admin > Usuarios para facilitar altas y ajustes de permisos.
+## Fuera de alcance explícito (fase posterior)
 
-## Navegación
-
-Se añade el grupo sidebar:
-
-- `Disco`
-  - `Aforo en directo` (`/disco/aforo-en-directo`)
-
-## Qué queda para la siguiente fase
-
-1. Histórico navegable por fechas/sesiones cerradas.
-2. Métricas agregadas y paneles (picos por franja, throughput, etc.).
-3. Comparativas entre sesiones/días.
-4. Posible polling configurable/realtime si la operativa lo exige.
-5. Auditoría extendida (motivos/tipos de ajuste) si negocio lo requiere.
+- dashboards avanzados y comparativas entre sesiones,
+- medias de llegadas/salidas por hora,
+- buckets temporales (p.ej. 10 minutos),
+- exportación CSV,
+- realtime/subscriptions para histórico,
+- correlación con facturación o POS,
+- permisos granulares específicos para histórico.

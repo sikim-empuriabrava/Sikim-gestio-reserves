@@ -87,11 +87,21 @@ function buildGroups(allowedUser: AllowedUser | null): NavigationGroup[] {
   }
 
   if (isAdmin || allowedUser?.view_live_capacity || allowedUser?.manage_live_capacity) {
+    const discoLinks: NavigationLink[] = [
+      { label: 'Aforo en directo', href: '/disco/aforo-en-directo', basePath: '/disco/aforo-en-directo' },
+    ];
+
+    if (isAdmin) {
+      discoLinks.push({
+        label: 'Histórico aforo',
+        href: '/disco/historico-aforo',
+        basePath: '/disco/historico-aforo',
+      });
+    }
+
     groups.push({
       label: 'Disco',
-      links: [
-        { label: 'Aforo en directo', href: '/disco/aforo-en-directo', basePath: '/disco/aforo-en-directo' },
-      ],
+      links: discoLinks,
     });
   }
 
