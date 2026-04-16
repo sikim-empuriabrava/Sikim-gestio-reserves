@@ -16,7 +16,7 @@ Esto significa que **Sikim no se convierte en una PWA global** todavía.
   - `/disco/aforo-en-directo/pwa-icon-192` (192x192)
   - `/disco/aforo-en-directo/pwa-icon-512` (512x512)
   - `/disco/aforo-en-directo/pwa-apple-icon` (180x180)
-- Service Worker mínimo (`/aforo-sw.js`) con cache prudente de shell/navegación de Aforo y assets estáticos.
+- Service Worker mínimo (`/aforo-sw.js`) con cache prudente de assets estáticos (`style`, `script`, `font`, `image`).
 - Registro del Service Worker **solo** al renderizar `/disco/aforo-en-directo`.
 
 ## Aislamiento visual de standalone
@@ -25,6 +25,12 @@ Esto significa que **Sikim no se convierte en una PWA global** todavía.
   1. `display-mode: standalone`
   2. `html.aforo-pwa-active`
 - Con esto se evita afectar futuras PWAs parciales o un standalone global de toda la app.
+
+## Seguridad y cache del Service Worker
+- La PWA de Aforo **no cachea HTML protegido** de `/disco/aforo-en-directo`.
+- Las navegaciones HTML de Aforo no tienen fallback offline desde cache.
+- En offline la pantalla operativa puede no renderizarse, por decisión deliberada de seguridad.
+- La limpieza de caches en `activate` se limita a claves propias del SW (`sikim-aforo-sw-*`) para no interferir con otras caches del mismo origen.
 
 ## Qué NO incluye (fuera de alcance)
 - No hay PWA global en todo Sikim.
