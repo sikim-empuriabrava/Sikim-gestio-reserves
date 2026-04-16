@@ -47,6 +47,18 @@ export type CapacitySessionHistoryDetail = {
   events: EventRow[];
 };
 
+const UUID_REGEX =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+export function normalizeUuid(value: string | null | undefined): string | null {
+  if (typeof value !== 'string') return null;
+
+  const trimmedValue = value.trim();
+  if (!trimmedValue) return null;
+
+  return UUID_REGEX.test(trimmedValue) ? trimmedValue : null;
+}
+
 function getTodayStartDate(): Date {
   const now = new Date();
   return new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
@@ -163,13 +175,18 @@ export async function getClosedCapacitySessionDetail(params: {
   sessionId: string;
   venueSlug?: string;
 }): Promise<CapacitySessionHistoryDetail | null> {
+  const normalizedSessionId = normalizeUuid(params.sessionId);
+  if (!normalizedSessionId) {
+    return null;
+  }
+
   const venueSlug = params.venueSlug ?? DEFAULT_VENUE_SLUG;
   const supabase = createSupabaseAdminClient();
 
   const { data: sessionData, error: sessionError } = await supabase
     .from('discotheque_capacity_sessions')
     .select('*')
-    .eq('id', params.sessionId)
+    .eq('id', normalizedSessionId)
     .eq('venue_slug', venueSlug)
     .eq('status', 'closed')
     .limit(1)
