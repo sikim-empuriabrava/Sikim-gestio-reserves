@@ -1,12 +1,30 @@
+import type { Metadata } from 'next';
 import { redirect } from 'next/navigation';
 
 import { canManageLiveCapacity, canViewLiveCapacity, getAllowlistRoleForUserEmail, getDefaultModulePath } from '@/lib/auth/requireRole';
 import { getLiveCapacityState } from '@/lib/disco/liveCapacity';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 
+import { AforoPwaBootstrap } from './AforoPwaBootstrap';
 import { LiveCapacityPanel } from './LiveCapacityPanel';
 
 export const dynamic = 'force-dynamic';
+
+export const metadata: Metadata = {
+  title: 'Sikim Aforo',
+  description: 'Control operativo de puerta para aforo en directo.',
+  manifest: '/disco/aforo-en-directo/manifest.webmanifest',
+  themeColor: '#020617',
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: 'black-translucent',
+    title: 'Sikim Aforo',
+    startupImage: [],
+  },
+  formatDetection: {
+    telephone: false,
+  },
+};
 
 export default async function LiveCapacityPage() {
   const supabase = createSupabaseServerClient();
@@ -38,6 +56,8 @@ export default async function LiveCapacityPage() {
 
   return (
     <div className="space-y-5">
+      <AforoPwaBootstrap />
+
       <div>
         <h1 className="text-2xl font-semibold text-white">Aforo en directo</h1>
         <p className="mt-1 text-sm text-slate-400">

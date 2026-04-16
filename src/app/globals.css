@@ -77,3 +77,15 @@
     @apply px-4 py-3 align-middle;
   }
 }
+
+
+@media (display-mode: standalone) {
+  .aforo-standalone-chrome {
+    display: none;
+  }
+
+  .aforo-standalone-shell {
+    max-width: 100%;
+    padding: 0.5rem;
+  }
+}
