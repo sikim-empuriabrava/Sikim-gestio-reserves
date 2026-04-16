@@ -15,6 +15,27 @@ export const metadata: Metadata = {
   description: 'Control operativo de puerta para aforo en directo.',
   manifest: '/disco/aforo-en-directo/manifest.webmanifest',
   themeColor: '#020617',
+  icons: {
+    icon: [
+      {
+        url: '/disco/aforo-en-directo/pwa-icon-192',
+        sizes: '192x192',
+        type: 'image/png',
+      },
+      {
+        url: '/disco/aforo-en-directo/pwa-icon-512',
+        sizes: '512x512',
+        type: 'image/png',
+      },
+    ],
+    apple: [
+      {
+        url: '/disco/aforo-en-directo/pwa-apple-icon',
+        sizes: '180x180',
+        type: 'image/png',
+      },
+    ],
+  },
   appleWebApp: {
     capable: true,
     statusBarStyle: 'black-translucent',

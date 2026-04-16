@@ -15,19 +15,19 @@ export default function manifest(): MetadataRoute.Manifest {
     lang: 'es-ES',
     icons: [
       {
-        src: '/disco/aforo-en-directo/icon?size=192',
+        src: '/disco/aforo-en-directo/pwa-icon-192',
         sizes: '192x192',
         type: 'image/png',
         purpose: 'maskable',
       },
       {
-        src: '/disco/aforo-en-directo/icon?size=512',
+        src: '/disco/aforo-en-directo/pwa-icon-512',
         sizes: '512x512',
         type: 'image/png',
         purpose: 'maskable',
       },
       {
-        src: '/disco/aforo-en-directo/apple-icon',
+        src: '/disco/aforo-en-directo/pwa-apple-icon',
         sizes: '180x180',
         type: 'image/png',
       },

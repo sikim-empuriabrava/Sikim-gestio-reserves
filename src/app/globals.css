@@ -80,11 +80,11 @@
 
 
 @media (display-mode: standalone) {
-  .aforo-standalone-chrome {
+  html.aforo-pwa-active .aforo-standalone-chrome {
     display: none;
   }
 
-  .aforo-standalone-shell {
+  html.aforo-pwa-active .aforo-standalone-shell {
     max-width: 100%;
     padding: 0.5rem;
   }
