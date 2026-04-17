@@ -1,13 +1,7 @@
-import { ImageResponse } from 'next/og';
+import { buildPwaBrandIconResponse } from '../pwaBrandingAsset';
 
-import { PwaBrandIcon } from '../pwaBrandIcon';
+export const runtime = 'nodejs';
 
-export async function GET() {
-  return new ImageResponse(
-    <PwaBrandIcon size={192} borderRadius={40} />,
-    {
-      width: 192,
-      height: 192,
-    },
-  );
+export async function GET(request: Request) {
+  return buildPwaBrandIconResponse(request, 192);
 }

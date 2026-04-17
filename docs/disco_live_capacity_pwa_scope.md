@@ -17,7 +17,7 @@ Esto significa que **Sikim no se convierte en una PWA global** todavía; la inst
   - `/disco/aforo-en-directo/pwa-icon-192` (192x192)
   - `/disco/aforo-en-directo/pwa-icon-512` (512x512)
   - `/disco/aforo-en-directo/pwa-apple-icon` (180x180)
-  - Los tres tamaños se renderizan desde un único asset de branding corporativo compartido (sin el icono provisional de texto `AF`).
+  - Los tres tamaños se renderizan desde el asset real de branding (`public/disco/aforo-en-directo/branding/sikim-app-logo.svg`), sin icono provisional generado por código.
 - Service Worker mínimo (`/aforo-sw.js`) con cache prudente de assets estáticos (`style`, `script`, `font`, `image`).
 - Registro del Service Worker **solo** al renderizar `/disco/aforo-en-directo`.
 - CTA propio de instalación en la pantalla de Aforo (`Instalar app`), encapsulado en cliente y mostrado solo en `/disco/aforo-en-directo`.
@@ -25,6 +25,8 @@ Esto significa que **Sikim no se convierte en una PWA global** todavía; la inst
 - En Android/Chrome, el CTA usa `beforeinstallprompt` (capturado con `preventDefault`) para disparar `prompt()` manualmente cuando el navegador lo permite.
 - En iPhone/Safari se mantiene el flujo manual nativo (`Compartir → Añadir a pantalla de inicio`) con ayuda textual breve, sin forzar instalación programática.
 - Modo temporal de troubleshooting PWA: panel debug visible en desarrollo o activando `?pwaDebug=1` para diagnosticar `beforeinstallprompt`/estado de instalación.
+- El icono de pestaña (favicon contextual de la pantalla) queda alineado con el mismo branding real de Aforo mediante metadata de la ruta.
+- Se elimina el problema histórico de stroke escalado/cropping entre 192/180/512 al abandonar el icono SVG dibujado a mano.
 
 ## Aislamiento visual de standalone
 - El cliente de Aforo activa la clase `aforo-pwa-active` en `<html>` mientras la pantalla está montada.

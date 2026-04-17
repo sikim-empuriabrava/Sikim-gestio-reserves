@@ -19,6 +19,10 @@ export const metadata: Metadata = {
   icons: {
     icon: [
       {
+        url: '/disco/aforo-en-directo/branding/sikim-app-logo.svg',
+        type: 'image/svg+xml',
+      },
+      {
         url: '/disco/aforo-en-directo/pwa-icon-192',
         sizes: '192x192',
         type: 'image/png',
@@ -27,6 +31,12 @@ export const metadata: Metadata = {
         url: '/disco/aforo-en-directo/pwa-icon-512',
         sizes: '512x512',
         type: 'image/png',
+      },
+    ],
+    shortcut: [
+      {
+        url: '/disco/aforo-en-directo/branding/sikim-app-logo.svg',
+        type: 'image/svg+xml',
       },
     ],
     apple: [
