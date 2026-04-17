@@ -225,6 +225,7 @@ export function LiveCapacityPanel({ initialState, canManage }: Props) {
     : isComfortable
       ? 'sm:grid-cols-2 lg:grid-cols-3 gap-3'
       : 'sm:grid-cols-3 lg:grid-cols-6 gap-3';
+  const sessionActionsLayout = isCompact ? 'grid-cols-2 gap-2' : 'sm:grid-cols-2 gap-2';
   const buttonHeight = isTouchPrimary ? 'min-h-14 py-4 text-base' : 'min-h-12 py-3 text-sm';
   const eventsStack = isCompact ? 'space-y-2.5' : 'space-y-2';
 
@@ -251,51 +252,54 @@ export function LiveCapacityPanel({ initialState, canManage }: Props) {
       </div>
 
       {canManage ? (
-        <div className={`grid ${actionGrid}`}>
-          <button
-            type="button"
-            disabled={isSessionOpen || loadingAction !== null || pendingAdjustments.length > 0}
-            onClick={() => submitAction({ action: 'open_session' })}
-            className={`rounded-lg border border-emerald-700/70 bg-emerald-900/30 px-4 font-semibold text-emerald-100 transition hover:bg-emerald-900/50 disabled:cursor-not-allowed disabled:opacity-50 ${buttonHeight} ${
-              isCompact ? 'col-span-2' : ''
-            }`}
-          >
-            {loadingAction === 'open_session' ? 'Abriendo...' : 'Abrir sesión'}
-          </button>
-
-          <button
-            type="button"
-            disabled={!isSessionOpen || loadingAction !== null || pendingAdjustments.length > 0}
-            onClick={() => submitAction({ action: 'close_session' })}
-            className={`rounded-lg border border-amber-700/70 bg-amber-900/30 px-4 font-semibold text-amber-100 transition hover:bg-amber-900/50 disabled:cursor-not-allowed disabled:opacity-50 ${buttonHeight} ${
-              isCompact ? 'col-span-2' : ''
-            }`}
-          >
-            {loadingAction === 'close_session' ? 'Cerrando...' : 'Cerrar sesión'}
-          </button>
-
-          {[1, 5, -1, -5].map((delta) => {
-            const isNegative = delta < 0;
-            const currentCount = activeSession?.current_count ?? 0;
-            const exceedsCurrentCapacity = isNegative && currentCount < Math.abs(delta);
-            const isDisabled = !isSessionOpen || loadingAction !== null || exceedsCurrentCapacity;
-
-            return (
+        <div className="space-y-3">
+          <div className="rounded-lg border border-slate-800 bg-slate-950/30 p-2.5">
+            <p className="px-1 text-[11px] font-semibold uppercase tracking-wide text-slate-400">Sesión</p>
+            <div className={`mt-2 grid ${sessionActionsLayout}`}>
               <button
-                key={delta}
                 type="button"
-                disabled={isDisabled}
-                onClick={() => queueAdjustAction(delta)}
-                className={`rounded-lg border px-4 font-semibold transition disabled:cursor-not-allowed disabled:opacity-50 ${buttonHeight} ${
-                  isNegative
-                    ? 'border-rose-700/70 bg-rose-900/30 text-rose-100 hover:bg-rose-900/50'
-                    : 'border-sky-700/70 bg-sky-900/30 text-sky-100 hover:bg-sky-900/50'
-                }`}
+                disabled={isSessionOpen || loadingAction !== null || pendingAdjustments.length > 0}
+                onClick={() => submitAction({ action: 'open_session' })}
+                className="min-h-10 rounded-lg border border-emerald-800/70 bg-emerald-950/40 px-3 py-2 text-xs font-semibold text-emerald-200 transition hover:bg-emerald-900/40 disabled:cursor-not-allowed disabled:opacity-50"
               >
-                {delta > 0 ? `+${delta}` : delta}
+                {loadingAction === 'open_session' ? 'Abriendo...' : 'Abrir sesión'}
               </button>
-            );
-          })}
+
+              <button
+                type="button"
+                disabled={!isSessionOpen || loadingAction !== null || pendingAdjustments.length > 0}
+                onClick={() => submitAction({ action: 'close_session' })}
+                className="min-h-10 rounded-lg border border-amber-800/70 bg-amber-950/40 px-3 py-2 text-xs font-semibold text-amber-200 transition hover:bg-amber-900/40 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {loadingAction === 'close_session' ? 'Cerrando...' : 'Cerrar sesión'}
+              </button>
+            </div>
+          </div>
+
+          <div className={`grid ${actionGrid}`}>
+            {[1, 5, -1, -5].map((delta) => {
+              const isNegative = delta < 0;
+              const currentCount = activeSession?.current_count ?? 0;
+              const exceedsCurrentCapacity = isNegative && currentCount < Math.abs(delta);
+              const isDisabled = !isSessionOpen || loadingAction !== null || exceedsCurrentCapacity;
+
+              return (
+                <button
+                  key={delta}
+                  type="button"
+                  disabled={isDisabled}
+                  onClick={() => queueAdjustAction(delta)}
+                  className={`rounded-lg border px-4 font-semibold transition disabled:cursor-not-allowed disabled:opacity-50 ${buttonHeight} ${
+                    isNegative
+                      ? 'border-rose-700/70 bg-rose-900/30 text-rose-100 hover:bg-rose-900/50'
+                      : 'border-sky-700/70 bg-sky-900/30 text-sky-100 hover:bg-sky-900/50'
+                  }`}
+                >
+                  {delta > 0 ? `+${delta}` : delta}
+                </button>
+              );
+            })}
+          </div>
         </div>
       ) : (
         <p className="rounded-lg border border-slate-800 bg-slate-950/40 px-3 py-2 text-sm text-slate-300">

@@ -89,3 +89,7 @@
     padding: 0.5rem;
   }
 }
+
+html.aforo-live-capacity-route .aforo-live-capacity-hide-footer {
+  display: none;
+}
