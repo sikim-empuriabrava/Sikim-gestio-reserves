@@ -66,7 +66,7 @@ export function LiveCapacityPanel({ initialState, canManage }: Props) {
   const isProcessingAdjustmentsRef = useRef(false);
   const pendingAdjustmentsRef = useRef<PendingAdjust[]>([]);
 
-  const { uiMode, isStandalone, isTouchPrimary } = useAforoUiMode();
+  const { uiMode, isTouchPrimary } = useAforoUiMode();
 
   useEffect(() => {
     pendingAdjustmentsRef.current = pendingAdjustments;
@@ -215,7 +215,6 @@ export function LiveCapacityPanel({ initialState, canManage }: Props) {
 
   const isCompact = uiMode === 'compact';
   const isComfortable = uiMode === 'comfortable';
-  const isFull = uiMode === 'full';
 
   const panelPadding = isCompact ? 'p-4' : isComfortable ? 'p-5' : 'p-6';
   const cardPadding = isCompact ? 'p-4' : 'p-5';
@@ -235,10 +234,6 @@ export function LiveCapacityPanel({ initialState, canManage }: Props) {
         <article className={`rounded-xl border border-slate-800 bg-slate-950/50 ${cardPadding}`}>
           <p className="text-xs uppercase tracking-wide text-slate-400">Estado</p>
           <p className="mt-2 text-lg font-semibold text-white">{sessionStatusLabel}</p>
-          <p className="mt-1 text-xs text-slate-500">
-            Modo: <span className="font-semibold text-slate-300">{uiMode}</span>
-            {isStandalone ? ' · PWA instalada' : ''}
-          </p>
         </article>
 
         <article className={`rounded-xl border border-slate-800 bg-slate-950/50 ${cardPadding}`}>
@@ -343,11 +338,6 @@ export function LiveCapacityPanel({ initialState, canManage }: Props) {
         )}
       </div>
 
-      {isFull ? (
-        <div className="rounded-xl border border-slate-800 bg-slate-950/40 p-4 text-sm text-slate-300">
-          Vista completa activa: se muestra contexto adicional sin cambiar la operativa del aforo en directo.
-        </div>
-      ) : null}
     </section>
   );
 }
