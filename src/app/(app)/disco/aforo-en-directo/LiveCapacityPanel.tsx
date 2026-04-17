@@ -281,10 +281,9 @@ export function LiveCapacityPanel({ initialState, canManage }: Props) {
 
           {[1, 5, -1, -5].map((delta) => {
             const isNegative = delta < 0;
-            const isDisabled =
-              !isSessionOpen ||
-              loadingAction !== null ||
-              (isNegative && (activeSession?.current_count ?? 0) <= 0);
+            const currentCount = activeSession?.current_count ?? 0;
+            const exceedsCurrentCapacity = isNegative && currentCount < Math.abs(delta);
+            const isDisabled = !isSessionOpen || loadingAction !== null || exceedsCurrentCapacity;
 
             return (
               <button
