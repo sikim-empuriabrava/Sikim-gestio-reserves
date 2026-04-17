@@ -51,7 +51,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
               </div>
             </div>
 
-            <div className="flex items-center gap-3 self-start md:self-auto">
+            <div className="flex w-full min-w-0 items-center gap-3 self-start md:w-auto md:self-auto">
               <div className="lg:hidden">
                 <details className="group rounded-xl border border-slate-800 bg-slate-900/80 px-3 py-2 shadow-lg shadow-slate-950/40">
                   <summary className="flex cursor-pointer items-center gap-2 text-sm font-semibold text-slate-100">
@@ -63,14 +63,18 @@ export default async function AppLayout({ children }: { children: React.ReactNod
                   </div>
                 </details>
               </div>
-              <UserMenu email={user?.email} />
+              <div className="min-w-0 flex-1 md:flex-none">
+                <UserMenu email={user?.email} />
+              </div>
             </div>
           </div>
         </header>
 
         <main className="flex-1 space-y-6">{children}</main>
 
-        <footer className="aforo-standalone-chrome border-t border-slate-800/80 pt-6 text-sm text-slate-500">Interfaz MVP – pendiente de integrar con base de datos.</footer>
+        <footer className="aforo-standalone-chrome aforo-live-capacity-hide-footer border-t border-slate-800/80 pt-6 text-sm text-slate-500">
+          Interfaz MVP – pendiente de integrar con base de datos.
+        </footer>
       </div>
     </div>
   );
