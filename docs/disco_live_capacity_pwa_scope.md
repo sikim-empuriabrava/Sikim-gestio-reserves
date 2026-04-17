@@ -5,11 +5,12 @@ La experiencia PWA está **acotada exclusivamente** a la ruta:
 
 - `/disco/aforo-en-directo`
 
-Esto significa que **Sikim no se convierte en una PWA global** todavía.
+Esto significa que **Sikim no se convierte en una PWA global** todavía; la instalación permanece parcial y limitada al módulo de Aforo.
 
 ## Qué incluye este MVP
-- Manifest específico de Aforo (`Sikim Aforo`) servido en:
+- Manifest específico de Aforo (`Sikim Aforo`) servido como recurso real estático en:
   - `/disco/aforo-en-directo/manifest.webmanifest`
+  - origen de archivo: `public/disco/aforo-en-directo/manifest.webmanifest`
 - `start_url` y `scope` limitados a `/disco/aforo-en-directo`.
 - Modo de visualización `standalone`.
 - Iconos PWA con rutas explícitas y tamaños reales fijos:
