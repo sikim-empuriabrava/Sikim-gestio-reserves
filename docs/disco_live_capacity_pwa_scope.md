@@ -19,6 +19,10 @@ Esto significa que **Sikim no se convierte en una PWA global** todavía; la inst
   - `/disco/aforo-en-directo/pwa-apple-icon` (180x180)
 - Service Worker mínimo (`/aforo-sw.js`) con cache prudente de assets estáticos (`style`, `script`, `font`, `image`).
 - Registro del Service Worker **solo** al renderizar `/disco/aforo-en-directo`.
+- CTA propio de instalación en la pantalla de Aforo (`Instalar app`), encapsulado en cliente y mostrado solo en `/disco/aforo-en-directo`.
+- En Android/Chrome, el CTA usa `beforeinstallprompt` (capturado con `preventDefault`) para disparar `prompt()` manualmente cuando el navegador lo permite.
+- En iPhone/Safari se mantiene el flujo manual nativo (`Compartir → Añadir a pantalla de inicio`) con ayuda textual breve, sin forzar instalación programática.
+- Modo temporal de troubleshooting PWA: panel debug visible en desarrollo o activando `?pwaDebug=1` para diagnosticar `beforeinstallprompt`/estado de instalación.
 
 ## Aislamiento visual de standalone
 - El cliente de Aforo activa la clase `aforo-pwa-active` en `<html>` mientras la pantalla está montada.
