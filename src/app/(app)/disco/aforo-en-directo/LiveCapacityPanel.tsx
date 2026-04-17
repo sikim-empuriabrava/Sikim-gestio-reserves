@@ -2,6 +2,8 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 
+import { useAforoUiMode } from './useAforoUiMode';
+
 type CapacitySession = {
   id: string;
   status: 'open' | 'closed';
@@ -63,6 +65,8 @@ export function LiveCapacityPanel({ initialState, canManage }: Props) {
   const nextAdjustmentIdRef = useRef(1);
   const isProcessingAdjustmentsRef = useRef(false);
   const pendingAdjustmentsRef = useRef<PendingAdjust[]>([]);
+
+  const { uiMode, isTouchPrimary } = useAforoUiMode();
 
   useEffect(() => {
     pendingAdjustmentsRef.current = pendingAdjustments;
@@ -209,22 +213,37 @@ export function LiveCapacityPanel({ initialState, canManage }: Props) {
     }
   };
 
+  const isCompact = uiMode === 'compact';
+  const isComfortable = uiMode === 'comfortable';
+
+  const panelPadding = isCompact ? 'p-4' : isComfortable ? 'p-5' : 'p-6';
+  const cardPadding = isCompact ? 'p-4' : 'p-5';
+  const countSize = isCompact ? 'text-7xl' : isComfortable ? 'text-6xl' : 'text-7xl';
+  const kpiGrid = isCompact ? 'grid-cols-1 gap-3' : isComfortable ? 'sm:grid-cols-2 gap-4' : 'sm:grid-cols-2 xl:grid-cols-3 gap-4';
+  const actionGrid = isCompact
+    ? 'grid-cols-2 gap-3'
+    : isComfortable
+      ? 'sm:grid-cols-2 lg:grid-cols-3 gap-3'
+      : 'sm:grid-cols-3 lg:grid-cols-6 gap-3';
+  const buttonHeight = isTouchPrimary ? 'min-h-14 py-4 text-base' : 'min-h-12 py-3 text-sm';
+  const eventsStack = isCompact ? 'space-y-2.5' : 'space-y-2';
+
   return (
-    <section className="space-y-4 rounded-2xl border border-slate-800 bg-slate-900/70 p-4 sm:p-6">
-      <div className="grid gap-3 sm:grid-cols-3">
-        <article className="rounded-xl border border-slate-800 bg-slate-950/50 p-4">
+    <section className={`space-y-4 rounded-2xl border border-slate-800 bg-slate-900/70 ${panelPadding}`}>
+      <div className={`grid ${kpiGrid}`}>
+        <article className={`rounded-xl border border-slate-800 bg-slate-950/50 ${cardPadding}`}>
           <p className="text-xs uppercase tracking-wide text-slate-400">Estado</p>
           <p className="mt-2 text-lg font-semibold text-white">{sessionStatusLabel}</p>
         </article>
 
-        <article className="rounded-xl border border-slate-800 bg-slate-950/50 p-4">
+        <article className={`rounded-xl border border-slate-800 bg-slate-950/50 ${cardPadding}`}>
           <p className="text-xs uppercase tracking-wide text-slate-400">Aforo actual</p>
-          <p className="mt-2 text-5xl font-extrabold leading-none text-emerald-300">
+          <p className={`mt-2 font-extrabold leading-none text-emerald-300 ${countSize}`}>
             {activeSession?.current_count ?? 0}
           </p>
         </article>
 
-        <article className="rounded-xl border border-slate-800 bg-slate-950/50 p-4">
+        <article className={`rounded-xl border border-slate-800 bg-slate-950/50 ${cardPadding}`}>
           <p className="text-xs uppercase tracking-wide text-slate-400">Pico sesión</p>
           <p className="mt-2 text-2xl font-bold text-white">{activeSession?.peak_count ?? 0}</p>
           <p className="mt-1 text-xs text-slate-400">Apertura: {formatDateTime(activeSession?.opened_at)}</p>
@@ -232,12 +251,14 @@ export function LiveCapacityPanel({ initialState, canManage }: Props) {
       </div>
 
       {canManage ? (
-        <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+        <div className={`grid ${actionGrid}`}>
           <button
             type="button"
             disabled={isSessionOpen || loadingAction !== null || pendingAdjustments.length > 0}
             onClick={() => submitAction({ action: 'open_session' })}
-            className="rounded-lg border border-emerald-700/70 bg-emerald-900/30 px-4 py-3 text-sm font-semibold text-emerald-100 transition hover:bg-emerald-900/50 disabled:cursor-not-allowed disabled:opacity-50"
+            className={`rounded-lg border border-emerald-700/70 bg-emerald-900/30 px-4 font-semibold text-emerald-100 transition hover:bg-emerald-900/50 disabled:cursor-not-allowed disabled:opacity-50 ${buttonHeight} ${
+              isCompact ? 'col-span-2' : ''
+            }`}
           >
             {loadingAction === 'open_session' ? 'Abriendo...' : 'Abrir sesión'}
           </button>
@@ -246,46 +267,35 @@ export function LiveCapacityPanel({ initialState, canManage }: Props) {
             type="button"
             disabled={!isSessionOpen || loadingAction !== null || pendingAdjustments.length > 0}
             onClick={() => submitAction({ action: 'close_session' })}
-            className="rounded-lg border border-amber-700/70 bg-amber-900/30 px-4 py-3 text-sm font-semibold text-amber-100 transition hover:bg-amber-900/50 disabled:cursor-not-allowed disabled:opacity-50"
+            className={`rounded-lg border border-amber-700/70 bg-amber-900/30 px-4 font-semibold text-amber-100 transition hover:bg-amber-900/50 disabled:cursor-not-allowed disabled:opacity-50 ${buttonHeight} ${
+              isCompact ? 'col-span-2' : ''
+            }`}
           >
             {loadingAction === 'close_session' ? 'Cerrando...' : 'Cerrar sesión'}
           </button>
 
-          <button
-            type="button"
-            disabled={!isSessionOpen || loadingAction !== null}
-            onClick={() => queueAdjustAction(1)}
-            className="rounded-lg border border-sky-700/70 bg-sky-900/30 px-4 py-3 text-sm font-semibold text-sky-100 transition hover:bg-sky-900/50 disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            +1
-          </button>
+          {[1, 5, -1, -5].map((delta) => {
+            const isNegative = delta < 0;
+            const currentCount = activeSession?.current_count ?? 0;
+            const exceedsCurrentCapacity = isNegative && currentCount < Math.abs(delta);
+            const isDisabled = !isSessionOpen || loadingAction !== null || exceedsCurrentCapacity;
 
-          <button
-            type="button"
-            disabled={!isSessionOpen || loadingAction !== null}
-            onClick={() => queueAdjustAction(5)}
-            className="rounded-lg border border-sky-700/70 bg-sky-900/30 px-4 py-3 text-sm font-semibold text-sky-100 transition hover:bg-sky-900/50 disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            +5
-          </button>
-
-          <button
-            type="button"
-            disabled={!isSessionOpen || (activeSession?.current_count ?? 0) <= 0 || loadingAction !== null}
-            onClick={() => queueAdjustAction(-1)}
-            className="rounded-lg border border-rose-700/70 bg-rose-900/30 px-4 py-3 text-sm font-semibold text-rose-100 transition hover:bg-rose-900/50 disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            -1
-          </button>
-
-          <button
-            type="button"
-            disabled={!isSessionOpen || (activeSession?.current_count ?? 0) <= 0 || loadingAction !== null}
-            onClick={() => queueAdjustAction(-5)}
-            className="rounded-lg border border-rose-700/70 bg-rose-900/30 px-4 py-3 text-sm font-semibold text-rose-100 transition hover:bg-rose-900/50 disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            -5
-          </button>
+            return (
+              <button
+                key={delta}
+                type="button"
+                disabled={isDisabled}
+                onClick={() => queueAdjustAction(delta)}
+                className={`rounded-lg border px-4 font-semibold transition disabled:cursor-not-allowed disabled:opacity-50 ${buttonHeight} ${
+                  isNegative
+                    ? 'border-rose-700/70 bg-rose-900/30 text-rose-100 hover:bg-rose-900/50'
+                    : 'border-sky-700/70 bg-sky-900/30 text-sky-100 hover:bg-sky-900/50'
+                }`}
+              >
+                {delta > 0 ? `+${delta}` : delta}
+              </button>
+            );
+          })}
         </div>
       ) : (
         <p className="rounded-lg border border-slate-800 bg-slate-950/40 px-3 py-2 text-sm text-slate-300">
@@ -304,24 +314,22 @@ export function LiveCapacityPanel({ initialState, canManage }: Props) {
         <p className="text-xs text-slate-400">Sincronizando ajustes… ({pendingAdjustments.length} pendientes)</p>
       ) : null}
 
-      <div className="rounded-xl border border-slate-800 bg-slate-950/40 p-4">
+      <div className={`rounded-xl border border-slate-800 bg-slate-950/40 ${cardPadding}`}>
         <h2 className="text-sm font-semibold text-slate-200">Últimos movimientos</h2>
         {state.recentEvents.length === 0 ? (
           <p className="mt-3 text-sm text-slate-400">Sin eventos todavía para la sesión actual.</p>
         ) : (
-          <ul className="mt-3 space-y-2">
+          <ul className={`mt-3 ${eventsStack}`}>
             {state.recentEvents.map((event) => (
               <li
                 key={event.id}
                 className="flex items-center justify-between gap-3 rounded-lg border border-slate-800 bg-slate-900/60 px-3 py-2"
               >
                 <div className="min-w-0">
-                  <p className="text-sm font-semibold text-slate-100">
+                  <p className={`${isCompact ? 'text-base' : 'text-sm'} font-semibold text-slate-100`}>
                     {event.delta > 0 ? `+${event.delta}` : event.delta} → {event.resulting_count}
                   </p>
-                  <p className="truncate text-xs text-slate-400">
-                    {event.actor_email ?? 'Usuario no identificado'}
-                  </p>
+                  <p className="truncate text-xs text-slate-400">{event.actor_email ?? 'Usuario no identificado'}</p>
                 </div>
                 <span className="shrink-0 text-xs text-slate-400">{formatDateTime(event.created_at)}</span>
               </li>
@@ -329,6 +337,7 @@ export function LiveCapacityPanel({ initialState, canManage }: Props) {
           </ul>
         )}
       </div>
+
     </section>
   );
 }

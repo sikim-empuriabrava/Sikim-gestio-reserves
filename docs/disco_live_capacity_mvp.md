@@ -63,3 +63,19 @@ En cada sesión cerrada se calculan y muestran:
 - realtime/subscriptions para histórico,
 - correlación con facturación o POS,
 - permisos granulares específicos para histórico.
+
+## UI adaptativa en Aforo en directo (solo este bloque)
+
+La pantalla `/disco/aforo-en-directo` adapta su interfaz de forma automática en cliente usando tres señales:
+
+- ancho de viewport (`window.innerWidth`),
+- puntero principal táctil (`matchMedia('(pointer: coarse)')`),
+- modo PWA instalada (`matchMedia('(display-mode: standalone)')`, con soporte iOS standalone).
+
+Se definen tres modos de UI para **LiveCapacityPanel**:
+
+- `compact`: cuando está en standalone o cuando el viewport es `< 768`.
+- `comfortable`: cuando el viewport es `>= 768` y `< 1280`.
+- `full`: cuando el viewport es `>= 1280`.
+
+Esta lógica está encapsulada en un hook cliente y **no se aplica como política global** del resto de la app; su alcance queda limitado al bloque de Aforo en directo.
