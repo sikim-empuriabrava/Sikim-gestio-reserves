@@ -2,10 +2,11 @@
 
 import { useMemo } from 'react';
 
+import { AforoInstallDebugPanel } from './AforoInstallDebugPanel';
 import { useAforoInstallPrompt } from './useAforoInstallPrompt';
 
 export function AforoInstallCta() {
-  const { isInstallAvailable, isInstalled, isIosLike, canShowManualInstructions, installStatus, installApp } =
+  const { isInstallAvailable, isInstalled, isIosLike, canShowManualInstructions, installStatus, installApp, debugInfo } =
     useAforoInstallPrompt();
 
   const helperText = useMemo(() => {
@@ -32,27 +33,40 @@ export function AforoInstallCta() {
     return null;
   }, [canShowManualInstructions, installStatus, isInstallAvailable, isInstalled, isIosLike]);
 
-  if (!isInstallAvailable && !helperText) {
+  if (!isInstallAvailable && !helperText && !debugInfo.debugEnabled) {
     return null;
   }
 
   return (
-    <div className="rounded-lg border border-slate-800 bg-slate-950/40 px-3 py-2.5">
-      <div className="flex flex-wrap items-center gap-2">
-        {isInstallAvailable ? (
-          <button
-            type="button"
-            onClick={() => {
-              void installApp();
-            }}
-            className="inline-flex min-h-9 items-center rounded-md border border-sky-700/70 bg-sky-900/30 px-3 py-1.5 text-xs font-semibold text-sky-100 transition hover:bg-sky-900/50"
-          >
-            Instalar app
-          </button>
-        ) : null}
+    <div className="space-y-2.5">
+      {(isInstallAvailable || helperText) && (
+        <div className="rounded-lg border border-slate-800 bg-slate-950/40 px-3 py-2.5">
+          <div className="flex flex-wrap items-center gap-2">
+            {isInstallAvailable ? (
+              <button
+                type="button"
+                onClick={() => {
+                  void installApp();
+                }}
+                className="inline-flex min-h-9 items-center rounded-md border border-sky-700/70 bg-sky-900/30 px-3 py-1.5 text-xs font-semibold text-sky-100 transition hover:bg-sky-900/50"
+              >
+                Instalar app
+              </button>
+            ) : null}
 
-        {helperText ? <p className="text-xs text-slate-300">{helperText}</p> : null}
-      </div>
+            {helperText ? <p className="text-xs text-slate-300">{helperText}</p> : null}
+          </div>
+        </div>
+      )}
+
+      {debugInfo.debugEnabled ? (
+        <AforoInstallDebugPanel
+          debugInfo={debugInfo}
+          onForceInstall={() => {
+            void installApp();
+          }}
+        />
+      ) : null}
     </div>
   );
 }
