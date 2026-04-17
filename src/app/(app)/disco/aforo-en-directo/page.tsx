@@ -5,6 +5,7 @@ import { canManageLiveCapacity, canViewLiveCapacity, getAllowlistRoleForUserEmai
 import { getLiveCapacityState } from '@/lib/disco/liveCapacity';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 
+import { AforoInstallCta } from './AforoInstallCta';
 import { AforoPwaBootstrap } from './AforoPwaBootstrap';
 import { LiveCapacityPanel } from './LiveCapacityPanel';
 
@@ -85,6 +86,8 @@ export default async function LiveCapacityPage() {
           Control operativo de puerta para la sesión activa de discoteca.
         </p>
       </div>
+
+      <AforoInstallCta />
 
       <LiveCapacityPanel initialState={initialState} canManage={canManage} />
     </div>
