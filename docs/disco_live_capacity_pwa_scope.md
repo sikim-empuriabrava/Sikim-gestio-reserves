@@ -13,11 +13,12 @@ Esto significa que **Sikim no se convierte en una PWA global** todavía; la inst
   - origen de archivo: `public/disco/aforo-en-directo/manifest.webmanifest`
 - `start_url` y `scope` limitados a `/disco/aforo-en-directo`.
 - Modo de visualización `standalone`.
-- Iconos PWA con rutas explícitas y tamaños reales fijos:
-  - `/disco/aforo-en-directo/pwa-icon-192` (192x192)
-  - `/disco/aforo-en-directo/pwa-icon-512` (512x512)
-  - `/disco/aforo-en-directo/pwa-apple-icon` (180x180)
-  - Los tres tamaños se renderizan desde el asset real de branding (`public/disco/aforo-en-directo/branding/sikim-app-logo.svg`), sin icono provisional generado por código.
+- Iconos de instalación PWA servidos desde assets estáticos reales en `public/branding/`:
+  - `/branding/sikim-app-icon-192.png` (192x192)
+  - `/branding/sikim-app-icon-512.png` (512x512)
+  - `/branding/sikim-app-icon-maskable-512.png` (512x512, `purpose: maskable`)
+  - Apple touch icon: `/branding/sikim-app-apple-180.png` (180x180) en metadata de la página de Aforo.
+  - Este enfoque evita inconsistencias de render/cropping del pipeline dinámico y mejora la estabilidad del icono instalado en Android/iOS.
 - Service Worker mínimo (`/aforo-sw.js`) con cache prudente de assets estáticos (`style`, `script`, `font`, `image`).
 - Registro del Service Worker **solo** al renderizar `/disco/aforo-en-directo`.
 - CTA propio de instalación en la pantalla de Aforo (`Instalar app`), encapsulado en cliente y mostrado solo en `/disco/aforo-en-directo`.
@@ -30,7 +31,6 @@ Esto significa que **Sikim no se convierte en una PWA global** todavía; la inst
   - `/branding/sikim-app-logo.svg`
 - `/branding/` está exento de middleware/auth para que el favicon global cargue también en `/login` y páginas públicas.
 - La PWA se mantiene parcial y limitada a `/disco/aforo-en-directo` (manifest, service worker y CTA de instalación solo en Aforo).
-- Se elimina el problema histórico de stroke escalado/cropping entre 192/180/512 al abandonar el icono SVG dibujado a mano.
 
 ## Aislamiento visual de standalone
 - El cliente de Aforo activa la clase `aforo-pwa-active` en `<html>` mientras la pantalla está montada.

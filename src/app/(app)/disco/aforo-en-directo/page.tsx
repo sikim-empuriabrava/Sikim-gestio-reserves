@@ -19,7 +19,7 @@ export const metadata: Metadata = {
   icons: {
     apple: [
       {
-        url: '/disco/aforo-en-directo/pwa-apple-icon',
+        url: '/branding/sikim-app-apple-180.png',
         sizes: '180x180',
         type: 'image/png',
       },

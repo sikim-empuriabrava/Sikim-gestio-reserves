@@ -12,21 +12,20 @@
   "lang": "es-ES",
   "icons": [
     {
-      "src": "/disco/aforo-en-directo/pwa-icon-192",
+      "src": "/branding/sikim-app-icon-192.png",
       "sizes": "192x192",
-      "type": "image/png",
-      "purpose": "maskable"
+      "type": "image/png"
     },
     {
-      "src": "/disco/aforo-en-directo/pwa-icon-512",
+      "src": "/branding/sikim-app-icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    },
+    {
+      "src": "/branding/sikim-app-icon-maskable-512.png",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "maskable"
-    },
-    {
-      "src": "/disco/aforo-en-directo/pwa-apple-icon",
-      "sizes": "180x180",
-      "type": "image/png"
     }
   ]
 }
