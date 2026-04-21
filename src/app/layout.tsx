@@ -7,24 +7,24 @@ export const metadata: Metadata = {
   icons: {
     icon: [
       {
-        url: '/disco/aforo-en-directo/branding/sikim-app-logo.png',
+        url: '/branding/sikim-app-logo.png',
         sizes: '512x512',
         type: 'image/png',
       },
       {
-        url: '/disco/aforo-en-directo/branding/sikim-app-logo.svg',
+        url: '/branding/sikim-app-logo.svg',
         sizes: 'any',
         type: 'image/svg+xml',
       },
     ],
     shortcut: [
       {
-        url: '/disco/aforo-en-directo/branding/sikim-app-logo.png',
+        url: '/branding/sikim-app-logo.png',
         sizes: '512x512',
         type: 'image/png',
       },
       {
-        url: '/disco/aforo-en-directo/branding/sikim-app-logo.svg',
+        url: '/branding/sikim-app-logo.svg',
         sizes: 'any',
         type: 'image/svg+xml',
       },
