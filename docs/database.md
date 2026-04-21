@@ -19,6 +19,8 @@ RLS: habilitado
 | `display_name` | `text` | Sí |  |
 | `can_cheffing` | `boolean` | No | `false` |
 | `cheffing_images_manage` | `boolean` | No | `false` |
+| `view_live_capacity` | `boolean` | No | `false` |
+| `manage_live_capacity` | `boolean` | No | `false` |
 
 ### backup_cheffing_dish_items_phase2_20260312
 RLS: deshabilitado
@@ -591,6 +593,36 @@ RLS: deshabilitado
 | `validated` | `boolean` | No | `false` |
 | `last_edited_at` | `timestamp with time zone` | Sí | `now()` |
 
+### discotheque_capacity_events
+RLS: deshabilitado
+
+| Columna | Tipo | Nullable | Default |
+| --- | --- | --- | --- |
+| `id` | `uuid` | No | `gen_random_uuid()` |
+| `session_id` | `uuid` | No |  |
+| `delta` | `integer` | No |  |
+| `resulting_count` | `integer` | No |  |
+| `actor_email` | `text` | Sí |  |
+| `note` | `text` | Sí |  |
+| `created_at` | `timestamp with time zone` | No | `now()` |
+
+### discotheque_capacity_sessions
+RLS: deshabilitado
+
+| Columna | Tipo | Nullable | Default |
+| --- | --- | --- | --- |
+| `id` | `uuid` | No | `gen_random_uuid()` |
+| `venue_slug` | `text` | No | `'sikim-discoteca'::text` |
+| `status` | `text` | No |  |
+| `opened_at` | `timestamp with time zone` | No | `now()` |
+| `closed_at` | `timestamp with time zone` | Sí |  |
+| `opened_by` | `text` | Sí |  |
+| `closed_by` | `text` | Sí |  |
+| `current_count` | `integer` | No | `0` |
+| `peak_count` | `integer` | No | `0` |
+| `created_at` | `timestamp with time zone` | No | `now()` |
+| `updated_at` | `timestamp with time zone` | No | `now()` |
+
 ### group_events
 RLS: deshabilitado
 
@@ -876,6 +908,7 @@ RLS: deshabilitado
 | `cheffing_units` | `set_updated_at_cheffing_units` | BEFORE | UPDATE |
 | `cheffing_units` | `trg_cheffing_units_updated_at` | BEFORE | UPDATE |
 | `day_status` | `trg_day_status_sync_legacy_columns` | BEFORE | INSERT, UPDATE |
+| `discotheque_capacity_sessions` | `set_updated_at_discotheque_capacity_sessions` | BEFORE | UPDATE |
 | `group_events` | `set_timestamp_group_events` | BEFORE | UPDATE |
 | `group_events` | `trg_group_events_recalculate_staffing` | AFTER | INSERT, UPDATE |
 | `group_room_allocations` | `set_timestamp_group_room_allocations` | BEFORE | UPDATE |
@@ -890,6 +923,7 @@ RLS: deshabilitado
 ## Functions
 | Función | Args | Devuelve |
 | --- | --- | --- |
+| `adjust_discotheque_capacity` | `p_actor_email text, p_delta integer, p_note text DEFAULT NULL::text, p_venue_slug text DEFAULT 'sikim-discoteca'::text` | `discotheque_capacity_events` |
 | `app_allowed_users_email_lowercase` | `` | `trigger` |
 | `cheffing_apply_purchase_document` | `p_document_id uuid, p_applied_by text DEFAULT NULL::text` | `TABLE(applied_lines integer, updated_ingredients integer)` |
 | `cheffing_enforce_purchase_document_apply_ready` | `` | `trigger` |
@@ -902,6 +936,7 @@ RLS: deshabilitado
 | `cheffing_set_purchase_document_storage_retention` | `` | `trigger` |
 | `cheffing_set_purchase_line_effective_at` | `` | `trigger` |
 | `cheffing_sync_purchase_lines_effective_at` | `` | `trigger` |
+| `close_discotheque_capacity_session` | `p_actor_email text, p_venue_slug text DEFAULT 'sikim-discoteca'::text` | `discotheque_capacity_sessions` |
 | `day_status_sync_legacy_columns` | `` | `trigger` |
 | `delete_routine_pack` | `p_pack_id uuid, p_mode text DEFAULT 'keep_all'::text, p_cutoff_week_start date DEFAULT NULL::date` | `TABLE(deleted_pack boolean, deleted_routines integer, deleted_tasks integer, unlinked_tasks integer)` |
 | `delete_routine_template` | `p_routine_id uuid, p_mode text DEFAULT 'keep_all'::text, p_cutoff_week_start date DEFAULT NULL::date` | `TABLE(deleted boolean, deleted_tasks integer, unlinked_tasks integer)` |
@@ -913,6 +948,7 @@ RLS: deshabilitado
 | `generate_weekly_tasks_auto` | `p_week_start date, p_created_by_email text DEFAULT 'system'::text` | `TABLE(created integer, skipped integer)` |
 | `generate_weekly_tasks_for_pack` | `p_week_start date, p_pack_id uuid, p_created_by_email text DEFAULT NULL::text` | `TABLE(created integer, skipped integer)` |
 | `mark_past_events_completed` | `` | `void` |
+| `open_discotheque_capacity_session` | `p_actor_email text, p_venue_slug text DEFAULT 'sikim-discoteca'::text` | `discotheque_capacity_sessions` |
 | `recalculate_group_staffing_plan` | `p_group_event_id uuid` | `void` |
 | `set_override_capacity` | `` | `trigger` |
 | `set_updated_at` | `` | `trigger` |
