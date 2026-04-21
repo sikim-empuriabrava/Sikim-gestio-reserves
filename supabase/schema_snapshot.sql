@@ -68,6 +68,91 @@ CREATE TYPE public.task_status AS ENUM (
 );
 
 
+SET default_tablespace = '';
+
+SET default_table_access_method = heap;
+
+--
+-- Name: discotheque_capacity_events; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.discotheque_capacity_events (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    session_id uuid NOT NULL,
+    delta integer NOT NULL,
+    resulting_count integer NOT NULL,
+    actor_email text,
+    note text,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT discotheque_capacity_events_delta_check CHECK ((delta <> 0)),
+    CONSTRAINT discotheque_capacity_events_resulting_count_check CHECK ((resulting_count >= 0))
+);
+
+
+--
+-- Name: adjust_discotheque_capacity(text, integer, text, text); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.adjust_discotheque_capacity(p_actor_email text, p_delta integer, p_note text DEFAULT NULL::text, p_venue_slug text DEFAULT 'sikim-discoteca'::text) RETURNS public.discotheque_capacity_events
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_session public.discotheque_capacity_sessions;
+  v_new_count integer;
+  v_event public.discotheque_capacity_events;
+begin
+  if p_delta is null or p_delta = 0 then
+    raise exception 'delta must be non-zero';
+  end if;
+
+  select *
+  into v_session
+  from public.discotheque_capacity_sessions
+  where venue_slug = p_venue_slug
+    and status = 'open'
+  limit 1
+  for update;
+
+  if not found then
+    raise exception 'no open session for venue %', p_venue_slug;
+  end if;
+
+  v_new_count := v_session.current_count + p_delta;
+
+  if v_new_count < 0 then
+    raise exception 'capacity adjustment below zero is not allowed';
+  end if;
+
+  update public.discotheque_capacity_sessions
+  set
+    current_count = v_new_count,
+    peak_count = greatest(peak_count, v_new_count),
+    updated_at = now()
+  where id = v_session.id
+  returning * into v_session;
+
+  insert into public.discotheque_capacity_events (
+    session_id,
+    delta,
+    resulting_count,
+    actor_email,
+    note
+  )
+  values (
+    v_session.id,
+    p_delta,
+    v_new_count,
+    nullif(trim(p_actor_email), ''),
+    nullif(trim(coalesce(p_note, '')), '')
+  )
+  returning * into v_event;
+
+  return v_event;
+end;
+$$;
+
+
 --
 -- Name: app_allowed_users_email_lowercase(); Type: FUNCTION; Schema: public; Owner: -
 --
@@ -479,6 +564,65 @@ begin
   where document_id = new.id;
 
   return new;
+end;
+$$;
+
+
+--
+-- Name: discotheque_capacity_sessions; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.discotheque_capacity_sessions (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    venue_slug text DEFAULT 'sikim-discoteca'::text NOT NULL,
+    status text NOT NULL,
+    opened_at timestamp with time zone DEFAULT now() NOT NULL,
+    closed_at timestamp with time zone,
+    opened_by text,
+    closed_by text,
+    current_count integer DEFAULT 0 NOT NULL,
+    peak_count integer DEFAULT 0 NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT discotheque_capacity_sessions_current_count_check CHECK ((current_count >= 0)),
+    CONSTRAINT discotheque_capacity_sessions_peak_count_check CHECK ((peak_count >= 0)),
+    CONSTRAINT discotheque_capacity_sessions_status_check CHECK ((status = ANY (ARRAY['open'::text, 'closed'::text])))
+);
+
+
+--
+-- Name: close_discotheque_capacity_session(text, text); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.close_discotheque_capacity_session(p_actor_email text, p_venue_slug text DEFAULT 'sikim-discoteca'::text) RETURNS public.discotheque_capacity_sessions
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_session public.discotheque_capacity_sessions;
+begin
+  select *
+  into v_session
+  from public.discotheque_capacity_sessions
+  where venue_slug = p_venue_slug
+    and status = 'open'
+  limit 1
+  for update;
+
+  if not found then
+    raise exception 'no open session for venue %', p_venue_slug;
+  end if;
+
+  update public.discotheque_capacity_sessions
+  set
+    status = 'closed',
+    closed_at = now(),
+    closed_by = nullif(trim(p_actor_email), ''),
+    updated_at = now()
+  where id = v_session.id
+  returning * into v_session;
+
+  return v_session;
 end;
 $$;
 
@@ -968,6 +1112,50 @@ $$;
 
 
 --
+-- Name: open_discotheque_capacity_session(text, text); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.open_discotheque_capacity_session(p_actor_email text, p_venue_slug text DEFAULT 'sikim-discoteca'::text) RETURNS public.discotheque_capacity_sessions
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_open_session public.discotheque_capacity_sessions;
+  v_created_session public.discotheque_capacity_sessions;
+begin
+  select *
+  into v_open_session
+  from public.discotheque_capacity_sessions
+  where venue_slug = p_venue_slug
+    and status = 'open'
+  limit 1;
+
+  if found then
+    raise exception 'already an open session for venue %', p_venue_slug;
+  end if;
+
+  insert into public.discotheque_capacity_sessions (
+    venue_slug,
+    status,
+    opened_by,
+    current_count,
+    peak_count
+  )
+  values (
+    p_venue_slug,
+    'open',
+    nullif(trim(p_actor_email), ''),
+    0,
+    0
+  )
+  returning * into v_created_session;
+
+  return v_created_session;
+end;
+$$;
+
+
+--
 -- Name: recalculate_group_staffing_plan(uuid); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -1150,10 +1338,6 @@ end;
 $$;
 
 
-SET default_tablespace = '';
-
-SET default_table_access_method = heap;
-
 --
 -- Name: app_allowed_users; Type: TABLE; Schema: public; Owner: -
 --
@@ -1170,6 +1354,8 @@ CREATE TABLE public.app_allowed_users (
     display_name text,
     can_cheffing boolean DEFAULT false NOT NULL,
     cheffing_images_manage boolean DEFAULT false NOT NULL,
+    view_live_capacity boolean DEFAULT false NOT NULL,
+    manage_live_capacity boolean DEFAULT false NOT NULL,
     CONSTRAINT app_allowed_users_email_lower_chk CHECK ((email = lower(email))),
     CONSTRAINT app_allowed_users_role_check CHECK ((role = ANY (ARRAY['admin'::text, 'staff'::text, 'viewer'::text])))
 );
@@ -2672,6 +2858,22 @@ ALTER TABLE ONLY public.cheffing_units
 
 
 --
+-- Name: discotheque_capacity_events discotheque_capacity_events_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.discotheque_capacity_events
+    ADD CONSTRAINT discotheque_capacity_events_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: discotheque_capacity_sessions discotheque_capacity_sessions_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.discotheque_capacity_sessions
+    ADD CONSTRAINT discotheque_capacity_sessions_pkey PRIMARY KEY (id);
+
+
+--
 -- Name: group_events group_events_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -3102,6 +3304,27 @@ CREATE INDEX day_status_event_date_idx ON public.day_status USING btree (event_d
 
 
 --
+-- Name: discotheque_capacity_events_session_created_at_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX discotheque_capacity_events_session_created_at_idx ON public.discotheque_capacity_events USING btree (session_id, created_at DESC);
+
+
+--
+-- Name: discotheque_capacity_sessions_one_open_per_venue_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX discotheque_capacity_sessions_one_open_per_venue_idx ON public.discotheque_capacity_sessions USING btree (venue_slug) WHERE (status = 'open'::text);
+
+
+--
+-- Name: discotheque_capacity_sessions_venue_opened_at_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX discotheque_capacity_sessions_venue_opened_at_idx ON public.discotheque_capacity_sessions USING btree (venue_slug, opened_at DESC);
+
+
+--
 -- Name: group_events_event_date_entry_time_idx; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -3477,6 +3700,13 @@ CREATE TRIGGER set_updated_at_cheffing_suppliers BEFORE UPDATE ON public.cheffin
 --
 
 CREATE TRIGGER set_updated_at_cheffing_units BEFORE UPDATE ON public.cheffing_units FOR EACH ROW EXECUTE FUNCTION public.tg_set_updated_at();
+
+
+--
+-- Name: discotheque_capacity_sessions set_updated_at_discotheque_capacity_sessions; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER set_updated_at_discotheque_capacity_sessions BEFORE UPDATE ON public.discotheque_capacity_sessions FOR EACH ROW EXECUTE FUNCTION public.tg_set_updated_at();
 
 
 --
@@ -3863,6 +4093,14 @@ ALTER TABLE ONLY public.cheffing_supplier_product_refs
 
 ALTER TABLE ONLY public.cheffing_supplier_product_refs
     ADD CONSTRAINT cheffing_supplier_product_refs_supplier_id_fkey FOREIGN KEY (supplier_id) REFERENCES public.cheffing_suppliers(id) ON DELETE CASCADE;
+
+
+--
+-- Name: discotheque_capacity_events discotheque_capacity_events_session_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.discotheque_capacity_events
+    ADD CONSTRAINT discotheque_capacity_events_session_id_fkey FOREIGN KEY (session_id) REFERENCES public.discotheque_capacity_sessions(id) ON DELETE CASCADE;
 
 
 --
@@ -4416,5 +4654,5 @@ CREATE POLICY "read own allowlist row" ON public.app_allowed_users FOR SELECT TO
 -- PostgreSQL database dump complete
 --
 
-\unrestrict dXyRcX1awAjDB0RKjTpfh4W6gvqZmegWgfzRRDfkhkGEEIlxPoyLxPGF7NvFBQd
+\unrestrict AhI9qrGB2hhSkpd9nYjrqZCzXw1h0aoVCJG3qhYDcIPKUv6KzwFl5YmQRzk9nRb
 
