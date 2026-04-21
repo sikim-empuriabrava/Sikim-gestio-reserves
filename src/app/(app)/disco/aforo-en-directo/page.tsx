@@ -19,6 +19,10 @@ export const metadata: Metadata = {
   icons: {
     icon: [
       {
+        url: '/disco/aforo-en-directo/branding/sikim-app-logo.png',
+        type: 'image/png',
+      },
+      {
         url: '/disco/aforo-en-directo/branding/sikim-app-logo.svg',
         type: 'image/svg+xml',
       },
@@ -34,6 +38,10 @@ export const metadata: Metadata = {
       },
     ],
     shortcut: [
+      {
+        url: '/disco/aforo-en-directo/branding/sikim-app-logo.png',
+        type: 'image/png',
+      },
       {
         url: '/disco/aforo-en-directo/branding/sikim-app-logo.svg',
         type: 'image/svg+xml',
