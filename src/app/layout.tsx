@@ -4,6 +4,32 @@ import './globals.css';
 export const metadata: Metadata = {
   title: 'Gestor de Reservas | Sikim',
   description: 'Dashboard interno para gestionar reservas de restaurante y discoteca.',
+  icons: {
+    icon: [
+      {
+        url: '/disco/aforo-en-directo/branding/sikim-app-logo.png',
+        sizes: '512x512',
+        type: 'image/png',
+      },
+      {
+        url: '/disco/aforo-en-directo/branding/sikim-app-logo.svg',
+        sizes: 'any',
+        type: 'image/svg+xml',
+      },
+    ],
+    shortcut: [
+      {
+        url: '/disco/aforo-en-directo/branding/sikim-app-logo.png',
+        sizes: '512x512',
+        type: 'image/png',
+      },
+      {
+        url: '/disco/aforo-en-directo/branding/sikim-app-logo.svg',
+        sizes: 'any',
+        type: 'image/svg+xml',
+      },
+    ],
+  },
 };
 
 export const dynamic = 'force-dynamic';
