@@ -25,7 +25,7 @@ Esto significa que **Sikim no se convierte en una PWA global** todavía; la inst
 - En Android/Chrome, el CTA usa `beforeinstallprompt` (capturado con `preventDefault`) para disparar `prompt()` manualmente cuando el navegador lo permite.
 - En iPhone/Safari se mantiene el flujo manual nativo (`Compartir → Añadir a pantalla de inicio`) con ayuda textual breve, sin forzar instalación programática.
 - Modo temporal de troubleshooting PWA: panel debug visible en desarrollo o activando `?pwaDebug=1` para diagnosticar `beforeinstallprompt`/estado de instalación.
-- El icono de pestaña (favicon contextual de la pantalla) queda alineado con el mismo branding real de Aforo mediante metadata de la ruta, con referencia explícita a `branding/sikim-app-logo.svg` y fallback PNG (`branding/sikim-app-logo.png`) sin volverlo favicon global.
+- El icono de pestaña (favicon contextual de la pantalla) queda alineado con el mismo branding real de Aforo mediante metadata de la ruta, declarando explícitamente variantes PNG y SVG sin volverlo favicon global.
 - Se elimina el problema histórico de stroke escalado/cropping entre 192/180/512 al abandonar el icono SVG dibujado a mano.
 
 ## Aislamiento visual de standalone

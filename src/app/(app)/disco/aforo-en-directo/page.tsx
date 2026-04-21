@@ -20,10 +20,12 @@ export const metadata: Metadata = {
     icon: [
       {
         url: '/disco/aforo-en-directo/branding/sikim-app-logo.png',
+        sizes: '512x512',
         type: 'image/png',
       },
       {
         url: '/disco/aforo-en-directo/branding/sikim-app-logo.svg',
+        sizes: 'any',
         type: 'image/svg+xml',
       },
       {
@@ -40,10 +42,12 @@ export const metadata: Metadata = {
     shortcut: [
       {
         url: '/disco/aforo-en-directo/branding/sikim-app-logo.png',
+        sizes: '512x512',
         type: 'image/png',
       },
       {
         url: '/disco/aforo-en-directo/branding/sikim-app-logo.svg',
+        sizes: 'any',
         type: 'image/svg+xml',
       },
     ],
