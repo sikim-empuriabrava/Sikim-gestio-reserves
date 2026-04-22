@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createSupabaseAdminClient } from '@/lib/supabaseAdmin';
 import { createSupabaseRouteHandlerClient, mergeResponseCookies } from '@/lib/supabase/route';
 import { getAllowlistRoleForUserEmail, isAdmin } from '@/lib/auth/requireRole';
+import { getRpcHttpStatus } from '@/lib/api/rpcError';
 
 export const runtime = 'nodejs';
 
@@ -57,14 +58,7 @@ export async function POST(req: NextRequest) {
 
     if (error || !data) {
       const message = error?.message ?? 'Unable to create group event';
-      const normalizedMessage = message.toLowerCase();
-      const status =
-        normalizedMessage.includes('missing') ||
-        normalizedMessage.includes('invalid') ||
-        normalizedMessage.includes('unknown') ||
-        normalizedMessage.includes('inactive')
-          ? 400
-          : 500;
+      const status = getRpcHttpStatus(error);
       return respond({ error: message }, { status, headers: noStoreHeaders });
     }
 

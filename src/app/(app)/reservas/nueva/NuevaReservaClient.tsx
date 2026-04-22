@@ -11,6 +11,9 @@ type DbMenu = {
   display_name: string;
   price_eur: number | null;
   source_kind?: 'cheffing_menu';
+  cheffing_menu_id?: string;
+  legacy_menu_id?: string;
+  mapping_source?: 'cheffing_menu_direct';
 };
 
 type MenuWithSeconds = DbMenu & {
@@ -228,11 +231,8 @@ export default function NuevaReservaClient() {
           throw new Error(`HTTP ${response.status}`);
         }
 
-        const data = (await response.json()) as { menus?: DbMenu[]; error?: string };
-        const menusResponse = (data.menus ?? []).map((menu) => ({
-          ...menu,
-          segundos: [],
-        }));
+        const data = (await response.json()) as { menus?: MenuWithSeconds[]; error?: string };
+        const menusResponse = data.menus ?? [];
 
         if (menusResponse.length === 0) {
           throw new Error(data.error ?? 'No se han podido cargar los menús.');
@@ -401,7 +401,7 @@ export default function NuevaReservaClient() {
     const menuAssignments = selectedMenu
       ? [
           {
-            menuId: selectedMenu.id,
+            menuId: selectedMenu.cheffing_menu_id ?? selectedMenu.id,
             assignedPax: Math.max(1, numeroPersonas),
             sortOrder: 0,
             notes: null,
