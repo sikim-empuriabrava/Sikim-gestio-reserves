@@ -114,6 +114,15 @@ const DONENESS_LABELS: Record<DonenessPoint, string> = {
 const DONENESS_ORDER: DonenessPoint[] = ['crudo', 'poco', 'al_punto', 'hecho', 'muy_hecho'];
 
 const buildOfferingCatalogId = (kind: ReservationOfferingKind, sourceId: string) => `${kind}:${sourceId}`;
+const toNonNegativeInt = (value: number | null | undefined) => Math.max(0, Math.floor(Number(value ?? 0) || 0));
+const toPositiveInt = (value: number | null | undefined) => Math.max(1, toNonNegativeInt(value));
+const getDefaultAssignedPax = (primaryOffering: ExistingOffering | null, reservation: EditableReservation) => {
+  if (primaryOffering?.assigned_pax) {
+    return toPositiveInt(primaryOffering.assigned_pax);
+  }
+
+  return toPositiveInt((reservation.adults ?? 0) + (reservation.children ?? 0));
+};
 
 export function EditableReservationForm({
   reservation,
@@ -144,7 +153,7 @@ export function EditableReservationForm({
     : '';
 
   const [selectedOfferingId, setSelectedOfferingId] = useState(defaultOfferingCatalogId);
-  const [assignedPax, setAssignedPax] = useState<number>(primaryOffering?.assigned_pax ?? Math.max(1, reservation.adults ?? 1));
+  const [assignedPax, setAssignedPax] = useState<number>(getDefaultAssignedPax(primaryOffering, reservation));
   const [segundosSeleccionados, setSegundosSeleccionados] = useState<SelectedSecond[]>([]);
   const [customSeconds, setCustomSeconds] = useState<CustomSecond[]>([]);
   const [donenessByDishId, setDonenessByDishId] = useState<Record<string, Record<DonenessPoint, number>>>({});
@@ -410,17 +419,20 @@ export function EditableReservationForm({
                       menuItemId: selection.menuItemId,
                       displayName: selection.nombre,
                       description: selection.descripcion,
-                      quantity: Math.max(1, selection.cantidad),
+                      quantity: toPositiveInt(selection.cantidad),
                       notes: selection.notes ?? null,
                       needsDonenessPoints: selection.needsDonenessPoints,
                       sortOrder: index,
-                      doneness,
+                      doneness: doneness.map((entry) => ({
+                        point: entry.point,
+                        quantity: toPositiveInt(entry.quantity),
+                      })),
                     };
                   }),
                 ...customSeconds.map((custom, index) => ({
                   selectionKind: custom.kind,
                   displayName: custom.name.trim() || (custom.kind === 'kids_menu' ? 'Menú infantil' : 'Menú personalizado'),
-                  quantity: Math.max(1, custom.cantidad),
+                  quantity: toPositiveInt(custom.cantidad),
                   notes: custom.notes?.trim() || null,
                   sortOrder: segundosSeleccionados.length + index,
                 })),
@@ -433,9 +445,17 @@ export function EditableReservationForm({
               {
                 offeringKind: selectedOffering.kind,
                 offeringId: selectedOffering.source_id,
-                assignedPax: Math.max(1, assignedPax || 1),
+                assignedPax: toPositiveInt(assignedPax),
                 sortOrder: 0,
-                notes: null,
+                notes:
+                  primaryOffering &&
+                  selectedOffering.kind === primaryOffering.offering_kind &&
+                  selectedOffering.source_id ===
+                    (primaryOffering.offering_kind === 'cheffing_menu'
+                      ? primaryOffering.cheffing_menu_id
+                      : primaryOffering.cheffing_card_id)
+                    ? primaryOffering.notes
+                    : null,
                 ...(isSelectedOfferingMenu ? { secondSelections } : {}),
               },
             ],
@@ -615,7 +635,7 @@ export function EditableReservationForm({
                   if (!canEditStructuredOffering) return;
                   setStructuredEditorTouched(true);
                   setSelectedOfferingId(e.target.value);
-                  setAssignedPax(Math.max(1, form.adults ?? 1));
+                  setAssignedPax(getDefaultAssignedPax(primaryOffering, form));
                   resetMenuDependentState();
                 }}
                 className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-100"
@@ -633,11 +653,12 @@ export function EditableReservationForm({
               <input
                 type="number"
                 min={1}
+                step={1}
                 value={assignedPax}
                 onChange={(e) => {
                   if (!canEditStructuredOffering) return;
                   setStructuredEditorTouched(true);
-                  setAssignedPax(Math.max(1, Number(e.target.value) || 1));
+                  setAssignedPax(toPositiveInt(Number(e.target.value) || 1));
                 }}
                 className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-100"
                 disabled={!canEditStructuredOffering}
@@ -692,8 +713,9 @@ export function EditableReservationForm({
                         <input
                           type="number"
                           min={0}
+                          step={1}
                           value={selected?.cantidad ?? 0}
-                          onChange={(e) => handleSegundoChange(segundo, Math.max(0, Number(e.target.value) || 0))}
+                          onChange={(e) => handleSegundoChange(segundo, toNonNegativeInt(Number(e.target.value) || 0))}
                           className="w-24 rounded-lg border border-slate-700 bg-slate-900 px-2 py-1 text-sm text-slate-100"
                         />
                       </div>
@@ -706,8 +728,11 @@ export function EditableReservationForm({
                               <input
                                 type="number"
                                 min={0}
+                                step={1}
                                 value={donenessValues[point]}
-                                onChange={(e) => updateDonenessPoint(segundo.id, point, Number(e.target.value) || 0)}
+                                onChange={(e) =>
+                                  updateDonenessPoint(segundo.id, point, toNonNegativeInt(Number(e.target.value) || 0))
+                                }
                                 className="w-full rounded border border-slate-700 bg-slate-900 px-2 py-1 text-slate-100"
                               />
                             </label>
@@ -742,8 +767,9 @@ export function EditableReservationForm({
                     <input
                       type="number"
                       min={1}
+                      step={1}
                       value={custom.cantidad}
-                      onChange={(e) => updateCustomSecond(custom.id, { cantidad: Math.max(1, Number(e.target.value) || 1) })}
+                      onChange={(e) => updateCustomSecond(custom.id, { cantidad: toPositiveInt(Number(e.target.value) || 1) })}
                       className="rounded border border-slate-700 bg-slate-900 px-2 py-1 text-sm text-slate-100 md:col-span-2"
                     />
                     <input
