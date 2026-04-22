@@ -2,7 +2,7 @@
 
 import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { EleccionSegundoPlato, Turno } from '@/types/reservation';
+import { Turno } from '@/types/reservation';
 import { CheckIcon, ChevronDownIcon } from '@heroicons/react/24/outline';
 
 type ReservationOfferingKind = 'cheffing_menu' | 'cheffing_card';
@@ -19,6 +19,7 @@ type ReservationOfferingCatalogItem = {
     nombre: string;
     descripcion: string;
     needsDonenessPoints: boolean;
+    menu_item_id?: string;
   }[];
 };
 
@@ -40,6 +41,15 @@ type CustomSecond = {
   notes?: string;
 };
 
+type SelectedSecond = {
+  dishId: string;
+  menuItemId: string | null;
+  nombre: string;
+  descripcion: string;
+  needsDonenessPoints: boolean;
+  cantidad: number;
+};
+
 type RoomOption = {
   id: string;
   name: string;
@@ -58,7 +68,7 @@ export default function NuevaReservaClient() {
   const [notasSala, setNotasSala] = useState('');
   const [notasCocina, setNotasCocina] = useState('');
   const [mesa, setMesa] = useState('');
-  const [segundosSeleccionados, setSegundosSeleccionados] = useState<EleccionSegundoPlato[]>([]);
+  const [segundosSeleccionados, setSegundosSeleccionados] = useState<SelectedSecond[]>([]);
   const [entrecotPoints, setEntrecotPoints] = useState<EntrecotPoints>({
     crudo: 0,
     poco: 0,
@@ -107,13 +117,36 @@ export default function NuevaReservaClient() {
     }));
   };
 
-  const handleSegundoChange = (segundoId: string, nombre: string, cantidad: number) => {
+  const handleSegundoChange = (
+    segundo: ReservationOfferingCatalogItem['segundos'][number],
+    cantidad: number,
+  ) => {
     setSegundosSeleccionados((prev) => {
-      const existing = prev.find((s) => s.segundoId === segundoId);
+      const existing = prev.find((s) => s.dishId === segundo.id);
       if (existing) {
-        return prev.map((s) => (s.segundoId === segundoId ? { ...s, cantidad } : s));
+        return prev.map((s) =>
+          s.dishId === segundo.id
+            ? {
+                ...s,
+                cantidad,
+                menuItemId: segundo.menu_item_id ?? null,
+                descripcion: segundo.descripcion,
+                needsDonenessPoints: segundo.needsDonenessPoints,
+              }
+            : s,
+        );
       }
-      return [...prev, { segundoId, nombre, cantidad }];
+      return [
+        ...prev,
+        {
+          dishId: segundo.id,
+          menuItemId: segundo.menu_item_id ?? null,
+          nombre: segundo.nombre,
+          descripcion: segundo.descripcion,
+          needsDonenessPoints: segundo.needsDonenessPoints,
+          cantidad,
+        },
+      ];
     });
   };
 
@@ -209,7 +242,7 @@ export default function NuevaReservaClient() {
       entrecotPoints.muyHecho;
 
     const donenessSecondsIds = selectedOffering.segundos.filter((s) => s.needsDonenessPoints).map((s) => s.id);
-    const donenessSelection = segundosSeleccionados.find((s) => donenessSecondsIds.includes(s.segundoId));
+    const donenessSelection = segundosSeleccionados.find((s) => donenessSecondsIds.includes(s.dishId));
     const totalDonenessPeople = donenessSelection?.cantidad ?? 0;
 
     if (totalMenusAsignados !== numeroPersonas) {
@@ -353,7 +386,7 @@ export default function NuevaReservaClient() {
       const donenessSecondsIds = selectedOfferingSnapshot.segundos
         .filter((s) => s.needsDonenessPoints)
         .map((s) => s.id);
-      const donenessSelection = segundosSeleccionados.find((s) => donenessSecondsIds.includes(s.segundoId));
+      const donenessSelection = segundosSeleccionados.find((s) => donenessSecondsIds.includes(s.dishId));
       const totalDonenessPeople = donenessSelection?.cantidad ?? 0;
       const segundosBaseTexto = segundosSeleccionados
         .filter((s) => s.cantidad > 0)
@@ -422,6 +455,47 @@ export default function NuevaReservaClient() {
 
     const extras = notasCocina ? `Notas cocina: ${notasCocina}` : null;
 
+    const secondSelections =
+      selectedOfferingSnapshot?.kind === 'cheffing_menu'
+        ? [
+            ...selectedOfferingSnapshot.segundos
+              .map((segundo, index) => {
+                const selected = segundosSeleccionados.find((entry) => entry.dishId === segundo.id);
+                if (!selected || selected.cantidad <= 0) {
+                  return null;
+                }
+
+                const doneness = segundo.needsDonenessPoints
+                  ? [
+                      { point: 'crudo', quantity: entrecotPoints.crudo },
+                      { point: 'poco', quantity: entrecotPoints.poco },
+                      { point: 'al_punto', quantity: entrecotPoints.alPunto },
+                      { point: 'hecho', quantity: entrecotPoints.hecho },
+                      { point: 'muy_hecho', quantity: entrecotPoints.muyHecho },
+                    ].filter((point) => point.quantity > 0)
+                  : [];
+
+                return {
+                  selectionKind: 'menu_second',
+                  dishId: segundo.id,
+                  menuItemId: segundo.menu_item_id ?? null,
+                  quantity: selected.cantidad,
+                  notes: null,
+                  sortOrder: index,
+                  doneness,
+                };
+              })
+              .filter((selection): selection is NonNullable<typeof selection> => selection !== null),
+            ...customSeconds.map((custom, index) => ({
+              selectionKind: custom.kind,
+              displayName: custom.name.trim() || (custom.kind === 'kids_menu' ? 'Menú infantil' : 'Menú personalizado'),
+              quantity: Math.max(1, custom.cantidad),
+              notes: custom.notes?.trim() || null,
+              sortOrder: selectedOfferingSnapshot.segundos.length + index,
+            })),
+          ]
+        : [];
+
     const offeringAssignments = selectedOfferingSnapshot
       ? [
           {
@@ -430,6 +504,7 @@ export default function NuevaReservaClient() {
             assignedPax: Math.max(1, numeroPersonas),
             sortOrder: 0,
             notes: null,
+            secondSelections: selectedOfferingSnapshot.kind === 'cheffing_menu' ? secondSelections : undefined,
           },
         ]
       : undefined;
@@ -651,8 +726,8 @@ export default function NuevaReservaClient() {
                           type="number"
                           min={0}
                           className="input w-24"
-                          value={segundosSeleccionados.find((s) => s.segundoId === segundo.id)?.cantidad ?? 0}
-                          onChange={(e) => handleSegundoChange(segundo.id, segundo.nombre, parseInt(e.target.value) || 0)}
+                          value={segundosSeleccionados.find((s) => s.dishId === segundo.id)?.cantidad ?? 0}
+                          onChange={(e) => handleSegundoChange(segundo, parseInt(e.target.value) || 0)}
                         />
                       </div>
 
@@ -675,7 +750,7 @@ export default function NuevaReservaClient() {
                                 <span>Puntos de cocción (asigna personas)</span>
                                 <span>
                                   {`${segundo.nombre}: ${
-                                    segundosSeleccionados.find((s) => s.segundoId === segundo.id)?.cantidad ?? 0
+                                    segundosSeleccionados.find((s) => s.dishId === segundo.id)?.cantidad ?? 0
                                   } · Puntos: ${
                                     entrecotPoints.crudo +
                                     entrecotPoints.poco +
@@ -697,7 +772,7 @@ export default function NuevaReservaClient() {
                               ).map((punto) => {
                                 const currentValue = entrecotPoints[punto.key];
                                 const maxEntrecotPeople = Math.max(
-                                  segundosSeleccionados.find((s) => s.segundoId === segundo.id)?.cantidad ?? 0,
+                                  segundosSeleccionados.find((s) => s.dishId === segundo.id)?.cantidad ?? 0,
                                   numeroPersonas,
                                   currentValue,
                                   10,
@@ -970,9 +1045,13 @@ export default function NuevaReservaClient() {
                   {selectedOffering.kind === 'cheffing_card'
                     ? `${selectedOffering.display_name} · ${numeroPersonas} pax`
                     : segundosSeleccionados.length > 0
-                      ? segundosSeleccionados
-                          .filter((s) => s.cantidad > 0)
-                          .map((s) => `${s.cantidad}× ${s.nombre}`)
+                      ? selectedOffering.segundos
+                          .map((segundo) => {
+                            const selected = segundosSeleccionados.find((entry) => entry.dishId === segundo.id);
+                            if (!selected || selected.cantidad <= 0) return null;
+                            return `${selected.cantidad}× ${segundo.nombre}`;
+                          })
+                          .filter((entry): entry is string => Boolean(entry))
                           .join(' · ')
                       : 'Añade cantidades para organizar la comanda.'}
                 </p>

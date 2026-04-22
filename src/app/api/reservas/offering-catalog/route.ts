@@ -18,6 +18,7 @@ type CardCatalogRow = {
 };
 
 type MenuItemRow = {
+  id: string;
   menu_id: string;
   sort_order: number;
   notes: string | null;
@@ -115,7 +116,7 @@ export async function GET() {
   if (menuIds.length > 0) {
     const { data: menuItemsData, error: menuItemsError } = await supabase
       .from('cheffing_menu_items')
-      .select('menu_id, sort_order, notes, cheffing_dishes(id, name, notes)')
+      .select('id, menu_id, sort_order, notes, cheffing_dishes(id, name, notes)')
       .in('menu_id', menuIds)
       .eq('section_kind', 'main')
       .order('sort_order', { ascending: true });
@@ -150,6 +151,7 @@ export async function GET() {
             nombre: dish.name,
             descripcion: item.notes ?? dish.notes ?? '',
             needsDonenessPoints: needsDonenessPointsFromDishName(dish.name),
+            menu_item_id: item.id,
           };
         });
 

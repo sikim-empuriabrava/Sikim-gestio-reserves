@@ -22,9 +22,22 @@ type ExistingOffering = {
   id: string;
   offering_kind: 'cheffing_menu' | 'cheffing_card';
   cheffing_menu_id: string | null;
+  cheffing_card_id: string | null;
   assigned_pax: number;
   display_name_snapshot: string;
   notes: string | null;
+  sort_order: number;
+};
+
+type ExistingOfferingSelection = {
+  id: string;
+  group_event_offering_id: string;
+  selection_kind: 'menu_second' | 'custom_menu' | 'kids_menu';
+  display_name_snapshot: string;
+  description_snapshot: string | null;
+  quantity: number;
+  notes: string | null;
+  needs_doneness_points: boolean;
   sort_order: number;
 };
 
@@ -52,10 +65,11 @@ type EditableReservation = {
 type Props = {
   reservation: EditableReservation;
   offerings: ExistingOffering[];
+  offeringSelections: ExistingOfferingSelection[];
   backDate?: string | null;
 };
 
-export function EditableReservationForm({ reservation, offerings, backDate }: Props) {
+export function EditableReservationForm({ reservation, offerings, offeringSelections, backDate }: Props) {
   const router = useRouter();
   const [form, setForm] = useState<EditableReservation>(reservation);
   const initialMenuAssignments = offerings
@@ -74,7 +88,7 @@ export function EditableReservationForm({ reservation, offerings, backDate }: Pr
   const [error, setError] = useState<string | null>(null);
   const [calendarWarning, setCalendarWarning] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
-  const hasCheffingOfferings = menuAssignments.length > 0;
+  const hasCheffingOfferings = offerings.length > 0;
   const inactiveHistoricalMenus = offerings
     .filter((offering) => offering.offering_kind === 'cheffing_menu' && offering.cheffing_menu_id)
     .filter((offering) => !menuCatalog.some((menu) => menu.id === offering.cheffing_menu_id))
@@ -326,7 +340,7 @@ export function EditableReservationForm({ reservation, offerings, backDate }: Pr
 
         <section className="rounded-xl border border-slate-800 bg-slate-900/60 p-4 space-y-4">
           <h2 className="text-lg font-semibold text-slate-100">Menú y cocina</h2>
-          {hasCheffingOfferings && (
+          {menuAssignments.length > 0 && (
             <div className="space-y-3 rounded-lg border border-slate-800 bg-slate-950/40 p-3">
               <p className="text-sm font-medium text-slate-200">Asignaciones de menú (Cheffing)</p>
               <p className="text-xs text-slate-400">
@@ -364,6 +378,40 @@ export function EditableReservationForm({ reservation, offerings, backDate }: Pr
                 </div>
               ))}
               {menusError && <p className="text-xs text-red-300">{menusError}</p>}
+            </div>
+          )}
+
+          {offeringSelections.length > 0 && (
+            <div className="space-y-2 rounded-lg border border-slate-800 bg-slate-950/30 p-3">
+              <p className="text-sm font-medium text-slate-200">Selecciones estructuradas de cocina</p>
+              <div className="space-y-2">
+                {offerings.map((offering) => {
+                  const selections = offeringSelections
+                    .filter((selection) => selection.group_event_offering_id === offering.id)
+                    .sort((a, b) => a.sort_order - b.sort_order);
+
+                  return (
+                    <div key={offering.id} className="rounded-md border border-slate-800/60 bg-slate-900/40 p-3">
+                      <p className="text-sm font-semibold text-slate-100">
+                        {offering.display_name_snapshot} · {offering.assigned_pax} pax
+                      </p>
+                      {selections.length > 0 ? (
+                        <ul className="mt-2 space-y-1 text-xs text-slate-300">
+                          {selections.map((selection) => (
+                            <li key={selection.id}>
+                              {selection.quantity}× {selection.display_name_snapshot}
+                              {selection.selection_kind !== 'menu_second' ? ` (${selection.selection_kind})` : ''}
+                              {selection.notes ? ` — ${selection.notes}` : ''}
+                            </li>
+                          ))}
+                        </ul>
+                      ) : (
+                        <p className="mt-2 text-xs text-slate-400">Sin selecciones detalladas.</p>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
             </div>
           )}
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
