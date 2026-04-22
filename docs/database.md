@@ -674,7 +674,38 @@ RLS: deshabilitado
 | `created_at` | `timestamp with time zone` | No | `timezone('utc'::text, now())` |
 | `updated_at` | `timestamp with time zone` | No | `timezone('utc'::text, now())` |
 
-> Integración reservas ↔ cheffing (Fase 2A): las escrituras de alta/edición con asignaciones pasan por RPC transaccional (`create_group_event_with_cheffing_offerings`, `update_group_event_with_cheffing_offerings`) y `group_events.menu_text` se conserva como snapshot de compatibilidad generado desde `group_event_offerings`.
+> Integración reservas ↔ cheffing (Fase 2B): las escrituras de alta/edición con asignaciones pasan por RPC transaccional (`create_group_event_with_cheffing_offerings`, `update_group_event_with_cheffing_offerings`) con payload `offeringAssignments`. `group_events.menu_text` se conserva como snapshot de compatibilidad, pero su generación se deriva de `group_event_offerings` + `group_event_offering_selections` + `group_event_offering_selection_doneness`.
+
+### group_event_offering_selections
+RLS: deshabilitado
+
+| Columna | Tipo | Nullable | Default |
+| --- | --- | --- | --- |
+| `id` | `uuid` | No | `gen_random_uuid()` |
+| `group_event_offering_id` | `uuid` | No |  |
+| `selection_kind` | `text` | No |  |
+| `cheffing_dish_id` | `uuid` | Sí |  |
+| `cheffing_menu_item_id` | `uuid` | Sí |  |
+| `display_name_snapshot` | `text` | No |  |
+| `description_snapshot` | `text` | Sí |  |
+| `quantity` | `integer` | No |  |
+| `notes` | `text` | Sí |  |
+| `needs_doneness_points` | `boolean` | No | `false` |
+| `sort_order` | `integer` | No | `0` |
+| `snapshot_payload` | `jsonb` | No | `'{}'::jsonb` |
+| `created_at` | `timestamp with time zone` | No | `timezone('utc'::text, now())` |
+| `updated_at` | `timestamp with time zone` | No | `timezone('utc'::text, now())` |
+
+### group_event_offering_selection_doneness
+RLS: deshabilitado
+
+| Columna | Tipo | Nullable | Default |
+| --- | --- | --- | --- |
+| `id` | `uuid` | No | `gen_random_uuid()` |
+| `selection_id` | `uuid` | No |  |
+| `point` | `text` | No |  |
+| `quantity` | `integer` | No |  |
+| `created_at` | `timestamp with time zone` | No | `timezone('utc'::text, now())` |
 
 ### group_room_allocations
 RLS: deshabilitado

@@ -11,9 +11,22 @@ type GroupEventOffering = {
   id: string;
   offering_kind: 'cheffing_menu' | 'cheffing_card';
   cheffing_menu_id: string | null;
+  cheffing_card_id: string | null;
   assigned_pax: number;
   display_name_snapshot: string;
   notes: string | null;
+  sort_order: number;
+};
+
+type GroupEventOfferingSelection = {
+  id: string;
+  group_event_offering_id: string;
+  selection_kind: 'menu_second' | 'custom_menu' | 'kids_menu';
+  display_name_snapshot: string;
+  description_snapshot: string | null;
+  quantity: number;
+  notes: string | null;
+  needs_doneness_points: boolean;
   sort_order: number;
 };
 
@@ -63,12 +76,26 @@ export default async function GroupReservationDetail({
 
   const { data: offeringsData } = await supabaseAdmin
     .from('group_event_offerings')
-    .select('id, offering_kind, cheffing_menu_id, assigned_pax, display_name_snapshot, notes, sort_order')
+    .select('id, offering_kind, cheffing_menu_id, cheffing_card_id, assigned_pax, display_name_snapshot, notes, sort_order')
     .eq('group_event_id', params.id)
     .order('sort_order', { ascending: true })
     .order('created_at', { ascending: true });
 
   const offerings = (offeringsData ?? []) as GroupEventOffering[];
+  const offeringIds = offerings.map((offering) => offering.id);
+
+  const { data: selectionsData } = offeringIds.length
+    ? await supabaseAdmin
+        .from('group_event_offering_selections')
+        .select(
+          'id, group_event_offering_id, selection_kind, display_name_snapshot, description_snapshot, quantity, notes, needs_doneness_points, sort_order',
+        )
+        .in('group_event_offering_id', offeringIds)
+        .order('sort_order', { ascending: true })
+        .order('created_at', { ascending: true })
+    : { data: [] };
+
+  const offeringSelections = (selectionsData ?? []) as GroupEventOfferingSelection[];
 
   const preparedReservation = {
     id: reservation.id,
@@ -112,7 +139,12 @@ export default async function GroupReservationDetail({
 
   return (
     <div className="p-6 space-y-4">
-      <EditableReservationForm reservation={preparedReservation} offerings={offerings} backDate={dateParam} />
+      <EditableReservationForm
+        reservation={preparedReservation}
+        offerings={offerings}
+        offeringSelections={offeringSelections}
+        backDate={dateParam}
+      />
 
       <section className="rounded-xl border border-slate-800 bg-slate-900/60 p-4 space-y-3">
         <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">

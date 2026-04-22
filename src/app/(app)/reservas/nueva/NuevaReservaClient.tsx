@@ -2,27 +2,24 @@
 
 import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { EleccionSegundoPlato, Turno } from '@/types/reservation';
+import { Turno } from '@/types/reservation';
 import { CheckIcon, ChevronDownIcon } from '@heroicons/react/24/outline';
 
-type DbMenu = {
+type ReservationOfferingKind = 'cheffing_menu' | 'cheffing_card';
+
+type ReservationOfferingCatalogItem = {
   id: string;
-  code: string;
+  kind: ReservationOfferingKind;
   display_name: string;
   price_eur: number | null;
-  source_kind?: 'cheffing_menu';
-  cheffing_menu_id?: string;
-  legacy_menu_id?: string;
-  mapping_source?: 'cheffing_menu_direct';
-};
-
-type MenuWithSeconds = DbMenu & {
+  source_id: string;
   segundos: {
     id: string;
     code: string;
     nombre: string;
     descripcion: string;
     needsDonenessPoints: boolean;
+    menu_item_id?: string;
   }[];
 };
 
@@ -44,6 +41,15 @@ type CustomSecond = {
   notes?: string;
 };
 
+type SelectedSecond = {
+  dishId: string;
+  menuItemId: string | null;
+  nombre: string;
+  descripcion: string;
+  needsDonenessPoints: boolean;
+  cantidad: number;
+};
+
 type RoomOption = {
   id: string;
   name: string;
@@ -57,12 +63,12 @@ export default function NuevaReservaClient() {
   const [telefono, setTelefono] = useState('');
   const [email, setEmail] = useState('');
   const [numeroPersonas, setNumeroPersonas] = useState(2);
-  const [menuId, setMenuId] = useState('');
+  const [selectedOfferingId, setSelectedOfferingId] = useState('');
   const [intolerancias, setIntolerancias] = useState('');
   const [notasSala, setNotasSala] = useState('');
   const [notasCocina, setNotasCocina] = useState('');
   const [mesa, setMesa] = useState('');
-  const [segundosSeleccionados, setSegundosSeleccionados] = useState<EleccionSegundoPlato[]>([]);
+  const [segundosSeleccionados, setSegundosSeleccionados] = useState<SelectedSecond[]>([]);
   const [entrecotPoints, setEntrecotPoints] = useState<EntrecotPoints>({
     crudo: 0,
     poco: 0,
@@ -89,15 +95,16 @@ export default function NuevaReservaClient() {
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [submitSuccess, setSubmitSuccess] = useState<string | null>(null);
   const [calendarWarning, setCalendarWarning] = useState<string | null>(null);
-  const [menus, setMenus] = useState<MenuWithSeconds[]>([]);
-  const [menusLoading, setMenusLoading] = useState(true);
-  const [menusError, setMenusError] = useState<string | null>(null);
+  const [offerings, setOfferings] = useState<ReservationOfferingCatalogItem[]>([]);
+  const [offeringsLoading, setOfferingsLoading] = useState(true);
+  const [offeringsError, setOfferingsError] = useState<string | null>(null);
   const [donenessCollapsed, setDonenessCollapsed] = useState(true);
 
-  const menuSeleccionado = useMemo(
-    () => menus.find((m) => m.id === menuId) ?? null,
-    [menus, menuId],
+  const selectedOffering = useMemo(
+    () => offerings.find((offering) => offering.id === selectedOfferingId) ?? null,
+    [offerings, selectedOfferingId],
   );
+  const isSelectedOfferingMenu = selectedOffering?.kind === 'cheffing_menu';
   const customMenusCount = useMemo(
     () => customSeconds.reduce((sum, custom) => sum + custom.cantidad, 0),
     [customSeconds],
@@ -110,13 +117,36 @@ export default function NuevaReservaClient() {
     }));
   };
 
-  const handleSegundoChange = (segundoId: string, nombre: string, cantidad: number) => {
+  const handleSegundoChange = (
+    segundo: ReservationOfferingCatalogItem['segundos'][number],
+    cantidad: number,
+  ) => {
     setSegundosSeleccionados((prev) => {
-      const existing = prev.find((s) => s.segundoId === segundoId);
+      const existing = prev.find((s) => s.dishId === segundo.id);
       if (existing) {
-        return prev.map((s) => (s.segundoId === segundoId ? { ...s, cantidad } : s));
+        return prev.map((s) =>
+          s.dishId === segundo.id
+            ? {
+                ...s,
+                cantidad,
+                menuItemId: segundo.menu_item_id ?? null,
+                descripcion: segundo.descripcion,
+                needsDonenessPoints: segundo.needsDonenessPoints,
+              }
+            : s,
+        );
       }
-      return [...prev, { segundoId, nombre, cantidad }];
+      return [
+        ...prev,
+        {
+          dishId: segundo.id,
+          menuItemId: segundo.menu_item_id ?? null,
+          nombre: segundo.nombre,
+          descripcion: segundo.descripcion,
+          needsDonenessPoints: segundo.needsDonenessPoints,
+          cantidad,
+        },
+      ];
     });
   };
 
@@ -176,7 +206,30 @@ export default function NuevaReservaClient() {
     setCustomSeconds((prev) => prev.map((custom) => (custom.id === id ? { ...custom, ...updates } : custom)));
   };
 
+  const resetMenuDependentState = useCallback(() => {
+    setSegundosSeleccionados([]);
+    setEntrecotPoints({
+      crudo: 0,
+      poco: 0,
+      alPunto: 0,
+      hecho: 0,
+      muyHecho: 0,
+    });
+    setCustomSeconds([]);
+    setWarningMenus(null);
+    setWarningEntrecot(null);
+    setDonenessCollapsed(true);
+    setIsCustomMenuModalOpen(false);
+    setIsKidsMenuModalOpen(false);
+  }, []);
+
   const validateMenus = useCallback(() => {
+    if (!isSelectedOfferingMenu || !selectedOffering) {
+      setWarningMenus(null);
+      setWarningEntrecot(null);
+      return true;
+    }
+
     const totalSegundosBase = segundosSeleccionados.reduce((sum, s) => sum + s.cantidad, 0);
     const totalCustom = customSeconds.reduce((sum, s) => sum + s.cantidad, 0);
     const totalMenusAsignados = totalSegundosBase + totalCustom;
@@ -188,10 +241,8 @@ export default function NuevaReservaClient() {
       entrecotPoints.hecho +
       entrecotPoints.muyHecho;
 
-    const donenessSecondsIds = menuSeleccionado
-      ? menuSeleccionado.segundos.filter((s) => s.needsDonenessPoints).map((s) => s.id)
-      : [];
-    const donenessSelection = segundosSeleccionados.find((s) => donenessSecondsIds.includes(s.segundoId));
+    const donenessSecondsIds = selectedOffering.segundos.filter((s) => s.needsDonenessPoints).map((s) => s.id);
+    const donenessSelection = segundosSeleccionados.find((s) => donenessSecondsIds.includes(s.dishId));
     const totalDonenessPeople = donenessSelection?.cantidad ?? 0;
 
     if (totalMenusAsignados !== numeroPersonas) {
@@ -214,15 +265,15 @@ export default function NuevaReservaClient() {
       totalMenusAsignados === numeroPersonas &&
       (totalDonenessPeople === 0 || totalPuntosEntrecot === totalDonenessPeople)
     );
-  }, [customSeconds, entrecotPoints, menuSeleccionado, numeroPersonas, segundosSeleccionados]);
+  }, [customSeconds, entrecotPoints, isSelectedOfferingMenu, numeroPersonas, segundosSeleccionados, selectedOffering]);
 
   useEffect(() => {
-    const loadMenus = async () => {
-      setMenusLoading(true);
-      setMenusError(null);
+    const loadOfferings = async () => {
+      setOfferingsLoading(true);
+      setOfferingsError(null);
       let responseStatus: number | null = null;
       try {
-        const response = await fetch('/api/menus', { cache: 'no-store' });
+        const response = await fetch('/api/reservas/offering-catalog', { cache: 'no-store' });
 
         responseStatus = response.status;
         if (!response.ok) {
@@ -231,26 +282,29 @@ export default function NuevaReservaClient() {
           throw new Error(`HTTP ${response.status}`);
         }
 
-        const data = (await response.json()) as { menus?: MenuWithSeconds[]; error?: string };
-        const menusResponse = data.menus ?? [];
+        const data = (await response.json()) as {
+          offerings?: ReservationOfferingCatalogItem[];
+          error?: string;
+        };
+        const offeringsResponse = data.offerings ?? [];
 
-        if (menusResponse.length === 0) {
-          throw new Error(data.error ?? 'No se han podido cargar los menús.');
+        if (offeringsResponse.length === 0) {
+          throw new Error(data.error ?? 'No se ha podido cargar el catálogo de ofertas.');
         }
 
-        setMenus(menusResponse);
-        setMenuId((prev) => prev || menusResponse[0]?.id || '');
+        setOfferings(offeringsResponse);
+        setSelectedOfferingId((prev) => prev || offeringsResponse[0]?.id || '');
       } catch (error) {
-        console.error('[Nueva reserva] Error cargando menús', error);
-        setMenusError(
-          `No se han podido cargar los menús.${responseStatus ? ` (status ${responseStatus})` : ''}`,
+        console.error('[Nueva reserva] Error cargando catálogo de ofertas', error);
+        setOfferingsError(
+          `No se ha podido cargar el catálogo de ofertas.${responseStatus ? ` (status ${responseStatus})` : ''}`,
         );
       } finally {
-        setMenusLoading(false);
+        setOfferingsLoading(false);
       }
     };
 
-    loadMenus();
+    loadOfferings();
   }, []);
 
   useEffect(() => {
@@ -307,7 +361,7 @@ export default function NuevaReservaClient() {
     const eventDate = datePart;
     const entryTime = timePart ? `${timePart}:00` : null;
 
-    const selectedMenu = menuSeleccionado;
+    const selectedOfferingSnapshot = selectedOffering;
 
     const isValid = validateMenus();
 
@@ -322,15 +376,18 @@ export default function NuevaReservaClient() {
       }
     }
 
-    const donenessSecondsIds = selectedMenu
-      ? selectedMenu.segundos.filter((s) => s.needsDonenessPoints).map((s) => s.id)
-      : [];
-    const donenessSelection = segundosSeleccionados.find((s) => donenessSecondsIds.includes(s.segundoId));
-    const totalDonenessPeople = donenessSelection?.cantidad ?? 0;
-
     let menuText: string | null = null;
 
-    if (selectedMenu) {
+    if (selectedOfferingSnapshot?.kind === 'cheffing_card') {
+      menuText = `${selectedOfferingSnapshot.display_name} · ${numeroPersonas} pax`;
+    }
+
+    if (selectedOfferingSnapshot?.kind === 'cheffing_menu') {
+      const donenessSecondsIds = selectedOfferingSnapshot.segundos
+        .filter((s) => s.needsDonenessPoints)
+        .map((s) => s.id);
+      const donenessSelection = segundosSeleccionados.find((s) => donenessSecondsIds.includes(s.dishId));
+      const totalDonenessPeople = donenessSelection?.cantidad ?? 0;
       const segundosBaseTexto = segundosSeleccionados
         .filter((s) => s.cantidad > 0)
         .map((s) => `- ${s.nombre}: ${s.cantidad}`)
@@ -376,7 +433,7 @@ export default function NuevaReservaClient() {
           : null;
 
       const partesMenuText = [
-        selectedMenu ? `Menú asignado: ${selectedMenu.display_name}` : null,
+        `Menú asignado: ${selectedOfferingSnapshot.display_name}`,
         segundosBaseTexto ? 'Plato principal:' : null,
         segundosBaseTexto || null,
         detalleEntrecot,
@@ -398,13 +455,56 @@ export default function NuevaReservaClient() {
 
     const extras = notasCocina ? `Notas cocina: ${notasCocina}` : null;
 
-    const menuAssignments = selectedMenu
+    const secondSelections =
+      selectedOfferingSnapshot?.kind === 'cheffing_menu'
+        ? [
+            ...selectedOfferingSnapshot.segundos
+              .map((segundo, index) => {
+                const selected = segundosSeleccionados.find((entry) => entry.dishId === segundo.id);
+                if (!selected || selected.cantidad <= 0) {
+                  return null;
+                }
+
+                const doneness = segundo.needsDonenessPoints
+                  ? [
+                      { point: 'crudo', quantity: entrecotPoints.crudo },
+                      { point: 'poco', quantity: entrecotPoints.poco },
+                      { point: 'al_punto', quantity: entrecotPoints.alPunto },
+                      { point: 'hecho', quantity: entrecotPoints.hecho },
+                      { point: 'muy_hecho', quantity: entrecotPoints.muyHecho },
+                    ].filter((point) => point.quantity > 0)
+                  : [];
+
+                return {
+                  selectionKind: 'menu_second',
+                  dishId: segundo.id,
+                  menuItemId: segundo.menu_item_id ?? null,
+                  quantity: selected.cantidad,
+                  notes: null,
+                  sortOrder: index,
+                  doneness,
+                };
+              })
+              .filter((selection): selection is NonNullable<typeof selection> => selection !== null),
+            ...customSeconds.map((custom, index) => ({
+              selectionKind: custom.kind,
+              displayName: custom.name.trim() || (custom.kind === 'kids_menu' ? 'Menú infantil' : 'Menú personalizado'),
+              quantity: Math.max(1, custom.cantidad),
+              notes: custom.notes?.trim() || null,
+              sortOrder: selectedOfferingSnapshot.segundos.length + index,
+            })),
+          ]
+        : [];
+
+    const offeringAssignments = selectedOfferingSnapshot
       ? [
           {
-            menuId: selectedMenu.cheffing_menu_id ?? selectedMenu.id,
+            offeringKind: selectedOfferingSnapshot.kind,
+            offeringId: selectedOfferingSnapshot.source_id,
             assignedPax: Math.max(1, numeroPersonas),
             sortOrder: 0,
             notes: null,
+            secondSelections: selectedOfferingSnapshot.kind === 'cheffing_menu' ? secondSelections : undefined,
           },
         ]
       : undefined;
@@ -423,7 +523,7 @@ export default function NuevaReservaClient() {
           adults: numeroPersonas,
           children: 0,
           menu_text: menuText,
-          menuAssignments,
+          offeringAssignments,
           allergens_and_diets: intolerancias || null,
           extras,
           setup_notes: setupNotes,
@@ -581,34 +681,38 @@ export default function NuevaReservaClient() {
 
         <div className="card space-y-5 p-5">
           <div className="space-y-2">
-            <p className="label">Menú asignado</p>
+            <p className="label">Oferta asignada</p>
             <div className="relative">
               <select
-                value={menuId}
-                onChange={(e) => setMenuId(e.target.value)}
+                value={selectedOfferingId}
+                onChange={(e) => {
+                  setSelectedOfferingId(e.target.value);
+                  resetMenuDependentState();
+                }}
                 className="input appearance-none pr-10"
-                disabled={menusLoading || !!menusError || menus.length === 0}
+                disabled={offeringsLoading || !!offeringsError || offerings.length === 0}
               >
-                {menus.map((menu) => (
-                  <option key={menu.id} value={menu.id}>
-                    {menu.display_name}
+                {offerings.map((offering) => (
+                  <option key={offering.id} value={offering.id}>
+                    {offering.display_name} {offering.kind === 'cheffing_card' ? '· Carta' : '· Menú'}
                   </option>
                 ))}
               </select>
               <ChevronDownIcon className="pointer-events-none absolute right-3 top-3.5 h-5 w-5 text-slate-500" />
             </div>
-            {menusError && <p className="text-xs text-red-400">{menusError}</p>}
+            {offeringsError && <p className="text-xs text-red-400">{offeringsError}</p>}
           </div>
 
-          {menusLoading && <p className="text-sm text-slate-300">Cargando menús...</p>}
+          {offeringsLoading && <p className="text-sm text-slate-300">Cargando catálogo...</p>}
 
-          {menuSeleccionado && !menusLoading && !menusError && (
+          {selectedOffering && !offeringsLoading && !offeringsError && (
             <div className="space-y-4">
-              <div>
-                <p className="text-sm font-semibold text-white">Segundos disponibles</p>
-                <p className="text-xs text-slate-400">Indica cantidades para cocina.</p>
-                <div className="mt-3 space-y-2">
-                  {menuSeleccionado.segundos.map((segundo) => (
+              {isSelectedOfferingMenu && (
+                <div>
+                  <p className="text-sm font-semibold text-white">Segundos disponibles</p>
+                  <p className="text-xs text-slate-400">Indica cantidades para cocina.</p>
+                  <div className="mt-3 space-y-2">
+                    {selectedOffering.segundos.map((segundo) => (
                     <div
                       key={segundo.id}
                       className="space-y-3 rounded-lg border border-slate-800 bg-slate-900/50 p-3"
@@ -622,8 +726,8 @@ export default function NuevaReservaClient() {
                           type="number"
                           min={0}
                           className="input w-24"
-                          value={segundosSeleccionados.find((s) => s.segundoId === segundo.id)?.cantidad ?? 0}
-                          onChange={(e) => handleSegundoChange(segundo.id, segundo.nombre, parseInt(e.target.value) || 0)}
+                          value={segundosSeleccionados.find((s) => s.dishId === segundo.id)?.cantidad ?? 0}
+                          onChange={(e) => handleSegundoChange(segundo, parseInt(e.target.value) || 0)}
                         />
                       </div>
 
@@ -646,7 +750,7 @@ export default function NuevaReservaClient() {
                                 <span>Puntos de cocción (asigna personas)</span>
                                 <span>
                                   {`${segundo.nombre}: ${
-                                    segundosSeleccionados.find((s) => s.segundoId === segundo.id)?.cantidad ?? 0
+                                    segundosSeleccionados.find((s) => s.dishId === segundo.id)?.cantidad ?? 0
                                   } · Puntos: ${
                                     entrecotPoints.crudo +
                                     entrecotPoints.poco +
@@ -668,7 +772,7 @@ export default function NuevaReservaClient() {
                               ).map((punto) => {
                                 const currentValue = entrecotPoints[punto.key];
                                 const maxEntrecotPeople = Math.max(
-                                  segundosSeleccionados.find((s) => s.segundoId === segundo.id)?.cantidad ?? 0,
+                                  segundosSeleccionados.find((s) => s.dishId === segundo.id)?.cantidad ?? 0,
                                   numeroPersonas,
                                   currentValue,
                                   10,
@@ -724,23 +828,25 @@ export default function NuevaReservaClient() {
                         </div>
                       )}
                     </div>
-                  ))}
+                    ))}
+                  </div>
                 </div>
-              </div>
+              )}
 
-              <div className="space-y-2">
-                <p className="text-sm font-semibold text-white">Menús personalizados e infantiles</p>
-                <div className="flex gap-2">
-                  <button type="button" className="button-secondary" onClick={() => setIsCustomMenuModalOpen(true)}>
-                    + Crear menú
-                  </button>
-                  <button type="button" className="button-secondary" onClick={() => setIsKidsMenuModalOpen(true)}>
-                    + Menú infantil
-                  </button>
-                </div>
+              {isSelectedOfferingMenu && (
+                <div className="space-y-2">
+                  <p className="text-sm font-semibold text-white">Menús personalizados e infantiles</p>
+                  <div className="flex gap-2">
+                    <button type="button" className="button-secondary" onClick={() => setIsCustomMenuModalOpen(true)}>
+                      + Crear menú
+                    </button>
+                    <button type="button" className="button-secondary" onClick={() => setIsKidsMenuModalOpen(true)}>
+                      + Menú infantil
+                    </button>
+                  </div>
 
-                <div className="space-y-3">
-                  {customSeconds.map((custom) => (
+                  <div className="space-y-3">
+                    {customSeconds.map((custom) => (
                     <div
                       key={custom.id}
                       className="space-y-3 rounded-lg border border-slate-800 bg-slate-900/60 p-3"
@@ -814,9 +920,10 @@ export default function NuevaReservaClient() {
                         />
                       </label>
                     </div>
-                  ))}
+                    ))}
+                  </div>
                 </div>
-              </div>
+              )}
 
               {isCustomMenuModalOpen && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4">
@@ -935,14 +1042,22 @@ export default function NuevaReservaClient() {
                   Resumen rápido
                 </div>
                 <p className="mt-2 text-primary-50">
-                  {segundosSeleccionados.length > 0
-                    ? segundosSeleccionados
-                        .filter((s) => s.cantidad > 0)
-                        .map((s) => `${s.cantidad}× ${s.nombre}`)
-                        .join(' · ')
-                    : 'Añade cantidades para organizar la comanda.'}
+                  {selectedOffering.kind === 'cheffing_card'
+                    ? `${selectedOffering.display_name} · ${numeroPersonas} pax`
+                    : segundosSeleccionados.length > 0
+                      ? selectedOffering.segundos
+                          .map((segundo) => {
+                            const selected = segundosSeleccionados.find((entry) => entry.dishId === segundo.id);
+                            if (!selected || selected.cantidad <= 0) return null;
+                            return `${selected.cantidad}× ${segundo.nombre}`;
+                          })
+                          .filter((entry): entry is string => Boolean(entry))
+                          .join(' · ')
+                      : 'Añade cantidades para organizar la comanda.'}
                 </p>
-                <p className="mt-1 text-primary-50">Especiales/infantiles: {customMenusCount}</p>
+                {selectedOffering.kind === 'cheffing_menu' && (
+                  <p className="mt-1 text-primary-50">Especiales/infantiles: {customMenusCount}</p>
+                )}
               </div>
 
               {submitError && <p className="text-sm text-red-400">{submitError}</p>}
