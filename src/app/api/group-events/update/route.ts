@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createSupabaseRouteHandlerClient, mergeResponseCookies } from '@/lib/supabase/route';
 import { createSupabaseAdminClient } from '@/lib/supabaseAdmin';
 import { getAllowlistRoleForUserEmail, isAdmin } from '@/lib/auth/requireRole';
-import { isValidGroupEventStatus } from '@/lib/groupEvents/status';
 
 export const runtime = 'nodejs';
 
@@ -41,41 +40,36 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const body = await req.json();
-    const { id, ...payload } = body ?? {};
+    const body = (await req.json()) as Record<string, unknown>;
 
-    if (!id) {
+    if (!body?.id) {
       const missingId = NextResponse.json({ error: 'Missing id' }, { status: 400 });
       mergeResponseCookies(supabaseResponse, missingId);
       return missingId;
     }
 
-    const updateData: Record<string, unknown> = { ...payload };
-
-    // Campos que NUNCA debemos actualizar desde la API
-    delete updateData.total_pax;
-    delete updateData.totalPax;
-    delete updateData.created_at;
-    delete updateData.updated_at;
-
-    // Mantenemos updated_at siempre coherente
-    updateData.updated_at = new Date().toISOString();
-
-    if (updateData.status !== undefined && !isValidGroupEventStatus(updateData.status)) {
-      const invalidStatus = NextResponse.json({ error: 'Invalid status' }, { status: 400 });
-      mergeResponseCookies(supabaseResponse, invalidStatus);
-      return invalidStatus;
-    }
+    const sanitizedBody = { ...body };
+    delete sanitizedBody.total_pax;
+    delete sanitizedBody.totalPax;
+    delete sanitizedBody.created_at;
+    delete sanitizedBody.updated_at;
 
     const supabase = createSupabaseAdminClient();
+    const { data, error } = await supabase.rpc('update_group_event_with_cheffing_offerings', {
+      p_payload: sanitizedBody,
+    });
 
-    const { error } = await supabase
-      .from('group_events')
-      .update(updateData)
-      .eq('id', id);
-
-    if (error) {
-      const serverError = NextResponse.json({ error: error.message }, { status: 500 });
+    if (error || !data) {
+      const message = error?.message ?? 'Unable to update group event';
+      const normalizedMessage = message.toLowerCase();
+      const status =
+        normalizedMessage.includes('invalid') ||
+        normalizedMessage.includes('missing') ||
+        normalizedMessage.includes('unknown') ||
+        normalizedMessage.includes('inactive')
+          ? 400
+          : 500;
+      const serverError = NextResponse.json({ error: message }, { status });
       mergeResponseCookies(supabaseResponse, serverError);
       return serverError;
     }

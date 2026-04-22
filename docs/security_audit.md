@@ -37,7 +37,7 @@ Fecha: 2026-01-14
 | `src/app/api/tasks/[id]/route.ts` | PATCH | allowlisted | `auth.getUser()` | `getAllowlistRoleForUserEmail` | Sí | Sí | Actualiza estado/prioridad por id. |
 | `src/app/api/tasks/[id]/status/route.ts` | POST | allowlisted | `auth.getUser()` | `getAllowlistRoleForUserEmail` | Sí | Sí | Actualiza estado por id. |
 | `src/app/api/debug/whoami/route.ts` | GET | allowlisted | `auth.getUser()` | `getAllowlistRoleForUserEmail` | Sí | Sí | Devuelve info de allowlist del usuario. |
-| `src/app/api/menus/route.ts` | GET | allowlisted | `auth.getUser()` | `getAllowlistRoleForUserEmail` | Sí | Sí | Lee menús disponibles. |
+| `src/app/api/menus/route.ts` | GET | allowlisted | `auth.getUser()` | `getAllowlistRoleForUserEmail` | Sí | Sí | Lee catálogo activo desde `cheffing_menus` y mantiene shape compatible para reservas. |
 | `src/app/api/health/route.ts` | GET | public | n/a | n/a | No | n/a | Endpoint de health sin auth. |
 | `src/app/api/version/route.ts` | GET | public | n/a | n/a | No | n/a | Expone metadatos de despliegue. |
 

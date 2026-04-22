@@ -655,6 +655,27 @@ RLS: deshabilitado
 | `service_outcome_notes` | `text` | Sí |  |
 | `menu_id` | `uuid` | Sí |  |
 
+### group_event_offerings
+RLS: deshabilitado
+
+| Columna | Tipo | Nullable | Default |
+| --- | --- | --- | --- |
+| `id` | `uuid` | No | `gen_random_uuid()` |
+| `group_event_id` | `uuid` | No |  |
+| `offering_kind` | `text` | No |  |
+| `cheffing_menu_id` | `uuid` | Sí |  |
+| `cheffing_card_id` | `uuid` | Sí |  |
+| `assigned_pax` | `integer` | No |  |
+| `display_name_snapshot` | `text` | No |  |
+| `unit_price_snapshot` | `numeric(10,2)` | Sí |  |
+| `notes` | `text` | Sí |  |
+| `sort_order` | `integer` | No | `0` |
+| `snapshot_payload` | `jsonb` | No | `'{}'::jsonb` |
+| `created_at` | `timestamp with time zone` | No | `timezone('utc'::text, now())` |
+| `updated_at` | `timestamp with time zone` | No | `timezone('utc'::text, now())` |
+
+> Integración reservas ↔ cheffing (Fase 2A): las escrituras de alta/edición con asignaciones pasan por RPC transaccional (`create_group_event_with_cheffing_offerings`, `update_group_event_with_cheffing_offerings`) y `group_events.menu_text` se conserva como snapshot de compatibilidad generado desde `group_event_offerings`.
+
 ### group_room_allocations
 RLS: deshabilitado
 

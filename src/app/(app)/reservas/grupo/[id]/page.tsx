@@ -7,6 +7,16 @@ import { CreateTaskFromReservation } from '@/components/tasks/CreateTaskFromRese
 import type { TodayGroupEvent } from '@/app/(app)/cocina/types';
 import { EditableReservationForm } from './EditableReservationForm';
 
+type GroupEventOffering = {
+  id: string;
+  offering_kind: 'cheffing_menu' | 'cheffing_card';
+  cheffing_menu_id: string | null;
+  assigned_pax: number;
+  display_name_snapshot: string;
+  notes: string | null;
+  sort_order: number;
+};
+
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 export const fetchCache = 'force-no-store';
@@ -51,6 +61,15 @@ export default async function GroupReservationDetail({
     );
   }
 
+  const { data: offeringsData } = await supabaseAdmin
+    .from('group_event_offerings')
+    .select('id, offering_kind, cheffing_menu_id, assigned_pax, display_name_snapshot, notes, sort_order')
+    .eq('group_event_id', params.id)
+    .order('sort_order', { ascending: true })
+    .order('created_at', { ascending: true });
+
+  const offerings = (offeringsData ?? []) as GroupEventOffering[];
+
   const preparedReservation = {
     id: reservation.id,
     name: reservation.name ?? '',
@@ -93,7 +112,7 @@ export default async function GroupReservationDetail({
 
   return (
     <div className="p-6 space-y-4">
-      <EditableReservationForm reservation={preparedReservation} backDate={dateParam} />
+      <EditableReservationForm reservation={preparedReservation} offerings={offerings} backDate={dateParam} />
 
       <section className="rounded-xl border border-slate-800 bg-slate-900/60 p-4 space-y-3">
         <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">

@@ -1,7 +1,32 @@
 'use client';
 
-import { useState, useTransition } from 'react';
+import { useEffect, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
+
+type MenuCatalogItem = {
+  id: string;
+  code: string;
+  display_name: string;
+  price_eur: number | null;
+  source_kind: 'cheffing_menu';
+};
+
+type EditableReservationMenuAssignment = {
+  menuId: string;
+  assignedPax: number;
+  sortOrder: number;
+  notes?: string | null;
+};
+
+type ExistingOffering = {
+  id: string;
+  offering_kind: 'cheffing_menu' | 'cheffing_card';
+  cheffing_menu_id: string | null;
+  assigned_pax: number;
+  display_name_snapshot: string;
+  notes: string | null;
+  sort_order: number;
+};
 
 type EditableReservation = {
   id: string;
@@ -26,22 +51,48 @@ type EditableReservation = {
 
 type Props = {
   reservation: EditableReservation;
+  offerings: ExistingOffering[];
   backDate?: string | null;
 };
 
-export function EditableReservationForm({ reservation, backDate }: Props) {
+export function EditableReservationForm({ reservation, offerings, backDate }: Props) {
   const router = useRouter();
   const [form, setForm] = useState<EditableReservation>(reservation);
+  const initialMenuAssignments = offerings
+    .filter((offering) => offering.offering_kind === 'cheffing_menu' && offering.cheffing_menu_id)
+    .map((offering, index) => ({
+      menuId: offering.cheffing_menu_id as string,
+      assignedPax: offering.assigned_pax,
+      sortOrder: offering.sort_order ?? index,
+      notes: offering.notes,
+    }));
+  const [menuAssignments, setMenuAssignments] = useState<EditableReservationMenuAssignment[]>(initialMenuAssignments);
+  const [menuCatalog, setMenuCatalog] = useState<MenuCatalogItem[]>([]);
+  const [menusLoading, setMenusLoading] = useState(true);
+  const [menusError, setMenusError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [calendarWarning, setCalendarWarning] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
+  const hasCheffingOfferings = menuAssignments.length > 0;
 
   // Total pax calculado siempre desde adultos + niños (lo que ve el usuario)
   const computedTotalPax = (form.adults ?? 0) + (form.children ?? 0);
 
   const handleChange = (key: keyof EditableReservation, value: unknown) => {
     setForm((prev) => ({ ...prev, [key]: value } as EditableReservation));
+  };
+
+  const updateMenuAssignment = (
+    index: number,
+    updates: Partial<EditableReservationMenuAssignment>,
+  ) => {
+    setMenuAssignments((prev) =>
+      prev.map((item, itemIndex) => {
+        if (itemIndex !== index) return item;
+        return { ...item, ...updates };
+      }),
+    );
   };
 
   const handleSubmit = async () => {
@@ -52,11 +103,24 @@ export function EditableReservationForm({ reservation, backDate }: Props) {
     startTransition(async () => {
       try {
         // Enviamos el formulario tal cual; la API ya se encarga de ignorar total_pax, created_at, updated_at, etc.
+        const payload =
+          menuAssignments.length > 0
+            ? {
+                ...form,
+                menuAssignments: menuAssignments.map((assignment, index) => ({
+                  menuId: assignment.menuId,
+                  assignedPax: assignment.assignedPax,
+                  sortOrder: assignment.sortOrder ?? index,
+                  notes: assignment.notes ?? null,
+                })),
+              }
+            : form;
+
         const res = await fetch('/api/group-events/update', {
           method: 'POST',
           cache: 'no-store',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(form),
+          body: JSON.stringify(payload),
         });
 
         if (!res.ok) {
@@ -112,6 +176,31 @@ export function EditableReservationForm({ reservation, backDate }: Props) {
       router.back();
     }
   };
+
+  useEffect(() => {
+    const loadMenus = async () => {
+      setMenusLoading(true);
+      setMenusError(null);
+
+      try {
+        const response = await fetch('/api/menus', { cache: 'no-store' });
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}`);
+        }
+
+        const data = (await response.json()) as { menus?: MenuCatalogItem[] };
+        const menus = data.menus ?? [];
+        setMenuCatalog(menus);
+      } catch (loadError) {
+        console.error('[Editar reserva] Error cargando menús', loadError);
+        setMenusError('No se ha podido cargar el catálogo de menús.');
+      } finally {
+        setMenusLoading(false);
+      }
+    };
+
+    void loadMenus();
+  }, []);
 
   return (
     <div className="space-y-4">
@@ -225,6 +314,46 @@ export function EditableReservationForm({ reservation, backDate }: Props) {
 
         <section className="rounded-xl border border-slate-800 bg-slate-900/60 p-4 space-y-4">
           <h2 className="text-lg font-semibold text-slate-100">Menú y cocina</h2>
+          {hasCheffingOfferings && (
+            <div className="space-y-3 rounded-lg border border-slate-800 bg-slate-950/40 p-3">
+              <p className="text-sm font-medium text-slate-200">Asignaciones de menú (Cheffing)</p>
+              <p className="text-xs text-slate-400">
+                El resumen de menú se genera automáticamente desde estas asignaciones.
+              </p>
+              {menuAssignments.map((assignment, index) => (
+                <div key={`${assignment.menuId}-${index}`} className="grid grid-cols-1 gap-3 md:grid-cols-3">
+                  <label className="space-y-1 text-sm text-slate-200 md:col-span-2">
+                    <span className="label text-xs">Menú</span>
+                    <select
+                      value={assignment.menuId}
+                      onChange={(e) => updateMenuAssignment(index, { menuId: e.target.value })}
+                      className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-100 focus:outline-none focus:ring-2 focus:ring-emerald-500/60"
+                      disabled={menusLoading || menuCatalog.length === 0}
+                    >
+                      {menuCatalog.map((menu) => (
+                        <option key={menu.id} value={menu.id}>
+                          {menu.display_name}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label className="space-y-1 text-sm text-slate-200">
+                    <span className="label text-xs">Pax asignado</span>
+                    <input
+                      type="number"
+                      min={1}
+                      value={assignment.assignedPax}
+                      onChange={(e) =>
+                        updateMenuAssignment(index, { assignedPax: Math.max(1, Number(e.target.value) || 1) })
+                      }
+                      className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-100 focus:outline-none focus:ring-2 focus:ring-emerald-500/60"
+                    />
+                  </label>
+                </div>
+              ))}
+              {menusError && <p className="text-xs text-red-300">{menusError}</p>}
+            </div>
+          )}
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
             <div className="space-y-2">
               <label className="text-sm font-medium text-slate-200">Menú</label>
@@ -232,8 +361,14 @@ export function EditableReservationForm({ reservation, backDate }: Props) {
                 type="text"
                 value={form.menu_text ?? ''}
                 onChange={(e) => handleChange('menu_text', e.target.value)}
-                className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-100 focus:outline-none focus:ring-2 focus:ring-emerald-500/60"
+                readOnly={hasCheffingOfferings}
+                className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-100 focus:outline-none focus:ring-2 focus:ring-emerald-500/60 read-only:cursor-not-allowed read-only:opacity-80"
               />
+              {hasCheffingOfferings && (
+                <p className="text-xs text-slate-500">
+                  Campo solo lectura para compatibilidad con calendario/cocina.
+                </p>
+              )}
             </div>
             <div className="space-y-2">
               <label className="text-sm font-medium text-slate-200">Segundo plato</label>

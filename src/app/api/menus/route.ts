@@ -56,9 +56,10 @@ export async function GET() {
   const supabase = createSupabaseAdminClient();
 
   const { data: menusData, error: menusError } = await supabase
-    .from('menus')
-    .select('id, code, display_name, price_eur')
-    .order('display_name', { ascending: true });
+    .from('cheffing_menus')
+    .select('id, name, price_per_person, is_active')
+    .eq('is_active', true)
+    .order('name', { ascending: true });
 
   if (menusError) {
     const response = NextResponse.json(
@@ -69,7 +70,15 @@ export async function GET() {
     return response;
   }
 
-  const response = NextResponse.json({ menus: menusData ?? [] }, { headers: noStoreHeaders });
+  const normalizedMenus = (menusData ?? []).map((menu) => ({
+    id: menu.id,
+    code: `CHEF-${menu.id.slice(0, 8).toUpperCase()}`,
+    display_name: menu.name,
+    price_eur: menu.price_per_person,
+    source_kind: 'cheffing_menu' as const,
+  }));
+
+  const response = NextResponse.json({ menus: normalizedMenus }, { headers: noStoreHeaders });
   mergeResponseCookies(supabaseResponse, response);
 
   return response;
