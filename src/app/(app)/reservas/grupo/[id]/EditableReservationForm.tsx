@@ -85,6 +85,14 @@ const DONENESS_LABELS: Record<ExistingOfferingSelectionDoneness['point'], string
   muy_hecho: 'Muy hecho',
 };
 
+const DONENESS_ORDER: Record<ExistingOfferingSelectionDoneness['point'], number> = {
+  crudo: 1,
+  poco: 2,
+  al_punto: 3,
+  hecho: 4,
+  muy_hecho: 5,
+};
+
 export function EditableReservationForm({
   reservation,
   offerings,
@@ -433,7 +441,7 @@ export function EditableReservationForm({
                           {selections.map((selection) => {
                             const selectionDonenessPoints = selectionDoneness
                               .filter((point) => point.selection_id === selection.id)
-                              .sort((a, b) => a.point.localeCompare(b.point));
+                              .sort((a, b) => DONENESS_ORDER[a.point] - DONENESS_ORDER[b.point]);
 
                             return (
                               <li key={selection.id}>

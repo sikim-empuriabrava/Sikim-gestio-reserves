@@ -57,28 +57,6 @@ export async function POST(req: NextRequest) {
 
     const supabase = createSupabaseAdminClient();
 
-    if (sanitizedBody.menuAssignments && typeof sanitizedBody.id === 'string') {
-      const { data: existingOfferings } = await supabase
-        .from('group_event_offerings')
-        .select('id')
-        .eq('group_event_id', sanitizedBody.id);
-
-      const offeringIds = (existingOfferings ?? []).map((offering) => offering.id);
-      let structuredSelectionsCount = 0;
-
-      if (offeringIds.length > 0) {
-        const { count } = await supabase
-          .from('group_event_offering_selections')
-          .select('id', { count: 'exact', head: true })
-          .in('group_event_offering_id', offeringIds);
-        structuredSelectionsCount = count ?? 0;
-      }
-
-      if (structuredSelectionsCount > 0) {
-        delete sanitizedBody.menuAssignments;
-      }
-    }
-
     const { data, error } = await supabase.rpc('update_group_event_with_cheffing_offerings', {
       p_payload: sanitizedBody,
     });
