@@ -56,6 +56,7 @@ export async function POST(req: NextRequest) {
     delete sanitizedBody.updated_at;
 
     const supabase = createSupabaseAdminClient();
+
     const { data, error } = await supabase.rpc('update_group_event_with_cheffing_offerings', {
       p_payload: sanitizedBody,
     });
