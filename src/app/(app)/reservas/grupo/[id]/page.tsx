@@ -22,6 +22,8 @@ type GroupEventOfferingSelection = {
   id: string;
   group_event_offering_id: string;
   selection_kind: 'menu_second' | 'custom_menu' | 'kids_menu';
+  cheffing_dish_id: string | null;
+  cheffing_menu_item_id: string | null;
   display_name_snapshot: string;
   description_snapshot: string | null;
   quantity: number;
@@ -95,7 +97,7 @@ export default async function GroupReservationDetail({
     ? await supabaseAdmin
         .from('group_event_offering_selections')
         .select(
-          'id, group_event_offering_id, selection_kind, display_name_snapshot, description_snapshot, quantity, notes, needs_doneness_points, sort_order',
+          'id, group_event_offering_id, selection_kind, cheffing_dish_id, cheffing_menu_item_id, display_name_snapshot, description_snapshot, quantity, notes, needs_doneness_points, sort_order',
         )
         .in('group_event_offering_id', offeringIds)
         .order('sort_order', { ascending: true })
