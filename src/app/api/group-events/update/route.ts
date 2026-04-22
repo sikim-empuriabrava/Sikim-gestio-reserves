@@ -3,6 +3,7 @@ import { createSupabaseRouteHandlerClient, mergeResponseCookies } from '@/lib/su
 import { createSupabaseAdminClient } from '@/lib/supabaseAdmin';
 import { getAllowlistRoleForUserEmail, isAdmin } from '@/lib/auth/requireRole';
 import { isValidGroupEventStatus } from '@/lib/groupEvents/status';
+import { parseMenuAssignments, syncCheffingMenuAssignments } from '@/lib/groupEvents/menuAssignments';
 
 export const runtime = 'nodejs';
 
@@ -42,7 +43,7 @@ export async function POST(req: NextRequest) {
 
   try {
     const body = await req.json();
-    const { id, ...payload } = body ?? {};
+    const { id, menuAssignments, ...payload } = body ?? {};
 
     if (!id) {
       const missingId = NextResponse.json({ error: 'Missing id' }, { status: 400 });
@@ -51,6 +52,8 @@ export async function POST(req: NextRequest) {
     }
 
     const updateData: Record<string, unknown> = { ...payload };
+
+    const parsedMenuAssignments = parseMenuAssignments(menuAssignments);
 
     // Campos que NUNCA debemos actualizar desde la API
     delete updateData.total_pax;
@@ -80,11 +83,25 @@ export async function POST(req: NextRequest) {
       return serverError;
     }
 
+    if (parsedMenuAssignments !== null) {
+      await syncCheffingMenuAssignments({
+        supabase,
+        groupEventId: id,
+        assignments: parsedMenuAssignments,
+      });
+    }
+
     const success = NextResponse.json({ success: true });
     mergeResponseCookies(supabaseResponse, success);
     return success;
   } catch (e) {
     console.error(e);
+    if (e instanceof Error && e.message.toLowerCase().includes('menuassignments')) {
+      const invalidPayload = NextResponse.json({ error: e.message }, { status: 400 });
+      mergeResponseCookies(supabaseResponse, invalidPayload);
+      return invalidPayload;
+    }
+
     const unexpected = NextResponse.json(
       { error: 'Unexpected error while updating group event' },
       { status: 500 },

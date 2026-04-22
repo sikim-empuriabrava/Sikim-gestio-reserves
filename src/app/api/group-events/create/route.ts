@@ -3,6 +3,7 @@ import { createSupabaseAdminClient } from '@/lib/supabaseAdmin';
 import { createSupabaseRouteHandlerClient, mergeResponseCookies } from '@/lib/supabase/route';
 import { getAllowlistRoleForUserEmail, isAdmin } from '@/lib/auth/requireRole';
 import { isValidGroupEventStatus } from '@/lib/groupEvents/status';
+import { parseMenuAssignments, syncCheffingMenuAssignments } from '@/lib/groupEvents/menuAssignments';
 
 export const runtime = 'nodejs';
 
@@ -25,6 +26,12 @@ type CreateGroupEventPayload = {
   override_capacity?: boolean;
   notes?: string | null;
   status?: string | null;
+  menuAssignments?: Array<{
+    menuId?: string;
+    assignedPax?: number;
+    sortOrder?: number;
+    notes?: string | null;
+  }>;
 };
 
 export async function POST(req: NextRequest) {
@@ -70,6 +77,8 @@ export async function POST(req: NextRequest) {
     if (payload.status !== undefined && payload.status !== null && !isValidGroupEventStatus(payload.status)) {
       return respond({ error: 'Invalid status' }, { status: 400, headers: noStoreHeaders });
     }
+
+    const parsedMenuAssignments = parseMenuAssignments(payload.menuAssignments);
 
     const {
       name,
@@ -146,9 +155,21 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    if (parsedMenuAssignments !== null) {
+      await syncCheffingMenuAssignments({
+        supabase,
+        groupEventId: groupEventData.id,
+        assignments: parsedMenuAssignments,
+      });
+    }
+
     return respond({ groupEventId: groupEventData.id }, { headers: noStoreHeaders });
   } catch (error) {
     console.error('[API] group-events/create', error);
+    if (error instanceof Error && error.message.toLowerCase().includes('menuassignments')) {
+      return respond({ error: error.message }, { status: 400, headers: noStoreHeaders });
+    }
+
     return respond(
       { error: 'Unexpected error while creating the reservation' },
       { status: 500, headers: noStoreHeaders },

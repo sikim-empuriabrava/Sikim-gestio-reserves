@@ -9,7 +9,8 @@ type DbMenu = {
   id: string;
   code: string;
   display_name: string;
-  price_eur: number;
+  price_eur: number | null;
+  source_kind?: 'cheffing_menu';
 };
 
 type MenuWithSeconds = DbMenu & {
@@ -397,6 +398,17 @@ export default function NuevaReservaClient() {
 
     const extras = notasCocina ? `Notas cocina: ${notasCocina}` : null;
 
+    const menuAssignments = selectedMenu
+      ? [
+          {
+            menuId: selectedMenu.id,
+            assignedPax: Math.max(1, numeroPersonas),
+            sortOrder: 0,
+            notes: null,
+          },
+        ]
+      : undefined;
+
     try {
       const resCreate = await fetch('/api/group-events/create', {
         method: 'POST',
@@ -411,6 +423,7 @@ export default function NuevaReservaClient() {
           adults: numeroPersonas,
           children: 0,
           menu_text: menuText,
+          menuAssignments,
           allergens_and_diets: intolerancias || null,
           extras,
           setup_notes: setupNotes,
