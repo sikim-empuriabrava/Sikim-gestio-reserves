@@ -75,21 +75,19 @@ export function EditableReservationForm({ reservation, offerings, backDate }: Pr
   const [calendarWarning, setCalendarWarning] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
   const hasCheffingOfferings = menuAssignments.length > 0;
-  const selectableMenuCatalog = menuCatalog.length
-    ? [
-        ...menuCatalog,
-        ...offerings
-          .filter((offering) => offering.offering_kind === 'cheffing_menu' && offering.cheffing_menu_id)
-          .filter((offering) => !menuCatalog.some((menu) => menu.id === offering.cheffing_menu_id))
-          .map((offering) => ({
-            id: offering.cheffing_menu_id as string,
-            code: `LEGACY-${(offering.cheffing_menu_id as string).slice(0, 8).toUpperCase()}`,
-            display_name: `${offering.display_name_snapshot} (inactivo)`,
-            price_eur: null,
-            source_kind: 'cheffing_menu' as const,
-          })),
-      ]
-    : menuCatalog;
+  const selectableMenuCatalog = [
+    ...menuCatalog,
+    ...offerings
+      .filter((offering) => offering.offering_kind === 'cheffing_menu' && offering.cheffing_menu_id)
+      .filter((offering) => !menuCatalog.some((menu) => menu.id === offering.cheffing_menu_id))
+      .map((offering) => ({
+        id: offering.cheffing_menu_id as string,
+        code: `LEGACY-${(offering.cheffing_menu_id as string).slice(0, 8).toUpperCase()}`,
+        display_name: `${offering.display_name_snapshot} (inactivo)`,
+        price_eur: null,
+        source_kind: 'cheffing_menu' as const,
+      })),
+  ];
 
   // Total pax calculado siempre desde adultos + niños (lo que ve el usuario)
   const computedTotalPax = (form.adults ?? 0) + (form.children ?? 0);
