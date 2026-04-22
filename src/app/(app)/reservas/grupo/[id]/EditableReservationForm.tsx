@@ -41,6 +41,13 @@ type ExistingOfferingSelection = {
   sort_order: number;
 };
 
+type ExistingOfferingSelectionDoneness = {
+  id: string;
+  selection_id: string;
+  point: 'crudo' | 'poco' | 'al_punto' | 'hecho' | 'muy_hecho';
+  quantity: number;
+};
+
 type EditableReservation = {
   id: string;
   name: string;
@@ -66,10 +73,25 @@ type Props = {
   reservation: EditableReservation;
   offerings: ExistingOffering[];
   offeringSelections: ExistingOfferingSelection[];
+  selectionDoneness: ExistingOfferingSelectionDoneness[];
   backDate?: string | null;
 };
 
-export function EditableReservationForm({ reservation, offerings, offeringSelections, backDate }: Props) {
+const DONENESS_LABELS: Record<ExistingOfferingSelectionDoneness['point'], string> = {
+  crudo: 'Crudo',
+  poco: 'Poco hecho',
+  al_punto: 'Al punto',
+  hecho: 'Hecho',
+  muy_hecho: 'Muy hecho',
+};
+
+export function EditableReservationForm({
+  reservation,
+  offerings,
+  offeringSelections,
+  selectionDoneness,
+  backDate,
+}: Props) {
   const router = useRouter();
   const [form, setForm] = useState<EditableReservation>(reservation);
   const initialMenuAssignments = offerings
@@ -89,6 +111,7 @@ export function EditableReservationForm({ reservation, offerings, offeringSelect
   const [calendarWarning, setCalendarWarning] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
   const hasCheffingOfferings = offerings.length > 0;
+  const hasStructuredSelections = offeringSelections.length > 0;
   const inactiveHistoricalMenus = offerings
     .filter((offering) => offering.offering_kind === 'cheffing_menu' && offering.cheffing_menu_id)
     .filter((offering) => !menuCatalog.some((menu) => menu.id === offering.cheffing_menu_id))
@@ -130,7 +153,7 @@ export function EditableReservationForm({ reservation, offerings, offeringSelect
       try {
         // Enviamos el formulario tal cual; la API ya se encarga de ignorar total_pax, created_at, updated_at, etc.
         const payload =
-          menuAssignments.length > 0
+          !hasStructuredSelections && menuAssignments.length > 0
             ? {
                 ...form,
                 menuAssignments: menuAssignments.map((assignment, index) => ({
@@ -340,7 +363,7 @@ export function EditableReservationForm({ reservation, offerings, offeringSelect
 
         <section className="rounded-xl border border-slate-800 bg-slate-900/60 p-4 space-y-4">
           <h2 className="text-lg font-semibold text-slate-100">Menú y cocina</h2>
-          {menuAssignments.length > 0 && (
+          {!hasStructuredSelections && menuAssignments.length > 0 && (
             <div className="space-y-3 rounded-lg border border-slate-800 bg-slate-950/40 p-3">
               <p className="text-sm font-medium text-slate-200">Asignaciones de menú (Cheffing)</p>
               <p className="text-xs text-slate-400">
@@ -381,6 +404,16 @@ export function EditableReservationForm({ reservation, offerings, offeringSelect
             </div>
           )}
 
+          {hasStructuredSelections && (
+            <div className="rounded-lg border border-amber-800/60 bg-amber-950/30 p-3">
+              <p className="text-sm font-medium text-amber-100">Edición de menú protegida</p>
+              <p className="mt-1 text-xs text-amber-200/90">
+                Esta reserva usa estructura nueva (offerings + selections + doneness). En esta pantalla solo se
+                permite visualizarla para evitar sobrescribir datos de cocina.
+              </p>
+            </div>
+          )}
+
           {offeringSelections.length > 0 && (
             <div className="space-y-2 rounded-lg border border-slate-800 bg-slate-950/30 p-3">
               <p className="text-sm font-medium text-slate-200">Selecciones estructuradas de cocina</p>
@@ -397,13 +430,29 @@ export function EditableReservationForm({ reservation, offerings, offeringSelect
                       </p>
                       {selections.length > 0 ? (
                         <ul className="mt-2 space-y-1 text-xs text-slate-300">
-                          {selections.map((selection) => (
-                            <li key={selection.id}>
-                              {selection.quantity}× {selection.display_name_snapshot}
-                              {selection.selection_kind !== 'menu_second' ? ` (${selection.selection_kind})` : ''}
-                              {selection.notes ? ` — ${selection.notes}` : ''}
-                            </li>
-                          ))}
+                          {selections.map((selection) => {
+                            const selectionDonenessPoints = selectionDoneness
+                              .filter((point) => point.selection_id === selection.id)
+                              .sort((a, b) => a.point.localeCompare(b.point));
+
+                            return (
+                              <li key={selection.id}>
+                                <div>
+                                  {selection.quantity}× {selection.display_name_snapshot}
+                                  {selection.selection_kind !== 'menu_second' ? ` (${selection.selection_kind})` : ''}
+                                  {selection.notes ? ` — ${selection.notes}` : ''}
+                                </div>
+                                {selectionDonenessPoints.length > 0 && (
+                                  <div className="mt-1 text-slate-400">
+                                    Punto de cocción:{' '}
+                                    {selectionDonenessPoints
+                                      .map((point) => `${DONENESS_LABELS[point.point]} (${point.quantity})`)
+                                      .join(' · ')}
+                                  </div>
+                                )}
+                              </li>
+                            );
+                          })}
                         </ul>
                       ) : (
                         <p className="mt-2 text-xs text-slate-400">Sin selecciones detalladas.</p>

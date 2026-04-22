@@ -30,6 +30,13 @@ type GroupEventOfferingSelection = {
   sort_order: number;
 };
 
+type GroupEventOfferingSelectionDoneness = {
+  id: string;
+  selection_id: string;
+  point: 'crudo' | 'poco' | 'al_punto' | 'hecho' | 'muy_hecho';
+  quantity: number;
+};
+
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 export const fetchCache = 'force-no-store';
@@ -96,6 +103,17 @@ export default async function GroupReservationDetail({
     : { data: [] };
 
   const offeringSelections = (selectionsData ?? []) as GroupEventOfferingSelection[];
+  const selectionIds = offeringSelections.map((selection) => selection.id);
+
+  const { data: selectionDonenessData } = selectionIds.length
+    ? await supabaseAdmin
+        .from('group_event_offering_selection_doneness')
+        .select('id, selection_id, point, quantity')
+        .in('selection_id', selectionIds)
+        .order('point', { ascending: true })
+    : { data: [] };
+
+  const selectionDoneness = (selectionDonenessData ?? []) as GroupEventOfferingSelectionDoneness[];
 
   const preparedReservation = {
     id: reservation.id,
@@ -143,6 +161,7 @@ export default async function GroupReservationDetail({
         reservation={preparedReservation}
         offerings={offerings}
         offeringSelections={offeringSelections}
+        selectionDoneness={selectionDoneness}
         backDate={dateParam}
       />
 
