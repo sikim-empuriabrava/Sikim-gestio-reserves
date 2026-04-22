@@ -151,6 +151,7 @@ export function EditableReservationForm({
   const [structuredEditorTouched, setStructuredEditorTouched] = useState(false);
 
   const hasStructuredData = offerings.length > 0;
+  const hasMultipleOfferings = offerings.length > 1;
 
   const inactiveHistoricalOfferings = useMemo(() => {
     return offerings
@@ -187,6 +188,15 @@ export function EditableReservationForm({
   );
 
   const isSelectedOfferingMenu = selectedOffering?.kind === 'cheffing_menu';
+  const isSelectedOfferingInactive = useMemo(
+    () => Boolean(selectedOffering && !offeringCatalog.some((offering) => offering.id === selectedOffering.id)),
+    [offeringCatalog, selectedOffering],
+  );
+  const canEditStructuredOffering = !hasMultipleOfferings;
+  const canEditMenuDetails =
+    canEditStructuredOffering &&
+    isSelectedOfferingMenu &&
+    (!isSelectedOfferingInactive || (selectedOffering?.segundos.length ?? 0) > 0);
 
   const computedTotalPax = (form.adults ?? 0) + (form.children ?? 0);
 
@@ -328,6 +338,36 @@ export function EditableReservationForm({
   };
 
   const includeOfferingAssignments = hasStructuredData || structuredEditorTouched;
+  const totalAssignedMenus = useMemo(
+    () =>
+      segundosSeleccionados.filter((selection) => selection.cantidad > 0).reduce((sum, selection) => sum + selection.cantidad, 0) +
+      customSeconds.reduce((sum, custom) => sum + custom.cantidad, 0),
+    [customSeconds, segundosSeleccionados],
+  );
+  const paxMismatchWarning =
+    canEditStructuredOffering && isSelectedOfferingMenu && totalAssignedMenus !== assignedPax
+      ? `Hay ${assignedPax} pax asignados a la oferta, pero ${totalAssignedMenus} menús/platos repartidos (segundos + personalizados + infantiles).`
+      : null;
+  const donenessMismatchWarnings = useMemo(() => {
+    if (!canEditStructuredOffering || !isSelectedOfferingMenu) return [];
+
+    return segundosSeleccionados
+      .filter((selection) => selection.cantidad > 0 && selection.needsDonenessPoints)
+      .map((selection) => {
+        const points = donenessByDishId[selection.dishId] ?? {
+          crudo: 0,
+          poco: 0,
+          al_punto: 0,
+          hecho: 0,
+          muy_hecho: 0,
+        };
+        const totalPoints = DONENESS_ORDER.reduce((sum, point) => sum + (points[point] ?? 0), 0);
+        if (totalPoints === selection.cantidad) return null;
+        return `${selection.nombre}: ${selection.cantidad} uds, puntos de cocción ${totalPoints}.`;
+      })
+      .filter((warning): warning is string => warning !== null);
+  }, [canEditStructuredOffering, donenessByDishId, isSelectedOfferingMenu, segundosSeleccionados]);
+  const hasStructuredWarnings = Boolean(paxMismatchWarning) || donenessMismatchWarnings.length > 0;
 
   const handleSubmit = async () => {
     setMessage(null);
@@ -338,7 +378,16 @@ export function EditableReservationForm({
       try {
         let payload: Record<string, unknown> = { ...form };
 
-        if (includeOfferingAssignments && selectedOffering) {
+        if (includeOfferingAssignments && selectedOffering && canEditStructuredOffering) {
+          if (hasStructuredWarnings && isSelectedOfferingMenu) {
+            const proceed = window.confirm(
+              'Hay descuadres de pax o puntos de cocción en la estructura de cocina. ¿Quieres guardar igualmente?',
+            );
+            if (!proceed) {
+              return;
+            }
+          }
+
           const secondSelections = isSelectedOfferingMenu
             ? [
                 ...segundosSeleccionados
@@ -563,13 +612,14 @@ export function EditableReservationForm({
               <select
                 value={selectedOfferingId}
                 onChange={(e) => {
+                  if (!canEditStructuredOffering) return;
                   setStructuredEditorTouched(true);
                   setSelectedOfferingId(e.target.value);
                   setAssignedPax(Math.max(1, form.adults ?? 1));
                   resetMenuDependentState();
                 }}
                 className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-100"
-                disabled={offeringsLoading || selectableOfferingCatalog.length === 0}
+                disabled={!canEditStructuredOffering || offeringsLoading || selectableOfferingCatalog.length === 0}
               >
                 {selectableOfferingCatalog.map((offering) => (
                   <option key={offering.id} value={offering.id}>
@@ -585,17 +635,39 @@ export function EditableReservationForm({
                 min={1}
                 value={assignedPax}
                 onChange={(e) => {
+                  if (!canEditStructuredOffering) return;
                   setStructuredEditorTouched(true);
                   setAssignedPax(Math.max(1, Number(e.target.value) || 1));
                 }}
                 className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-100"
+                disabled={!canEditStructuredOffering}
               />
             </label>
           </div>
 
+          {hasMultipleOfferings && (
+            <div className="rounded-lg border border-amber-700/70 bg-amber-950/40 p-3 space-y-1">
+              <p className="text-sm font-semibold text-amber-100">Edición estructurada protegida</p>
+              <p className="text-xs text-amber-200/90">
+                Esta reserva tiene múltiples ofertas. Esta pantalla aún no soporta su edición estructurada completa.
+                Puedes editar campos generales, pero no se enviarán cambios de offerings/selecciones para evitar sobrescrituras.
+              </p>
+            </div>
+          )}
+
+          {isSelectedOfferingInactive && (
+            <div className="rounded-lg border border-amber-700/70 bg-amber-950/30 p-3 space-y-1">
+              <p className="text-sm font-semibold text-amber-100">Oferta histórica inactiva</p>
+              <p className="text-xs text-amber-200/90">
+                Esta oferta está inactiva. Puedes conservarla o sustituirla por una oferta activa. Si no hay catálogo
+                activo disponible, la edición detallada puede quedar limitada.
+              </p>
+            </div>
+          )}
+
           {offeringsError && <p className="text-xs text-red-300">{offeringsError}</p>}
 
-          {isSelectedOfferingMenu && selectedOffering && (
+          {isSelectedOfferingMenu && selectedOffering && canEditMenuDetails && (
             <div className="space-y-4 rounded-lg border border-slate-800 bg-slate-950/30 p-3">
               <p className="text-sm font-medium text-slate-200">Detalle cocina</p>
 
@@ -689,9 +761,73 @@ export function EditableReservationForm({
             </div>
           )}
 
+          {isSelectedOfferingMenu && selectedOffering && !canEditMenuDetails && (
+            <div className="rounded-lg border border-slate-800 bg-slate-950/30 p-3 text-sm text-slate-300">
+              {hasMultipleOfferings
+                ? 'Esta reserva está en modo protegido por múltiples ofertas. El detalle de cocina se muestra en solo lectura.'
+                : 'Este menú histórico no tiene catálogo activo de segundos. Para editar detalle, cambia a un menú activo.'}
+            </div>
+          )}
+
           {selectedOffering?.kind === 'cheffing_card' && (
             <div className="rounded-lg border border-slate-800 bg-slate-950/30 p-3 text-sm text-slate-300">
               Oferta tipo carta: no aplica edición de segundos, menús personalizados ni puntos de cocción.
+            </div>
+          )}
+
+          {paxMismatchWarning && (
+            <div className="rounded-md border border-amber-700/70 bg-amber-950/30 px-3 py-2 text-xs text-amber-200">
+              {paxMismatchWarning}
+            </div>
+          )}
+          {donenessMismatchWarnings.length > 0 && (
+            <div className="rounded-md border border-amber-700/70 bg-amber-950/30 px-3 py-2 text-xs text-amber-200">
+              <p className="font-semibold">Descuadre en puntos de cocción:</p>
+              <ul className="list-disc pl-5">
+                {donenessMismatchWarnings.map((warning) => (
+                  <li key={warning}>{warning}</li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          {hasStructuredData && (
+            <div className="rounded-lg border border-slate-800 bg-slate-950/30 p-3 space-y-2">
+              <p className="text-sm font-medium text-slate-200">Estructura guardada (solo lectura)</p>
+              {offerings.map((offering) => {
+                const offeringSelectionRows = offeringSelections
+                  .filter((selection) => selection.group_event_offering_id === offering.id)
+                  .sort((a, b) => a.sort_order - b.sort_order);
+                return (
+                  <div key={offering.id} className="rounded border border-slate-800/60 bg-slate-900/30 p-2 text-xs text-slate-300">
+                    <p className="font-semibold text-slate-100">
+                      {offering.display_name_snapshot} · {offering.assigned_pax} pax
+                    </p>
+                    {offeringSelectionRows.length === 0 ? (
+                      <p className="text-slate-400">Sin selecciones detalladas.</p>
+                    ) : (
+                      <ul className="mt-1 space-y-1">
+                        {offeringSelectionRows.map((selection) => {
+                          const points = selectionDoneness
+                            .filter((point) => point.selection_id === selection.id)
+                            .sort(
+                              (a, b) =>
+                                DONENESS_ORDER.indexOf(a.point as DonenessPoint) -
+                                DONENESS_ORDER.indexOf(b.point as DonenessPoint),
+                            );
+                          return (
+                            <li key={selection.id}>
+                              {selection.quantity}× {selection.display_name_snapshot}
+                              {points.length > 0 &&
+                                ` · ${points.map((point) => `${DONENESS_LABELS[point.point]} (${point.quantity})`).join(' · ')}`}
+                            </li>
+                          );
+                        })}
+                      </ul>
+                    )}
+                  </div>
+                );
+              })}
             </div>
           )}
 
