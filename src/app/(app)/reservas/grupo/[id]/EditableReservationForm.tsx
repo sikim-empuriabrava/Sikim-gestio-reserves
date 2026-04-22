@@ -793,7 +793,7 @@ export function EditableReservationForm({
 
           {hasStructuredData && (
             <div className="rounded-lg border border-slate-800 bg-slate-950/30 p-3 space-y-2">
-              <p className="text-sm font-medium text-slate-200">Estructura guardada (solo lectura)</p>
+              <p className="text-sm font-medium text-slate-200">Estructura guardada actualmente (base de datos)</p>
               {offerings.map((offering) => {
                 const offeringSelectionRows = offeringSelections
                   .filter((selection) => selection.group_event_offering_id === offering.id)
@@ -866,14 +866,21 @@ export function EditableReservationForm({
 
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
             <div className="space-y-2">
-              <label className="text-sm font-medium text-slate-200">Snapshot menú (solo lectura)</label>
+              <label className="text-sm font-medium text-slate-200">
+                {hasStructuredData ? 'Snapshot menú (solo lectura)' : 'Menú'}
+              </label>
               <input
                 type="text"
                 value={form.menu_text ?? ''}
-                readOnly
-                className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-100 cursor-not-allowed opacity-80"
+                onChange={(e) => handleChange('menu_text', e.target.value)}
+                readOnly={hasStructuredData}
+                className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-100 read-only:cursor-not-allowed read-only:opacity-80"
               />
-              <p className="text-xs text-slate-500">Campo de compatibilidad para calendarios/cocina/tareas.</p>
+              <p className="text-xs text-slate-500">
+                {hasStructuredData
+                  ? 'Campo de compatibilidad para calendario/cocina/tareas, derivado de la estructura guardada.'
+                  : 'Reserva legacy sin estructura Cheffing: puedes editar este texto manualmente.'}
+              </p>
             </div>
             <div className="space-y-2">
               <label className="text-sm font-medium text-slate-200">Segundo plato (legacy)</label>
