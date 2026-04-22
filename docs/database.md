@@ -674,6 +674,8 @@ RLS: deshabilitado
 | `created_at` | `timestamp with time zone` | No | `timezone('utc'::text, now())` |
 | `updated_at` | `timestamp with time zone` | No | `timezone('utc'::text, now())` |
 
+> Integración reservas ↔ cheffing (Fase 2A): las escrituras de alta/edición con asignaciones pasan por RPC transaccional (`create_group_event_with_cheffing_offerings`, `update_group_event_with_cheffing_offerings`) y `group_events.menu_text` se conserva como snapshot de compatibilidad generado desde `group_event_offerings`.
+
 ### group_room_allocations
 RLS: deshabilitado
 

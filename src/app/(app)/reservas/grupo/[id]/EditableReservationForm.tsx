@@ -74,6 +74,7 @@ export function EditableReservationForm({ reservation, offerings, backDate }: Pr
   const [error, setError] = useState<string | null>(null);
   const [calendarWarning, setCalendarWarning] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
+  const hasCheffingOfferings = menuAssignments.length > 0;
 
   // Total pax calculado siempre desde adultos + niños (lo que ve el usuario)
   const computedTotalPax = (form.adults ?? 0) + (form.children ?? 0);
@@ -313,9 +314,12 @@ export function EditableReservationForm({ reservation, offerings, backDate }: Pr
 
         <section className="rounded-xl border border-slate-800 bg-slate-900/60 p-4 space-y-4">
           <h2 className="text-lg font-semibold text-slate-100">Menú y cocina</h2>
-          {menuAssignments.length > 0 && (
+          {hasCheffingOfferings && (
             <div className="space-y-3 rounded-lg border border-slate-800 bg-slate-950/40 p-3">
               <p className="text-sm font-medium text-slate-200">Asignaciones de menú (Cheffing)</p>
+              <p className="text-xs text-slate-400">
+                El resumen de menú se genera automáticamente desde estas asignaciones.
+              </p>
               {menuAssignments.map((assignment, index) => (
                 <div key={`${assignment.menuId}-${index}`} className="grid grid-cols-1 gap-3 md:grid-cols-3">
                   <label className="space-y-1 text-sm text-slate-200 md:col-span-2">
@@ -357,8 +361,14 @@ export function EditableReservationForm({ reservation, offerings, backDate }: Pr
                 type="text"
                 value={form.menu_text ?? ''}
                 onChange={(e) => handleChange('menu_text', e.target.value)}
-                className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-100 focus:outline-none focus:ring-2 focus:ring-emerald-500/60"
+                readOnly={hasCheffingOfferings}
+                className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-100 focus:outline-none focus:ring-2 focus:ring-emerald-500/60 read-only:cursor-not-allowed read-only:opacity-80"
               />
+              {hasCheffingOfferings && (
+                <p className="text-xs text-slate-500">
+                  Campo solo lectura para compatibilidad con calendario/cocina.
+                </p>
+              )}
             </div>
             <div className="space-y-2">
               <label className="text-sm font-medium text-slate-200">Segundo plato</label>

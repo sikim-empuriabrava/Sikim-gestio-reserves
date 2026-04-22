@@ -2,37 +2,12 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createSupabaseAdminClient } from '@/lib/supabaseAdmin';
 import { createSupabaseRouteHandlerClient, mergeResponseCookies } from '@/lib/supabase/route';
 import { getAllowlistRoleForUserEmail, isAdmin } from '@/lib/auth/requireRole';
-import { isValidGroupEventStatus } from '@/lib/groupEvents/status';
-import { parseMenuAssignments, syncCheffingMenuAssignments } from '@/lib/groupEvents/menuAssignments';
 
 export const runtime = 'nodejs';
 
 export const dynamic = 'force-dynamic';
 
 const noStoreHeaders = { 'Cache-Control': 'no-store' };
-
-type CreateGroupEventPayload = {
-  name?: string;
-  event_date?: string;
-  entry_time?: string | null;
-  adults?: number;
-  children?: number;
-  allergens_and_diets?: string | null;
-  setup_notes?: string | null;
-  extras?: string | null;
-  menu_text?: string | null;
-  second_course_type?: string | null;
-  room_id?: string;
-  override_capacity?: boolean;
-  notes?: string | null;
-  status?: string | null;
-  menuAssignments?: Array<{
-    menuId?: string;
-    assignedPax?: number;
-    sortOrder?: number;
-    notes?: string | null;
-  }>;
-};
 
 export async function POST(req: NextRequest) {
   const supabaseResponse = NextResponse.next();
@@ -68,108 +43,34 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const payload = (await req.json()) as CreateGroupEventPayload;
+    const payload = (await req.json()) as Record<string, unknown>;
 
     if (!payload) {
       return respond({ error: 'Missing payload' }, { status: 400, headers: noStoreHeaders });
     }
 
-    if (payload.status !== undefined && payload.status !== null && !isValidGroupEventStatus(payload.status)) {
-      return respond({ error: 'Invalid status' }, { status: 400, headers: noStoreHeaders });
-    }
-
-    const parsedMenuAssignments = parseMenuAssignments(payload.menuAssignments);
-
-    const {
-      name,
-      event_date,
-      entry_time,
-      adults,
-      children = 0,
-      allergens_and_diets = null,
-      setup_notes = null,
-      extras = null,
-      menu_text = null,
-      second_course_type = null,
-      room_id,
-      override_capacity = false,
-      notes = null,
-      status = 'confirmed',
-    } = payload;
-
-    if (!name || !event_date || typeof adults !== 'number' || !room_id) {
-      return respond(
-        { error: 'Missing required fields (name, event_date, adults, room_id)' },
-        { status: 400, headers: noStoreHeaders },
-      );
-    }
-
     const supabase = createSupabaseAdminClient();
 
-    const { data: groupEventData, error: groupEventError } = await supabase
-      .from('group_events')
-      .insert({
-        name,
-        event_date,
-        entry_time: entry_time ?? null,
-        adults,
-        children,
-        has_private_dining_room: false,
-        has_private_party: false,
-        second_course_type,
-        menu_text,
-        allergens_and_diets,
-        extras,
-        setup_notes,
-        deposit_amount: null,
-        deposit_status: null,
-        invoice_data: null,
-        status,
-      })
-      .select('id')
-      .single();
+    const { data, error } = await supabase.rpc('create_group_event_with_cheffing_offerings', {
+      p_payload: payload,
+    });
 
-    if (groupEventError || !groupEventData) {
-      const message = groupEventError?.message ?? 'Unable to create group event';
-      return respond({ error: message }, { status: 500, headers: noStoreHeaders });
+    if (error || !data) {
+      const message = error?.message ?? 'Unable to create group event';
+      const normalizedMessage = message.toLowerCase();
+      const status =
+        normalizedMessage.includes('missing') ||
+        normalizedMessage.includes('invalid') ||
+        normalizedMessage.includes('unknown') ||
+        normalizedMessage.includes('inactive')
+          ? 400
+          : 500;
+      return respond({ error: message }, { status, headers: noStoreHeaders });
     }
 
-    const { error: allocationError } = await supabase
-      .from('group_room_allocations')
-      .insert({
-        group_event_id: groupEventData.id,
-        room_id,
-        adults,
-        children,
-        override_capacity,
-        notes,
-      });
-
-    if (allocationError) {
-      return respond(
-        {
-          error:
-            'Reservation created but room allocation failed. Please try assigning the room again from the reservation detail.',
-        },
-        { status: 500, headers: noStoreHeaders },
-      );
-    }
-
-    if (parsedMenuAssignments !== null) {
-      await syncCheffingMenuAssignments({
-        supabase,
-        groupEventId: groupEventData.id,
-        assignments: parsedMenuAssignments,
-      });
-    }
-
-    return respond({ groupEventId: groupEventData.id }, { headers: noStoreHeaders });
+    return respond({ groupEventId: data }, { headers: noStoreHeaders });
   } catch (error) {
     console.error('[API] group-events/create', error);
-    if (error instanceof Error && error.message.toLowerCase().includes('menuassignments')) {
-      return respond({ error: error.message }, { status: 400, headers: noStoreHeaders });
-    }
-
     return respond(
       { error: 'Unexpected error while creating the reservation' },
       { status: 500, headers: noStoreHeaders },
