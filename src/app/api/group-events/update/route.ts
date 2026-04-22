@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createSupabaseRouteHandlerClient, mergeResponseCookies } from '@/lib/supabase/route';
 import { createSupabaseAdminClient } from '@/lib/supabaseAdmin';
 import { getAllowlistRoleForUserEmail, isAdmin } from '@/lib/auth/requireRole';
+import { getRpcHttpStatus } from '@/lib/api/rpcError';
 
 export const runtime = 'nodejs';
 
@@ -61,14 +62,7 @@ export async function POST(req: NextRequest) {
 
     if (error || !data) {
       const message = error?.message ?? 'Unable to update group event';
-      const normalizedMessage = message.toLowerCase();
-      const status =
-        normalizedMessage.includes('invalid') ||
-        normalizedMessage.includes('missing') ||
-        normalizedMessage.includes('unknown') ||
-        normalizedMessage.includes('inactive')
-          ? 400
-          : 500;
+      const status = getRpcHttpStatus(error);
       const serverError = NextResponse.json({ error: message }, { status });
       mergeResponseCookies(supabaseResponse, serverError);
       return serverError;

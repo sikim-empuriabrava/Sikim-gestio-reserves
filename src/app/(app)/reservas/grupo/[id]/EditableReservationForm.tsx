@@ -75,6 +75,21 @@ export function EditableReservationForm({ reservation, offerings, backDate }: Pr
   const [calendarWarning, setCalendarWarning] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
   const hasCheffingOfferings = menuAssignments.length > 0;
+  const selectableMenuCatalog = menuCatalog.length
+    ? [
+        ...menuCatalog,
+        ...offerings
+          .filter((offering) => offering.offering_kind === 'cheffing_menu' && offering.cheffing_menu_id)
+          .filter((offering) => !menuCatalog.some((menu) => menu.id === offering.cheffing_menu_id))
+          .map((offering) => ({
+            id: offering.cheffing_menu_id as string,
+            code: `LEGACY-${(offering.cheffing_menu_id as string).slice(0, 8).toUpperCase()}`,
+            display_name: `${offering.display_name_snapshot} (inactivo)`,
+            price_eur: null,
+            source_kind: 'cheffing_menu' as const,
+          })),
+      ]
+    : menuCatalog;
 
   // Total pax calculado siempre desde adultos + niños (lo que ve el usuario)
   const computedTotalPax = (form.adults ?? 0) + (form.children ?? 0);
@@ -328,9 +343,9 @@ export function EditableReservationForm({ reservation, offerings, backDate }: Pr
                       value={assignment.menuId}
                       onChange={(e) => updateMenuAssignment(index, { menuId: e.target.value })}
                       className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-100 focus:outline-none focus:ring-2 focus:ring-emerald-500/60"
-                      disabled={menusLoading || menuCatalog.length === 0}
+                      disabled={menusLoading || selectableMenuCatalog.length === 0}
                     >
-                      {menuCatalog.map((menu) => (
+                      {selectableMenuCatalog.map((menu) => (
                         <option key={menu.id} value={menu.id}>
                           {menu.display_name}
                         </option>
