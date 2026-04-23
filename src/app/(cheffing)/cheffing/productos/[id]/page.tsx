@@ -5,6 +5,7 @@ import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { requireCheffingAccess } from '@/lib/cheffing/requireCheffing';
 import { isAdmin } from '@/lib/auth/requireRole';
 import type { Ingredient, Unit } from '@/lib/cheffing/types';
+import { resolveConsumerDishHref } from '@/lib/cheffing/consumers';
 
 import { ProductsNewForm } from '../ProductsNewForm';
 
@@ -67,7 +68,7 @@ export default async function CheffingProductoDetailPage({ params }: { params: {
       ? { data: [], error: null }
       : await supabase
           .from('cheffing_dishes')
-          .select('id, name')
+          .select('id, name, cheffing_families(kind)')
           .in('id', dishIds)
           .order('name', { ascending: true });
 
@@ -87,6 +88,17 @@ export default async function CheffingProductoDetailPage({ params }: { params: {
         dishesUsingIngredientError,
     );
   }
+
+  const dishesUsageLinks = (dishesUsingIngredient ?? []).map((dish) => {
+    const family = Array.isArray(dish.cheffing_families) ? dish.cheffing_families[0] : dish.cheffing_families;
+    const familyKind = family?.kind === 'drink' ? 'drink' : 'food';
+    return {
+      id: dish.id,
+      name: dish.name,
+      href: resolveConsumerDishHref({ id: dish.id, family_kind: familyKind }),
+      kindLabel: familyKind === 'drink' ? 'Bebida' : 'Plato',
+    } as const;
+  });
 
   return (
     <section className="space-y-6">
@@ -133,19 +145,20 @@ export default async function CheffingProductoDetailPage({ params }: { params: {
             )}
           </div>
           <div>
-            <p className="text-xs uppercase text-slate-500">Platos</p>
-            {(dishesUsingIngredient ?? []).length === 0 ? (
-              <p className="mt-2 text-sm text-slate-500">No se usa directamente en platos.</p>
+            <p className="text-xs uppercase text-slate-500">Platos y bebidas</p>
+            {dishesUsageLinks.length === 0 ? (
+              <p className="mt-2 text-sm text-slate-500">No se usa directamente en platos o bebidas.</p>
             ) : (
               <ul className="mt-2 space-y-1 text-sm">
-                {(dishesUsingIngredient ?? []).map((dish) => (
-                  <li key={dish.id}>
+                {dishesUsageLinks.map((dish) => (
+                  <li key={dish.id} className="flex items-center justify-between gap-2">
                     <Link
-                      href={`/cheffing/platos/${dish.id}`}
+                      href={dish.href}
                       className="text-slate-200 underline-offset-2 transition hover:text-emerald-200 hover:underline"
                     >
                       {dish.name}
                     </Link>
+                    <span className="text-xs text-slate-400">{dish.kindLabel}</span>
                   </li>
                 ))}
               </ul>

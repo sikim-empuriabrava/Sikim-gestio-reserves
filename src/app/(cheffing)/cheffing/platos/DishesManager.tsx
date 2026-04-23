@@ -411,7 +411,7 @@ export function DishesManager({
                           </span>
                           <div
                             role="tooltip"
-                            className="pointer-events-none absolute left-0 top-full z-20 mt-2 hidden w-80 rounded-md border border-slate-700 bg-slate-950/95 p-3 text-left text-[11px] normal-case text-slate-200 shadow-lg group-hover:block group-focus-within:block"
+                            className="absolute left-0 top-full z-20 mt-2 hidden w-80 rounded-md border border-slate-700 bg-slate-950/95 p-3 text-left text-[11px] normal-case text-slate-200 shadow-lg group-hover:block group-focus-within:block"
                           >
                             <div className="space-y-2">
                               <div>

@@ -6,7 +6,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 
 import type { CheffingConsumerDish } from '@/lib/cheffing/consumers';
-import { getNextConsumerSortOrder, resolveConsumerDishKind } from '@/lib/cheffing/consumers';
+import { getNextConsumerSortOrder, resolveConsumerDishHref, resolveConsumerDishKind } from '@/lib/cheffing/consumers';
 import { normalizeSearchText } from '@/lib/cheffing/search';
 import { useCheffingToast } from '@/app/(cheffing)/cheffing/components/CheffingToastProvider';
 
@@ -64,9 +64,6 @@ export function CheffingCardEditor({
         .sort((a, b) => a.sort_order - b.sort_order),
     [dishesById, items],
   );
-
-  const resolveDishHref = (dish: CheffingConsumerDish) =>
-    resolveConsumerDishKind(dish) === 'drink' ? `/cheffing/bebidas/${dish.id}` : `/cheffing/platos/${dish.id}`;
 
   const filteredDishes = useMemo(() => {
     const query = normalizeSearchText(searchTerm);
@@ -297,7 +294,7 @@ export function CheffingCardEditor({
                     <td className="px-3 py-2 font-medium text-white">
                       {line.dish ? (
                         <Link
-                          href={resolveDishHref(line.dish)}
+                          href={resolveConsumerDishHref(line.dish)}
                           className="font-semibold text-white underline-offset-2 transition hover:text-emerald-200 hover:underline"
                         >
                           {line.dish.name}

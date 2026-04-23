@@ -9,6 +9,7 @@ import type { AllergenKey, ProductIndicatorKey } from '@/lib/cheffing/allergensI
 import { sanitizeProductIndicators } from '@/lib/cheffing/allergensHelpers';
 import { normalizeIngredient, normalizeSubrecipe } from '@/lib/cheffing/compat';
 import { addAllergens, addIndicators, type EffectiveAI } from '@/lib/cheffing/allergensIndicatorsOps';
+import { resolveConsumerDishHref } from '@/lib/cheffing/consumers';
 
 import {
   SubrecipeDetailManager,
@@ -71,7 +72,7 @@ export default async function CheffingElaboracionDetailPage({ params }: { params
       ? { data: [], error: null }
       : await supabase
           .from('cheffing_dishes')
-          .select('id, name')
+          .select('id, name, cheffing_families(kind)')
           .in('id', dishIdsUsingSubrecipe)
           .order('name', { ascending: true });
 
@@ -209,6 +210,16 @@ export default async function CheffingElaboracionDetailPage({ params }: { params
   const inheritedCurrent = resolveEffective(params.id);
   const inheritedAllergens = inheritedCurrent.allergens;
   const inheritedIndicators = inheritedCurrent.indicators;
+  const usedInDishLinks = (dishesUsingSubrecipe ?? []).map((dish) => {
+    const family = Array.isArray(dish.cheffing_families) ? dish.cheffing_families[0] : dish.cheffing_families;
+    const familyKind = family?.kind === 'drink' ? 'drink' : 'food';
+    return {
+      id: dish.id,
+      name: dish.name,
+      href: resolveConsumerDishHref({ id: dish.id, family_kind: familyKind }),
+      kindLabel: familyKind === 'drink' ? 'Bebida' : 'Plato',
+    } as const;
+  });
 
   return (
     <section className="space-y-6">
@@ -234,7 +245,7 @@ export default async function CheffingElaboracionDetailPage({ params }: { params
         units={(units ?? []) as Unit[]}
         inheritedAllergens={inheritedAllergens}
         inheritedIndicators={inheritedIndicators}
-        usedInDishes={(dishesUsingSubrecipe ?? []) as Array<{ id: string; name: string }>}
+        usedInDishes={usedInDishLinks}
         canManageImages={canManageImages}
       />
     </section>
