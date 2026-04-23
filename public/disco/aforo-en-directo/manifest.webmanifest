@@ -4,7 +4,7 @@
   "short_name": "Sikim Aforo",
   "description": "Control operativo de puerta para el aforo en directo de Sikim.",
   "start_url": "/disco/aforo-en-directo",
-  "scope": "/disco/aforo-en-directo",
+  "scope": "/",
   "display": "standalone",
   "background_color": "#020617",
   "theme_color": "#020617",
