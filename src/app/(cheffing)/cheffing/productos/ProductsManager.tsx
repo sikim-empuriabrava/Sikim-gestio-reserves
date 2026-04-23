@@ -362,7 +362,12 @@ export function ProductsManager({ initialIngredients, units }: ProductsManagerPr
                         />
                       ) : (
                         <div className="space-y-1">
-                          <span className="font-semibold text-white">{ingredient.name}</span>
+                          <Link
+                            href={`/cheffing/productos/${encodeURIComponent(ingredient.id)}`}
+                            className="font-semibold text-white underline-offset-2 transition hover:text-emerald-200 hover:underline"
+                          >
+                            {ingredient.name}
+                          </Link>
                           <div>
                             <Link
                               href={`/cheffing/productos/${encodeURIComponent(ingredient.id)}`}

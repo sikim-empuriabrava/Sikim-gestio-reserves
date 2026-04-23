@@ -61,6 +61,19 @@ export default async function CheffingElaboracionDetailPage({ params }: { params
     .select('code, name, dimension, to_base_factor')
     .order('dimension', { ascending: true })
     .order('to_base_factor', { ascending: true });
+  const { data: dishItemsBySubrecipe, error: dishItemsBySubrecipeError } = await supabase
+    .from('cheffing_dish_items')
+    .select('subrecipe_id, dish_id')
+    .eq('subrecipe_id', params.id);
+  const dishIdsUsingSubrecipe = Array.from(new Set((dishItemsBySubrecipe ?? []).map((item) => item.dish_id)));
+  const { data: dishesUsingSubrecipe, error: dishesUsingSubrecipeError } =
+    dishIdsUsingSubrecipe.length === 0
+      ? { data: [], error: null }
+      : await supabase
+          .from('cheffing_dishes')
+          .select('id, name')
+          .in('id', dishIdsUsingSubrecipe)
+          .order('name', { ascending: true });
 
   if (itemsError) {
     console.error('[cheffing/elaboraciones] Failed to load subrecipe lines', {
@@ -70,8 +83,21 @@ export default async function CheffingElaboracionDetailPage({ params }: { params
     throw new Error('No se pudieron cargar las líneas de la elaboración.');
   }
 
-  if (ingredientsError || subrecipesError || subrecipeItemsError || unitsError) {
-    const loadError = ingredientsError ?? subrecipesError ?? subrecipeItemsError ?? unitsError;
+  if (
+    ingredientsError ||
+    subrecipesError ||
+    subrecipeItemsError ||
+    unitsError ||
+    dishItemsBySubrecipeError ||
+    dishesUsingSubrecipeError
+  ) {
+    const loadError =
+      ingredientsError ??
+      subrecipesError ??
+      subrecipeItemsError ??
+      unitsError ??
+      dishItemsBySubrecipeError ??
+      dishesUsingSubrecipeError;
     console.error('[cheffing/elaboraciones] Failed to enrich subrecipe lines', {
       subrecipeId: params.id,
       error: loadError,
@@ -208,6 +234,7 @@ export default async function CheffingElaboracionDetailPage({ params }: { params
         units={(units ?? []) as Unit[]}
         inheritedAllergens={inheritedAllergens}
         inheritedIndicators={inheritedIndicators}
+        usedInDishes={(dishesUsingSubrecipe ?? []) as Array<{ id: string; name: string }>}
         canManageImages={canManageImages}
       />
     </section>

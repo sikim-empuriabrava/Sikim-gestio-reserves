@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from 'react';
 import type { FormEvent } from 'react';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 
 import {
@@ -331,6 +332,9 @@ export function CheffingMenuEditor({
     );
   }, [dishes, searchBySection]);
 
+  const resolveDishHref = (dish: CheffingConsumerDish) =>
+    resolveConsumerDishKind(dish) === 'drink' ? `/cheffing/bebidas/${dish.id}` : `/cheffing/platos/${dish.id}`;
+
   return (
     <div className="space-y-6">
       <form onSubmit={saveHeader} className="space-y-4 rounded-2xl border border-slate-800/70 bg-slate-950/50 p-4">
@@ -429,7 +433,18 @@ export function CheffingMenuEditor({
                   ) : (
                     sectionLines.map((line) => (
                       <tr key={line.id} className={`border-t border-slate-800/70 ${line.lineCost === null ? 'bg-amber-500/5' : ''}`}>
-                        <td className="px-3 py-2 font-medium text-white">{line.dish?.name ?? '—'}</td>
+                        <td className="px-3 py-2 font-medium text-white">
+                          {line.dish ? (
+                            <Link
+                              href={resolveDishHref(line.dish)}
+                              className="font-semibold text-white underline-offset-2 transition hover:text-emerald-200 hover:underline"
+                            >
+                              {line.dish.name}
+                            </Link>
+                          ) : (
+                            '—'
+                          )}
+                        </td>
                         <td className="px-3 py-2">{line.dish?.family_name ?? 'Sin familia'}</td>
                         <td className="px-3 py-2">
                           <input

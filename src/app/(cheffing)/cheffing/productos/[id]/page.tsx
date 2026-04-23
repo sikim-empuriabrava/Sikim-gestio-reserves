@@ -43,9 +43,49 @@ export default async function CheffingProductoDetailPage({ params }: { params: {
     .select('code, name, dimension, to_base_factor')
     .order('dimension', { ascending: true })
     .order('to_base_factor', { ascending: true });
+  const { data: subrecipeUsageRows, error: subrecipeUsageRowsError } = await supabase
+    .from('cheffing_subrecipe_items')
+    .select('subrecipe_id')
+    .eq('ingredient_id', params.id);
+  const subrecipeIds = Array.from(new Set((subrecipeUsageRows ?? []).map((row) => row.subrecipe_id)));
+  const { data: subrecipesUsingIngredient, error: subrecipesUsingIngredientError } =
+    subrecipeIds.length === 0
+      ? { data: [], error: null }
+      : await supabase
+          .from('cheffing_subrecipes')
+          .select('id, name')
+          .in('id', subrecipeIds)
+          .order('name', { ascending: true });
 
-  if (unitsError) {
-    console.error('[cheffing/productos] Failed to load units', unitsError);
+  const { data: dishUsageRows, error: dishUsageRowsError } = await supabase
+    .from('cheffing_dish_items')
+    .select('dish_id')
+    .eq('ingredient_id', params.id);
+  const dishIds = Array.from(new Set((dishUsageRows ?? []).map((row) => row.dish_id)));
+  const { data: dishesUsingIngredient, error: dishesUsingIngredientError } =
+    dishIds.length === 0
+      ? { data: [], error: null }
+      : await supabase
+          .from('cheffing_dishes')
+          .select('id, name')
+          .in('id', dishIds)
+          .order('name', { ascending: true });
+
+  if (
+    unitsError ||
+    subrecipeUsageRowsError ||
+    subrecipesUsingIngredientError ||
+    dishUsageRowsError ||
+    dishesUsingIngredientError
+  ) {
+    console.error(
+      '[cheffing/productos] Failed to load detail relations',
+      unitsError ??
+        subrecipeUsageRowsError ??
+        subrecipesUsingIngredientError ??
+        dishUsageRowsError ??
+        dishesUsingIngredientError,
+    );
   }
 
   return (
@@ -68,6 +108,50 @@ export default async function CheffingProductoDetailPage({ params }: { params: {
           productId={params.id}
           canManageImages={canManageImages}
         />
+      </div>
+
+      <div className="rounded-2xl border border-slate-800/80 bg-slate-900/70 p-6">
+        <h3 className="text-lg font-semibold text-white">Dónde se usa este ingrediente</h3>
+        <div className="mt-4 grid gap-4 md:grid-cols-2">
+          <div>
+            <p className="text-xs uppercase text-slate-500">Subrecetas</p>
+            {(subrecipesUsingIngredient ?? []).length === 0 ? (
+              <p className="mt-2 text-sm text-slate-500">No se usa en subrecetas.</p>
+            ) : (
+              <ul className="mt-2 space-y-1 text-sm">
+                {(subrecipesUsingIngredient ?? []).map((subrecipe) => (
+                  <li key={subrecipe.id}>
+                    <Link
+                      href={`/cheffing/elaboraciones/${subrecipe.id}`}
+                      className="text-slate-200 underline-offset-2 transition hover:text-emerald-200 hover:underline"
+                    >
+                      {subrecipe.name}
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+          <div>
+            <p className="text-xs uppercase text-slate-500">Platos</p>
+            {(dishesUsingIngredient ?? []).length === 0 ? (
+              <p className="mt-2 text-sm text-slate-500">No se usa directamente en platos.</p>
+            ) : (
+              <ul className="mt-2 space-y-1 text-sm">
+                {(dishesUsingIngredient ?? []).map((dish) => (
+                  <li key={dish.id}>
+                    <Link
+                      href={`/cheffing/platos/${dish.id}`}
+                      className="text-slate-200 underline-offset-2 transition hover:text-emerald-200 hover:underline"
+                    >
+                      {dish.name}
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        </div>
       </div>
     </section>
   );
