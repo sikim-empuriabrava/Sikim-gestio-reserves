@@ -11,6 +11,7 @@ type Props = {
   initialEmail?: string | null;
 };
 
+const AFORO_PAGE_PATH = '/disco/aforo-en-directo';
 const LOGIN_PATH = '/login?next=%2Fdisco%2Faforo-en-directo';
 
 export function AforoAuthHeader({ title, subtitle, initialEmail = null }: Props) {
@@ -63,7 +64,7 @@ export function AforoAuthHeader({ title, subtitle, initialEmail = null }: Props)
       }
 
       setSessionEmail(null);
-      router.replace(LOGIN_PATH);
+      router.replace(AFORO_PAGE_PATH);
       router.refresh();
     } catch (error) {
       console.error('Error al cerrar sesión de aforo', error);
