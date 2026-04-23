@@ -19,9 +19,20 @@ export async function middleware(req: NextRequest) {
   const { pathname, search } = req.nextUrl;
   const isApiRoute = pathname.startsWith('/api/');
   const isAforoPwaRequest = req.cookies.get(AFORO_PWA_COOKIE)?.value === '1';
+  const secFetchDest = req.headers.get('sec-fetch-dest');
+  const isDocumentNavigation = secFetchDest === 'document';
+  const isAforoPwaContextPath =
+    AFORO_PWA_ALLOWED_PATHS.some((pattern) => pattern.test(pathname)) ||
+    AFORO_PWA_ALLOWED_API_PATHS.some((pattern) => pattern.test(pathname));
+  const shouldClearAforoPwaCookie =
+    isAforoPwaRequest && !isAforoPwaContextPath && isDocumentNavigation;
 
   if (PUBLIC_PATHS.some((pattern) => pattern.test(pathname))) {
-    return setDebugHeader(NextResponse.next());
+    const response = setDebugHeader(NextResponse.next());
+    if (shouldClearAforoPwaCookie) {
+      clearAforoPwaCookie(response);
+    }
+    return response;
   }
 
   const redirectUrl = new URL('/login', req.url);
@@ -51,11 +62,17 @@ export async function middleware(req: NextRequest) {
     if (isApiRoute) {
       const unauthorized = NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
       mergeCookies(supabaseResponse, unauthorized);
+      if (shouldClearAforoPwaCookie) {
+        clearAforoPwaCookie(unauthorized);
+      }
       return setDebugHeader(unauthorized);
     }
 
     const response = NextResponse.redirect(redirectUrl);
     mergeCookies(supabaseResponse, response);
+    if (shouldClearAforoPwaCookie) {
+      clearAforoPwaCookie(response);
+    }
 
     return setDebugHeader(response);
   };
@@ -178,6 +195,10 @@ export async function middleware(req: NextRequest) {
     return handleForbidden();
   }
 
+  if (shouldClearAforoPwaCookie) {
+    clearAforoPwaCookie(supabaseResponse);
+  }
+
   return supabaseResponse;
 }
 
@@ -232,6 +253,18 @@ function getAuthStorageKey() {
 function mergeCookies(from: NextResponse, to: NextResponse) {
   from.cookies.getAll().forEach((cookie) => {
     to.cookies.set(cookie);
+  });
+}
+
+function clearAforoPwaCookie(res: NextResponse) {
+  res.cookies.set({
+    name: AFORO_PWA_COOKIE,
+    value: '',
+    path: '/',
+    expires: new Date(0),
+    maxAge: 0,
+    sameSite: 'lax',
+    secure: process.env.NODE_ENV === 'production',
   });
 }
 

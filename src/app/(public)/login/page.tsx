@@ -28,7 +28,7 @@ export default function LoginPage() {
   );
   const error = searchParams.get('error');
   const nextRaw = searchParams.get('next');
-  const [fallbackNext, setFallbackNext] = useState(DEFAULT_NEXT);
+  const [fallbackNext, setFallbackNext] = useState<string | null>(null);
   const nextPath = nextRaw ?? fallbackNext;
   const isPreparing = !nextRaw && !fallbackNext;
   const missingEnv = useMemo(() => {
@@ -52,7 +52,7 @@ export default function LoginPage() {
   }, []);
 
   useEffect(() => {
-    if (!nextRaw) {
+    if (!nextRaw && fallbackNext) {
       router.replace(`/login?next=${encodeURIComponent(fallbackNext)}`);
     }
   }, [nextRaw, router, fallbackNext]);
@@ -60,6 +60,7 @@ export default function LoginPage() {
   useEffect(() => {
     if (error === 'not_allowed') return;
     if (!supabase) return;
+    if (isPreparing || !nextPath) return;
 
     let cancelled = false;
 
@@ -82,13 +83,13 @@ export default function LoginPage() {
       cancelled = true;
       listener.subscription.unsubscribe();
     };
-  }, [supabase, nextPath, error]);
+  }, [supabase, nextPath, error, isPreparing]);
 
   const handleLogin = async () => {
     if (isPreparing || !supabase) return;
 
     setIsLoading(true);
-    const redirectTo = `${window.location.origin}/auth/callback?next=${encodeURIComponent(nextPath)}`;
+    const redirectTo = `${window.location.origin}/auth/callback?next=${encodeURIComponent(nextPath ?? DEFAULT_NEXT)}`;
 
     try {
       await supabase.auth.signInWithOAuth({
@@ -108,7 +109,7 @@ export default function LoginPage() {
     if (isPreparing || !supabase) return;
 
     setIsLoading(true);
-    const redirectTo = `${window.location.origin}/auth/callback?next=${encodeURIComponent(nextPath)}`;
+    const redirectTo = `${window.location.origin}/auth/callback?next=${encodeURIComponent(nextPath ?? DEFAULT_NEXT)}`;
 
     try {
       await supabase.auth.signInWithOAuth({
