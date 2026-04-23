@@ -19,10 +19,13 @@ export async function middleware(req: NextRequest) {
   const { pathname, search } = req.nextUrl;
   const isApiRoute = pathname.startsWith('/api/');
   const isAforoPwaRequest = req.cookies.get(AFORO_PWA_COOKIE)?.value === '1';
+  const secFetchDest = req.headers.get('sec-fetch-dest');
+  const isDocumentNavigation = secFetchDest === 'document';
   const isAforoPwaContextPath =
     AFORO_PWA_ALLOWED_PATHS.some((pattern) => pattern.test(pathname)) ||
     AFORO_PWA_ALLOWED_API_PATHS.some((pattern) => pattern.test(pathname));
-  const shouldClearAforoPwaCookie = isAforoPwaRequest && !isAforoPwaContextPath;
+  const shouldClearAforoPwaCookie =
+    isAforoPwaRequest && !isAforoPwaContextPath && isDocumentNavigation;
 
   if (PUBLIC_PATHS.some((pattern) => pattern.test(pathname))) {
     const response = setDebugHeader(NextResponse.next());
