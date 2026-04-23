@@ -5,6 +5,7 @@ import { canManageLiveCapacity, canViewLiveCapacity, getAllowlistRoleForUserEmai
 import { getLiveCapacityState } from '@/lib/disco/liveCapacity';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 
+import { AforoAuthHeader } from './AforoAuthHeader';
 import { AforoInstallCta } from './AforoInstallCta';
 import { AforoPwaBootstrap } from './AforoPwaBootstrap';
 import { LiveCapacityPanel } from './LiveCapacityPanel';
@@ -42,38 +43,38 @@ export default async function LiveCapacityPage() {
     data: { user },
   } = await supabase.auth.getUser();
 
-  if (!user) {
-    redirect(`/login?next=${encodeURIComponent('/disco/aforo-en-directo')}`);
-  }
+  let canManage = false;
 
-  const requesterEmail = user.email?.trim().toLowerCase();
-  if (!requesterEmail) {
-    redirect('/login?error=not_allowed');
-  }
+  if (user) {
+    const requesterEmail = user.email?.trim().toLowerCase();
+    if (!requesterEmail) {
+      redirect('/login?error=not_allowed');
+    }
 
-  const allowlistInfo = await getAllowlistRoleForUserEmail(requesterEmail);
+    const allowlistInfo = await getAllowlistRoleForUserEmail(requesterEmail);
 
-  if (!allowlistInfo.allowlisted || !allowlistInfo.allowedUser?.is_active) {
-    redirect('/login?error=not_allowed');
-  }
+    if (!allowlistInfo.allowlisted || !allowlistInfo.allowedUser?.is_active) {
+      redirect('/login?error=not_allowed');
+    }
 
-  if (!canViewLiveCapacity(allowlistInfo.role, allowlistInfo.allowedUser)) {
-    redirect(getDefaultModulePath(allowlistInfo.allowedUser));
+    if (!canViewLiveCapacity(allowlistInfo.role, allowlistInfo.allowedUser)) {
+      redirect(getDefaultModulePath(allowlistInfo.allowedUser));
+    }
+
+    canManage = canManageLiveCapacity(allowlistInfo.role, allowlistInfo.allowedUser);
   }
 
   const initialState = await getLiveCapacityState();
-  const canManage = canManageLiveCapacity(allowlistInfo.role, allowlistInfo.allowedUser);
 
   return (
     <div className="space-y-5">
       <AforoPwaBootstrap />
 
-      <div>
-        <h1 className="text-2xl font-semibold text-white">Aforo en directo</h1>
-        <p className="mt-1 text-sm text-slate-400">
-          Control operativo de puerta para la sesión activa de discoteca.
-        </p>
-      </div>
+      <AforoAuthHeader
+        title="Aforo en directo"
+        subtitle="Control operativo de puerta para la sesión activa de discoteca."
+        initialEmail={user?.email ?? null}
+      />
 
       <AforoInstallCta />
 
