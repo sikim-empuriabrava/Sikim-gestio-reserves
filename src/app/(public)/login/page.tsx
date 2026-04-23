@@ -5,6 +5,8 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { createSupabaseBrowserClient } from '@/lib/supabase/browser';
 
 const DEFAULT_NEXT = '/reservas?view=week';
+const AFORO_NEXT = '/disco/aforo-en-directo';
+const AFORO_PWA_COOKIE = 'sikim_aforo_pwa=1';
 
 export default function LoginPage() {
   const router = useRouter();
@@ -26,8 +28,9 @@ export default function LoginPage() {
   );
   const error = searchParams.get('error');
   const nextRaw = searchParams.get('next');
-  const nextPath = nextRaw ?? DEFAULT_NEXT;
-  const isPreparing = !nextRaw;
+  const [fallbackNext, setFallbackNext] = useState(DEFAULT_NEXT);
+  const nextPath = nextRaw ?? fallbackNext;
+  const isPreparing = !nextRaw && !fallbackNext;
   const missingEnv = useMemo(() => {
     const missingRaw = searchParams.get('missing');
     const queryMissing = missingRaw
@@ -41,10 +44,18 @@ export default function LoginPage() {
   }, [searchParams, browserMissingEnv]);
 
   useEffect(() => {
+    const isStandalone =
+      window.matchMedia('(display-mode: standalone)').matches ||
+      ('standalone' in navigator && Boolean((navigator as Navigator & { standalone?: boolean }).standalone));
+    const hasAforoCookie = document.cookie.includes(AFORO_PWA_COOKIE);
+    setFallbackNext(isStandalone || hasAforoCookie ? AFORO_NEXT : DEFAULT_NEXT);
+  }, []);
+
+  useEffect(() => {
     if (!nextRaw) {
-      router.replace(`/login?next=${encodeURIComponent(DEFAULT_NEXT)}`);
+      router.replace(`/login?next=${encodeURIComponent(fallbackNext)}`);
     }
-  }, [nextRaw, router]);
+  }, [nextRaw, router, fallbackNext]);
 
   useEffect(() => {
     if (error === 'not_allowed') return;

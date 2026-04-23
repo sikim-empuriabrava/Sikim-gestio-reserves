@@ -11,10 +11,14 @@ const PUBLIC_PATHS = [
   /^\/api\/_health\/env$/,
   /^\/favicon\.ico$/,
 ];
+const AFORO_PWA_COOKIE = 'sikim_aforo_pwa';
+const AFORO_PWA_ALLOWED_PATHS = [/^\/login$/, /^\/auth\/callback/, /^\/disco\/aforo-en-directo\/?$/];
+const AFORO_PWA_ALLOWED_API_PATHS = [/^\/api\/disco\/live-capacity$/, /^\/api\/version$/];
 
 export async function middleware(req: NextRequest) {
   const { pathname, search } = req.nextUrl;
   const isApiRoute = pathname.startsWith('/api/');
+  const isAforoPwaRequest = req.cookies.get(AFORO_PWA_COOKIE)?.value === '1';
 
   if (PUBLIC_PATHS.some((pattern) => pattern.test(pathname))) {
     return setDebugHeader(NextResponse.next());
@@ -73,6 +77,18 @@ export async function middleware(req: NextRequest) {
     return setDebugHeader(response);
   };
 
+  const handlePwaForbidden = () => {
+    if (isApiRoute) {
+      const forbidden = NextResponse.json({ error: 'forbidden_pwa_scope' }, { status: 403 });
+      mergeCookies(supabaseResponse, forbidden);
+      return setDebugHeader(forbidden);
+    }
+
+    const response = NextResponse.redirect(new URL('/disco/aforo-en-directo', req.url));
+    mergeCookies(supabaseResponse, response);
+    return setDebugHeader(response);
+  };
+
   const handleConfigError = () =>
     handleConfigErrorResponse(isApiRoute, supabaseResponse, redirectUrl, req);
 
@@ -89,6 +105,14 @@ export async function middleware(req: NextRequest) {
 
   if (!user) {
     return handleUnauthorized();
+  }
+
+  const isAllowedAforoPwaPath = isApiRoute
+    ? AFORO_PWA_ALLOWED_API_PATHS.some((pattern) => pattern.test(pathname))
+    : AFORO_PWA_ALLOWED_PATHS.some((pattern) => pattern.test(pathname));
+
+  if (isAforoPwaRequest && !isAllowedAforoPwaPath) {
+    return handlePwaForbidden();
   }
 
   const requesterEmail =
