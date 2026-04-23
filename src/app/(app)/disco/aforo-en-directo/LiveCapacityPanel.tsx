@@ -105,11 +105,13 @@ export function LiveCapacityPanel({ initialState, canManage, isAuthenticated }: 
 
   const activeSession = state.activeSession;
   const isSessionOpen = Boolean(activeSession);
+  const isGuestMode = !isAuthenticated;
 
   const sessionStatusLabel = useMemo(() => {
+    if (isGuestMode) return 'Sin sesión';
     if (!activeSession) return 'No hay sesión abierta';
     return activeSession.status === 'open' ? 'Sesión abierta' : 'Sesión cerrada';
-  }, [activeSession]);
+  }, [activeSession, isGuestMode]);
 
   const toUserFriendlyError = (actionError: unknown) => {
     const text = actionError instanceof Error ? actionError.message : 'Error inesperado';
@@ -164,6 +166,7 @@ export function LiveCapacityPanel({ initialState, canManage, isAuthenticated }: 
   };
 
   const queueAdjustAction = (delta: number) => {
+    if (isGuestMode) return;
     const currentCount = state.activeSession?.current_count ?? 0;
     if (currentCount + delta < 0) {
       setError('No se puede restar por debajo de 0.');
@@ -187,6 +190,7 @@ export function LiveCapacityPanel({ initialState, canManage, isAuthenticated }: 
   };
 
   const submitAction = async (payload: { action: 'open_session' | 'close_session' }) => {
+    if (isGuestMode) return;
     setLoadingAction(payload.action);
     setError(null);
     setMessage(null);
@@ -268,14 +272,16 @@ export function LiveCapacityPanel({ initialState, canManage, isAuthenticated }: 
         <article className={`rounded-xl border border-slate-800 bg-slate-950/50 ${cardPadding}`}>
           <p className="text-xs uppercase tracking-wide text-slate-400">Aforo actual</p>
           <p className={`mt-2 font-extrabold leading-none text-emerald-300 ${countSize}`}>
-            {activeSession?.current_count ?? 0}
+            {isGuestMode ? '—' : (activeSession?.current_count ?? 0)}
           </p>
         </article>
 
         <article className={`rounded-xl border border-slate-800 bg-slate-950/50 ${cardPadding}`}>
           <p className="text-xs uppercase tracking-wide text-slate-400">Pico sesión</p>
-          <p className="mt-2 text-2xl font-bold text-white">{activeSession?.peak_count ?? 0}</p>
-          <p className="mt-1 text-xs text-slate-400">Apertura: {formatDateTime(activeSession?.opened_at)}</p>
+          <p className="mt-2 text-2xl font-bold text-white">{isGuestMode ? '—' : (activeSession?.peak_count ?? 0)}</p>
+          <p className="mt-1 text-xs text-slate-400">
+            {isGuestMode ? 'Inicia sesión para ver datos de sesión.' : `Apertura: ${formatDateTime(activeSession?.opened_at)}`}
+          </p>
         </article>
       </div>
 
@@ -306,9 +312,9 @@ export function LiveCapacityPanel({ initialState, canManage, isAuthenticated }: 
         </div>
       ) : (
         <p className="rounded-lg border border-slate-800 bg-slate-950/40 px-3 py-2 text-sm text-slate-300">
-          {isAuthenticated
-            ? 'Tienes permiso de lectura. Las acciones de operación están restringidas.'
-            : 'Sin sesión activa. Inicia sesión para acceder al estado operativo del aforo.'}
+          {isGuestMode
+            ? 'Inicia sesión para acceder al estado operativo del aforo.'
+            : 'Tienes permiso de lectura. Las acciones de operación están restringidas.'}
         </p>
       )}
 
@@ -325,8 +331,10 @@ export function LiveCapacityPanel({ initialState, canManage, isAuthenticated }: 
 
       <div className={`rounded-xl border border-slate-800 bg-slate-950/40 ${cardPadding}`}>
         <h2 className="text-sm font-semibold text-slate-200">Últimos movimientos</h2>
-        {state.recentEvents.length === 0 ? (
-          <p className="mt-3 text-sm text-slate-400">Sin eventos todavía para la sesión actual.</p>
+        {isGuestMode || state.recentEvents.length === 0 ? (
+          <p className="mt-3 text-sm text-slate-400">
+            {isGuestMode ? 'Inicia sesión para ver el estado operativo del aforo.' : 'Sin eventos todavía para la sesión actual.'}
+          </p>
         ) : (
           <ul className={`mt-3 ${eventsStack}`}>
             {state.recentEvents.map((event) => (
