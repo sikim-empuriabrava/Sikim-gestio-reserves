@@ -8,7 +8,7 @@ import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { AforoAuthHeader } from './AforoAuthHeader';
 import { AforoInstallCta } from './AforoInstallCta';
 import { AforoPwaBootstrap } from './AforoPwaBootstrap';
-import { LiveCapacityPanel } from './LiveCapacityPanel';
+import { LiveCapacityPanel, type LiveCapacityState } from './LiveCapacityPanel';
 
 export const dynamic = 'force-dynamic';
 
@@ -37,6 +37,13 @@ export const metadata: Metadata = {
   },
 };
 
+
+const LIVE_CAPACITY_SAFE_GUEST_STATE: LiveCapacityState = {
+  activeSession: null,
+  recentEvents: [],
+  latestEvent: null,
+};
+
 export default async function LiveCapacityPage() {
   const supabase = createSupabaseServerClient();
   const {
@@ -44,8 +51,9 @@ export default async function LiveCapacityPage() {
   } = await supabase.auth.getUser();
 
   let canManage = false;
+  const isAuthenticated = Boolean(user);
 
-  if (user) {
+  if (isAuthenticated && user) {
     const requesterEmail = user.email?.trim().toLowerCase();
     if (!requesterEmail) {
       redirect('/login?error=not_allowed');
@@ -64,7 +72,7 @@ export default async function LiveCapacityPage() {
     canManage = canManageLiveCapacity(allowlistInfo.role, allowlistInfo.allowedUser);
   }
 
-  const initialState = await getLiveCapacityState();
+  const initialState = isAuthenticated ? await getLiveCapacityState() : LIVE_CAPACITY_SAFE_GUEST_STATE;
 
   return (
     <div className="space-y-5">
@@ -78,7 +86,7 @@ export default async function LiveCapacityPage() {
 
       <AforoInstallCta />
 
-      <LiveCapacityPanel initialState={initialState} canManage={canManage} />
+      <LiveCapacityPanel initialState={initialState} canManage={canManage} isAuthenticated={isAuthenticated} />
     </div>
   );
 }

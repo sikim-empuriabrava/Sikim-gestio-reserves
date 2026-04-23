@@ -119,8 +119,16 @@ export async function middleware(req: NextRequest) {
   const isMantenimientoPath = pathname.startsWith('/mantenimiento');
   const isCocinaPath = pathname.startsWith('/cocina');
   const isDiscoPath = pathname.startsWith('/disco') || pathname.startsWith('/api/disco');
+  const isAforoLiveCapacityPage = !isApiRoute && /^\/disco\/aforo-en-directo\/?$/.test(pathname);
 
   if (!user) {
+    if (isAforoLiveCapacityPage) {
+      if (shouldClearAforoPwaCookie) {
+        clearAforoPwaCookie(supabaseResponse);
+      }
+      return supabaseResponse;
+    }
+
     return handleUnauthorized();
   }
 

@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 
 import { useAforoUiMode } from './useAforoUiMode';
 
-type CapacitySession = {
+export type CapacitySession = {
   id: string;
   status: 'open' | 'closed';
   opened_at: string;
@@ -15,7 +15,7 @@ type CapacitySession = {
   peak_count: number;
 };
 
-type CapacityEvent = {
+export type CapacityEvent = {
   id: string;
   delta: number;
   resulting_count: number;
@@ -24,7 +24,7 @@ type CapacityEvent = {
   created_at: string;
 };
 
-type LiveCapacityState = {
+export type LiveCapacityState = {
   activeSession: CapacitySession | null;
   recentEvents: CapacityEvent[];
   latestEvent: CapacityEvent | null;
@@ -33,6 +33,7 @@ type LiveCapacityState = {
 type Props = {
   initialState: LiveCapacityState;
   canManage: boolean;
+  isAuthenticated: boolean;
 };
 
 type PendingAdjust = {
@@ -56,7 +57,7 @@ function formatDateTime(value: string | null | undefined) {
   }
 }
 
-export function LiveCapacityPanel({ initialState, canManage }: Props) {
+export function LiveCapacityPanel({ initialState, canManage, isAuthenticated }: Props) {
   const [serverState, setServerState] = useState<LiveCapacityState>(initialState);
   const [pendingAdjustments, setPendingAdjustments] = useState<PendingAdjust[]>([]);
   const [loadingAction, setLoadingAction] = useState<'open_session' | 'close_session' | null>(null);
@@ -305,7 +306,9 @@ export function LiveCapacityPanel({ initialState, canManage }: Props) {
         </div>
       ) : (
         <p className="rounded-lg border border-slate-800 bg-slate-950/40 px-3 py-2 text-sm text-slate-300">
-          Tienes permiso de lectura. Las acciones de operación están restringidas.
+          {isAuthenticated
+            ? 'Tienes permiso de lectura. Las acciones de operación están restringidas.'
+            : 'Sin sesión activa. Inicia sesión para acceder al estado operativo del aforo.'}
         </p>
       )}
 
