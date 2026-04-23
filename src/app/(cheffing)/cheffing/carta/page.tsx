@@ -61,7 +61,12 @@ export default async function CheffingCartaPage() {
               (cards ?? []).map((card) => (
                 <tr key={card.id} className="border-t border-slate-800/60">
                   <td className="px-4 py-3">
-                    <p className="font-semibold text-white">{card.name}</p>
+                    <Link
+                      href={`/cheffing/carta/${card.id}`}
+                      className="font-semibold text-white underline-offset-2 transition hover:text-emerald-200 hover:underline"
+                    >
+                      {card.name}
+                    </Link>
                     {card.notes ? <p className="text-xs text-slate-500">{card.notes}</p> : null}
                   </td>
                   <td className="px-4 py-3">{card.is_active ? 'Activa' : 'Inactiva'}</td>

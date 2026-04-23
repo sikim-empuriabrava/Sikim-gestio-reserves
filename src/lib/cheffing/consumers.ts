@@ -30,6 +30,9 @@ export const resolveConsumerDishKind = (dish: CheffingConsumerDish): 'food' | 'd
   return 'food';
 };
 
+export const resolveConsumerDishHref = (dish: Pick<CheffingConsumerDish, 'id' | 'family_kind'>) =>
+  dish.family_kind === 'drink' ? `/cheffing/bebidas/${dish.id}` : `/cheffing/platos/${dish.id}`;
+
 export const getConsumerLineCost = (dishCost: number | null, multiplier: number) => {
   if (dishCost === null) return null;
   return applyPortionMultiplier({ baseAmount: dishCost, multiplier });

@@ -107,7 +107,12 @@ export default async function CheffingMenusPage() {
               entries.map((entry) => (
                 <tr key={entry.id} className="border-t border-slate-800/60">
                   <td className="px-4 py-3">
-                    <p className="font-semibold text-white">{entry.name}</p>
+                    <Link
+                      href={`/cheffing/menus/${entry.id}`}
+                      className="font-semibold text-white underline-offset-2 transition hover:text-emerald-200 hover:underline"
+                    >
+                      {entry.name}
+                    </Link>
                     {entry.notes ? <p className="text-xs text-slate-500">{entry.notes}</p> : null}
                   </td>
                   <td className="px-4 py-3">{entry.is_active ? 'Activo' : 'Inactivo'}</td>

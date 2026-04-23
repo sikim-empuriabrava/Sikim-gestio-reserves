@@ -2,10 +2,11 @@
 
 import { useMemo, useState } from 'react';
 import type { FormEvent } from 'react';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 
 import type { CheffingConsumerDish } from '@/lib/cheffing/consumers';
-import { getNextConsumerSortOrder, resolveConsumerDishKind } from '@/lib/cheffing/consumers';
+import { getNextConsumerSortOrder, resolveConsumerDishHref, resolveConsumerDishKind } from '@/lib/cheffing/consumers';
 import { normalizeSearchText } from '@/lib/cheffing/search';
 import { useCheffingToast } from '@/app/(cheffing)/cheffing/components/CheffingToastProvider';
 
@@ -290,7 +291,18 @@ export function CheffingCardEditor({
               ) : (
                 lines.map((line) => (
                   <tr key={line.id} className="border-t border-slate-800/70">
-                    <td className="px-3 py-2 font-medium text-white">{line.dish?.name ?? '—'}</td>
+                    <td className="px-3 py-2 font-medium text-white">
+                      {line.dish ? (
+                        <Link
+                          href={resolveConsumerDishHref(line.dish)}
+                          className="font-semibold text-white underline-offset-2 transition hover:text-emerald-200 hover:underline"
+                        >
+                          {line.dish.name}
+                        </Link>
+                      ) : (
+                        '—'
+                      )}
+                    </td>
                     <td className="px-3 py-2">{line.dish?.family_name ?? 'Sin familia'}</td>
                     <td className="px-3 py-2">{line.dish?.family_kind === 'drink' ? 'Bebida' : 'Plato'}</td>
                     <td className="px-3 py-2">{formatCurrency(line.dish?.selling_price ?? null)}</td>

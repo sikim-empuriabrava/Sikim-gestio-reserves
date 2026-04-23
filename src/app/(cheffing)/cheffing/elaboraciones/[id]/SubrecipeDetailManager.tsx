@@ -34,6 +34,7 @@ type SubrecipeDetailManagerProps = {
   units: Unit[];
   inheritedAllergens: string[];
   inheritedIndicators: string[];
+  usedInDishes: Array<{ id: string; name: string; href: string; kindLabel: 'Plato' | 'Bebida' }>;
   canManageImages: boolean;
 };
 
@@ -69,6 +70,7 @@ export function SubrecipeDetailManager({
   units,
   inheritedAllergens,
   inheritedIndicators,
+  usedInDishes,
   canManageImages,
 }: SubrecipeDetailManagerProps) {
   const router = useRouter();
@@ -577,6 +579,30 @@ export function SubrecipeDetailManager({
       </form>
 
       <div className="space-y-4 rounded-2xl border border-slate-800/70 bg-slate-950/60 p-5">
+        <h3 className="text-lg font-semibold text-white">Relaciones</h3>
+        <div>
+          <p className="text-xs uppercase text-slate-500">Usada en platos y bebidas</p>
+          {usedInDishes.length === 0 ? (
+            <p className="mt-2 text-sm text-slate-500">No se usa directamente en platos o bebidas.</p>
+          ) : (
+            <ul className="mt-2 space-y-1 text-sm">
+              {usedInDishes.map((dish) => (
+                <li key={dish.id} className="flex items-center justify-between gap-2">
+                  <Link
+                    href={dish.href}
+                    className="text-slate-200 underline-offset-2 transition hover:text-emerald-200 hover:underline"
+                  >
+                    {dish.name}
+                  </Link>
+                  <span className="text-xs text-slate-400">{dish.kindLabel}</span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      </div>
+
+      <div className="space-y-4 rounded-2xl border border-slate-800/70 bg-slate-950/60 p-5">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <h3 className="text-lg font-semibold text-white">Productos y elaboraciones</h3>
@@ -696,7 +722,7 @@ export function SubrecipeDetailManager({
                             )}
                           </div>
                         ) : (
-                          <Link href={itemLink} className="font-semibold text-white">
+                          <Link href={itemLink} className="font-semibold text-white underline-offset-2 transition hover:text-emerald-200 hover:underline">
                             {itemName}
                           </Link>
                         )}

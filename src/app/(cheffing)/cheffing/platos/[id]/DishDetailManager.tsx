@@ -15,6 +15,7 @@ import { formatEditableMoney, parseEditableMoney } from '@/lib/cheffing/money';
 import { createSupabaseBrowserClient } from '@/lib/supabase/browser';
 import type { CheffingFamily } from '@/lib/cheffing/families';
 import { SIN_FAMILIA_LABEL } from '@/lib/cheffing/families';
+import type { DishUsageConsumer } from '@/lib/cheffing/dishUsage';
 
 export type DishCost = Dish & {
   items_cost_total: number | null;
@@ -36,6 +37,8 @@ type DishDetailManagerProps = {
   families: CheffingFamily[];
   inheritedAllergens: string[];
   inheritedIndicators: string[];
+  usageCards: DishUsageConsumer[];
+  usageMenus: DishUsageConsumer[];
   canManageImages: boolean;
   basePath?: '/cheffing/platos' | '/cheffing/bebidas';
   entityLabelSingular?: string;
@@ -69,6 +72,8 @@ export function DishDetailManager({
   families,
   inheritedAllergens,
   inheritedIndicators,
+  usageCards,
+  usageMenus,
   canManageImages,
   basePath = '/cheffing/platos',
   entityLabelSingular = 'plato',
@@ -607,6 +612,56 @@ export function DishDetailManager({
       </form>
 
       <div className="space-y-4 rounded-2xl border border-slate-800/70 bg-slate-950/60 p-5">
+        <h3 className="text-lg font-semibold text-white">Dónde se usa este {entityLabelSingular}</h3>
+        <div className="grid gap-4 md:grid-cols-2">
+          <div>
+            <p className="text-xs uppercase text-slate-500">Cartas</p>
+            {usageCards.length === 0 ? (
+              <p className="mt-2 text-sm text-slate-500">No aparece en cartas.</p>
+            ) : (
+              <ul className="mt-2 space-y-1 text-sm">
+                {usageCards.map((card) => (
+                  <li key={card.id} className="flex items-center justify-between gap-2">
+                    <Link
+                      href={`/cheffing/carta/${card.id}`}
+                      className="text-slate-200 underline-offset-2 transition hover:text-emerald-200 hover:underline"
+                    >
+                      {card.name}
+                    </Link>
+                    <span className={card.is_active ? 'text-emerald-300' : 'text-slate-400'}>
+                      {card.is_active ? 'Activa' : 'Inactiva'}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+          <div>
+            <p className="text-xs uppercase text-slate-500">Menús</p>
+            {usageMenus.length === 0 ? (
+              <p className="mt-2 text-sm text-slate-500">No aparece en menús.</p>
+            ) : (
+              <ul className="mt-2 space-y-1 text-sm">
+                {usageMenus.map((menu) => (
+                  <li key={menu.id} className="flex items-center justify-between gap-2">
+                    <Link
+                      href={`/cheffing/menus/${menu.id}`}
+                      className="text-slate-200 underline-offset-2 transition hover:text-emerald-200 hover:underline"
+                    >
+                      {menu.name}
+                    </Link>
+                    <span className={menu.is_active ? 'text-emerald-300' : 'text-slate-400'}>
+                      {menu.is_active ? 'Activo' : 'Inactivo'}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        </div>
+      </div>
+
+      <div className="space-y-4 rounded-2xl border border-slate-800/70 bg-slate-950/60 p-5">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <h3 className="text-lg font-semibold text-white">Productos y elaboraciones</h3>
@@ -737,7 +792,7 @@ export function DishDetailManager({
                             )}
                           </div>
                         ) : (
-                          <Link href={itemLink} className="font-semibold text-white">
+                          <Link href={itemLink} className="font-semibold text-white underline-offset-2 transition hover:text-emerald-200 hover:underline">
                             {itemName}
                           </Link>
                         )}

@@ -364,7 +364,10 @@ export function DishesManager({
                           }
                         />
                       ) : (
-                        <Link href={`${basePath}/${dish.id}`} className="font-semibold text-white">
+                        <Link
+                          href={`${basePath}/${dish.id}`}
+                          className="font-semibold text-white underline-offset-2 transition hover:text-emerald-200 hover:underline"
+                        >
                           {dish.name}
                         </Link>
                       )}
@@ -408,7 +411,7 @@ export function DishesManager({
                           </span>
                           <div
                             role="tooltip"
-                            className="pointer-events-none absolute left-0 top-full z-20 mt-2 hidden w-80 rounded-md border border-slate-700 bg-slate-950/95 p-3 text-left text-[11px] normal-case text-slate-200 shadow-lg group-hover:block group-focus-within:block"
+                            className="absolute left-0 top-full z-20 mt-2 hidden w-80 rounded-md border border-slate-700 bg-slate-950/95 p-3 text-left text-[11px] normal-case text-slate-200 shadow-lg group-hover:block group-focus-within:block"
                           >
                             <div className="space-y-2">
                               <div>
@@ -417,7 +420,12 @@ export function DishesManager({
                                   <ul className="mt-1 space-y-1">
                                     {dish.usage_cards.map((card) => (
                                       <li key={card.id} className="flex items-center justify-between gap-2">
-                                        <span className="text-slate-300">{card.name}</span>
+                                        <Link
+                                          href={`/cheffing/carta/${card.id}`}
+                                          className="text-slate-300 underline-offset-2 transition hover:text-emerald-200 hover:underline"
+                                        >
+                                          {card.name}
+                                        </Link>
                                         <span className={card.is_active ? 'text-emerald-300' : 'text-slate-400'}>
                                           {card.is_active ? 'Activa' : 'Inactiva'}
                                         </span>
@@ -434,7 +442,12 @@ export function DishesManager({
                                   <ul className="mt-1 space-y-1">
                                     {dish.usage_menus.map((menu) => (
                                       <li key={menu.id} className="flex items-center justify-between gap-2">
-                                        <span className="text-slate-300">{menu.name}</span>
+                                        <Link
+                                          href={`/cheffing/menus/${menu.id}`}
+                                          className="text-slate-300 underline-offset-2 transition hover:text-emerald-200 hover:underline"
+                                        >
+                                          {menu.name}
+                                        </Link>
                                         <span className={menu.is_active ? 'text-emerald-300' : 'text-slate-400'}>
                                           {menu.is_active ? 'Activo' : 'Inactivo'}
                                         </span>

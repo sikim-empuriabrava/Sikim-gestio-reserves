@@ -8,6 +8,7 @@ import type { AllergenKey, ProductIndicatorKey } from '@/lib/cheffing/allergensI
 import { sanitizeProductIndicators } from '@/lib/cheffing/allergensHelpers';
 import type { Ingredient, Subrecipe, Unit } from '@/lib/cheffing/types';
 import type { CheffingFamily } from '@/lib/cheffing/families';
+import { buildDishUsageIndex, loadCheffingDishUsage } from '@/lib/cheffing/dishUsage';
 import {
   normalizeDishCompatibilityMeta,
   normalizeIngredient,
@@ -91,10 +92,27 @@ export default async function CheffingBebidaDetailPage({ params }: { params: { i
     .eq('is_active', true)
     .order('sort_order', { ascending: true })
     .order('name', { ascending: true });
+  const { rows: dishUsageRows, error: dishUsageError } = await loadCheffingDishUsage();
 
-  if (dishMetaError || itemsError || ingredientsError || subrecipesError || subrecipeItemsError || unitsError || familiesError) {
+  if (
+    dishMetaError ||
+    itemsError ||
+    ingredientsError ||
+    subrecipesError ||
+    subrecipeItemsError ||
+    unitsError ||
+    familiesError ||
+    dishUsageError
+  ) {
     const loadError =
-      dishMetaError ?? itemsError ?? ingredientsError ?? subrecipesError ?? subrecipeItemsError ?? unitsError ?? familiesError;
+      dishMetaError ??
+      itemsError ??
+      ingredientsError ??
+      subrecipesError ??
+      subrecipeItemsError ??
+      unitsError ??
+      familiesError ??
+      dishUsageError;
     console.error('[cheffing/bebidas] Failed to load drink detail data', loadError);
     throw new Error('No se pudieron cargar los datos de la bebida por incompatibilidad de schema.');
   }
@@ -207,6 +225,8 @@ export default async function CheffingBebidaDetailPage({ params }: { params: { i
   });
   const inheritedAllergens = [...inheritedAllergenSet];
   const inheritedIndicators = [...inheritedIndicatorSet];
+  const usageByDishId = buildDishUsageIndex(dishUsageRows);
+  const dishUsage = usageByDishId.get(params.id);
 
   return (
     <section className="space-y-6">
@@ -230,6 +250,8 @@ export default async function CheffingBebidaDetailPage({ params }: { params: { i
         families={(families ?? []) as CheffingFamily[]}
         inheritedAllergens={inheritedAllergens}
         inheritedIndicators={inheritedIndicators}
+        usageCards={dishUsage?.cards ?? []}
+        usageMenus={dishUsage?.menus ?? []}
         canManageImages={canManageImages}
         basePath="/cheffing/bebidas"
         entityLabelSingular="bebida"
