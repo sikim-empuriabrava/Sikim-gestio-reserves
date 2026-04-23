@@ -12,6 +12,7 @@ const PUBLIC_PATHS = [
   /^\/favicon\.ico$/,
 ];
 const AFORO_PWA_COOKIE = 'sikim_aforo_pwa';
+const AFORO_GUEST_HEADER = 'x-sikim-allow-guest-aforo';
 const AFORO_PWA_ALLOWED_PATHS = [/^\/login$/, /^\/auth\/callback/, /^\/disco\/aforo-en-directo\/?$/];
 const AFORO_PWA_ALLOWED_API_PATHS = [/^\/api\/disco\/live-capacity$/, /^\/api\/version$/];
 
@@ -123,10 +124,18 @@ export async function middleware(req: NextRequest) {
 
   if (!user) {
     if (isAforoLiveCapacityPage) {
+      const requestHeaders = new Headers(req.headers);
+      requestHeaders.set(AFORO_GUEST_HEADER, '1');
+      const guestAllowedResponse = setDebugHeader(
+        NextResponse.next({
+          request: { headers: requestHeaders },
+        }),
+      );
+      mergeCookies(supabaseResponse, guestAllowedResponse);
       if (shouldClearAforoPwaCookie) {
-        clearAforoPwaCookie(supabaseResponse);
+        clearAforoPwaCookie(guestAllowedResponse);
       }
-      return supabaseResponse;
+      return guestAllowedResponse;
     }
 
     return handleUnauthorized();
