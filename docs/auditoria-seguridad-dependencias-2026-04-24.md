@@ -27,12 +27,17 @@
 - `@supabase/ssr`: paquete local enlazado `0.0.0-local` (`link: true` a `./supabase-ssr`)
 
 ### Node esperado por el repo
-- No hay campo `engines` en `package.json`.
-- No existe `.nvmrc`.
+- `package.json` fija `engines.node = "20.x"`.
+- Existe `.nvmrc` con valor `20`.
 - No existe `.node-version`.
 - No existe `vercel.json` en la raíz.
 
-Conclusión: no hay versión de Node fijada explícitamente por configuración del repo inspeccionada.
+Conclusión: el runtime de Node queda fijado/recomendado en `20.x` para evitar desalineaciones entre entornos (Codespaces, Codex, Vercel, CI local).
+
+Notas de justificación del runtime fijado:
+- El repositorio fue validado con Node `v20.20.2`.
+- Supabase requiere Node `>=20` en su estado actual de compatibilidad.
+- Next 14 funciona con Node `>=18.17`, por lo que Node 20.x es compatible y consistente.
 
 ## 2) Auditoría con comandos
 
