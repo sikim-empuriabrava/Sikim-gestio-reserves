@@ -153,7 +153,7 @@ export function LiveCapacityPanel({ initialState, canManage, isAuthenticated }: 
 
           setServerState((prev) => body.state ?? prev);
           setPendingAdjustments((prev) => prev.filter((item) => item.id !== nextAdjust.id));
-          setMessage('Aforo actualizado.');
+          setMessage('Aforo actualizado en pantalla.');
         } catch (actionError) {
           setPendingAdjustments((prev) => prev.filter((item) => item.id !== nextAdjust.id));
           setError(toUserFriendlyError(actionError));
@@ -325,12 +325,18 @@ export function LiveCapacityPanel({ initialState, canManage, isAuthenticated }: 
         </div>
       )}
 
-      {pendingAdjustments.length > 0 ? (
-        <p className="text-xs text-slate-400">Sincronizando ajustes… ({pendingAdjustments.length} pendientes)</p>
-      ) : null}
-
       <div className={`rounded-xl border border-slate-800 bg-slate-950/40 ${cardPadding}`}>
-        <h2 className="text-sm font-semibold text-slate-200">Últimos movimientos</h2>
+        <div className="flex items-center justify-between gap-3">
+          <h2 className="text-sm font-semibold text-slate-200">Últimos movimientos</h2>
+          {pendingAdjustments.length > 0 ? (
+            <div className="flex items-center gap-2">
+              <span className="rounded-full border border-amber-700/60 bg-amber-900/30 px-2 py-0.5 text-[11px] font-medium text-amber-200">
+                {pendingAdjustments.length} pendientes
+              </span>
+              <p className="text-xs text-slate-400">Sincronizando {pendingAdjustments.length} movimientos...</p>
+            </div>
+          ) : null}
+        </div>
         {isGuestMode || state.recentEvents.length === 0 ? (
           <p className="mt-3 text-sm text-slate-400">
             {isGuestMode ? 'Inicia sesión para ver el estado operativo del aforo.' : 'Sin eventos todavía para la sesión actual.'}
