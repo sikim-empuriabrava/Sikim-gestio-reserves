@@ -125,3 +125,23 @@ npm ls @supabase/supabase-js @supabase/ssr
 - Con node_modules actuales (sin poder reinstalar), `npm ls` marca `invalid` porque siguen instaladas localmente las versiones antiguas (`14.2.14`).
 - `npm run lint` y `npm run build` se ejecutaron correctamente con el estado instalado actual; existen warnings previos no bloqueantes (`<img>` en lint y warnings Edge Runtime de Supabase durante build).
 - `npm audit --omit=dev` y `npm audit` continúan fallando por `403 Forbidden` al endpoint de advisories.
+
+## 8) Remate de lockfile solicitado (2026-04-24)
+Se reintentó completar la regeneración del lockfile y validaciones obligatorias:
+
+1. `npm install --package-lock-only`  
+   - Error: `E403` al descargar `eslint-config-next` desde `https://registry.npmjs.org/eslint-config-next`.
+2. `env -u ... npm install --package-lock-only` (sin proxy)  
+   - Error: `ENETUNREACH` hacia `https://registry.npmjs.org/eslint-config-next`.
+3. `npm ci`  
+   - Error: `E403` por el mismo acceso bloqueado al registry.
+4. `npm ls next eslint-config-next react react-dom`  
+   - Reporta `ELSPROBLEMS` (instalado local sigue en `next@14.2.14` / `eslint-config-next@14.2.14` por no poder reinstalar).
+5. `npm run lint`  
+   - OK con warnings no bloqueantes ya existentes (`@next/next/no-img-element`).
+6. `npm run build`  
+   - OK con warnings no bloqueantes ya existentes.
+7. `npm audit --omit=dev` y `npm audit`  
+   - Error: `403 Forbidden` al endpoint `/-/npm/v1/security/advisories/bulk`.
+
+Conclusión: en este entorno no fue posible completar la regeneración de `package-lock.json` para `14.2.35` por bloqueo de acceso a npm registry.
