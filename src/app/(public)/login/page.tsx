@@ -279,7 +279,7 @@ export default function LoginPage() {
               autoComplete="username"
               value={operationalUsername}
               onChange={(event) => setOperationalUsername(event.target.value)}
-              placeholder="alex.seguridad"
+              placeholder="usuario.puerta"
               className="w-full rounded-lg border border-slate-700 bg-slate-950/80 px-3 py-2 text-sm text-white focus:border-slate-500 focus:outline-none"
               disabled={isAnyLoading || isPreparing || !supabase}
             />
@@ -302,13 +302,7 @@ export default function LoginPage() {
           >
             {isLoadingPassword ? 'Entrando…' : 'Entrar'}
           </button>
-          <p className="text-xs text-slate-400">
-            Se iniciará sesión como{' '}
-            <span className="font-semibold text-slate-300">
-              {'<usuario>@sikimempuriabrava.com'}
-            </span>
-            .
-          </p>
+          <p className="text-xs text-slate-400">Introduce solo tu usuario, sin @sikimempuriabrava.com.</p>
           {passwordLoginError ? (
             <p className="rounded-lg bg-red-900/40 px-3 py-2 text-sm text-red-100">{passwordLoginError}</p>
           ) : null}
