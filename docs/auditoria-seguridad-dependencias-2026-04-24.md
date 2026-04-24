@@ -6,10 +6,12 @@
 - Sin actualizar `next`, `react`, `react-dom`, `@supabase/*`, `eslint`.
 - Auditoría basada únicamente en estado local del repositorio y comandos disponibles.
 
-## 1) Inspección de dependencias actuales
+## 1) Estado de dependencias: inicial de auditoría vs estado actual
 
-### Versiones declaradas (package.json)
+### Estado inicial de la auditoría (2026-04-24, antes de la PR de seguridad)
+Versiones declaradas/observadas en ese momento:
 - `next`: `14.2.14`
+- `eslint-config-next`: `14.2.14`
 - `react`: `18.3.1`
 - `react-dom`: `18.3.1`
 - `eslint`: `8.57.1`
@@ -17,18 +19,22 @@
 - `@supabase/supabase-js`: `^2.45.4`
 - `@supabase/ssr`: `file:supabase-ssr`
 
-### Versiones efectivamente bloqueadas/resueltas (package-lock + npm ls)
-- `next`: `14.2.14`
+### Estado actual tras PR mínima de seguridad
+Versiones declaradas actualmente en el repo:
+- `next`: `14.2.35`
+- `eslint-config-next`: `14.2.35`
 - `react`: `18.3.1`
 - `react-dom`: `18.3.1`
 - `eslint`: `8.57.1`
 - `typescript`: `5.6.3`
-- `@supabase/supabase-js`: `2.87.1` (nota: más nueva que el mínimo declarado por `^2.45.4`)
-- `@supabase/ssr`: paquete local enlazado `0.0.0-local` (`link: true` a `./supabase-ssr`)
+- `@supabase/supabase-js`: `^2.45.4`
+- `@supabase/ssr`: `file:supabase-ssr`
 
-### Node esperado por el repo
+Estado de runtime fijado:
 - `package.json` fija `engines.node = "20.x"`.
 - Existe `.nvmrc` con valor `20`.
+
+### Node esperado por el repo
 - No existe `.node-version`.
 - No existe `vercel.json` en la raíz.
 
