@@ -3,13 +3,17 @@
 ## Alcance y restricciones aplicadas
 - Sin cambios funcionales de aplicación.
 - Sin ejecutar `npm audit fix` ni `npm audit fix --force`.
-- Sin actualizar `next`, `react`, `react-dom`, `@supabase/*`, `eslint`.
+- Durante la auditoría inicial no se actualizaron dependencias vía `npm audit fix` / `npm audit fix --force`.
+- La mitigación posterior actualizó únicamente `next` y `eslint-config-next` dentro de la rama `14.x`.
+- No se actualizaron `react`, `react-dom`, `@supabase/*`, `eslint` ni `typescript`.
 - Auditoría basada únicamente en estado local del repositorio y comandos disponibles.
 
-## 1) Inspección de dependencias actuales
+## 1) Estado de dependencias: inicial de auditoría vs estado actual
 
-### Versiones declaradas (package.json)
+### Estado inicial de la auditoría (2026-04-24, antes de la PR de seguridad)
+Versiones declaradas/observadas en ese momento:
 - `next`: `14.2.14`
+- `eslint-config-next`: `14.2.14`
 - `react`: `18.3.1`
 - `react-dom`: `18.3.1`
 - `eslint`: `8.57.1`
@@ -17,22 +21,31 @@
 - `@supabase/supabase-js`: `^2.45.4`
 - `@supabase/ssr`: `file:supabase-ssr`
 
-### Versiones efectivamente bloqueadas/resueltas (package-lock + npm ls)
-- `next`: `14.2.14`
+### Estado actual tras PR mínima de seguridad
+Versiones declaradas actualmente en el repo:
+- `next`: `14.2.35`
+- `eslint-config-next`: `14.2.35`
 - `react`: `18.3.1`
 - `react-dom`: `18.3.1`
 - `eslint`: `8.57.1`
 - `typescript`: `5.6.3`
-- `@supabase/supabase-js`: `2.87.1` (nota: más nueva que el mínimo declarado por `^2.45.4`)
-- `@supabase/ssr`: paquete local enlazado `0.0.0-local` (`link: true` a `./supabase-ssr`)
+- `@supabase/supabase-js`: `^2.45.4`
+- `@supabase/ssr`: `file:supabase-ssr`
+
+Estado de runtime fijado:
+- `package.json` fija `engines.node = "20.x"`.
+- Existe `.nvmrc` con valor `20`.
 
 ### Node esperado por el repo
-- No hay campo `engines` en `package.json`.
-- No existe `.nvmrc`.
 - No existe `.node-version`.
 - No existe `vercel.json` en la raíz.
 
-Conclusión: no hay versión de Node fijada explícitamente por configuración del repo inspeccionada.
+Conclusión: el runtime de Node queda fijado/recomendado en `20.x` para evitar desalineaciones entre entornos (Codespaces, Codex, Vercel, CI local).
+
+Notas de justificación del runtime fijado:
+- El repositorio fue validado con Node `v20.20.2`.
+- Supabase requiere Node `>=20` en su estado actual de compatibilidad.
+- Next 14 funciona con Node `>=18.17`, por lo que Node 20.x es compatible y consistente.
 
 ## 2) Auditoría con comandos
 
