@@ -45,6 +45,23 @@ No se añaden tablas nuevas en esta fase de histórico. Se reutiliza el modelo d
 
 > En esta fase no se crean nuevos flags de permisos en `app_allowed_users` para histórico.
 
+### Fuente de verdad de autorización
+
+- La autorización sensible se resuelve contra `app_allowed_users` (no desde `user_metadata`).
+- `role = admin` actúa como bypass total de permisos de módulo.
+- Para usuarios no admin en Disco:
+  - `view_live_capacity = true` permite ver `/disco/aforo-en-directo`.
+  - `manage_live_capacity = true` permite operar acciones (abrir/cerrar sesión, sumar/restar aforo).
+  - `manage_live_capacity` también habilita lectura del módulo (implica capacidad de ver).
+
+### Login operativo (puerta/aforo)
+
+- Se mantiene el login Google OAuth existente.
+- Se añade login secundario por usuario + contraseña usando Supabase Auth Email/Password.
+- El campo usuario se normaliza (`trim`, `lowercase`, sin espacios y con caracteres limitados) y se transforma a:
+  - `${usuario}@sikimempuriabrava.com`
+- El inicio de sesión se ejecuta con `signInWithPassword`.
+
 ## Métricas básicas del histórico
 
 En cada sesión cerrada se calculan y muestran:

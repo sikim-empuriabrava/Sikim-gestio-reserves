@@ -1,8 +1,9 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { VALID_APP_ROLES, type AppRole } from '@/lib/auth/roles';
 
-type Role = 'admin' | 'staff' | 'viewer';
+type Role = AppRole;
 type AllowedUser = {
   id: string;
   email: string;
@@ -36,6 +37,7 @@ const roleLabels: Record<Role, string> = {
   admin: 'Admin',
   staff: 'Staff',
   viewer: 'Viewer',
+  porter: 'Portero/Aforo',
 };
 
 const defaultForm: FormState = {
@@ -257,9 +259,9 @@ export function AllowedUsersManager({
               onChange={(event) => setForm((prev) => ({ ...prev, role: event.target.value as Role }))}
               className="w-full rounded-lg border border-slate-700 bg-slate-950/60 px-3 py-2 text-sm text-white"
             >
-              {Object.keys(roleLabels).map((role) => (
+              {VALID_APP_ROLES.map((role) => (
                 <option key={role} value={role}>
-                  {roleLabels[role as Role]}
+                  {roleLabels[role]}
                 </option>
               ))}
             </select>
@@ -440,9 +442,9 @@ export function AllowedUsersManager({
                       className="rounded-md border border-slate-700 bg-slate-950/60 px-2 py-1 text-sm text-white"
                       disabled={savingId === user.id}
                     >
-                      {Object.keys(roleLabels).map((role) => (
+                      {VALID_APP_ROLES.map((role) => (
                         <option key={role} value={role}>
-                          {roleLabels[role as Role]}
+                          {roleLabels[role]}
                         </option>
                       ))}
                     </select>
