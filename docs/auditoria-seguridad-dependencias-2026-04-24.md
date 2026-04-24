@@ -145,3 +145,14 @@ Se reintentó completar la regeneración del lockfile y validaciones obligatoria
    - Error: `403 Forbidden` al endpoint `/-/npm/v1/security/advisories/bulk`.
 
 Conclusión: en este entorno no fue posible completar la regeneración de `package-lock.json` para `14.2.35` por bloqueo de acceso a npm registry.
+
+## 9) Reintento final con entorno anunciado como habilitado (2026-04-24)
+Resultado real observado en esta ejecución:
+- `npm install --package-lock-only` → `E403` (GET `https://registry.npmjs.org/eslint-config-next`).
+- `npm install next@14.2.35 eslint-config-next@14.2.35 --package-lock-only --save-exact` → `E403` (mismo endpoint).
+- `npm ci` → `E403` (bloqueo de acceso a `eslint-config-next` en registry).
+- `npm ls next eslint-config-next react react-dom` → `ELSPROBLEMS` por desalineación instalada (`14.2.14`) vs declarada (`14.2.35`).
+- `npm run lint` y `npm run build` → OK con warnings preexistentes no bloqueantes.
+- `npm audit --omit=dev` y `npm audit` → `403 Forbidden` en `POST /-/npm/v1/security/advisories/bulk`.
+
+Conclusión final: aunque la sesión se indicó como habilitada para npm registry, el entorno efectivo siguió bloqueando los accesos necesarios; no fue posible regenerar `package-lock.json` ni completar `npm ci` con versiones 14.2.35.
