@@ -3,7 +3,9 @@
 ## Alcance y restricciones aplicadas
 - Sin cambios funcionales de aplicación.
 - Sin ejecutar `npm audit fix` ni `npm audit fix --force`.
-- Sin actualizar `next`, `react`, `react-dom`, `@supabase/*`, `eslint`.
+- Durante la auditoría inicial no se actualizaron dependencias vía `npm audit fix` / `npm audit fix --force`.
+- La mitigación posterior actualizó únicamente `next` y `eslint-config-next` dentro de la rama `14.x`.
+- No se actualizaron `react`, `react-dom`, `@supabase/*`, `eslint` ni `typescript`.
 - Auditoría basada únicamente en estado local del repositorio y comandos disponibles.
 
 ## 1) Estado de dependencias: inicial de auditoría vs estado actual
