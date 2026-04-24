@@ -7,11 +7,52 @@ import { createSupabaseBrowserClient } from '@/lib/supabase/browser';
 const DEFAULT_NEXT = '/reservas?view=week';
 const AFORO_NEXT = '/disco/aforo-en-directo';
 const AFORO_PWA_COOKIE = 'sikim_aforo_pwa=1';
+const OPERATIONS_EMAIL_DOMAIN = 'sikimempuriabrava.com';
+const USERNAME_PATTERN = /^[a-z0-9._-]+$/;
+
+type NormalizedOperationalUsername =
+  | {
+      isValid: true;
+      normalized: string;
+      email: string;
+    }
+  | {
+      isValid: false;
+      normalized: string;
+      error: string;
+    };
+
+function normalizeOperationalUsername(rawValue: string): NormalizedOperationalUsername {
+  const normalized = rawValue.trim().toLowerCase();
+  const noSpaces = !/\s/.test(normalized);
+  const hasValidChars = USERNAME_PATTERN.test(normalized);
+  const isValid = Boolean(normalized) && noSpaces && hasValidChars;
+
+  if (!isValid) {
+    return {
+      isValid: false,
+      normalized,
+      error:
+        'Usuario inválido. Usa solo letras minúsculas, números, punto, guion o guion bajo, sin espacios.',
+    };
+  }
+
+  return {
+    isValid: true,
+    normalized,
+    email: `${normalized}@${OPERATIONS_EMAIL_DOMAIN}`,
+  };
+}
 
 export default function LoginPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const [isLoading, setIsLoading] = useState(false);
+  const [isLoadingGoogle, setIsLoadingGoogle] = useState(false);
+  const [isLoadingPassword, setIsLoadingPassword] = useState(false);
+  const [showPasswordLogin, setShowPasswordLogin] = useState(false);
+  const [operationalUsername, setOperationalUsername] = useState('');
+  const [operationalPassword, setOperationalPassword] = useState('');
+  const [passwordLoginError, setPasswordLoginError] = useState<string | null>(null);
   const browserMissingEnv = useMemo(() => {
     const missing: string[] = [];
     if (!process.env.NEXT_PUBLIC_SUPABASE_URL?.trim()) {
@@ -88,7 +129,7 @@ export default function LoginPage() {
   const handleLogin = async () => {
     if (isPreparing || !supabase) return;
 
-    setIsLoading(true);
+    setIsLoadingGoogle(true);
     const redirectTo = `${window.location.origin}/auth/callback?next=${encodeURIComponent(nextPath ?? DEFAULT_NEXT)}`;
 
     try {
@@ -101,14 +142,14 @@ export default function LoginPage() {
     } catch (error) {
       console.error(error);
       alert('No se pudo iniciar sesión con Google');
-      setIsLoading(false);
+      setIsLoadingGoogle(false);
     }
   };
 
   const handleLoginSelectAccount = async () => {
     if (isPreparing || !supabase) return;
 
-    setIsLoading(true);
+    setIsLoadingGoogle(true);
     const redirectTo = `${window.location.origin}/auth/callback?next=${encodeURIComponent(nextPath ?? DEFAULT_NEXT)}`;
 
     try {
@@ -122,9 +163,45 @@ export default function LoginPage() {
     } catch (error) {
       console.error(error);
       alert('No se pudo iniciar sesión con Google');
-      setIsLoading(false);
+      setIsLoadingGoogle(false);
     }
   };
+
+  const handleOperationalLogin = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (isPreparing || !supabase) return;
+
+    setPasswordLoginError(null);
+    const usernameInfo = normalizeOperationalUsername(operationalUsername);
+    if (!usernameInfo.isValid) {
+      setPasswordLoginError(usernameInfo.error);
+      return;
+    }
+
+    if (!operationalPassword.trim()) {
+      setPasswordLoginError('Introduce la contraseña.');
+      return;
+    }
+
+    setIsLoadingPassword(true);
+
+    try {
+      const { error } = await supabase.auth.signInWithPassword({
+        email: usernameInfo.email,
+        password: operationalPassword,
+      });
+
+      if (error) {
+        throw error;
+      }
+    } catch (error) {
+      console.error(error);
+      setPasswordLoginError('Usuario o contraseña incorrectos.');
+      setIsLoadingPassword(false);
+    }
+  };
+
+  const isAnyLoading = isLoadingGoogle || isLoadingPassword;
 
   return (
     <div className="mx-auto flex min-h-[60vh] max-w-md flex-col items-center justify-center gap-6">
@@ -157,7 +234,7 @@ export default function LoginPage() {
       <button
         type="button"
         onClick={handleLogin}
-        disabled={isLoading || isPreparing || !supabase}
+        disabled={isAnyLoading || isPreparing || !supabase}
         className="inline-flex items-center gap-2 rounded-xl bg-white px-4 py-3 text-sm font-semibold text-slate-900 shadow-lg transition hover:bg-slate-100 disabled:cursor-not-allowed"
       >
         <svg
@@ -172,17 +249,71 @@ export default function LoginPage() {
           <path fill="#FBBC05" d="M56.281 156.383c-2.756-8.123-4.351-16.827-4.351-25.829 0-8.994 1.595-17.698 4.206-25.82l-.073-1.73-40.663-31.58-1.334.635C4.9 88.152 0 108.62 0 130.554c0 21.935 4.9 42.402 13.929 58.495z" />
           <path fill="#EB4335" d="M130.55 50.479c24.55 0 41.05 10.61 50.479 19.468l36.844-35.97C195.259 12.91 165.798 0 130.55 0 79.49 0 35.393 29.3 13.929 72.06l40.208 31.75c10.59-31.477 39.891-54.33 76.413-54.33" />
         </svg>
-        {isPreparing ? 'Preparando…' : isLoading ? 'Redirigiendo…' : 'Continuar con Google'}
+        {isPreparing ? 'Preparando…' : isLoadingGoogle ? 'Redirigiendo…' : 'Continuar con Google'}
       </button>
 
       <button
         type="button"
         onClick={handleLoginSelectAccount}
-        disabled={isLoading || isPreparing || !supabase}
+        disabled={isAnyLoading || isPreparing || !supabase}
         className="inline-flex items-center gap-2 rounded-xl bg-slate-100 px-4 py-3 text-sm font-semibold text-slate-900 shadow-lg transition hover:bg-slate-200 disabled:cursor-not-allowed"
       >
         Elegir otra cuenta de Google
       </button>
+
+      <button
+        type="button"
+        onClick={() => setShowPasswordLogin((prev) => !prev)}
+        disabled={isAnyLoading || isPreparing || !supabase}
+        className="inline-flex items-center gap-2 rounded-xl border border-slate-700 bg-slate-900/80 px-4 py-3 text-sm font-semibold text-slate-100 shadow-lg transition hover:bg-slate-800 disabled:cursor-not-allowed"
+      >
+        {showPasswordLogin ? 'Ocultar usuario + contraseña' : 'Entrar con usuario y contraseña'}
+      </button>
+
+      {showPasswordLogin ? (
+        <form onSubmit={handleOperationalLogin} className="w-full space-y-3 rounded-xl border border-slate-800 bg-slate-900/70 p-4">
+          <label className="block space-y-1 text-left text-sm text-slate-300">
+            <span className="font-semibold text-slate-200">Usuario</span>
+            <input
+              type="text"
+              autoComplete="username"
+              value={operationalUsername}
+              onChange={(event) => setOperationalUsername(event.target.value)}
+              placeholder="alex.seguridad"
+              className="w-full rounded-lg border border-slate-700 bg-slate-950/80 px-3 py-2 text-sm text-white focus:border-slate-500 focus:outline-none"
+              disabled={isAnyLoading || isPreparing || !supabase}
+            />
+          </label>
+          <label className="block space-y-1 text-left text-sm text-slate-300">
+            <span className="font-semibold text-slate-200">Contraseña</span>
+            <input
+              type="password"
+              autoComplete="current-password"
+              value={operationalPassword}
+              onChange={(event) => setOperationalPassword(event.target.value)}
+              className="w-full rounded-lg border border-slate-700 bg-slate-950/80 px-3 py-2 text-sm text-white focus:border-slate-500 focus:outline-none"
+              disabled={isAnyLoading || isPreparing || !supabase}
+            />
+          </label>
+          <button
+            type="submit"
+            disabled={isAnyLoading || isPreparing || !supabase}
+            className="w-full rounded-lg bg-primary-500 px-4 py-2 text-sm font-semibold text-white transition hover:bg-primary-400 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            {isLoadingPassword ? 'Entrando…' : 'Entrar'}
+          </button>
+          <p className="text-xs text-slate-400">
+            Se iniciará sesión como{' '}
+            <span className="font-semibold text-slate-300">
+              {'<usuario>@sikimempuriabrava.com'}
+            </span>
+            .
+          </p>
+          {passwordLoginError ? (
+            <p className="rounded-lg bg-red-900/40 px-3 py-2 text-sm text-red-100">{passwordLoginError}</p>
+          ) : null}
+        </form>
+      ) : null}
 
       <p className="text-xs text-slate-500">Serás redirigido a Google para completar el inicio de sesión.</p>
     </div>

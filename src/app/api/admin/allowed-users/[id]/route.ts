@@ -2,15 +2,9 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createSupabaseRouteHandlerClient, mergeResponseCookies } from '@/lib/supabase/route';
 import { createSupabaseAdminClient } from '@/lib/supabaseAdmin';
 import { getAllowlistRoleForUserEmail, isAdmin } from '@/lib/auth/requireRole';
+import { isValidAppRole } from '@/lib/auth/roles';
 
 export const runtime = 'nodejs';
-
-const VALID_ROLES = ['admin', 'staff', 'viewer'] as const;
-type Role = (typeof VALID_ROLES)[number];
-
-function isValidRole(value: unknown): value is Role {
-  return typeof value === 'string' && VALID_ROLES.includes(value as Role);
-}
 
 export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
   const supabaseResponse = NextResponse.next();
@@ -70,7 +64,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   }
 
   if (body?.role !== undefined) {
-    if (!isValidRole(body.role)) {
+    if (!isValidAppRole(body.role)) {
       const invalidRole = NextResponse.json({ error: 'Invalid role' }, { status: 400 });
       mergeResponseCookies(supabaseResponse, invalidRole);
       return invalidRole;
