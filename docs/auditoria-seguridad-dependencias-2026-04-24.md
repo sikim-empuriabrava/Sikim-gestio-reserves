@@ -114,3 +114,14 @@ npm ls @supabase/supabase-js @supabase/ssr
 - Prioridad alta: actualizar `next`/`eslint-config-next` a parche seguro dentro de 14.x en una PR dedicada y pequeña.
 - No mezclar esta PR con refactors funcionales ni cambios de Supabase.
 - Repetir `npm audit` en entorno con acceso al endpoint para obtener evidencia completa de cierre.
+
+## 7) Intento de PR mínima de seguridad (2026-04-24)
+- Se actualizaron en `package.json` los objetivos de versión:
+  - `next`: `14.2.35`
+  - `eslint-config-next`: `14.2.35`
+- La regeneración de `package-lock.json` quedó **bloqueada por red/política de registry**:
+  - `npm install next@14.2.35 eslint-config-next@14.2.35 --save-exact` devolvió `403 Forbidden` contra `registry.npmjs.org`.
+  - Intento sin proxy devolvió `ENETUNREACH`.
+- Con node_modules actuales (sin poder reinstalar), `npm ls` marca `invalid` porque siguen instaladas localmente las versiones antiguas (`14.2.14`).
+- `npm run lint` y `npm run build` se ejecutaron correctamente con el estado instalado actual; existen warnings previos no bloqueantes (`<img>` en lint y warnings Edge Runtime de Supabase durante build).
+- `npm audit --omit=dev` y `npm audit` continúan fallando por `403 Forbidden` al endpoint de advisories.
