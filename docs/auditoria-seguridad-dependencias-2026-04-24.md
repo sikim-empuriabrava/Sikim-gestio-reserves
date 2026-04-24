@@ -156,3 +156,35 @@ Resultado real observado en esta ejecución:
 - `npm audit --omit=dev` y `npm audit` → `403 Forbidden` en `POST /-/npm/v1/security/advisories/bulk`.
 
 Conclusión final: aunque la sesión se indicó como habilitada para npm registry, el entorno efectivo siguió bloqueando los accesos necesarios; no fue posible regenerar `package-lock.json` ni completar `npm ci` con versiones 14.2.35.
+
+## 10) Resolución manual en Codespaces (2026-04-24)
+
+Se completó la parte que Codex Cloud no pudo ejecutar por bloqueo de registry.
+
+Entorno usado:
+- Node: `v20.20.2`
+- npm: `10.8.2`
+- Rama: `codex/audit-security-vulnerabilities-in-dependencies`
+
+Resultado:
+- `npm install next@14.2.35 eslint-config-next@14.2.35 --package-lock-only --save-exact` completó correctamente.
+- `package-lock.json` quedó regenerado/alineado con:
+  - `next@14.2.35`
+  - `eslint-config-next@14.2.35`
+  - `react@18.3.1`
+  - `react-dom@18.3.1`
+
+Validaciones:
+- `npm ci`: OK.
+- `npm ls next eslint-config-next react react-dom`: OK.
+- `npm run lint`: OK, con warnings preexistentes de `<img>` en módulos Cheffing.
+- `npm run build`: OK.
+- `npm audit --omit=dev`: todavía reporta 6 vulnerabilidades:
+  - 5 moderate.
+  - 1 high.
+  - La vulnerabilidad crítica inicial ya no aparece.
+
+Nota:
+- No se ejecutó `npm audit fix`.
+- No se ejecutó `npm audit fix --force`.
+- Las vulnerabilidades restantes quedan fuera de esta PR mínima y deben tratarse en PRs separadas, especialmente porque `npm audit fix --force` propone subir a `next@16.2.4`, que es un cambio mayor.
