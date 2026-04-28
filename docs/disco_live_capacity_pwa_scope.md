@@ -11,7 +11,8 @@ Esto significa que **Sikim no se convierte en una PWA global** todavía; la inst
 - Manifest específico de Aforo (`Sikim Aforo`) servido como recurso real estático en:
   - `/disco/aforo-en-directo/manifest.webmanifest`
   - origen de archivo: `public/disco/aforo-en-directo/manifest.webmanifest`
-- `start_url` y `scope` limitados a `/disco/aforo-en-directo`.
+- `start_url` limitado a `/disco/aforo-en-directo`.
+- `scope` del manifest configurado como `/` para permitir el flujo instalado por `/login` y `/auth/callback`.
 - Modo de visualización `standalone`.
 - Iconos de instalación PWA servidos desde assets estáticos reales en `public/branding/`:
   - `/branding/sikim-app-icon-192.png` (192x192)
@@ -30,7 +31,7 @@ Esto significa que **Sikim no se convierte en una PWA global** todavía; la inst
   - `/branding/sikim-app-logo.png`
   - `/branding/sikim-app-logo.svg`
 - `/branding/` está exento de middleware/auth para que el favicon global cargue también en `/login` y páginas públicas.
-- La PWA se mantiene parcial y limitada a `/disco/aforo-en-directo` (manifest, service worker y CTA de instalación solo en Aforo).
+- La PWA se mantiene parcial y limitada operativamente a Aforo: `start_url`, middleware, cookie/allowed paths, comportamiento de ruta, Service Worker y CTA de instalación están acotados a este flujo.
 - La PWA no habilita modo invitado: si se abre instalada sin sesión activa, el usuario debe iniciar sesión y volver a `/disco/aforo-en-directo`.
 
 ## Aislamiento visual de standalone
@@ -56,10 +57,12 @@ Esto significa que **Sikim no se convierte en una PWA global** todavía; la inst
 ## Detalles técnicos de scope
 1. El manifest de Aforo define:
    - `start_url: /disco/aforo-en-directo`
-   - `scope: /disco/aforo-en-directo`
+   - `scope: /`
+   - El `scope` amplio permite que una PWA instalada pueda completar `/login` y `/auth/callback` sin salirse del contexto instalado.
 2. El Service Worker se registra con:
    - `scope: /disco/aforo-en-directo`
-3. El SW evita interceptar `POST` y llamadas `/api/*` para no afectar autenticación ni flujo de datos live.
+3. Middleware y cookie PWA restringen las rutas permitidas del contexto instalado a `/login`, `/auth/callback`, `/disco/aforo-en-directo` y APIs mínimas necesarias.
+4. El SW evita interceptar `POST` y llamadas `/api/*` para no afectar autenticación ni flujo de datos live.
 
 ## Limitación real a tener en cuenta
 Algunas plataformas (especialmente iOS Safari) aplican variaciones en cuándo muestran la opción de instalación y en cómo cachean recursos. El enfoque actual minimiza impacto global y mantiene el comportamiento operativo actual, pero la UX exacta de instalación puede variar según versión de SO/navegador.
