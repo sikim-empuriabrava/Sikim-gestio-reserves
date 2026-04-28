@@ -24,16 +24,16 @@ export function DataTableShell({
   return (
     <section
       className={cn(
-        'overflow-hidden rounded-2xl border border-slate-800/80 bg-slate-900/70 shadow-lg shadow-slate-950/20',
+        'overflow-hidden rounded-2xl border border-slate-700/70 bg-slate-900/70 shadow-[0_22px_52px_-38px_rgba(2,6,23,0.95)] ring-1 ring-white/[0.03]',
         className,
       )}
     >
       {title || description || toolbar ? (
-        <div className="space-y-4 border-b border-slate-800/70 p-4 md:p-5">
+        <div className="space-y-4 border-b border-slate-800/70 bg-slate-900/35 p-4 md:p-5">
           {title || description ? (
             <div className="space-y-1">
               {title ? <h2 className="text-base font-semibold text-white">{title}</h2> : null}
-              {description ? <p className="text-sm text-slate-400">{description}</p> : null}
+              {description ? <p className="text-sm text-slate-300">{description}</p> : null}
             </div>
           ) : null}
           {toolbar}
@@ -43,7 +43,7 @@ export function DataTableShell({
       <div className={cn('overflow-x-auto', tableClassName)}>{children}</div>
 
       {footer ? (
-        <div className="border-t border-slate-800/70 bg-slate-950/30 px-4 py-3 text-sm text-slate-400 md:px-5">
+        <div className="border-t border-slate-800/70 bg-slate-950/50 px-4 py-3 text-sm text-slate-400 md:px-5">
           {footer}
         </div>
       ) : null}

@@ -14,9 +14,10 @@ type SurfaceProps = HTMLAttributes<HTMLElement> & {
 };
 
 const toneClassName: Record<SurfaceTone, string> = {
-  panel: 'border-slate-800/80 bg-slate-900/70 shadow-lg shadow-slate-950/20',
-  inset: 'border-slate-800/70 bg-slate-950/50',
-  muted: 'border-slate-800/60 bg-slate-900/50',
+  panel:
+    'border-slate-700/70 bg-slate-900/70 shadow-[0_20px_48px_-36px_rgba(2,6,23,0.95)] ring-1 ring-white/[0.03]',
+  inset: 'border-slate-800/80 bg-slate-950/60 shadow-inner shadow-slate-950/30',
+  muted: 'border-slate-800/70 bg-slate-900/50 ring-1 ring-white/[0.02]',
 };
 
 const paddingClassName: Record<SurfacePadding, string> = {
@@ -37,7 +38,7 @@ export function Surface({
   return (
     <Component
       className={cn(
-        'rounded-2xl border backdrop-blur',
+        'rounded-2xl border backdrop-blur transition-colors duration-200',
         toneClassName[tone],
         paddingClassName[padding],
         className,

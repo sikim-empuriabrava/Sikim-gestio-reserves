@@ -1,8 +1,9 @@
 'use client';
 
 import Link from 'next/link';
-import { useSearchParams } from 'next/navigation';
+import { usePathname, useSearchParams } from 'next/navigation';
 
+import { cn } from '@/components/ui';
 import { mergeQueryString } from '@/lib/cheffing/url';
 
 const NAV_ITEMS = [
@@ -21,20 +22,31 @@ const NAV_ITEMS = [
 ] as const;
 
 export function CheffingNav() {
+  const pathname = usePathname();
   const searchParams = useSearchParams();
   const query = searchParams.toString();
 
   return (
-    <nav className="flex flex-wrap gap-2 text-sm font-semibold text-slate-200">
-      {NAV_ITEMS.map((item) => (
-        <Link
-          key={item.href}
-          href={mergeQueryString(item.href, query)}
-          className="rounded-full border border-slate-700 bg-slate-950/60 px-4 py-1 transition hover:border-slate-500 hover:text-white"
-        >
-          {item.label}
-        </Link>
-      ))}
+    <nav className="flex flex-wrap gap-2 text-sm font-semibold text-slate-200 lg:justify-end">
+      {NAV_ITEMS.map((item) => {
+        const isActive = item.href === '/cheffing' ? pathname === item.href : pathname.startsWith(item.href);
+
+        return (
+          <Link
+            key={item.href}
+            href={mergeQueryString(item.href, query)}
+            aria-current={isActive ? 'page' : undefined}
+            className={cn(
+              'rounded-full border px-4 py-2 shadow-sm shadow-slate-950/20 transition duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400/25 active:translate-y-px',
+              isActive
+                ? 'border-primary-400/60 bg-primary-500/15 text-primary-100'
+                : 'border-slate-700/80 bg-slate-950/50 text-slate-300 hover:border-slate-500 hover:bg-slate-900/70 hover:text-white',
+            )}
+          >
+            {item.label}
+          </Link>
+        );
+      })}
     </nav>
   );
 }

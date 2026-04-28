@@ -40,17 +40,22 @@ export function MetricCard({
   return (
     <article
       className={cn(
-        'rounded-2xl border border-slate-800/70 bg-slate-950/50 p-4 shadow-lg shadow-slate-950/20',
+        'group relative overflow-hidden rounded-2xl border border-slate-800/70 bg-slate-950/60 p-4 shadow-[0_18px_42px_-34px_rgba(2,6,23,0.95)] ring-1 ring-white/[0.03]',
+        'transition duration-200 hover:-translate-y-0.5 hover:border-slate-700/90 hover:bg-slate-900/70',
         className,
       )}
     >
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-x-4 top-0 h-px bg-gradient-to-r from-transparent via-white/15 to-transparent opacity-70"
+      />
       <div className="flex items-start justify-between gap-4">
         <div className="min-w-0">
           <p className="text-sm font-medium text-slate-400">{label}</p>
-          <div className="mt-2 text-2xl font-semibold tracking-normal text-white">{value}</div>
+          <div className="mt-2 text-2xl font-semibold tracking-normal text-white tabular-nums">{value}</div>
         </div>
         {icon ? (
-          <div className={cn('rounded-xl p-2.5 ring-1', toneClassName[tone])} aria-hidden="true">
+          <div className={cn('rounded-xl p-2.5 ring-1 transition-colors duration-200', toneClassName[tone])} aria-hidden="true">
             {icon}
           </div>
         ) : null}

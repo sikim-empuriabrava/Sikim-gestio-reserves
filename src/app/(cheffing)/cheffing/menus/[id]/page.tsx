@@ -1,5 +1,6 @@
 import Link from 'next/link';
 
+import { PageHeader, Surface } from '@/components/ui';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { requireCheffingAccess } from '@/lib/cheffing/requireCheffing';
 import { loadCheffingConsumerDishes } from '@/lib/cheffing/consumerQueries';
@@ -30,23 +31,24 @@ export default async function CheffingMenuDetailPage({ params }: { params: { id:
 
   if (!menu) {
     return (
-      <section className="space-y-4 rounded-2xl border border-slate-800/80 bg-slate-900/70 p-6">
-        <p className="text-sm text-slate-300">No se encontró el menú.</p>
-        <Link href="/cheffing/menus" className="text-sm text-emerald-300 underline">
+      <Surface className="space-y-3">
+        <p className="text-sm text-slate-300">No se encontro el menu.</p>
+        <Link href="/cheffing/menus" className="text-sm text-primary-200 underline">
           Volver al listado
         </Link>
-      </section>
+      </Surface>
     );
   }
 
   const typedMenu = menu as CheffingMenu;
 
   return (
-    <section className="space-y-6 rounded-2xl border border-slate-800/80 bg-slate-900/70 p-6">
-      <header className="space-y-2">
-        <h2 className="text-xl font-semibold text-white">Menú · {typedMenu.name}</h2>
-        <p className="text-sm text-slate-400">Editor por secciones con coste y margen por persona.</p>
-      </header>
+    <>
+      <PageHeader
+        eyebrow="Cheffing"
+        title={`Menú - ${typedMenu.name}`}
+        description="Editor por secciones con coste y margen por persona."
+      />
 
       <CheffingMenuEditor
         id={typedMenu.id}
@@ -59,6 +61,6 @@ export default async function CheffingMenuDetailPage({ params }: { params: { id:
         items={(items ?? []) as CheffingMenuItem[]}
         dishes={dishes}
       />
-    </section>
+    </>
   );
 }

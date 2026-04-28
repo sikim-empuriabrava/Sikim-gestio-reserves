@@ -1,5 +1,7 @@
 import Link from 'next/link';
+import { EyeIcon, PlusIcon } from '@heroicons/react/24/outline';
 
+import { DataTableShell, PageHeader, StatusBadge, cn } from '@/components/ui';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { requireCheffingAccess } from '@/lib/cheffing/requireCheffing';
 import {
@@ -9,6 +11,15 @@ import {
 import { loadCheffingConsumerDishes } from '@/lib/cheffing/consumerQueries';
 import { getMenuConservativeCostDiagnostics, getNetPriceFromGross } from '@/lib/cheffing/menuEconomics';
 import { normalizeMenuEngineeringVatRate } from '@/lib/cheffing/menuEngineeringVat';
+import {
+  CheffingEmptyState,
+  CheffingLinkButton,
+  CheffingTableActionLink,
+  cheffingNumericClassName,
+  cheffingRowClassName,
+  cheffingTableClassName,
+  cheffingTheadClassName,
+} from '@/app/(cheffing)/cheffing/components/CheffingUi';
 
 export default async function CheffingMenusPage() {
   await requireCheffingAccess();
@@ -40,8 +51,8 @@ export default async function CheffingMenusPage() {
   });
 
   const formatCurrency = (value: number | null | undefined) => {
-    if (value === null || value === undefined || Number.isNaN(value)) return '—';
-    return `${value.toFixed(2)} €`;
+    if (value === null || value === undefined || Number.isNaN(value)) return '-';
+    return `${value.toFixed(2)} \u20ac`;
   };
 
   const entries = (menus ?? []).map((menu) => {
@@ -49,7 +60,7 @@ export default async function CheffingMenusPage() {
     const costDiagnostics = getMenuConservativeCostDiagnostics(
       menuItems.map((item) => ({
         section_kind: (item.section_kind ?? 'starter') as 'starter' | 'main' | 'drink' | 'dessert',
-        lineName: dishById.get(item.dish_id)?.name ?? 'Línea sin plato/bebida',
+        lineName: dishById.get(item.dish_id)?.name ?? 'Linea sin plato/bebida',
         cost: getConsumerLineCost(dishById.get(item.dish_id)?.items_cost_total ?? null, item.multiplier),
       })),
     );
@@ -69,73 +80,81 @@ export default async function CheffingMenusPage() {
   });
 
   return (
-    <section className="space-y-6 rounded-2xl border border-slate-800/80 bg-slate-900/70 p-6">
-      <header className="space-y-2">
-        <h2 className="text-xl font-semibold text-white">Menús</h2>
-        <p className="text-sm text-slate-400">Consumidor por persona con coste total y margen conservador.</p>
-      </header>
+    <>
+      <PageHeader
+        eyebrow="Cheffing"
+        title="Menús"
+        description="Consumidor por persona con coste total y margen conservador."
+        actions={
+          <CheffingLinkButton href="/cheffing/menus/new" tone="success">
+            <PlusIcon className="h-4 w-4" aria-hidden="true" />
+            Nuevo menú
+          </CheffingLinkButton>
+        }
+      />
 
-      <div className="flex items-center justify-end">
-        <Link
-          href="/cheffing/menus/new"
-          className="rounded-full border border-emerald-400/60 bg-emerald-500/10 px-4 py-2 text-sm font-semibold text-emerald-200 transition hover:border-emerald-300 hover:text-emerald-100"
-        >
-          Nuevo menú
-        </Link>
-      </div>
-
-      <div className="overflow-x-auto rounded-2xl border border-slate-800/70">
-        <table className="w-full min-w-[980px] text-left text-sm text-slate-200">
-          <thead className="bg-slate-950/70 text-xs uppercase text-slate-400">
-            <tr>
-              <th className="px-4 py-3">Menú</th>
-              <th className="px-4 py-3">Estado</th>
-              <th className="px-4 py-3">Coste total</th>
-              <th className="px-4 py-3">Precio persona</th>
-              <th className="px-4 py-3">Margen persona</th>
-              <th className="px-4 py-3">Acciones</th>
+      <DataTableShell
+        title="Listado de menús"
+        description="Coste, precio por persona y margen calculado con criterio conservador."
+        footer={`${entries.length} menús`}
+      >
+        <table className={cn(cheffingTableClassName, 'min-w-[980px]')}>
+          <thead className={cheffingTheadClassName}>
+            <tr className="border-b border-slate-800/80">
+              <th className="w-[30%] px-4 py-3 font-semibold text-slate-300">Menú</th>
+              <th className="px-4 py-3 font-semibold text-slate-300">Estado</th>
+              <th className="px-4 py-3 font-semibold text-slate-300">Coste total</th>
+              <th className="px-4 py-3 font-semibold text-slate-300">Precio persona</th>
+              <th className="px-4 py-3 font-semibold text-slate-300">Margen persona</th>
+              <th className="px-4 py-3 text-right font-semibold text-slate-300">Acciones</th>
             </tr>
           </thead>
-          <tbody>
+          <tbody className="divide-y divide-slate-800/60 bg-slate-950/20">
             {entries.length === 0 ? (
-              <tr>
-                <td colSpan={6} className="px-4 py-6 text-center text-slate-500">
-                  No hay menús.
-                </td>
-              </tr>
+              <CheffingEmptyState colSpan={6} title="No hay menús." description="Crea un menú para calcular coste por persona." />
             ) : (
               entries.map((entry) => (
-                <tr key={entry.id} className="border-t border-slate-800/60">
-                  <td className="px-4 py-3">
+                <tr key={entry.id} className={cheffingRowClassName}>
+                  <td className="px-4 py-3 align-middle">
                     <Link
                       href={`/cheffing/menus/${entry.id}`}
-                      className="font-semibold text-white underline-offset-2 transition hover:text-emerald-200 hover:underline"
+                      className="font-semibold text-white underline-offset-4 transition hover:text-primary-100 hover:underline"
                     >
                       {entry.name}
                     </Link>
-                    {entry.notes ? <p className="text-xs text-slate-500">{entry.notes}</p> : null}
+                    {entry.notes ? <p className="mt-1 text-xs text-slate-500">{entry.notes}</p> : null}
                   </td>
-                  <td className="px-4 py-3">{entry.is_active ? 'Activo' : 'Inactivo'}</td>
-                  <td className="px-4 py-3">
+                  <td className="px-4 py-3 align-middle">
+                    <StatusBadge tone={entry.is_active ? 'success' : 'muted'}>
+                      {entry.is_active ? 'Activo' : 'Inactivo'}
+                    </StatusBadge>
+                  </td>
+                  <td className={cn('px-4 py-3 align-middle', cheffingNumericClassName)}>
                     <p>{formatCurrency(entry.total_cost)}</p>
-                    {entry.calculation_issue ? <p className="text-xs text-amber-300">{entry.calculation_issue}</p> : null}
+                    {entry.calculation_issue ? (
+                      <p className="mt-1 text-xs text-amber-300">{entry.calculation_issue}</p>
+                    ) : null}
                   </td>
-                  <td className="px-4 py-3">{formatCurrency(entry.price_per_person)}</td>
-                  <td className="px-4 py-3">{formatCurrency(entry.total_margin)}</td>
-                  <td className="px-4 py-3">
-                    <Link
-                      href={`/cheffing/menus/${entry.id}`}
-                      className="rounded-full border border-slate-600 px-3 py-1 text-xs font-semibold text-slate-200 transition hover:border-slate-400"
-                    >
-                      Ver detalle
-                    </Link>
+                  <td className={cn('px-4 py-3 align-middle', cheffingNumericClassName)}>
+                    {formatCurrency(entry.price_per_person)}
+                  </td>
+                  <td className={cn('px-4 py-3 align-middle', cheffingNumericClassName)}>
+                    {formatCurrency(entry.total_margin)}
+                  </td>
+                  <td className="px-4 py-3 align-middle">
+                    <div className="flex justify-end">
+                      <CheffingTableActionLink href={`/cheffing/menus/${entry.id}`}>
+                        <EyeIcon className="h-4 w-4" aria-hidden="true" />
+                        Ver detalle
+                      </CheffingTableActionLink>
+                    </div>
                   </td>
                 </tr>
               ))
             )}
           </tbody>
         </table>
-      </div>
-    </section>
+      </DataTableShell>
+    </>
   );
 }

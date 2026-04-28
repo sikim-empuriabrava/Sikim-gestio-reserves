@@ -23,7 +23,7 @@ export function StatusBadge({ children, tone = 'neutral', className, ...props }:
   return (
     <span
       className={cn(
-        'inline-flex items-center rounded-full border px-2.5 py-1 text-xs font-semibold leading-none',
+        'inline-flex items-center rounded-full border px-2.5 py-1 text-xs font-semibold leading-none shadow-sm shadow-slate-950/20',
         toneClassName[tone],
         className,
       )}

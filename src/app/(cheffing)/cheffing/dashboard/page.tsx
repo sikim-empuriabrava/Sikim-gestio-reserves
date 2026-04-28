@@ -1,5 +1,12 @@
 import Link from 'next/link';
+import {
+  ChartBarIcon,
+  ExclamationTriangleIcon,
+  RectangleStackIcon,
+  TagIcon,
+} from '@heroicons/react/24/outline';
 
+import { DataTableShell, MetricCard, MetricStrip, PageHeader, StatusBadge, cn } from '@/components/ui';
 import {
   getCheffingDashboardData,
   MAX_FOOD_COST_PCT,
@@ -8,6 +15,13 @@ import {
 import { normalizeMenuEngineeringVatRate } from '@/lib/cheffing/menuEngineeringVat';
 import { requireCheffingAccess } from '@/lib/cheffing/requireCheffing';
 import { mergeQueryString } from '@/lib/cheffing/url';
+import {
+  CheffingEmptyState,
+  cheffingNumericClassName,
+  cheffingRowClassName,
+  cheffingTableClassName,
+  cheffingTheadClassName,
+} from '@/app/(cheffing)/cheffing/components/CheffingUi';
 
 const currencyFormatter = new Intl.NumberFormat('es-ES', {
   style: 'currency',
@@ -26,24 +40,24 @@ const integerFormatter = new Intl.NumberFormat('es-ES');
 
 const formatCurrency = (value: number | null) => {
   if (value === null || Number.isNaN(value)) {
-    return '—';
+    return '-';
   }
   return currencyFormatter.format(value);
 };
 
 const formatPercent = (value: number | null) => {
   if (value === null || Number.isNaN(value)) {
-    return '—';
+    return '-';
   }
   return percentFormatter.format(value);
 };
 
-const badgeByCode = {
-  MISSING_PVP: 'border-rose-500/50 bg-rose-500/15 text-rose-100',
-  MISSING_COST: 'border-rose-500/50 bg-rose-500/15 text-rose-100',
-  LOSS: 'border-red-500/50 bg-red-500/15 text-red-100',
-  FOOD_COST_HIGH: 'border-amber-500/50 bg-amber-500/15 text-amber-100',
-  MARGIN_LOW: 'border-yellow-500/50 bg-yellow-500/15 text-yellow-100',
+const badgeToneByCode: Record<string, 'danger' | 'warning'> = {
+  MISSING_PVP: 'danger',
+  MISSING_COST: 'danger',
+  LOSS: 'danger',
+  FOOD_COST_HIGH: 'warning',
+  MARGIN_LOW: 'warning',
 } as const;
 
 function toPropagatedParams(
@@ -92,13 +106,12 @@ export default async function CheffingDashboardPage({
   });
 
   return (
-    <section className="space-y-6 rounded-2xl border border-slate-800/80 bg-slate-900/70 p-6">
-      <header className="space-y-2">
-        <h2 className="text-xl font-semibold text-white">Cheffing Dashboard + alertas v1</h2>
-        <p className="text-sm text-slate-400">
-          Panel de control operativo para detectar platos con datos incompletos o márgenes comprometidos.
-        </p>
-      </header>
+    <>
+      <PageHeader
+        eyebrow="Cheffing"
+        title="Dashboard"
+        description="Panel operativo para detectar platos con datos incompletos o márgenes comprometidos."
+      />
 
       {loadError || !dashboard ? (
         <div className="rounded-2xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-100">
@@ -106,74 +119,94 @@ export default async function CheffingDashboardPage({
         </div>
       ) : (
         <>
-          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-            <article className="rounded-2xl border border-slate-800/70 bg-slate-950/40 p-4">
-              <p className="text-xs uppercase tracking-wide text-slate-400">Total platos</p>
-              <p className="mt-2 text-2xl font-semibold text-white">{integerFormatter.format(dashboard.totalDishes)}</p>
-            </article>
-            <article className="rounded-2xl border border-slate-800/70 bg-slate-950/40 p-4">
-              <p className="text-xs uppercase tracking-wide text-slate-400">Platos sin PVP</p>
-              <p className="mt-2 text-2xl font-semibold text-rose-200">
-                {integerFormatter.format(dashboard.missingPvpCount)}
-              </p>
-            </article>
-            <article className="rounded-2xl border border-slate-800/70 bg-slate-950/40 p-4">
-              <p className="text-xs uppercase tracking-wide text-slate-400">Platos sin coste</p>
-              <p className="mt-2 text-2xl font-semibold text-rose-200">
-                {integerFormatter.format(dashboard.missingCostCount)}
-              </p>
-            </article>
-            <article className="rounded-2xl border border-slate-800/70 bg-slate-950/40 p-4">
-              <p className="text-xs uppercase tracking-wide text-slate-400">Platos en alerta</p>
-              <p className="mt-2 text-2xl font-semibold text-amber-100">
-                {integerFormatter.format(dashboard.alertDishesCount)}
-              </p>
-            </article>
-          </div>
+          <MetricStrip className="xl:grid-cols-[1fr_1fr_1fr_1.2fr]">
+            <MetricCard
+              label="Total platos"
+              value={integerFormatter.format(dashboard.totalDishes)}
+              description="Base analizada"
+              tone="violet"
+              icon={<RectangleStackIcon className="h-5 w-5" />}
+            />
+            <MetricCard
+              label="Sin PVP"
+              value={integerFormatter.format(dashboard.missingPvpCount)}
+              description="Requieren precio"
+              tone="rose"
+              icon={<TagIcon className="h-5 w-5" />}
+            />
+            <MetricCard
+              label="Sin coste"
+              value={integerFormatter.format(dashboard.missingCostCount)}
+              description="Escandallo incompleto"
+              tone="amber"
+              icon={<ChartBarIcon className="h-5 w-5" />}
+            />
+            <MetricCard
+              label="En alerta"
+              value={integerFormatter.format(dashboard.alertDishesCount)}
+              description="Revisar margen o coste"
+              tone="amber"
+              icon={<ExclamationTriangleIcon className="h-5 w-5" />}
+            />
+          </MetricStrip>
 
-          <div className="overflow-hidden rounded-2xl border border-slate-800/70">
-            <table className="min-w-full divide-y divide-slate-800 text-left text-sm text-slate-200">
-              <thead className="bg-slate-950/60 text-xs uppercase tracking-wide text-slate-400">
-                <tr>
-                  <th className="px-4 py-3">Plato</th>
-                  <th className="px-4 py-3">PVP</th>
-                  <th className="px-4 py-3">Coste/ración</th>
-                  <th className="px-4 py-3">Food cost %</th>
-                  <th className="px-4 py-3">Margen unitario</th>
-                  <th className="px-4 py-3">Alertas</th>
+          <DataTableShell
+            title="Alertas de platos"
+            description="PVP, coste por ración, food cost y margen unitario con reglas v1."
+            footer={
+              <span>
+                Config v1: IVA {percentFormatter.format(dashboard.vatRate)}, food cost alto &gt;{' '}
+                {percentFormatter.format(MAX_FOOD_COST_PCT)}, margen % bajo &lt; {percentFormatter.format(MIN_MARGIN_PCT)}.
+              </span>
+            }
+          >
+            <table className={cn(cheffingTableClassName, 'min-w-[1000px]')}>
+              <thead className={cheffingTheadClassName}>
+                <tr className="border-b border-slate-800/80">
+                  <th className="w-[28%] px-4 py-3 font-semibold text-slate-300">Plato</th>
+                  <th className="px-4 py-3 font-semibold text-slate-300">PVP</th>
+                  <th className="px-4 py-3 font-semibold text-slate-300">Coste/ración</th>
+                  <th className="px-4 py-3 font-semibold text-slate-300">Food cost %</th>
+                  <th className="px-4 py-3 font-semibold text-slate-300">Margen unitario</th>
+                  <th className="px-4 py-3 font-semibold text-slate-300">Alertas</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-800 bg-slate-900/40">
+              <tbody className="divide-y divide-slate-800/60 bg-slate-950/20">
                 {dashboard.alertRows.length === 0 ? (
-                  <tr>
-                    <td colSpan={6} className="px-4 py-6 text-center text-sm text-slate-400">
-                      No hay alertas activas con las reglas actuales.
-                    </td>
-                  </tr>
+                  <CheffingEmptyState
+                    colSpan={6}
+                    title="No hay alertas activas con las reglas actuales."
+                    description="Los platos analizados no superan los umbrales configurados."
+                  />
                 ) : (
                   dashboard.alertRows.map((row) => (
-                    <tr key={row.id}>
-                      <td className="px-4 py-3 font-medium text-slate-100">
+                    <tr key={row.id} className={cheffingRowClassName}>
+                      <td className="px-4 py-3 align-middle font-medium text-slate-100">
                         <Link
-                          className="hover:text-white hover:underline"
+                          className="underline-offset-4 transition hover:text-primary-100 hover:underline"
                           href={mergeQueryString(`/cheffing/platos/${row.id}`, propagatedParams.toString())}
                         >
                           {row.name}
                         </Link>
                       </td>
-                      <td className="px-4 py-3">{formatCurrency(row.selling_price)}</td>
-                      <td className="px-4 py-3">{formatCurrency(row.cost_per_serving)}</td>
-                      <td className="px-4 py-3">{formatPercent(row.food_cost_pct)}</td>
-                      <td className="px-4 py-3">{formatCurrency(row.margin_unit)}</td>
-                      <td className="px-4 py-3">
+                      <td className={cn('px-4 py-3 align-middle', cheffingNumericClassName)}>
+                        {formatCurrency(row.selling_price)}
+                      </td>
+                      <td className={cn('px-4 py-3 align-middle', cheffingNumericClassName)}>
+                        {formatCurrency(row.cost_per_serving)}
+                      </td>
+                      <td className={cn('px-4 py-3 align-middle', cheffingNumericClassName)}>
+                        {formatPercent(row.food_cost_pct)}
+                      </td>
+                      <td className={cn('px-4 py-3 align-middle', cheffingNumericClassName)}>
+                        {formatCurrency(row.margin_unit)}
+                      </td>
+                      <td className="px-4 py-3 align-middle">
                         <div className="flex flex-wrap gap-2">
                           {row.alerts.map((alert) => (
-                            <span
-                              key={alert.code}
-                              className={`rounded-full border px-2.5 py-1 text-xs font-semibold ${badgeByCode[alert.code]}`}
-                            >
+                            <StatusBadge key={alert.code} tone={badgeToneByCode[alert.code] ?? 'warning'}>
                               {alert.label}
-                            </span>
+                            </StatusBadge>
                           ))}
                         </div>
                       </td>
@@ -182,14 +215,9 @@ export default async function CheffingDashboardPage({
                 )}
               </tbody>
             </table>
-          </div>
-
-          <p className="text-xs text-slate-400">
-            Config v1: IVA {percentFormatter.format(dashboard.vatRate)}, food cost alto &gt;{' '}
-            {percentFormatter.format(MAX_FOOD_COST_PCT)}, margen % bajo &lt; {percentFormatter.format(MIN_MARGIN_PCT)}.
-          </p>
+          </DataTableShell>
         </>
       )}
-    </section>
+    </>
   );
 }

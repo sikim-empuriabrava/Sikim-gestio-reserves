@@ -45,18 +45,22 @@ export default async function CheffingLayout({ children }: { children: React.Rea
 
   return (
     <CheffingToastProvider>
-      <div className="mx-auto flex min-h-screen max-w-7xl flex-col gap-6 px-4 py-6 lg:px-0 lg:py-8">
-        <header className="rounded-2xl border border-slate-800/80 bg-slate-950/70 px-6 py-5 shadow-lg shadow-slate-950/25">
-          <div className="flex flex-col gap-5 md:flex-row md:items-center md:justify-between">
-            <div className="space-y-2">
+      <div className="mx-auto flex min-h-screen max-w-[1520px] flex-col gap-5 px-4 py-5 sm:px-5 lg:px-6 xl:px-8">
+        <header className="relative overflow-hidden rounded-2xl border border-slate-700/70 bg-gradient-to-br from-slate-950/90 via-slate-950/75 to-slate-900/70 px-5 py-5 shadow-[0_24px_60px_-42px_rgba(2,6,23,0.95)] ring-1 ring-white/[0.03] md:px-6">
+          <div
+            aria-hidden="true"
+            className="pointer-events-none absolute inset-x-6 top-0 h-px bg-gradient-to-r from-transparent via-primary-300/45 to-transparent"
+          />
+          <div className="relative flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
+            <div className="min-w-[12rem] space-y-2">
               <Link
                 href={backToAppHref}
-                className="inline-flex items-center rounded-full border border-slate-700 bg-slate-950/60 px-3 py-1 text-xs font-semibold text-slate-200 transition hover:border-slate-500 hover:text-white"
+                className="inline-flex items-center rounded-full border border-slate-700/80 bg-slate-950/60 px-3 py-1 text-xs font-semibold text-slate-200 shadow-sm shadow-slate-950/20 transition duration-150 hover:border-slate-500 hover:bg-slate-900/70 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400/25 active:translate-y-px"
               >
-                ← Volver a la app
+                &larr; Volver a la app
               </Link>
-              <h1 className="text-2xl font-bold text-white">Cheffing</h1>
-              <p className="text-sm text-slate-400">Gestión de cocina y escandallos</p>
+              <h1 className="text-2xl font-semibold text-white">Cheffing</h1>
+              <p className="max-w-[13rem] text-sm leading-6 text-slate-300">Gestión de cocina y escandallos</p>
             </div>
             <CheffingNav />
           </div>

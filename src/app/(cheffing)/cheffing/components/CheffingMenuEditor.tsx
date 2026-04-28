@@ -335,7 +335,8 @@ export function CheffingMenuEditor({
 
   return (
     <div className="space-y-6">
-      <form onSubmit={saveHeader} className="space-y-4 rounded-2xl border border-slate-800/70 bg-slate-950/50 p-4">
+      <form onSubmit={saveHeader} className="relative space-y-4 overflow-hidden rounded-2xl border border-slate-700/70 bg-slate-950/60 p-4 shadow-[0_18px_42px_-34px_rgba(2,6,23,0.95)] ring-1 ring-white/[0.03]">
+        <div aria-hidden="true" className="pointer-events-none absolute inset-x-4 top-0 h-px bg-gradient-to-r from-transparent via-white/15 to-transparent" />
         <div className="grid gap-4 md:grid-cols-2">
           <label className="space-y-1 text-sm text-slate-300">
             <span>Nombre</span>
@@ -343,7 +344,7 @@ export function CheffingMenuEditor({
               required
               value={headerState.name}
               onChange={(event) => setHeaderState((prev) => ({ ...prev, name: event.target.value }))}
-              className="w-full rounded-md border border-slate-700 bg-slate-950/70 px-3 py-2 text-white"
+              className="h-10 w-full rounded-xl border border-slate-700/80 bg-slate-950/75 px-3 text-sm text-white outline-none transition-colors hover:border-slate-600 focus:border-primary-400/70 focus:ring-2 focus:ring-primary-500/20"
             />
           </label>
           <label className="space-y-1 text-sm text-slate-300">
@@ -352,7 +353,7 @@ export function CheffingMenuEditor({
               value={headerState.price_per_person}
               onChange={(event) => setHeaderState((prev) => ({ ...prev, price_per_person: event.target.value }))}
               placeholder="Ej: 35.50"
-              className="w-full rounded-md border border-slate-700 bg-slate-950/70 px-3 py-2 text-white"
+              className="h-10 w-full rounded-xl border border-slate-700/80 bg-slate-950/75 px-3 text-sm text-white outline-none transition-colors hover:border-slate-600 focus:border-primary-400/70 focus:ring-2 focus:ring-primary-500/20"
             />
           </label>
           <label className="space-y-1 text-sm text-slate-300 md:col-span-2">
@@ -361,7 +362,7 @@ export function CheffingMenuEditor({
               value={headerState.notes}
               onChange={(event) => setHeaderState((prev) => ({ ...prev, notes: event.target.value }))}
               rows={3}
-              className="w-full rounded-md border border-slate-700 bg-slate-950/70 px-3 py-2 text-white"
+              className="w-full rounded-xl border border-slate-700/80 bg-slate-950/75 px-3 py-2 text-sm text-white outline-none transition-colors hover:border-slate-600 focus:border-primary-400/70 focus:ring-2 focus:ring-primary-500/20"
             />
           </label>
           <label className="inline-flex items-center gap-2 text-sm text-slate-300">
@@ -374,7 +375,7 @@ export function CheffingMenuEditor({
           </label>
         </div>
 
-        <div className="grid gap-2 rounded-xl border border-slate-800/70 bg-slate-950/70 p-3 text-sm text-slate-200 md:grid-cols-3">
+        <div className="grid gap-2 rounded-xl border border-slate-700/70 bg-slate-950/70 p-3 text-sm text-slate-200 shadow-inner shadow-slate-950/30 md:grid-cols-3">
           <p>Coste total por persona: <strong>{formatCurrency(totalDiagnostics.total)}</strong></p>
           <p>Precio por persona: <strong>{formatCurrency(menuPrice)}</strong></p>
           <p>Precio sin IVA: <strong>{formatCurrency(netMenuPrice)}</strong></p>
@@ -388,7 +389,7 @@ export function CheffingMenuEditor({
         <button
           type="submit"
           disabled={isSubmitting}
-          className="rounded-full border border-emerald-400/60 bg-emerald-500/10 px-4 py-2 text-sm font-semibold text-emerald-200 transition hover:border-emerald-300 hover:text-emerald-100 disabled:opacity-60"
+          className="inline-flex h-10 items-center rounded-xl border border-emerald-400/50 bg-emerald-500/10 px-4 text-sm font-semibold text-emerald-100 shadow-lg shadow-slate-950/20 transition hover:border-emerald-300 hover:bg-emerald-500/20 active:translate-y-px disabled:opacity-60"
         >
           {isSubmitting ? (submittingAction ?? 'Guardando...') : id ? 'Guardar cambios del menú' : 'Crear menú'}
         </button>
@@ -402,15 +403,15 @@ export function CheffingMenuEditor({
         const filteredDishes = filteredDishesBySection.get(section.kind) ?? [];
 
         return (
-          <div key={section.kind} className="space-y-3 rounded-2xl border border-slate-800/70 bg-slate-950/50 p-4">
+          <div key={section.kind} className="space-y-3 rounded-2xl border border-slate-700/70 bg-slate-900/70 p-4 shadow-[0_18px_42px_-34px_rgba(2,6,23,0.95)] ring-1 ring-white/[0.03]">
             <div className="flex items-center justify-between gap-2">
               <h3 className="text-base font-semibold text-white">{section.label}</h3>
               <span className="text-xs text-slate-500">{sectionLines.length} líneas</span>
             </div>
 
-            <div className="overflow-x-auto rounded-xl border border-slate-800/70">
+            <div className="overflow-x-auto rounded-xl border border-slate-800/80 bg-slate-950/20">
               <table className="w-full min-w-[820px] text-left text-sm text-slate-200">
-                <thead className="bg-slate-950/70 text-xs uppercase text-slate-400">
+                <thead className="bg-slate-950/80 text-[11px] uppercase tracking-wide text-slate-400">
                   <tr>
                     <th className="px-3 py-2">Item</th>
                     <th className="px-3 py-2">Familia</th>
@@ -430,7 +431,7 @@ export function CheffingMenuEditor({
                     </tr>
                   ) : (
                     sectionLines.map((line) => (
-                      <tr key={line.id} className={`border-t border-slate-800/70 ${line.lineCost === null ? 'bg-amber-500/5' : ''}`}>
+                      <tr key={line.id} className={`border-t border-slate-800/70 transition-colors hover:bg-slate-800/35 ${line.lineCost === null ? 'bg-amber-500/5' : ''}`}>
                         <td className="px-3 py-2 font-medium text-white">
                           {line.dish ? (
                             <Link
@@ -448,14 +449,14 @@ export function CheffingMenuEditor({
                           <input
                             value={draftMultiplierByItemId[line.id] ?? String(line.multiplier)}
                             onChange={(event) => setDraftMultiplierByItemId((prev) => ({ ...prev, [line.id]: event.target.value }))}
-                            className="w-24 rounded-md border border-slate-700 bg-slate-950/70 px-2 py-1 text-white"
+                            className="h-9 w-24 rounded-lg border border-slate-700/80 bg-slate-950/75 px-2 text-sm text-white outline-none transition-colors hover:border-slate-600 focus:border-primary-400/70 focus:ring-2 focus:ring-primary-500/20"
                           />
                         </td>
                         <td className="px-3 py-2">
                           <input
                             value={draftSortByItemId[line.id] ?? String(line.sort_order)}
                             onChange={(event) => setDraftSortByItemId((prev) => ({ ...prev, [line.id]: event.target.value }))}
-                            className="w-20 rounded-md border border-slate-700 bg-slate-950/70 px-2 py-1 text-white"
+                            className="h-9 w-20 rounded-lg border border-slate-700/80 bg-slate-950/75 px-2 text-sm text-white outline-none transition-colors hover:border-slate-600 focus:border-primary-400/70 focus:ring-2 focus:ring-primary-500/20"
                           />
                         </td>
                         <td className="px-3 py-2">{formatCurrency(line.lineCost)}</td>
@@ -464,14 +465,14 @@ export function CheffingMenuEditor({
                         </td>
                         <td className="px-3 py-2">
                           <div className="flex gap-2">
-                            <button type="button" onClick={() => saveItem(line)} disabled={isSubmitting} className="rounded-full border border-slate-600 px-3 py-1 text-xs disabled:opacity-60">
+                            <button type="button" onClick={() => saveItem(line)} disabled={isSubmitting} className="inline-flex h-8 items-center rounded-lg border border-slate-700/80 bg-slate-950/50 px-2.5 text-xs font-semibold text-slate-200 transition hover:border-slate-500 hover:bg-slate-900/70 hover:text-white active:translate-y-px disabled:opacity-60">
                               {isSubmitting ? 'Guardando...' : 'Guardar'}
                             </button>
                             <button
                               type="button"
                               onClick={() => removeItem(line.id)}
                               disabled={isSubmitting}
-                              className="rounded-full border border-rose-500/50 px-3 py-1 text-xs text-rose-200 disabled:opacity-60"
+                              className="inline-flex h-8 items-center rounded-lg border border-rose-500/50 bg-rose-500/10 px-2.5 text-xs font-semibold text-rose-200 transition hover:border-rose-400 hover:bg-rose-500/15 active:translate-y-px disabled:opacity-60"
                             >
                               {isSubmitting ? 'Eliminando...' : 'Eliminar'}
                             </button>
@@ -508,13 +509,13 @@ export function CheffingMenuEditor({
                 <button
                   type="button"
                   onClick={() => setOpenSection((prev) => (prev === section.kind ? null : section.kind))}
-                  className="rounded-full border border-slate-600 px-3 py-1 text-xs text-slate-200"
+                className="inline-flex h-8 items-center rounded-lg border border-slate-700/80 bg-slate-950/50 px-2.5 text-xs font-semibold text-slate-200 transition hover:border-slate-500 hover:bg-slate-900/70 hover:text-white active:translate-y-px"
                 >
                   {openSection === section.kind ? 'Cerrar añadir ítems' : 'Añadir ítems'}
                 </button>
 
                 {openSection === section.kind ? (
-                  <div className="space-y-3 rounded-xl border border-slate-800/70 bg-slate-950/70 p-3">
+                  <div className="space-y-3 rounded-xl border border-slate-800/70 bg-slate-950/70 p-3 shadow-inner shadow-slate-950/30">
                     <div className="flex flex-wrap items-center justify-between gap-3">
                       <p className="text-sm text-slate-300">Añadir línea a {section.label.toLowerCase()}</p>
                       <input
@@ -522,14 +523,14 @@ export function CheffingMenuEditor({
                         value={searchBySection[section.kind]}
                         onChange={(event) => setSearchBySection((prev) => ({ ...prev, [section.kind]: event.target.value }))}
                         placeholder="Buscar por nombre"
-                        className="w-full max-w-xs rounded-md border border-slate-700 bg-slate-950/70 px-3 py-2 text-sm text-white"
+                        className="h-10 w-full max-w-xs rounded-xl border border-slate-700/80 bg-slate-950/75 px-3 text-sm text-white outline-none transition-colors hover:border-slate-600 focus:border-primary-400/70 focus:ring-2 focus:ring-primary-500/20"
                       />
                     </div>
-                    <ul className="max-h-[260px] divide-y divide-slate-800/70 overflow-y-auto rounded-xl border border-slate-800/70">
+                    <ul className="max-h-[260px] divide-y divide-slate-800/70 overflow-y-auto rounded-xl border border-slate-800/70 bg-slate-950/25">
                       {filteredDishes.map((dish) => {
                         const draftKey = `${section.kind}:${dish.id}`;
                         return (
-                          <li key={dish.id} className="flex items-center justify-between gap-3 px-3 py-2">
+                          <li key={dish.id} className="flex items-center justify-between gap-3 px-3 py-2 transition-colors hover:bg-slate-800/35">
                             <div>
                               <p className="font-semibold text-white">{dish.name}</p>
                               <p className="text-xs text-slate-500">{dish.family_name ?? 'Sin familia'}</p>
@@ -540,14 +541,14 @@ export function CheffingMenuEditor({
                                 onChange={(event) =>
                                   setDraftMultiplierByDishAndSection((prev) => ({ ...prev, [draftKey]: event.target.value }))
                                 }
-                                className="w-20 rounded-md border border-slate-700 bg-slate-950/70 px-2 py-1 text-white"
+                                className="h-9 w-20 rounded-lg border border-slate-700/80 bg-slate-950/75 px-2 text-sm text-white outline-none transition-colors hover:border-slate-600 focus:border-primary-400/70 focus:ring-2 focus:ring-primary-500/20"
                                 aria-label={`Multiplicador ${dish.name}`}
                               />
                               <button
                                 type="button"
                                 onClick={() => addItem(dish.id, section.kind)}
                                 disabled={isSubmitting}
-                                className="rounded-full border border-slate-600 px-3 py-1 text-xs disabled:opacity-60"
+                                className="inline-flex h-8 items-center rounded-lg border border-slate-700/80 bg-slate-950/50 px-2.5 text-xs font-semibold text-slate-200 transition hover:border-slate-500 hover:bg-slate-900/70 hover:text-white active:translate-y-px disabled:opacity-60"
                               >
                                 {isSubmitting ? 'Añadiendo...' : 'Añadir'}
                               </button>

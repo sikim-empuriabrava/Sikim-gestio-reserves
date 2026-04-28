@@ -1,3 +1,4 @@
+import { PageHeader } from '@/components/ui';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { requireCheffingAccess } from '@/lib/cheffing/requireCheffing';
 
@@ -27,13 +28,14 @@ export default async function CheffingComprasPage() {
   }
 
   return (
-    <section className="space-y-6 rounded-2xl border border-slate-800/80 bg-slate-900/70 p-6">
-      <header className="space-y-2">
-        <h2 className="text-xl font-semibold text-white">Compras</h2>
-        <p className="text-sm text-slate-400">Documentos de compra en flujo draft revisable, con entrada manual y pase inicial OCR.</p>
-      </header>
+    <>
+      <PageHeader
+        eyebrow="Cheffing"
+        title="Compras"
+        description="Documentos de compra en flujo draft revisable, con entrada manual y pase inicial OCR."
+      />
 
       <ProcurementDocumentsManager initialDocuments={documents ?? []} suppliers={suppliers ?? []} />
-    </section>
+    </>
   );
 }

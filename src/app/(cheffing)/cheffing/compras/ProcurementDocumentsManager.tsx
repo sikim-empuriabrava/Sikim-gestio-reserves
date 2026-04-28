@@ -310,22 +310,23 @@ export function ProcurementDocumentsManager({
 
   return (
     <div className="space-y-6">
-      <div className="space-y-3 rounded-xl border border-slate-800 bg-slate-950/40 p-4">
+      <div className="relative space-y-3 overflow-hidden rounded-2xl border border-slate-700/70 bg-slate-950/60 p-4 shadow-[0_18px_42px_-34px_rgba(2,6,23,0.95)] ring-1 ring-white/[0.03]">
+        <div aria-hidden="true" className="pointer-events-none absolute inset-x-4 top-0 h-px bg-gradient-to-r from-transparent via-white/15 to-transparent" />
         <h3 className="text-sm font-semibold text-white">Nuevo documento manual</h3>
         <div className="grid gap-3 md:grid-cols-4">
-          <select value={form.document_kind} onChange={(event) => setForm({ ...form, document_kind: event.target.value as ProcurementDocumentKind })} className="rounded-md border border-slate-700 bg-slate-950/70 px-3 py-2 text-white">
+          <select value={form.document_kind} onChange={(event) => setForm({ ...form, document_kind: event.target.value as ProcurementDocumentKind })} className="h-10 rounded-xl border border-slate-700/80 bg-slate-950/75 px-3 text-sm text-white outline-none transition-colors hover:border-slate-600 focus:border-primary-400/70 focus:ring-2 focus:ring-primary-500/20">
             <option value="invoice">Factura</option>
             <option value="delivery_note">Albarán</option>
             <option value="other">Otro</option>
           </select>
-          <input value={form.document_number} onChange={(event) => setForm({ ...form, document_number: event.target.value })} placeholder="Número" className="rounded-md border border-slate-700 bg-slate-950/70 px-3 py-2 text-white" />
-          <input type="date" value={form.document_date} onChange={(event) => setForm({ ...form, document_date: event.target.value })} className="rounded-md border border-slate-700 bg-slate-950/70 px-3 py-2 text-white" />
-          <select value={form.supplier_id} onChange={(event) => setForm({ ...form, supplier_id: event.target.value })} className="rounded-md border border-slate-700 bg-slate-950/70 px-3 py-2 text-white">
+          <input value={form.document_number} onChange={(event) => setForm({ ...form, document_number: event.target.value })} placeholder="Número" className="h-10 rounded-xl border border-slate-700/80 bg-slate-950/75 px-3 text-sm text-white outline-none transition-colors placeholder:text-slate-500 hover:border-slate-600 focus:border-primary-400/70 focus:ring-2 focus:ring-primary-500/20" />
+          <input type="date" value={form.document_date} onChange={(event) => setForm({ ...form, document_date: event.target.value })} className="h-10 rounded-xl border border-slate-700/80 bg-slate-950/75 px-3 text-sm text-white outline-none transition-colors hover:border-slate-600 focus:border-primary-400/70 focus:ring-2 focus:ring-primary-500/20" />
+          <select value={form.supplier_id} onChange={(event) => setForm({ ...form, supplier_id: event.target.value })} className="h-10 rounded-xl border border-slate-700/80 bg-slate-950/75 px-3 text-sm text-white outline-none transition-colors hover:border-slate-600 focus:border-primary-400/70 focus:ring-2 focus:ring-primary-500/20">
             <option value="">Sense proveïdor</option>
             {suppliers.map((supplier) => <option key={supplier.id} value={supplier.id}>{supplier.trade_name}</option>)}
           </select>
         </div>
-        <button type="button" onClick={createDocument} disabled={isSubmitting} className="rounded-full border border-emerald-400/60 px-4 py-2 text-sm font-semibold text-emerald-200">Crear documento</button>
+        <button type="button" onClick={createDocument} disabled={isSubmitting} className="inline-flex h-10 items-center rounded-xl border border-emerald-400/50 bg-emerald-500/10 px-4 text-sm font-semibold text-emerald-100 shadow-lg shadow-slate-950/20 transition hover:border-emerald-300 hover:bg-emerald-500/20 active:translate-y-px disabled:cursor-not-allowed disabled:opacity-50">Crear documento</button>
         {manualError ? <p className="text-sm text-rose-400">{manualError}</p> : null}
       </div>
 
@@ -334,7 +335,7 @@ export function ProcurementDocumentsManager({
         completionMessage="Lote finalizado. Se refresca la bandeja de Compras para mostrar nuevos borradores sin redirigir al detalle."
       />
 
-      <div className="space-y-3 rounded-xl border border-slate-800/70 bg-slate-950/40 p-3">
+      <div className="space-y-3 overflow-hidden rounded-2xl border border-slate-700/70 bg-slate-900/70 p-4 shadow-[0_22px_52px_-38px_rgba(2,6,23,0.95)] ring-1 ring-white/[0.03]">
         <div className="flex flex-wrap gap-2">
           {([
             { id: 'draft', label: 'Borradores' },
@@ -348,20 +349,20 @@ export function ProcurementDocumentsManager({
                 key={tab.id}
                 type="button"
                 onClick={() => setActiveTab(tab.id)}
-                className={`inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-semibold transition ${
-                  isActive ? 'border-emerald-400/70 bg-emerald-500/15 text-emerald-100' : 'border-slate-700 bg-slate-900/70 text-slate-300 hover:border-slate-500'
+                className={`inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-semibold shadow-sm shadow-slate-950/20 transition active:translate-y-px ${
+                  isActive ? 'border-primary-400/60 bg-primary-500/15 text-primary-100' : 'border-slate-700 bg-slate-950/50 text-slate-300 hover:border-slate-500 hover:bg-slate-900/80'
                 }`}
               >
                 <span>{tab.label}</span>
-                <span className="rounded-full bg-black/30 px-2 py-0.5 text-[11px]">{count}</span>
+                <span className="rounded-full bg-slate-950/60 px-2 py-0.5 text-[11px]">{count}</span>
               </button>
             );
           })}
         </div>
 
-        <div className="overflow-x-auto rounded-xl border border-slate-800/80">
+        <div className="overflow-x-auto rounded-xl border border-slate-800/80 bg-slate-950/20">
           <table className="w-full min-w-[1280px] text-left text-sm text-slate-200">
-            <thead className="bg-slate-950/70 text-xs uppercase text-slate-400">
+            <thead className="bg-slate-950/80 text-[11px] uppercase tracking-wide text-slate-400">
               <tr>
                 <th className="px-4 py-3">Estado DB</th>
                 <th className="px-4 py-3">Estado operativo</th>
@@ -391,7 +392,7 @@ export function ProcurementDocumentsManager({
                 const possibleDuplicateSignal = resolvePossibleDuplicateSignal(document);
 
                 return (
-                  <tr key={document.id} className="border-t border-slate-800/60 align-top">
+                  <tr key={document.id} className="border-t border-slate-800/60 align-top transition-colors hover:bg-slate-800/35">
                     <td className="px-4 py-3">
                       <span className={`inline-flex rounded-full border px-2 py-1 text-xs font-medium ${statusBadgeClasses(document.status)}`}>
                         {documentStatusLabel(document.status)}
@@ -431,10 +432,10 @@ export function ProcurementDocumentsManager({
                     <td className="px-4 py-3">{formatCurrency(declaredTotal)}</td>
                     <td className="px-4 py-3">
                       <div className="flex flex-wrap items-center gap-2">
-                        <Link href={`/cheffing/compras/${document.id}`} className="rounded-full border border-slate-700 px-3 py-1 text-xs">Ver detalle</Link>
-                        {document.status === 'draft' ? <button type="button" onClick={() => discardDocument(document.id)} className="rounded-full border border-rose-500/50 px-3 py-1 text-xs text-rose-200">Descartar</button> : null}
-                        {document.status === 'discarded' ? <button type="button" onClick={() => recoverDocument(document.id)} className="rounded-full border border-emerald-500/50 px-3 py-1 text-xs text-emerald-200">Recuperar</button> : null}
-                        {document.status !== 'applied' ? <button type="button" onClick={() => deleteDocumentPermanently(document.id)} className="rounded-full border border-rose-500/60 px-3 py-1 text-xs text-rose-200">Eliminar definitivo</button> : null}
+                        <Link href={`/cheffing/compras/${document.id}`} className="inline-flex h-8 items-center rounded-lg border border-slate-700/80 bg-slate-950/50 px-2.5 text-xs font-semibold text-slate-200 transition hover:border-slate-500 hover:bg-slate-900/70 hover:text-white active:translate-y-px">Ver detalle</Link>
+                        {document.status === 'draft' ? <button type="button" onClick={() => discardDocument(document.id)} className="inline-flex h-8 items-center rounded-lg border border-rose-500/50 bg-rose-500/10 px-2.5 text-xs font-semibold text-rose-200 transition hover:border-rose-400 hover:bg-rose-500/15 active:translate-y-px">Descartar</button> : null}
+                        {document.status === 'discarded' ? <button type="button" onClick={() => recoverDocument(document.id)} className="inline-flex h-8 items-center rounded-lg border border-emerald-500/50 bg-emerald-500/10 px-2.5 text-xs font-semibold text-emerald-200 transition hover:border-emerald-400 hover:bg-emerald-500/20 active:translate-y-px">Recuperar</button> : null}
+                        {document.status !== 'applied' ? <button type="button" onClick={() => deleteDocumentPermanently(document.id)} className="inline-flex h-8 items-center rounded-lg border border-rose-500/60 bg-rose-500/10 px-2.5 text-xs font-semibold text-rose-200 transition hover:border-rose-400 hover:bg-rose-500/15 active:translate-y-px">Eliminar definitivo</button> : null}
                       </div>
                     </td>
                   </tr>
