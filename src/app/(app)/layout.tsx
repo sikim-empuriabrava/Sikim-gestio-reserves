@@ -31,7 +31,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   const allowedUser = allowlistInfo.allowedUser;
 
   return (
-    <div className="aforo-standalone-shell mx-auto flex min-h-screen max-w-6xl gap-6 px-4 py-8 lg:px-0">
+    <div className="aforo-standalone-shell mx-auto flex min-h-screen max-w-6xl gap-6 px-4 py-6 lg:px-0 lg:py-8">
       <aside className="aforo-standalone-chrome hidden w-64 shrink-0 lg:block">
         <div className="sticky top-8">
           <AppSidebar allowedUser={allowedUser} />
@@ -39,16 +39,12 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       </aside>
 
       <div className="flex w-full flex-col gap-6">
-        <header className="aforo-standalone-chrome flex flex-col gap-3 rounded-2xl border border-slate-800/80 bg-slate-900/70 px-4 py-4 shadow-lg shadow-slate-900/30">
+        <header className="aforo-standalone-chrome flex flex-col gap-3 rounded-2xl border border-slate-800/80 bg-slate-950/70 px-4 py-4 shadow-lg shadow-slate-950/25 md:px-5">
           <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-            <div className="space-y-2">
-              <p className="inline-flex items-center gap-2 rounded-full border border-primary-500/40 bg-primary-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-wide text-primary-100">
-                MVP listo para Vercel
-              </p>
-              <div>
-                <h1 className="text-2xl font-bold text-white">Gestor interno de reservas</h1>
-                <p className="text-sm text-slate-400">Visualiza, crea y sigue las reservas en tiempo real.</p>
-              </div>
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wide text-primary-200">Sikim</p>
+              <h1 className="mt-1 text-2xl font-bold text-white">Operativa interna</h1>
+              <p className="mt-1 text-sm text-slate-400">Reservas, servicio y equipo en un entorno centralizado.</p>
             </div>
 
             <div className="flex w-full min-w-0 items-center gap-3 self-start md:w-auto md:self-auto">
@@ -72,8 +68,8 @@ export default async function AppLayout({ children }: { children: React.ReactNod
 
         <main className="flex-1 space-y-6">{children}</main>
 
-        <footer className="aforo-standalone-chrome aforo-live-capacity-hide-footer border-t border-slate-800/80 pt-6 text-sm text-slate-500">
-          Interfaz MVP – pendiente de integrar con base de datos.
+        <footer className="aforo-standalone-chrome aforo-live-capacity-hide-footer border-t border-slate-800/80 pt-6 text-xs font-medium uppercase tracking-wide text-slate-600">
+          Sikim · Gestión interna
         </footer>
       </div>
     </div>

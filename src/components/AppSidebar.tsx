@@ -201,14 +201,14 @@ export function AppSidebar({ className, allowedUser }: Props) {
         return (
           <div
             key={group.label}
-            className="group overflow-hidden rounded-xl border border-slate-800 bg-slate-900/70 shadow-lg shadow-slate-950/30"
+            className="group overflow-hidden rounded-xl border border-slate-800/80 bg-slate-950/60 shadow-lg shadow-slate-950/25"
           >
             <button
               type="button"
               onClick={() =>
                 setOpenSection((prev) => (prev === normalizedLabel ? null : normalizedLabel))
               }
-              className="flex w-full items-center justify-between gap-2 bg-slate-900/80 px-4 py-3 text-left text-sm font-semibold text-slate-100"
+              className="flex w-full items-center justify-between gap-2 bg-slate-900/70 px-4 py-3 text-left text-sm font-semibold text-slate-100 transition hover:bg-slate-900 focus:outline-none focus:ring-2 focus:ring-primary-400/60"
             >
               <span>{group.label}</span>
               <ChevronDownIcon
@@ -226,10 +226,10 @@ export function AppSidebar({ className, allowedUser }: Props) {
                       key={link.href}
                       href={link.href}
                       aria-current={active ? 'page' : undefined}
-                      className={`rounded-lg px-3 py-2 text-sm font-semibold transition ${
+                      className={`rounded-lg px-3 py-2 text-sm font-semibold transition focus:outline-none focus:ring-2 focus:ring-primary-400/60 ${
                         active
-                          ? 'bg-primary-600/80 text-white shadow shadow-primary-900/40'
-                          : 'text-slate-200 hover:bg-slate-800 hover:text-white'
+                          ? 'bg-primary-600/85 text-white shadow shadow-primary-950/30'
+                          : 'text-slate-300 hover:bg-slate-800/90 hover:text-white'
                       }`}
                     >
                       {link.label}
