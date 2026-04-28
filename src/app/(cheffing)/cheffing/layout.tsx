@@ -45,8 +45,8 @@ export default async function CheffingLayout({ children }: { children: React.Rea
 
   return (
     <CheffingToastProvider>
-      <div className="mx-auto flex min-h-screen max-w-5xl flex-col gap-6 px-4 py-10 lg:px-0">
-        <header className="rounded-2xl border border-slate-800/80 bg-slate-900/70 px-6 py-5 shadow-lg shadow-slate-900/30">
+      <div className="mx-auto flex min-h-screen max-w-7xl flex-col gap-6 px-4 py-6 lg:px-0 lg:py-8">
+        <header className="rounded-2xl border border-slate-800/80 bg-slate-950/70 px-6 py-5 shadow-lg shadow-slate-950/25">
           <div className="flex flex-col gap-5 md:flex-row md:items-center md:justify-between">
             <div className="space-y-2">
               <Link
