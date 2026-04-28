@@ -6,9 +6,9 @@ Actualmente el módulo Disco incluye dos piezas operativas:
 
 1. **Aforo en directo** (`/disco/aforo-en-directo`)
    - abrir sesión de aforo,
-   - sumar/restar aforo en tiempo casi real,
+   - sumar/restar aforo con refresco automático conservador entre usuarios autenticados,
    - cerrar sesión,
-   - ver estado actual, pico de sesión y últimos eventos.
+   - ver estado actual, pico de sesión, hora del pico y últimos eventos.
 
 2. **Histórico aforo (básico)** (`/disco/historico-aforo`)
    - lista navegable de sesiones cerradas (últimas 50),
@@ -41,6 +41,7 @@ No se añaden tablas nuevas en esta fase de histórico. Se reutiliza el modelo d
 - **Aforo en directo**: mantiene la lógica actual.
   - lectura: admin o `view_live_capacity` / `manage_live_capacity`,
   - operación: admin o `manage_live_capacity`.
+  - no existe modo invitado: cualquier acceso sin sesión a `/disco/aforo-en-directo` redirige a `/login?next=/disco/aforo-en-directo`.
 - **Histórico aforo**: acceso restringido a **admin** en esta iteración.
 
 > En esta fase no se crean nuevos flags de permisos en `app_allowed_users` para histórico.
@@ -96,3 +97,10 @@ Se definen tres modos de UI para **LiveCapacityPanel**:
 - `full`: cuando el viewport es `>= 1280`.
 
 Esta lógica está encapsulada en un hook cliente y **no se aplica como política global** del resto de la app; su alcance queda limitado al bloque de Aforo en directo.
+
+## Refresco y pico de sesión
+
+- `LiveCapacityPanel` consulta `GET /api/disco/live-capacity` cada pocos segundos mientras la pantalla está visible.
+- El polling se omite durante ajustes locales pendientes para no pisar la respuesta optimista del operador.
+- La hora del pico se deriva de `discotheque_capacity_events` buscando el primer evento de la sesión activa cuyo `resulting_count` coincide con `peak_count`.
+- Si `peak_count` es `0` o no existe evento coincidente, la UI muestra `—`.

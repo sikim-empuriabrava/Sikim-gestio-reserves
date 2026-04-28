@@ -26,6 +26,7 @@ export type CapacityEvent = {
 
 export type LiveCapacityState = {
   activeSession: CapacitySession | null;
+  peakAt: string | null;
   recentEvents: CapacityEvent[];
   latestEvent: CapacityEvent | null;
 };
@@ -33,7 +34,6 @@ export type LiveCapacityState = {
 type Props = {
   initialState: LiveCapacityState;
   canManage: boolean;
-  isAuthenticated: boolean;
 };
 
 type PendingAdjust = {
@@ -44,6 +44,8 @@ type PendingAdjust = {
 };
 
 const RECENT_EVENTS_LIMIT = 12;
+const POLL_INTERVAL_MS = 4000;
+const LOGIN_PATH = '/login?next=%2Fdisco%2Faforo-en-directo';
 
 function formatDateTime(value: string | null | undefined) {
   if (!value) return '—';
@@ -57,7 +59,7 @@ function formatDateTime(value: string | null | undefined) {
   }
 }
 
-export function LiveCapacityPanel({ initialState, canManage, isAuthenticated }: Props) {
+export function LiveCapacityPanel({ initialState, canManage }: Props) {
   const [serverState, setServerState] = useState<LiveCapacityState>(initialState);
   const [pendingAdjustments, setPendingAdjustments] = useState<PendingAdjust[]>([]);
   const [loadingAction, setLoadingAction] = useState<'open_session' | 'close_session' | null>(null);
@@ -66,6 +68,7 @@ export function LiveCapacityPanel({ initialState, canManage, isAuthenticated }: 
   const nextAdjustmentIdRef = useRef(1);
   const isProcessingAdjustmentsRef = useRef(false);
   const pendingAdjustmentsRef = useRef<PendingAdjust[]>([]);
+  const loadingActionRef = useRef<typeof loadingAction>(null);
 
   const { uiMode, isTouchPrimary } = useAforoUiMode();
 
@@ -73,18 +76,76 @@ export function LiveCapacityPanel({ initialState, canManage, isAuthenticated }: 
     pendingAdjustmentsRef.current = pendingAdjustments;
   }, [pendingAdjustments]);
 
+  useEffect(() => {
+    loadingActionRef.current = loadingAction;
+  }, [loadingAction]);
+
+  useEffect(() => {
+    let isMounted = true;
+    let controller: AbortController | null = null;
+
+    const pollLiveState = async () => {
+      if (document.visibilityState !== 'visible') return;
+      if (pendingAdjustmentsRef.current.length > 0 || loadingActionRef.current || isProcessingAdjustmentsRef.current) return;
+
+      controller?.abort();
+      controller = new AbortController();
+
+      try {
+        const response = await fetch('/api/disco/live-capacity', {
+          cache: 'no-store',
+          signal: controller.signal,
+        });
+
+        if (response.status === 401) {
+          window.location.assign(LOGIN_PATH);
+          return;
+        }
+
+        const body = await response.json().catch(() => ({}));
+        if (!isMounted || !response.ok || !body?.state) return;
+
+        setServerState(body.state);
+      } catch (pollError) {
+        if (pollError instanceof DOMException && pollError.name === 'AbortError') return;
+        console.error('Error actualizando aforo en directo', pollError);
+      }
+    };
+
+    const intervalId = window.setInterval(() => {
+      void pollLiveState();
+    }, POLL_INTERVAL_MS);
+
+    const handleVisibilityChange = () => {
+      void pollLiveState();
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    return () => {
+      isMounted = false;
+      window.clearInterval(intervalId);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      controller?.abort();
+    };
+  }, []);
+
   const state = useMemo<LiveCapacityState>(() => {
     if (!serverState.activeSession) return serverState;
     const activeSession = { ...serverState.activeSession };
 
     const nextState: LiveCapacityState = {
       activeSession,
+      peakAt: serverState.peakAt,
       recentEvents: [...serverState.recentEvents],
       latestEvent: serverState.latestEvent,
     };
 
     for (const adjustment of pendingAdjustments) {
       const nextCount = Math.max(0, activeSession.current_count + adjustment.delta);
+      if (nextCount > activeSession.peak_count) {
+        nextState.peakAt = adjustment.createdAt;
+      }
       activeSession.current_count = nextCount;
       activeSession.peak_count = Math.max(activeSession.peak_count, nextCount);
 
@@ -105,13 +166,11 @@ export function LiveCapacityPanel({ initialState, canManage, isAuthenticated }: 
 
   const activeSession = state.activeSession;
   const isSessionOpen = Boolean(activeSession);
-  const isGuestMode = !isAuthenticated;
 
   const sessionStatusLabel = useMemo(() => {
-    if (isGuestMode) return 'Sin sesión';
     if (!activeSession) return 'No hay sesión abierta';
     return activeSession.status === 'open' ? 'Sesión abierta' : 'Sesión cerrada';
-  }, [activeSession, isGuestMode]);
+  }, [activeSession]);
 
   const toUserFriendlyError = (actionError: unknown) => {
     const text = actionError instanceof Error ? actionError.message : 'Error inesperado';
@@ -166,7 +225,6 @@ export function LiveCapacityPanel({ initialState, canManage, isAuthenticated }: 
   };
 
   const queueAdjustAction = (delta: number) => {
-    if (isGuestMode) return;
     const currentCount = state.activeSession?.current_count ?? 0;
     if (currentCount + delta < 0) {
       setError('No se puede restar por debajo de 0.');
@@ -190,7 +248,6 @@ export function LiveCapacityPanel({ initialState, canManage, isAuthenticated }: 
   };
 
   const submitAction = async (payload: { action: 'open_session' | 'close_session' }) => {
-    if (isGuestMode) return;
     setLoadingAction(payload.action);
     setError(null);
     setMessage(null);
@@ -272,15 +329,15 @@ export function LiveCapacityPanel({ initialState, canManage, isAuthenticated }: 
         <article className={`rounded-xl border border-slate-800 bg-slate-950/50 ${cardPadding}`}>
           <p className="text-xs uppercase tracking-wide text-slate-400">Aforo actual</p>
           <p className={`mt-2 font-extrabold leading-none text-emerald-300 ${countSize}`}>
-            {isGuestMode ? '—' : (activeSession?.current_count ?? 0)}
+            {activeSession?.current_count ?? 0}
           </p>
         </article>
 
         <article className={`rounded-xl border border-slate-800 bg-slate-950/50 ${cardPadding}`}>
           <p className="text-xs uppercase tracking-wide text-slate-400">Pico sesión</p>
-          <p className="mt-2 text-2xl font-bold text-white">{isGuestMode ? '—' : (activeSession?.peak_count ?? 0)}</p>
+          <p className="mt-2 text-2xl font-bold text-white">{activeSession?.peak_count ?? 0}</p>
           <p className="mt-1 text-xs text-slate-400">
-            {isGuestMode ? 'Inicia sesión para ver datos de sesión.' : `Apertura: ${formatDateTime(activeSession?.opened_at)}`}
+            Pico alcanzado: {activeSession && activeSession.peak_count > 0 ? formatDateTime(state.peakAt) : '—'}
           </p>
         </article>
       </div>
@@ -312,9 +369,7 @@ export function LiveCapacityPanel({ initialState, canManage, isAuthenticated }: 
         </div>
       ) : (
         <p className="rounded-lg border border-slate-800 bg-slate-950/40 px-3 py-2 text-sm text-slate-300">
-          {isGuestMode
-            ? 'Inicia sesión para acceder al estado operativo del aforo.'
-            : 'Tienes permiso de lectura. Las acciones de operación están restringidas.'}
+          Tienes permiso de lectura. Las acciones de operación están restringidas.
         </p>
       )}
 
@@ -337,9 +392,9 @@ export function LiveCapacityPanel({ initialState, canManage, isAuthenticated }: 
             </div>
           ) : null}
         </div>
-        {isGuestMode || state.recentEvents.length === 0 ? (
+        {state.recentEvents.length === 0 ? (
           <p className="mt-3 text-sm text-slate-400">
-            {isGuestMode ? 'Inicia sesión para ver el estado operativo del aforo.' : 'Sin eventos todavía para la sesión actual.'}
+            Sin eventos todavía para la sesión actual.
           </p>
         ) : (
           <ul className={`mt-3 ${eventsStack}`}>
