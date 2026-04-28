@@ -1,3 +1,7 @@
+import Link from 'next/link';
+import { PlusIcon } from '@heroicons/react/24/outline';
+
+import { PageHeader } from '@/components/ui';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { requireCheffingAccess } from '@/lib/cheffing/requireCheffing';
 import type { IngredientCost, Unit } from '@/lib/cheffing/types';
@@ -48,18 +52,26 @@ export default async function CheffingProductosPage() {
     }) ?? [];
 
   return (
-    <section className="space-y-6 rounded-2xl border border-slate-800/80 bg-slate-900/70 p-6">
-      <header className="space-y-2">
-        <h2 className="text-xl font-semibold text-white">Productos</h2>
-        <p className="text-sm text-slate-400">
-          Gestiona los productos que compras a proveedores y calcula sus costes unitarios.
-        </p>
-      </header>
+    <>
+      <PageHeader
+        eyebrow="Cheffing"
+        title="Productos"
+        description="Gestiona los productos que compras a proveedores y calcula sus costes unitarios."
+        actions={
+          <Link
+            href="/cheffing/productos/new"
+            className="inline-flex items-center gap-2 rounded-xl border border-primary-400/50 bg-primary-600 px-4 py-2.5 text-sm font-semibold text-white shadow-lg shadow-primary-950/30 transition hover:border-primary-300 hover:bg-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-300/40 active:translate-y-px"
+          >
+            <PlusIcon className="h-4 w-4" aria-hidden="true" />
+            Nuevo producto
+          </Link>
+        }
+      />
 
       <ProductsManager
         initialIngredients={enrichedIngredients as IngredientCost[]}
         units={(units ?? []) as Unit[]}
       />
-    </section>
+    </>
   );
 }
