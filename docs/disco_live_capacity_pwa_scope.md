@@ -31,6 +31,7 @@ Esto significa que **Sikim no se convierte en una PWA global** todavía; la inst
   - `/branding/sikim-app-logo.svg`
 - `/branding/` está exento de middleware/auth para que el favicon global cargue también en `/login` y páginas públicas.
 - La PWA se mantiene parcial y limitada a `/disco/aforo-en-directo` (manifest, service worker y CTA de instalación solo en Aforo).
+- La PWA no habilita modo invitado: si se abre instalada sin sesión activa, el usuario debe iniciar sesión y volver a `/disco/aforo-en-directo`.
 
 ## Aislamiento visual de standalone
 - El cliente de Aforo activa la clase `aforo-pwa-active` en `<html>` mientras la pantalla está montada.
@@ -44,6 +45,7 @@ Esto significa que **Sikim no se convierte en una PWA global** todavía; la inst
 - Las navegaciones HTML de Aforo no tienen fallback offline desde cache.
 - En offline la pantalla operativa puede no renderizarse, por decisión deliberada de seguridad.
 - La limpieza de caches en `activate` se limita a claves propias del SW (`sikim-aforo-sw-*`) para no interferir con otras caches del mismo origen.
+- Las llamadas live (`GET/POST /api/disco/live-capacity`) siguen pasando por autenticación y no se cachean; el panel usa polling ligero solo mientras la app está visible.
 
 ## Qué NO incluye (fuera de alcance)
 - No hay PWA global en todo Sikim.

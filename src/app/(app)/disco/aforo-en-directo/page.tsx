@@ -8,7 +8,7 @@ import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { AforoAuthHeader } from './AforoAuthHeader';
 import { AforoInstallCta } from './AforoInstallCta';
 import { AforoPwaBootstrap } from './AforoPwaBootstrap';
-import { LiveCapacityPanel, type LiveCapacityState } from './LiveCapacityPanel';
+import { LiveCapacityPanel } from './LiveCapacityPanel';
 
 export const dynamic = 'force-dynamic';
 
@@ -38,12 +38,6 @@ export const metadata: Metadata = {
 };
 
 
-const LIVE_CAPACITY_SAFE_GUEST_STATE: LiveCapacityState = {
-  activeSession: null,
-  recentEvents: [],
-  latestEvent: null,
-};
-
 export default async function LiveCapacityPage() {
   const supabase = createSupabaseServerClient();
   const {
@@ -51,28 +45,29 @@ export default async function LiveCapacityPage() {
   } = await supabase.auth.getUser();
 
   let canManage = false;
-  const isAuthenticated = Boolean(user);
 
-  if (isAuthenticated && user) {
-    const requesterEmail = user.email?.trim().toLowerCase();
-    if (!requesterEmail) {
-      redirect('/login?error=not_allowed');
-    }
-
-    const allowlistInfo = await getAllowlistRoleForUserEmail(requesterEmail);
-
-    if (!allowlistInfo.allowlisted || !allowlistInfo.allowedUser?.is_active) {
-      redirect('/login?error=not_allowed');
-    }
-
-    if (!canViewLiveCapacity(allowlistInfo.role, allowlistInfo.allowedUser)) {
-      redirect(getDefaultModulePath(allowlistInfo.allowedUser));
-    }
-
-    canManage = canManageLiveCapacity(allowlistInfo.role, allowlistInfo.allowedUser);
+  if (!user) {
+    redirect('/login?next=%2Fdisco%2Faforo-en-directo');
   }
 
-  const initialState = isAuthenticated ? await getLiveCapacityState() : LIVE_CAPACITY_SAFE_GUEST_STATE;
+  const requesterEmail = user.email?.trim().toLowerCase();
+  if (!requesterEmail) {
+    redirect('/login?error=not_allowed');
+  }
+
+  const allowlistInfo = await getAllowlistRoleForUserEmail(requesterEmail);
+
+  if (!allowlistInfo.allowlisted || !allowlistInfo.allowedUser?.is_active) {
+    redirect('/login?error=not_allowed');
+  }
+
+  if (!canViewLiveCapacity(allowlistInfo.role, allowlistInfo.allowedUser)) {
+    redirect(getDefaultModulePath(allowlistInfo.allowedUser));
+  }
+
+  canManage = canManageLiveCapacity(allowlistInfo.role, allowlistInfo.allowedUser);
+
+  const initialState = await getLiveCapacityState();
 
   return (
     <div className="space-y-5">
@@ -86,7 +81,7 @@ export default async function LiveCapacityPage() {
 
       <AforoInstallCta />
 
-      <LiveCapacityPanel initialState={initialState} canManage={canManage} isAuthenticated={isAuthenticated} />
+      <LiveCapacityPanel initialState={initialState} canManage={canManage} />
     </div>
   );
 }

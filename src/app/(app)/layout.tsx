@@ -3,12 +3,9 @@ import { UserMenu } from '@/components/UserMenu';
 import { getAllowlistRoleForUserEmail } from '@/lib/auth/requireRole';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 
-import { headers } from 'next/headers';
 import { redirect } from 'next/navigation';
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
-  const requestHeaders = headers();
-  const allowGuestAforo = requestHeaders.get('x-sikim-allow-guest-aforo') === '1';
   const supabase = createSupabaseServerClient();
   const {
     data: { user },
@@ -16,9 +13,6 @@ export default async function AppLayout({ children }: { children: React.ReactNod
 
   // Segunda barrera server-side por si el middleware falla y evitar renderizar el panel sin allowlist.
   if (!user) {
-    if (allowGuestAforo) {
-      return <main className="mx-auto w-full max-w-6xl space-y-6 px-4 py-8 lg:px-0">{children}</main>;
-    }
     redirect('/login?error=unauthorized&next=%2Freservas');
   }
 

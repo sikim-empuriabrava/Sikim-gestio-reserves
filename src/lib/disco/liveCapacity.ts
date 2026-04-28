@@ -31,6 +31,7 @@ type EventRow = {
 
 export type LiveCapacityState = {
   activeSession: SessionRow | null;
+  peakAt: string | null;
   recentEvents: EventRow[];
   latestEvent: EventRow | null;
 };
@@ -49,6 +50,7 @@ export async function getLiveCapacityState(venueSlug = DEFAULT_VENUE_SLUG): Prom
   if (!activeSession) {
     return {
       activeSession: null,
+      peakAt: null,
       recentEvents: [],
       latestEvent: null,
     };
@@ -62,9 +64,24 @@ export async function getLiveCapacityState(venueSlug = DEFAULT_VENUE_SLUG): Prom
     .limit(RECENT_EVENTS_LIMIT);
 
   const normalizedEvents = (recentEvents ?? []) as EventRow[];
+  let peakAt: string | null = null;
+
+  if (activeSession.peak_count > 0) {
+    const { data: peakEvent } = await supabase
+      .from('discotheque_capacity_events')
+      .select('created_at')
+      .eq('session_id', activeSession.id)
+      .eq('resulting_count', activeSession.peak_count)
+      .order('created_at', { ascending: true })
+      .limit(1)
+      .maybeSingle<Pick<EventRow, 'created_at'>>();
+
+    peakAt = peakEvent?.created_at ?? null;
+  }
 
   return {
     activeSession,
+    peakAt,
     recentEvents: normalizedEvents,
     latestEvent: normalizedEvents[0] ?? null,
   };
