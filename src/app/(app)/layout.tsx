@@ -31,7 +31,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   const allowedUser = allowlistInfo.allowedUser;
 
   return (
-    <div className="aforo-standalone-shell mx-auto flex min-h-screen max-w-6xl gap-6 px-4 py-6 lg:px-0 lg:py-8">
+    <div className="aforo-standalone-shell mx-auto flex min-h-screen max-w-7xl gap-6 px-4 py-6 lg:px-0 lg:py-8">
       <aside className="aforo-standalone-chrome hidden w-64 shrink-0 lg:block">
         <div className="sticky top-8">
           <AppSidebar allowedUser={allowedUser} />
