@@ -33,7 +33,6 @@ type DraftSubrecipeItem = {
   subrecipe_component_id: string;
   unit_code: string;
   quantity: string;
-  waste_pct: string;
   notes: string;
 };
 
@@ -110,7 +109,6 @@ export function SubrecipeNewForm({ ingredients, subrecipes, units, canManageImag
         subrecipe_component_id: type === 'subrecipe' ? id : '',
         unit_code: unitCode,
         quantity: '1',
-        waste_pct: '0',
         notes: '',
       },
     ]);
@@ -152,11 +150,6 @@ export function SubrecipeNewForm({ ingredients, subrecipes, units, canManageImag
           throw new Error('La cantidad debe ser mayor que 0.');
         }
 
-        const itemWastePctValue = parseWastePct(item.waste_pct);
-        if (itemWastePctValue === null) {
-          throw new Error('La merma debe estar entre 0 y 99,99%.');
-        }
-
         const itemNotes = item.notes.trim();
 
         return {
@@ -164,7 +157,6 @@ export function SubrecipeNewForm({ ingredients, subrecipes, units, canManageImag
           subrecipe_component_id: item.itemType === 'subrecipe' ? item.subrecipe_component_id : null,
           unit_code: item.unit_code,
           quantity: quantityValue,
-          waste_pct: itemWastePctValue,
           notes: itemNotes.length > 0 ? itemNotes : null,
         };
       });
@@ -377,7 +369,6 @@ export function SubrecipeNewForm({ ingredients, subrecipes, units, canManageImag
                   <th className="px-4 py-3">Tipo</th>
                   <th className="px-4 py-3">Detalle</th>
                   <th className="px-4 py-3">Cantidad</th>
-                  <th className="px-4 py-3">Merma</th>
                   <th className="px-4 py-3">Notas</th>
                   <th className="px-4 py-3">Acciones</th>
                 </tr>
@@ -385,7 +376,7 @@ export function SubrecipeNewForm({ ingredients, subrecipes, units, canManageImag
               <tbody>
                 {draftItems.length === 0 ? (
                   <tr>
-                    <td colSpan={6} className="px-4 py-6 text-center text-sm text-slate-500">
+                    <td colSpan={5} className="px-4 py-6 text-center text-sm text-slate-500">
                       Añade productos o elaboraciones para precargar la receta.
                     </td>
                   </tr>
@@ -433,17 +424,6 @@ export function SubrecipeNewForm({ ingredients, subrecipes, units, canManageImag
                               ))}
                             </select>
                           </div>
-                        </td>
-                        <td className="px-4 py-3">
-                          <input
-                            type="number"
-                            min="0"
-                            max="99.99"
-                            step="0.01"
-                            className="w-20 rounded-md border border-slate-700 bg-slate-950/70 px-2 py-1 text-white"
-                            value={item.waste_pct}
-                            onChange={(event) => updateDraftItem(item.id, { waste_pct: event.target.value })}
-                          />
                         </td>
                         <td className="px-4 py-3 text-slate-300">
                           <input

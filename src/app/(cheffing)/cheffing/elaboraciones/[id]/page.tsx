@@ -103,7 +103,7 @@ export default async function CheffingElaboracionDetailPage({ params }: { params
       subrecipeId: params.id,
       error: loadError,
     });
-    throw new Error('No se pudieron cargar los datos de la elaboración por incompatibilidad de schema.');
+    throw new Error('No se pudieron cargar los datos de la elaboración.');
   }
 
   let ingredientsTyped: Ingredient[] = [];
