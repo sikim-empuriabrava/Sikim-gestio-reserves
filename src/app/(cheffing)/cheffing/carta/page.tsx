@@ -1,7 +1,18 @@
 import Link from 'next/link';
+import { EyeIcon, PlusIcon } from '@heroicons/react/24/outline';
 
+import { DataTableShell, PageHeader, StatusBadge, cn } from '@/components/ui';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { requireCheffingAccess } from '@/lib/cheffing/requireCheffing';
+import {
+  CheffingEmptyState,
+  CheffingLinkButton,
+  CheffingTableActionLink,
+  cheffingNumericClassName,
+  cheffingRowClassName,
+  cheffingTableClassName,
+  cheffingTheadClassName,
+} from '@/app/(cheffing)/cheffing/components/CheffingUi';
 
 export default async function CheffingCartaPage() {
   await requireCheffingAccess();
@@ -25,66 +36,70 @@ export default async function CheffingCartaPage() {
   });
 
   return (
-    <section className="space-y-6 rounded-2xl border border-slate-800/80 bg-slate-900/70 p-6">
-      <header className="space-y-2">
-        <h2 className="text-xl font-semibold text-white">Carta</h2>
-        <p className="text-sm text-slate-400">Gestor de colección comercial de platos y bebidas.</p>
-      </header>
+    <>
+      <PageHeader
+        eyebrow="Cheffing"
+        title="Carta"
+        description="Gestor de colección comercial de platos y bebidas."
+        actions={
+          <CheffingLinkButton href="/cheffing/carta/new" tone="success">
+            <PlusIcon className="h-4 w-4" aria-hidden="true" />
+            Nueva carta
+          </CheffingLinkButton>
+        }
+      />
 
-      <div className="flex items-center justify-end">
-        <Link
-          href="/cheffing/carta/new"
-          className="rounded-full border border-emerald-400/60 bg-emerald-500/10 px-4 py-2 text-sm font-semibold text-emerald-200 transition hover:border-emerald-300 hover:text-emerald-100"
-        >
-          Nueva carta
-        </Link>
-      </div>
-
-      <div className="overflow-x-auto rounded-2xl border border-slate-800/70">
-        <table className="w-full min-w-[760px] text-left text-sm text-slate-200">
-          <thead className="bg-slate-950/70 text-xs uppercase text-slate-400">
-            <tr>
-              <th className="px-4 py-3">Carta</th>
-              <th className="px-4 py-3">Estado</th>
-              <th className="px-4 py-3">Items asociados</th>
-              <th className="px-4 py-3">Acciones</th>
+      <DataTableShell
+        title="Listado de cartas"
+        description="Estado e items asociados a cada carta comercial."
+        footer={`${(cards ?? []).length} cartas`}
+      >
+        <table className={cn(cheffingTableClassName, 'min-w-[760px]')}>
+          <thead className={cheffingTheadClassName}>
+            <tr className="border-b border-slate-800/80">
+              <th className="w-[40%] px-4 py-3 font-semibold text-slate-300">Carta</th>
+              <th className="px-4 py-3 font-semibold text-slate-300">Estado</th>
+              <th className="px-4 py-3 font-semibold text-slate-300">Items asociados</th>
+              <th className="px-4 py-3 text-right font-semibold text-slate-300">Acciones</th>
             </tr>
           </thead>
-          <tbody>
+          <tbody className="divide-y divide-slate-800/60 bg-slate-950/20">
             {(cards ?? []).length === 0 ? (
-              <tr>
-                <td colSpan={4} className="px-4 py-6 text-center text-slate-500">
-                  No hay cartas.
-                </td>
-              </tr>
+              <CheffingEmptyState colSpan={4} title="No hay cartas." description="Crea una carta para agrupar platos y bebidas." />
             ) : (
               (cards ?? []).map((card) => (
-                <tr key={card.id} className="border-t border-slate-800/60">
-                  <td className="px-4 py-3">
+                <tr key={card.id} className={cheffingRowClassName}>
+                  <td className="px-4 py-3 align-middle">
                     <Link
                       href={`/cheffing/carta/${card.id}`}
-                      className="font-semibold text-white underline-offset-2 transition hover:text-emerald-200 hover:underline"
+                      className="font-semibold text-white underline-offset-4 transition hover:text-primary-100 hover:underline"
                     >
                       {card.name}
                     </Link>
-                    {card.notes ? <p className="text-xs text-slate-500">{card.notes}</p> : null}
+                    {card.notes ? <p className="mt-1 text-xs text-slate-500">{card.notes}</p> : null}
                   </td>
-                  <td className="px-4 py-3">{card.is_active ? 'Activa' : 'Inactiva'}</td>
-                  <td className="px-4 py-3">{countByCardId.get(card.id) ?? 0}</td>
-                  <td className="px-4 py-3">
-                    <Link
-                      href={`/cheffing/carta/${card.id}`}
-                      className="rounded-full border border-slate-600 px-3 py-1 text-xs font-semibold text-slate-200 transition hover:border-slate-400"
-                    >
-                      Ver detalle
-                    </Link>
+                  <td className="px-4 py-3 align-middle">
+                    <StatusBadge tone={card.is_active ? 'success' : 'muted'}>
+                      {card.is_active ? 'Activa' : 'Inactiva'}
+                    </StatusBadge>
+                  </td>
+                  <td className={cn('px-4 py-3 align-middle', cheffingNumericClassName)}>
+                    {countByCardId.get(card.id) ?? 0}
+                  </td>
+                  <td className="px-4 py-3 align-middle">
+                    <div className="flex justify-end">
+                      <CheffingTableActionLink href={`/cheffing/carta/${card.id}`}>
+                        <EyeIcon className="h-4 w-4" aria-hidden="true" />
+                        Ver detalle
+                      </CheffingTableActionLink>
+                    </div>
                   </td>
                 </tr>
               ))
             )}
           </tbody>
         </table>
-      </div>
-    </section>
+      </DataTableShell>
+    </>
   );
 }

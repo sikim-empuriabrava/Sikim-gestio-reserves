@@ -91,7 +91,7 @@ const indicator = <T extends string>(sort: SortState<T>, key: T) => {
 };
 
 const sortButtonClass =
-  'inline-flex items-center gap-1 rounded px-1 py-0.5 text-left transition hover:bg-slate-800/60';
+  'inline-flex items-center gap-1 rounded-md px-1 py-0.5 text-left transition hover:bg-slate-800/60 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500/25';
 
 const bcmSign = (value: boolean) => (value ? '+' : '-');
 
@@ -180,9 +180,9 @@ export function MenuEngineeringSortableMainTable({ rows }: { rows: MenuEngineeri
   }, [rows, mainSort]);
 
   return (
-    <div className="overflow-hidden rounded-2xl border border-slate-800/70">
-      <table className="min-w-full divide-y divide-slate-800 text-left text-sm text-slate-200">
-        <thead className="bg-slate-950/60 text-xs uppercase tracking-wide text-slate-400">
+    <div className="max-w-full overflow-x-auto rounded-2xl border border-slate-700/70 bg-slate-900/70 pb-2 shadow-[0_22px_52px_-38px_rgba(2,6,23,0.95)] ring-1 ring-white/[0.03]">
+      <table className="w-max min-w-full divide-y divide-slate-800 text-left text-sm text-slate-200">
+        <thead className="bg-slate-950/80 text-[11px] uppercase tracking-wide text-slate-400">
           <tr>
             <th className="px-4 py-3">
               <button type="button" className={sortButtonClass} onClick={() => setMainSort((prev) => toggleSort(prev, 'name'))}>
@@ -313,7 +313,7 @@ export function MenuEngineeringSortableMainTable({ rows }: { rows: MenuEngineeri
             </tr>
           ) : (
             sortedMainRows.map((row) => (
-              <tr key={row.id}>
+              <tr key={row.id} className="transition-colors hover:bg-slate-800/35">
                 <td className="px-4 py-3 font-medium">
                   {row.source === 'menu' ? (
                     <Link href={`/cheffing/menus/${row.id}`} className="text-slate-100 transition hover:text-white hover:underline">
@@ -393,9 +393,9 @@ export function MenuEngineeringSortableBcmDetailTable({ bcmDetailRows }: { bcmDe
   }, [bcmDetailRows, detailSort]);
 
   return (
-    <div className="overflow-hidden rounded-xl border border-slate-800/70">
-      <table className="min-w-full divide-y divide-slate-800 text-left text-sm text-slate-200">
-        <thead className="bg-slate-950/60 text-xs uppercase tracking-wide text-slate-400">
+    <div className="max-w-full overflow-x-auto rounded-xl border border-slate-700/70 bg-slate-900/70 pb-2 shadow-[0_18px_42px_-34px_rgba(2,6,23,0.95)] ring-1 ring-white/[0.03]">
+      <table className="w-max min-w-full divide-y divide-slate-800 text-left text-sm text-slate-200">
+        <thead className="bg-slate-950/80 text-[11px] uppercase tracking-wide text-slate-400">
           <tr>
             <th className="px-4 py-3">
               <button type="button" className={sortButtonClass} onClick={() => setDetailSort((prev) => toggleSort(prev, 'name'))}>
@@ -479,7 +479,7 @@ export function MenuEngineeringSortableBcmDetailTable({ bcmDetailRows }: { bcmDe
         </thead>
         <tbody className="divide-y divide-slate-800 bg-slate-900/40">
           {sortedDetailRows.map((row) => (
-            <tr key={`bcm-detail-${row.id}`}>
+            <tr key={`bcm-detail-${row.id}`} className="transition-colors hover:bg-slate-800/35">
               <td className="px-4 py-3 font-medium">
                 <Link href={`/cheffing/platos/${row.id}`} className="text-slate-100 transition hover:text-white hover:underline">
                   {row.name}

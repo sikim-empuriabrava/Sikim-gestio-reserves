@@ -3,10 +3,33 @@
 import { useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import {
+  EyeIcon,
+  PencilSquareIcon,
+  PhotoIcon,
+  TrashIcon,
+  XMarkIcon,
+} from '@heroicons/react/24/outline';
 
+import { DataTableShell, StatusBadge, Toolbar, cn } from '@/components/ui';
 import type { Subrecipe, Unit, UnitDimension } from '@/lib/cheffing/types';
 import { normalizeSearchText } from '@/lib/cheffing/search';
 import { createSupabaseBrowserClient } from '@/lib/supabase/browser';
+import {
+  CheffingButton,
+  CheffingEmptyState,
+  CheffingSearchInput,
+  CheffingTableActionButton,
+  CheffingTableActionLink,
+  cheffingEditingRowClassName,
+  cheffingHeaderButtonClassName,
+  cheffingInputClassName,
+  cheffingNumericClassName,
+  cheffingRowClassName,
+  cheffingSelectClassName,
+  cheffingTableClassName,
+  cheffingTheadClassName,
+} from '@/app/(cheffing)/cheffing/components/CheffingUi';
 
 const displayUnitByDimension: Record<UnitDimension, 'kg' | 'l' | 'u'> = {
   mass: 'kg',
@@ -43,6 +66,14 @@ type SubrecipeSortKey =
   | 'items_cost_total'
   | 'cost_net_per_base';
 
+const sortLabelByKey: Record<SubrecipeSortKey, string> = {
+  name: 'Nombre',
+  output_qty: 'Producción',
+  waste_pct: 'Merma',
+  items_cost_total: 'Coste total',
+  cost_net_per_base: 'Coste unitario',
+};
+
 export function SubrecipesManager({ initialSubrecipes, units }: SubrecipesManagerProps) {
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
@@ -62,7 +93,7 @@ export function SubrecipesManager({ initialSubrecipes, units }: SubrecipesManage
   }, [units]);
 
   const formatDisplayCost = (value: number | null) => {
-    if (value === null || Number.isNaN(value)) return '—';
+    if (value === null || Number.isNaN(value)) return '-';
     return value.toLocaleString('es-ES', {
       minimumFractionDigits: 2,
       maximumFractionDigits: 2,
@@ -70,7 +101,7 @@ export function SubrecipesManager({ initialSubrecipes, units }: SubrecipesManage
   };
 
   const formatInternalCost = (value: number | null) => {
-    if (value === null || Number.isNaN(value)) return '—';
+    if (value === null || Number.isNaN(value)) return '-';
     return value.toLocaleString('es-ES', {
       minimumFractionDigits: 4,
       maximumFractionDigits: 4,
@@ -86,7 +117,7 @@ export function SubrecipesManager({ initialSubrecipes, units }: SubrecipesManage
       return {
         value: costPerBase * 1000,
         unit: displayUnitByDimension[dimension],
-        secondary: `Coste base interno: ${formatInternalCost(costPerBase)} €/g`,
+        secondary: `Coste base interno: ${formatInternalCost(costPerBase)} \u20ac/g`,
       };
     }
 
@@ -94,7 +125,7 @@ export function SubrecipesManager({ initialSubrecipes, units }: SubrecipesManage
       return {
         value: costPerBase * 1000,
         unit: displayUnitByDimension[dimension],
-        secondary: `Coste base interno: ${formatInternalCost(costPerBase)} €/ml`,
+        secondary: `Coste base interno: ${formatInternalCost(costPerBase)} \u20ac/ml`,
       };
     }
 
@@ -151,7 +182,7 @@ export function SubrecipesManager({ initialSubrecipes, units }: SubrecipesManage
     try {
       const outputQtyValue = ensureValidQuantity(editingState.output_qty);
       if (outputQtyValue === null) {
-        throw new Error('La producción debe ser mayor que 0.');
+        throw new Error('La produccion debe ser mayor que 0.');
       }
 
       const wastePctValue = parseWastePct(editingState.waste_pct);
@@ -173,9 +204,9 @@ export function SubrecipesManager({ initialSubrecipes, units }: SubrecipesManage
       if (!response.ok) {
         const payload = await response.json().catch(() => ({}));
         if (response.status === 409) {
-          throw new Error('Ya existe una elaboración con ese nombre.');
+          throw new Error('Ya existe una elaboracion con ese nombre.');
         }
-        throw new Error(payload?.error ?? 'Error actualizando elaboración');
+        throw new Error(payload?.error ?? 'Error actualizando elaboracion');
       }
 
       cancelEditing();
@@ -192,7 +223,7 @@ export function SubrecipesManager({ initialSubrecipes, units }: SubrecipesManage
     setIsSubmitting(true);
 
     try {
-      const confirmed = window.confirm('¿Seguro que quieres eliminar esta elaboración?');
+      const confirmed = window.confirm('Seguro que quieres eliminar esta elaboracion?');
       if (!confirmed) {
         return;
       }
@@ -202,7 +233,7 @@ export function SubrecipesManager({ initialSubrecipes, units }: SubrecipesManage
 
       if (!response.ok) {
         const payload = await response.json().catch(() => ({}));
-        throw new Error(payload?.error ?? 'Error eliminando elaboración');
+        throw new Error(payload?.error ?? 'Error eliminando elaboracion');
       }
 
       router.refresh();
@@ -214,8 +245,8 @@ export function SubrecipesManager({ initialSubrecipes, units }: SubrecipesManage
   };
 
   const indicator = (key: SubrecipeSortKey) => {
-    if (sortState.key !== key) return '↕';
-    return sortState.direction === 'asc' ? '↑' : '↓';
+    if (sortState.key !== key) return '<>';
+    return sortState.direction === 'asc' ? '^' : 'v';
   };
 
   const handleSort = (key: SubrecipeSortKey) => {
@@ -254,78 +285,98 @@ export function SubrecipesManager({ initialSubrecipes, units }: SubrecipesManage
   }, [initialSubrecipes, searchTerm, sortState]);
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <Link
-          href="/cheffing/elaboraciones/new"
-          className="rounded-full border border-emerald-400/60 bg-emerald-500/10 px-4 py-2 text-sm font-semibold text-emerald-200 transition hover:border-emerald-300 hover:text-emerald-100"
-        >
-          Nueva elaboración
-        </Link>
-        <input
-          type="search"
-          value={searchTerm}
-          onChange={(event) => setSearchTerm(event.target.value)}
-          placeholder="Buscar elaboración por nombre"
-          className="w-full max-w-xs rounded-md border border-slate-700 bg-slate-950/70 px-3 py-2 text-sm text-white placeholder:text-slate-500"
-        />
-        {error ? <p className="text-sm text-rose-400">{error}</p> : null}
-      </div>
+    <div className="space-y-4">
+      {error ? (
+        <div className="rounded-xl border border-rose-500/30 bg-rose-500/10 px-4 py-3 text-sm font-medium text-rose-100">
+          {error}
+        </div>
+      ) : null}
 
-      <div className="overflow-x-auto rounded-2xl border border-slate-800/70">
-        <table className="w-full min-w-[1000px] text-left text-sm text-slate-200">
-          <thead className="bg-slate-950/70 text-xs uppercase text-slate-400">
-            <tr>
-              <th className="px-4 py-3">
-                <button type="button" className="inline-flex items-center gap-1" onClick={() => handleSort('name')}>
-                  Elaboración <span className="text-[10px]">{indicator('name')}</span>
+      <DataTableShell
+        title="Listado de elaboraciones"
+        description="Producciones internas, merma y coste base reutilizable."
+        toolbar={
+          <Toolbar
+            leading={
+              <CheffingSearchInput
+                label="Buscar elaboración por nombre"
+                value={searchTerm}
+                onChange={(event) => setSearchTerm(event.target.value)}
+                placeholder="Buscar elaboración por nombre"
+                className="w-full xl:w-[420px]"
+              />
+            }
+            actions={
+              <StatusBadge tone={searchTerm ? 'accent' : 'muted'}>
+                {filteredAndSortedSubrecipes.length} visibles
+              </StatusBadge>
+            }
+          />
+        }
+        footer={
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <span>
+              Mostrando {filteredAndSortedSubrecipes.length} de {initialSubrecipes.length} elaboraciones
+            </span>
+            <span>
+              Orden: {sortLabelByKey[sortState.key]} {sortState.direction === 'asc' ? 'ascendente' : 'descendente'}
+            </span>
+          </div>
+        }
+      >
+        <table className={cn(cheffingTableClassName, 'min-w-[1000px]')}>
+          <thead className={cheffingTheadClassName}>
+            <tr className="border-b border-slate-800/80">
+              <th className="w-[32%] px-4 py-3">
+                <button type="button" className={cheffingHeaderButtonClassName} onClick={() => handleSort('name')}>
+                  Elaboración <span className="text-[10px] text-primary-200">{indicator('name')}</span>
                 </button>
               </th>
-              <th className="px-4 py-3">Imagen</th>
+              <th className="px-4 py-3 font-semibold text-slate-300">Imagen</th>
               <th className="px-4 py-3">
-                <button type="button" className="inline-flex items-center gap-1" onClick={() => handleSort('output_qty')}>
-                  Producción <span className="text-[10px]">{indicator('output_qty')}</span>
+                <button type="button" className={cheffingHeaderButtonClassName} onClick={() => handleSort('output_qty')}>
+                  Producción <span className="text-[10px] text-primary-200">{indicator('output_qty')}</span>
                 </button>
               </th>
               <th className="px-4 py-3">
-                <button type="button" className="inline-flex items-center gap-1" onClick={() => handleSort('waste_pct')}>
-                  Merma <span className="text-[10px]">{indicator('waste_pct')}</span>
+                <button type="button" className={cheffingHeaderButtonClassName} onClick={() => handleSort('waste_pct')}>
+                  Merma <span className="text-[10px] text-primary-200">{indicator('waste_pct')}</span>
                 </button>
               </th>
               <th className="px-4 py-3">
                 <button
                   type="button"
-                  className="inline-flex items-center gap-1"
+                  className={cheffingHeaderButtonClassName}
                   onClick={() => handleSort('items_cost_total')}
                 >
-                  Coste total <span className="text-[10px]">{indicator('items_cost_total')}</span>
+                  Coste total <span className="text-[10px] text-primary-200">{indicator('items_cost_total')}</span>
                 </button>
               </th>
               <th className="px-4 py-3">
                 <button
                   type="button"
-                  className="inline-flex items-center gap-1"
+                  className={cheffingHeaderButtonClassName}
                   onClick={() => handleSort('cost_net_per_base')}
                 >
-                  Coste unitario <span className="text-[10px]">{indicator('cost_net_per_base')}</span>
+                  Coste unitario <span className="text-[10px] text-primary-200">{indicator('cost_net_per_base')}</span>
                 </button>
               </th>
-              <th className="px-4 py-3">Acciones</th>
+              <th className="px-4 py-3 text-right font-semibold text-slate-300">Acciones</th>
             </tr>
           </thead>
-          <tbody>
+          <tbody className="divide-y divide-slate-800/60 bg-slate-950/20">
             {initialSubrecipes.length === 0 ? (
-              <tr>
-                <td colSpan={7} className="px-4 py-6 text-center text-sm text-slate-500">
-                  No hay elaboraciones todavía.
-                </td>
-              </tr>
+              <CheffingEmptyState
+                colSpan={7}
+                title="No hay elaboraciones todavía."
+                description="Crea una elaboración para reutilizarla en platos."
+              />
             ) : filteredAndSortedSubrecipes.length === 0 ? (
-              <tr>
-                <td colSpan={7} className="px-4 py-6 text-center text-sm text-slate-500">
-                  No hay elaboraciones que coincidan con la búsqueda.
-                </td>
-              </tr>
+              <CheffingEmptyState
+                colSpan={7}
+                title="No hay elaboraciones para esta búsqueda."
+                description="Prueba con otro nombre o limpia el filtro."
+              />
             ) : (
               filteredAndSortedSubrecipes.map((subrecipe) => {
                 const isEditing = editingId === subrecipe.id;
@@ -337,41 +388,52 @@ export function SubrecipesManager({ initialSubrecipes, units }: SubrecipesManage
                 );
 
                 return (
-                  <tr key={subrecipe.id} className="border-t border-slate-800/60">
-                    <td className="px-4 py-3">
+                  <tr
+                    key={subrecipe.id}
+                    className={cn(cheffingRowClassName, isEditing && cheffingEditingRowClassName)}
+                  >
+                    <td className="px-4 py-3 align-middle">
                       {isEditing ? (
                         <input
-                          className="w-full rounded-md border border-slate-700 bg-slate-950/70 px-2 py-1 text-white"
+                          aria-label="Nombre de la elaboración"
+                          className={cheffingInputClassName}
                           value={editingValues?.name ?? ''}
                           onChange={(event) =>
                             setEditingState((prev) => (prev ? { ...prev, name: event.target.value } : prev))
                           }
                         />
                       ) : (
-                        <Link href={`/cheffing/elaboraciones/${subrecipe.id}`} className="font-semibold text-white">
+                        <Link
+                          href={`/cheffing/elaboraciones/${subrecipe.id}`}
+                          className="font-semibold text-white underline-offset-4 transition hover:text-primary-100 hover:underline"
+                        >
                           {subrecipe.name}
                         </Link>
                       )}
                     </td>
-                    <td className="px-4 py-3">
+                    <td className="px-4 py-3 align-middle">
                       {imageUrl ? (
                         <img
                           src={imageUrl}
                           alt={`Imagen de ${subrecipe.name}`}
-                          className="h-12 w-12 rounded-lg object-cover"
+                          className="h-10 w-10 rounded-lg border border-slate-700/80 object-cover"
                         />
                       ) : (
-                        <span className="text-xs text-slate-500">—</span>
+                        <span className="inline-flex h-10 w-10 items-center justify-center rounded-lg border border-slate-800 bg-slate-950/70 text-slate-600">
+                          <PhotoIcon className="h-4 w-4" aria-hidden="true" />
+                          <span className="sr-only">Sin imagen</span>
+                        </span>
                       )}
                     </td>
-                    <td className="px-4 py-3 text-slate-300">
+                    <td className="px-4 py-3 align-middle text-slate-300">
                       {isEditing ? (
                         <div className="flex gap-2">
                           <input
                             type="number"
                             min="0"
                             step="0.01"
-                            className="w-24 rounded-md border border-slate-700 bg-slate-950/70 px-2 py-1 text-white"
+                            aria-label="Cantidad producida"
+                            className={cn(cheffingInputClassName, 'w-24')}
                             value={editingValues?.output_qty ?? ''}
                             onChange={(event) =>
                               setEditingState((prev) =>
@@ -380,7 +442,8 @@ export function SubrecipesManager({ initialSubrecipes, units }: SubrecipesManage
                             }
                           />
                           <select
-                            className="rounded-md border border-slate-700 bg-slate-950/70 px-2 py-1 text-white"
+                            aria-label="Unidad de producción"
+                            className={cn(cheffingSelectClassName, 'w-24')}
                             value={editingValues?.output_unit_code ?? ''}
                             onChange={(event) =>
                               setEditingState((prev) =>
@@ -396,17 +459,20 @@ export function SubrecipesManager({ initialSubrecipes, units }: SubrecipesManage
                           </select>
                         </div>
                       ) : (
-                        `${subrecipe.output_qty} ${subrecipe.output_unit_code}`
+                        <span className="font-medium text-slate-200">
+                          {subrecipe.output_qty} {subrecipe.output_unit_code}
+                        </span>
                       )}
                     </td>
-                    <td className="px-4 py-3">
+                    <td className={cn('px-4 py-3 align-middle', cheffingNumericClassName)}>
                       {isEditing ? (
                         <input
                           type="number"
                           min="0"
                           max="99.99"
                           step="0.01"
-                          className="w-20 rounded-md border border-slate-700 bg-slate-950/70 px-2 py-1 text-white"
+                          aria-label="Merma"
+                          className={cn(cheffingInputClassName, 'w-20')}
                           value={editingValues?.waste_pct ?? ''}
                           onChange={(event) =>
                             setEditingState((prev) => (prev ? { ...prev, waste_pct: event.target.value } : prev))
@@ -416,26 +482,26 @@ export function SubrecipesManager({ initialSubrecipes, units }: SubrecipesManage
                         `${(subrecipe.waste_pct * 100).toFixed(1)}%`
                       )}
                     </td>
-                    <td className="px-4 py-3 text-slate-100">
-                      {formatDisplayCost(subrecipe.items_cost_total)} €
+                    <td className={cn('px-4 py-3 align-middle', cheffingNumericClassName)}>
+                      {formatDisplayCost(subrecipe.items_cost_total)} &euro;
                     </td>
-                    <td className="px-4 py-3 text-slate-300">
+                    <td className="px-4 py-3 align-middle tabular-nums text-slate-100">
                       <div className="inline-flex items-center gap-1">
                         <span>
-                          {formatDisplayCost(netDisplayCost.value)} €/{netDisplayCost.unit}
+                          {formatDisplayCost(netDisplayCost.value)} &euro;/{netDisplayCost.unit}
                         </span>
                         {netDisplayCost.secondary ? (
                           <span className="group relative inline-flex items-center">
                             <button
                               type="button"
                               aria-label="Ver coste base interno"
-                              className="inline-flex h-4 w-4 items-center justify-center rounded-full border border-slate-600 text-[10px] font-semibold text-slate-300"
+                              className="inline-flex h-4 w-4 items-center justify-center rounded-full border border-slate-600 text-[10px] font-semibold text-slate-300 transition hover:border-slate-400 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500/20"
                             >
                               i
                             </button>
                             <span
                               role="tooltip"
-                              className="pointer-events-none absolute left-0 top-full z-20 mt-2 w-52 rounded-md border border-slate-700 bg-slate-950/95 p-2 text-[11px] normal-case text-slate-200 opacity-0 shadow-lg transition-opacity delay-700 group-hover:opacity-100 group-focus-within:opacity-100"
+                              className="pointer-events-none absolute left-0 top-full z-20 mt-2 w-52 rounded-md border border-slate-700 bg-slate-950/95 p-2 text-[11px] normal-case text-slate-200 opacity-0 shadow-lg shadow-slate-950/40 transition-opacity delay-700 group-hover:opacity-100 group-focus-within:opacity-100"
                             >
                               {netDisplayCost.secondary}
                             </span>
@@ -443,49 +509,46 @@ export function SubrecipesManager({ initialSubrecipes, units }: SubrecipesManage
                         ) : null}
                       </div>
                     </td>
-                    <td className="px-4 py-3">
-                      <div className="flex gap-2">
+                    <td className="px-4 py-3 align-middle">
+                      <div className="flex justify-end gap-2">
                         {isEditing ? (
                           <>
-                            <button
+                            <CheffingButton
                               type="button"
+                              tone="success"
                               onClick={() => saveEditing(subrecipe.id)}
                               disabled={isSubmitting}
-                              className="rounded-full border border-emerald-400/60 px-3 py-1 text-xs font-semibold text-emerald-200"
                             >
                               Guardar
-                            </button>
-                            <button
+                            </CheffingButton>
+                            <CheffingTableActionButton
                               type="button"
                               onClick={cancelEditing}
-                              className="rounded-full border border-slate-700 px-3 py-1 text-xs font-semibold text-slate-300"
+                              aria-label="Cancelar edicion"
+                              title="Cancelar"
                             >
-                              Cancelar
-                            </button>
+                              <XMarkIcon className="h-4 w-4" aria-hidden="true" />
+                            </CheffingTableActionButton>
                           </>
                         ) : (
                           <>
-                            <Link
-                              href={`/cheffing/elaboraciones/${subrecipe.id}`}
-                              className="rounded-full border border-slate-700 px-3 py-1 text-xs font-semibold text-slate-200"
-                            >
+                            <CheffingTableActionLink href={`/cheffing/elaboraciones/${subrecipe.id}`}>
+                              <EyeIcon className="h-4 w-4" aria-hidden="true" />
                               Ver
-                            </Link>
-                            <button
-                              type="button"
-                              onClick={() => startEditing(subrecipe)}
-                              className="rounded-full border border-slate-700 px-3 py-1 text-xs font-semibold text-slate-200"
-                            >
+                            </CheffingTableActionLink>
+                            <CheffingTableActionButton type="button" onClick={() => startEditing(subrecipe)}>
+                              <PencilSquareIcon className="h-4 w-4" aria-hidden="true" />
                               Editar
-                            </button>
-                            <button
+                            </CheffingTableActionButton>
+                            <CheffingTableActionButton
                               type="button"
+                              tone="danger"
                               onClick={() => deleteSubrecipe(subrecipe.id)}
                               disabled={isSubmitting}
-                              className="rounded-full border border-rose-500/70 px-3 py-1 text-xs font-semibold text-rose-200"
                             >
+                              <TrashIcon className="h-4 w-4" aria-hidden="true" />
                               Eliminar
-                            </button>
+                            </CheffingTableActionButton>
                           </>
                         )}
                       </div>
@@ -496,7 +559,7 @@ export function SubrecipesManager({ initialSubrecipes, units }: SubrecipesManage
             )}
           </tbody>
         </table>
-      </div>
+      </DataTableShell>
     </div>
   );
 }

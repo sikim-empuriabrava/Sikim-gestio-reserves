@@ -286,7 +286,7 @@ export function ProductsManager({ initialIngredients, units }: ProductsManagerPr
   }, [initialIngredients]);
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-3.5">
       <MetricStrip className="xl:grid-cols-[1fr_1fr_1fr_1.25fr]">
         <MetricCard
           label="Productos"
@@ -294,7 +294,7 @@ export function ProductsManager({ initialIngredients, units }: ProductsManagerPr
           description="Total en catalogo"
           tone="violet"
           icon={<ScaleIcon className="h-5 w-5" />}
-          className="rounded-xl p-3"
+          className="p-3"
         />
         <MetricCard
           label="Coste neto"
@@ -302,7 +302,7 @@ export function ProductsManager({ initialIngredients, units }: ProductsManagerPr
           description="Productos calculables"
           tone="emerald"
           icon={<CheckCircleIcon className="h-5 w-5" />}
-          className="rounded-xl p-3"
+          className="p-3"
         />
         <MetricCard
           label="Con imagen"
@@ -310,7 +310,7 @@ export function ProductsManager({ initialIngredients, units }: ProductsManagerPr
           description="Ficha visual completa"
           tone="sky"
           icon={<PhotoIcon className="h-5 w-5" />}
-          className="rounded-xl p-3"
+          className="p-3"
         />
         <MetricCard
           label="Valor packs compra"
@@ -318,7 +318,7 @@ export function ProductsManager({ initialIngredients, units }: ProductsManagerPr
           description="Suma de precios de pack"
           tone="slate"
           icon={<CurrencyEuroIcon className="h-5 w-5" />}
-          className="rounded-xl p-3"
+          className="p-3"
         />
       </MetricStrip>
 
@@ -354,7 +354,7 @@ export function ProductsManager({ initialIngredients, units }: ProductsManagerPr
                 {filteredAndSortedIngredients.length} visibles
               </StatusBadge>
             }
-            className="rounded-xl bg-slate-950/40"
+            className="bg-slate-950/40"
           />
         }
         footer={
@@ -439,7 +439,7 @@ export function ProductsManager({ initialIngredients, units }: ProductsManagerPr
               <th className="px-4 py-3 text-right font-semibold text-slate-300">Acciones</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-slate-800/65 bg-slate-950/20">
+          <tbody className="divide-y divide-slate-800/60 bg-slate-950/20">
             {initialIngredients.length === 0 ? (
               <tr>
                 <td colSpan={9} className="px-4 py-10 text-center text-sm text-slate-500">
@@ -470,8 +470,8 @@ export function ProductsManager({ initialIngredients, units }: ProductsManagerPr
                   <tr
                     key={ingredient.id}
                     className={cn(
-                      'transition-colors hover:bg-slate-900/65',
-                      isEditing ? 'bg-primary-950/20' : 'bg-transparent',
+                      'transition-colors duration-150 hover:bg-slate-900/75',
+                      isEditing ? 'bg-primary-900/20 shadow-[inset_3px_0_0_rgba(139,92,246,0.55)]' : 'bg-transparent',
                     )}
                   >
                     <td className="px-4 py-3 align-middle">

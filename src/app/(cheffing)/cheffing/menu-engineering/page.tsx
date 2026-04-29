@@ -1,3 +1,4 @@
+import { PageHeader } from '@/components/ui';
 import { requireCheffingAccess } from '@/lib/cheffing/requireCheffing';
 import {
   getMenuEngineeringRows,
@@ -233,15 +234,14 @@ export default async function MenuEngineeringPage({
   );
 
   return (
-    <section className="space-y-6 rounded-2xl border border-slate-800/80 bg-slate-900/70 p-6">
-      <header className="space-y-2">
-        <h2 className="text-xl font-semibold text-white">Menu Engineering</h2>
-        <p className="text-sm text-slate-400">
-          Analiza márgenes en Platos, Bebidas y Menús con el mismo criterio económico.
-        </p>
-      </header>
+    <section className="space-y-6">
+      <PageHeader
+        eyebrow="Cheffing"
+        title="Menu Engineering"
+        description="Analiza márgenes en Platos, Bebidas y Menús con el mismo criterio económico."
+      />
 
-      <div className="inline-flex rounded-xl border border-slate-700 bg-slate-950/50 p-1">
+      <div className="inline-flex rounded-xl border border-slate-700/80 bg-slate-950/60 p-1 shadow-inner shadow-slate-950/30">
         {([
           { value: 'platos', label: 'Platos' },
           { value: 'bebidas', label: 'Bebidas' },
@@ -254,7 +254,7 @@ export default async function MenuEngineeringPage({
             }`}
             className={`rounded-lg px-3 py-1.5 text-sm transition ${
               selectedView === tab.value
-                ? 'bg-emerald-500/25 text-emerald-100'
+                ? 'bg-primary-500/20 text-primary-100'
                 : 'text-slate-300 hover:bg-slate-800/60 hover:text-white'
             }`}
           >
@@ -265,7 +265,7 @@ export default async function MenuEngineeringPage({
 
       <form
         method="get"
-        className="grid gap-4 rounded-2xl border border-slate-800/70 bg-slate-950/50 p-4 md:grid-cols-5"
+        className="grid gap-4 rounded-2xl border border-slate-700/70 bg-slate-950/60 p-4 shadow-[0_18px_42px_-34px_rgba(2,6,23,0.95)] ring-1 ring-white/[0.03] md:grid-cols-5"
       >
         <label className="space-y-1 text-sm text-slate-300">
           Desde
@@ -274,7 +274,7 @@ export default async function MenuEngineeringPage({
             type="date"
             name="from"
             defaultValue={selectedFrom}
-            className="w-full rounded-lg border border-slate-800 bg-slate-950/60 px-3 py-2 text-sm text-slate-100"
+            className="h-10 w-full rounded-xl border border-slate-700/80 bg-slate-950/75 px-3 text-sm text-slate-100 outline-none transition-colors hover:border-slate-600 focus:border-primary-400/70 focus:ring-2 focus:ring-primary-500/20"
           />
         </label>
         <label className="space-y-1 text-sm text-slate-300">
@@ -283,7 +283,7 @@ export default async function MenuEngineeringPage({
             type="date"
             name="to"
             defaultValue={selectedTo}
-            className="w-full rounded-lg border border-slate-800 bg-slate-950/60 px-3 py-2 text-sm text-slate-100"
+            className="h-10 w-full rounded-xl border border-slate-700/80 bg-slate-950/75 px-3 text-sm text-slate-100 outline-none transition-colors hover:border-slate-600 focus:border-primary-400/70 focus:ring-2 focus:ring-primary-500/20"
           />
         </label>
         <label className="space-y-1 text-sm text-slate-300">
@@ -291,7 +291,7 @@ export default async function MenuEngineeringPage({
           <select
             name="iva"
             defaultValue={selectedVatRate.toString()}
-            className="w-full rounded-lg border border-slate-800 bg-slate-950/60 px-3 py-2 text-sm text-slate-100"
+            className="h-10 w-full rounded-xl border border-slate-700/80 bg-slate-950/75 px-3 text-sm text-slate-100 outline-none transition-colors hover:border-slate-600 focus:border-primary-400/70 focus:ring-2 focus:ring-primary-500/20"
           >
             <option value="0">0%</option>
             <option value="0.04">4%</option>
@@ -305,7 +305,7 @@ export default async function MenuEngineeringPage({
           <select
             name="family"
             defaultValue={selectedFamily ?? ''}
-            className="w-full rounded-lg border border-slate-800 bg-slate-950/60 px-3 py-2 text-sm text-slate-100"
+            className="h-10 w-full rounded-xl border border-slate-700/80 bg-slate-950/75 px-3 text-sm text-slate-100 outline-none transition-colors hover:border-slate-600 focus:border-primary-400/70 focus:ring-2 focus:ring-primary-500/20"
           >
             <option value="">Todas</option>
             {availableFamilies.map((family) => (
@@ -321,7 +321,7 @@ export default async function MenuEngineeringPage({
         <div className="flex items-end">
           <button
             type="submit"
-            className="w-full rounded-lg border border-emerald-500/70 bg-emerald-500/20 px-4 py-2 text-sm font-semibold text-emerald-100 transition hover:border-emerald-400 hover:text-white"
+            className="h-10 w-full rounded-xl border border-primary-400/50 bg-primary-600 px-4 text-sm font-semibold text-white shadow-lg shadow-primary-900/25 transition hover:border-primary-300 hover:bg-primary-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-300/40 active:translate-y-px"
           >
             Actualizar
           </button>
@@ -349,53 +349,53 @@ export default async function MenuEngineeringPage({
           <MenuEngineeringSortableMainTable rows={rows} />
 
           {selectedView !== 'menus' ? (
-            <div className="space-y-3 rounded-2xl border border-slate-800/70 bg-slate-950/40 p-4">
+            <div className="space-y-3 rounded-2xl border border-slate-700/70 bg-slate-900/70 p-4 shadow-[0_22px_52px_-38px_rgba(2,6,23,0.95)] ring-1 ring-white/[0.03]">
             <h3 className="text-sm font-semibold uppercase tracking-wide text-slate-200">Matriz BCM</h3>
             <p className="text-sm text-slate-400">Bloque BCM separado según el Excel validado (tabla + visual).</p>
             {hasBcmUsableData ? (
               <div className="grid gap-4 lg:grid-cols-[1.2fr_1fr]">
                 <div className="space-y-4">
                   <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-                    <div className="rounded-xl border border-slate-800/70 bg-slate-900/40 p-3 text-sm">
+                    <div className="rounded-xl border border-slate-800/70 bg-slate-950/50 p-3 text-sm transition-colors hover:border-slate-700/90 hover:bg-slate-900/60">
                       <p className="text-slate-400">Total unidades vendidas</p>
                       <p className="mt-1 text-lg font-semibold text-slate-100">
                         {bcmStats.totalUnitsSold.toLocaleString('es-ES')}
                       </p>
                     </div>
-                    <div className="rounded-xl border border-slate-800/70 bg-slate-900/40 p-3 text-sm">
+                    <div className="rounded-xl border border-slate-800/70 bg-slate-950/50 p-3 text-sm transition-colors hover:border-slate-700/90 hover:bg-slate-900/60">
                       <p className="text-slate-400">Total ventas</p>
                       <p className="mt-1 text-lg font-semibold text-slate-100">{formatCurrency(bcmStats.totalSales)}</p>
                     </div>
-                    <div className="rounded-xl border border-slate-800/70 bg-slate-900/40 p-3 text-sm">
+                    <div className="rounded-xl border border-slate-800/70 bg-slate-950/50 p-3 text-sm transition-colors hover:border-slate-700/90 hover:bg-slate-900/60">
                       <p className="text-slate-400">Total margen</p>
                       <p className="mt-1 text-lg font-semibold text-slate-100">{formatCurrency(bcmStats.totalMargin)}</p>
                     </div>
-                    <div className="rounded-xl border border-slate-800/70 bg-slate-900/40 p-3 text-sm">
+                    <div className="rounded-xl border border-slate-800/70 bg-slate-950/50 p-3 text-sm transition-colors hover:border-slate-700/90 hover:bg-slate-900/60">
                       <p className="text-slate-400">Número de platos</p>
                       <p className="mt-1 text-lg font-semibold text-slate-100">{bcmStats.dishCount}</p>
                     </div>
-                    <div className="rounded-xl border border-slate-800/70 bg-slate-900/40 p-3 text-sm">
+                    <div className="rounded-xl border border-slate-800/70 bg-slate-950/50 p-3 text-sm transition-colors hover:border-slate-700/90 hover:bg-slate-900/60">
                       <p className="text-slate-400">Margen medio</p>
                       <p className="mt-1 text-lg font-semibold text-slate-100">{formatCurrency(bcmStats.marginAverage)}</p>
                     </div>
-                    <div className="rounded-xl border border-slate-800/70 bg-slate-900/40 p-3 text-sm">
+                    <div className="rounded-xl border border-slate-800/70 bg-slate-950/50 p-3 text-sm transition-colors hover:border-slate-700/90 hover:bg-slate-900/60">
                       <p className="text-slate-400">% coste producto</p>
                       <p className="mt-1 text-lg font-semibold text-slate-100">{formatPercent(bcmStats.costProductPct)}</p>
                     </div>
-                    <div className="rounded-xl border border-slate-800/70 bg-slate-900/40 p-3 text-sm">
+                    <div className="rounded-xl border border-slate-800/70 bg-slate-950/50 p-3 text-sm transition-colors hover:border-slate-700/90 hover:bg-slate-900/60">
                       <p className="text-slate-400">% corrección popularidad</p>
                       <p className="mt-1 text-lg font-semibold text-slate-100">
                         {formatPercent(bcmStats.popularityCorrectionPct)}
                       </p>
                     </div>
-                    <div className="rounded-xl border border-slate-800/70 bg-slate-900/40 p-3 text-sm">
+                    <div className="rounded-xl border border-slate-800/70 bg-slate-950/50 p-3 text-sm transition-colors hover:border-slate-700/90 hover:bg-slate-900/60">
                       <p className="text-slate-400">Índice medio popularidad</p>
                       <p className="mt-1 text-lg font-semibold text-slate-100">{formatPercent(bcmStats.popularityIndexAverage)}</p>
                     </div>
                   </div>
 
-                  <div className="overflow-hidden rounded-xl border border-slate-800/70">
-                    <table className="min-w-full divide-y divide-slate-800 text-left text-sm text-slate-200">
+                  <div className="max-w-full overflow-x-auto rounded-xl border border-slate-800/70 pb-2">
+                    <table className="w-max min-w-full divide-y divide-slate-800 text-left text-sm text-slate-200">
                       <thead className="bg-slate-950/60 text-xs uppercase tracking-wide text-slate-400">
                         <tr>
                           <th className="px-4 py-3">Tipo BCM</th>
@@ -441,7 +441,7 @@ export default async function MenuEngineeringPage({
                   <MenuEngineeringSortableBcmDetailTable bcmDetailRows={bcmDetailRows} />
                 </div>
 
-                <div className="rounded-xl border border-slate-800/70 bg-slate-900/40 p-4">
+                <div className="rounded-xl border border-slate-700/70 bg-slate-950/50 p-4 shadow-inner shadow-slate-950/30">
                   <h4 className="text-sm font-semibold text-slate-100">Visual BCM (Margen G vs Popularidad G)</h4>
                   <div className="relative mt-3 h-80 rounded-lg border border-slate-700/80 bg-slate-950/60">
                     <div className="absolute left-0 right-0 top-1/2 border-t border-slate-700/80" />

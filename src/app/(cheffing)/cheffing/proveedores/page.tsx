@@ -1,3 +1,4 @@
+import { PageHeader } from '@/components/ui';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { requireCheffingAccess } from '@/lib/cheffing/requireCheffing';
 
@@ -17,13 +18,14 @@ export default async function CheffingSuppliersPage() {
   }
 
   return (
-    <section className="space-y-6 rounded-2xl border border-slate-800/80 bg-slate-900/70 p-6">
-      <header className="space-y-2">
-        <h2 className="text-xl font-semibold text-white">Proveedores</h2>
-        <p className="text-sm text-slate-400">Gestión manual de proveedores para compras de Cheffing.</p>
-      </header>
+    <>
+      <PageHeader
+        eyebrow="Cheffing"
+        title="Proveedores"
+        description="Gestión manual de proveedores para compras de Cheffing."
+      />
 
       <ProcurementSuppliersManager initialSuppliers={suppliers ?? []} />
-    </section>
+    </>
   );
 }

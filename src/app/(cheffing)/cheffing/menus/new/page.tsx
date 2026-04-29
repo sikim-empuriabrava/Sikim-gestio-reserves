@@ -1,3 +1,4 @@
+import { PageHeader } from '@/components/ui';
 import { requireCheffingAccess } from '@/lib/cheffing/requireCheffing';
 import { loadCheffingConsumerDishes } from '@/lib/cheffing/consumerQueries';
 
@@ -9,13 +10,14 @@ export default async function CheffingMenusNewPage() {
   const { dishes } = await loadCheffingConsumerDishes();
 
   return (
-    <section className="space-y-6 rounded-2xl border border-slate-800/80 bg-slate-900/70 p-6">
-      <header className="space-y-2">
-        <h2 className="text-xl font-semibold text-white">Nuevo menú</h2>
-        <p className="text-sm text-slate-400">Primero guarda cabecera y luego añade líneas por sección.</p>
-      </header>
+    <>
+      <PageHeader
+        eyebrow="Cheffing"
+        title="Nuevo menú"
+        description="Guarda cabecera y después añade líneas por sección."
+      />
 
       <CheffingMenuEditor id={null} header={menuHeaderDefaults} items={[]} dishes={dishes} />
-    </section>
+    </>
   );
 }

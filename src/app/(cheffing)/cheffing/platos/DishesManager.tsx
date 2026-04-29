@@ -3,7 +3,15 @@
 import { useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import {
+  EyeIcon,
+  PencilSquareIcon,
+  PhotoIcon,
+  TrashIcon,
+  XMarkIcon,
+} from '@heroicons/react/24/outline';
 
+import { DataTableShell, StatusBadge, Toolbar, cn } from '@/components/ui';
 import type { Dish } from '@/lib/cheffing/types';
 import { formatEditableMoney, parseEditableMoney } from '@/lib/cheffing/money';
 import { normalizeSearchText } from '@/lib/cheffing/search';
@@ -11,6 +19,22 @@ import { createSupabaseBrowserClient } from '@/lib/supabase/browser';
 import type { CheffingFamily } from '@/lib/cheffing/families';
 import { SIN_FAMILIA_LABEL } from '@/lib/cheffing/families';
 import type { DishUsageConsumer } from '@/lib/cheffing/dishUsage';
+import {
+  CheffingButton,
+  CheffingEmptyState,
+  CheffingField,
+  CheffingSearchInput,
+  CheffingTableActionButton,
+  CheffingTableActionLink,
+  cheffingEditingRowClassName,
+  cheffingHeaderButtonClassName,
+  cheffingInputClassName,
+  cheffingNumericClassName,
+  cheffingRowClassName,
+  cheffingSelectClassName,
+  cheffingTableClassName,
+  cheffingTheadClassName,
+} from '@/app/(cheffing)/cheffing/components/CheffingUi';
 
 export type DishCost = Dish & {
   items_cost_total: number | null;
@@ -43,6 +67,15 @@ type DishSortKey = 'name' | 'family' | 'selling_price' | 'servings' | 'items_cos
 type UsageFilter = 'all' | 'in_use' | 'unused';
 type UsageScope = 'any' | 'active';
 
+const sortLabelByKey: Record<DishSortKey, string> = {
+  name: 'Nombre',
+  family: 'Familia',
+  selling_price: 'PVP',
+  servings: 'Raciones',
+  items_cost_total: 'Coste total',
+  cost_per_serving: 'Coste ración',
+};
+
 export function DishesManager({
   initialDishes,
   families,
@@ -70,8 +103,8 @@ export function DishesManager({
   const supabase = useMemo(() => createSupabaseBrowserClient(), []);
 
   const formatCurrency = (value: number | null) => {
-    if (value === null || Number.isNaN(value)) return '—';
-    return `${value.toFixed(2)} €`;
+    if (value === null || Number.isNaN(value)) return '-';
+    return `${value.toFixed(2)} \u20ac`;
   };
 
   const resolveImageUrl = (dish: DishCost) => {
@@ -106,7 +139,7 @@ export function DishesManager({
       const servingsValue = Number(editingState.servings);
 
       if (sellingPriceValue !== null && sellingPriceValue < 0) {
-        throw new Error('El PVP debe ser un número válido.');
+        throw new Error('El PVP debe ser un numero valido.');
       }
 
       if (!Number.isFinite(servingsValue) || servingsValue <= 0) {
@@ -146,7 +179,7 @@ export function DishesManager({
     setIsSubmitting(true);
 
     try {
-      const confirmed = window.confirm(`¿Seguro que quieres eliminar este ${entityLabelSingular}?`);
+      const confirmed = window.confirm(`Seguro que quieres eliminar este ${entityLabelSingular}?`);
       if (!confirmed) {
         return;
       }
@@ -168,8 +201,8 @@ export function DishesManager({
   };
 
   const indicator = (key: DishSortKey) => {
-    if (sortState.key !== key) return '↕';
-    return sortState.direction === 'asc' ? '↑' : '↓';
+    if (sortState.key !== key) return '<>';
+    return sortState.direction === 'asc' ? '^' : 'v';
   };
 
   const handleSort = (key: DishSortKey) => {
@@ -222,130 +255,154 @@ export function DishesManager({
       return result * directionMultiplier;
     });
   }, [includeFamilylessFilter, initialDishes, searchTerm, selectedFamily, sortState, usageFilter, usageScope]);
+
   const firstColumnLabel = capitalizeFirstLetter(entityLabelSingular);
+  const hasActiveFilters =
+    Boolean(searchTerm) || selectedFamily !== 'todas' || usageFilter !== 'all' || usageScope !== 'any';
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <Link
-          href={`${basePath}/new`}
-          className="rounded-full border border-emerald-400/60 bg-emerald-500/10 px-4 py-2 text-sm font-semibold text-emerald-200 transition hover:border-emerald-300 hover:text-emerald-100"
-        >
-          Nuevo {entityLabelSingular}
-        </Link>
-        <label className="flex items-center gap-2 text-sm text-slate-300">
-          <span>Familia</span>
-          <select
-            value={selectedFamily}
-            onChange={(event) => setSelectedFamily(event.target.value)}
-            className="rounded-md border border-slate-700 bg-slate-950/70 px-2 py-1 text-white"
-          >
-            <option value="todas">Todas</option>
-            {includeFamilylessFilter ? <option value="__none__">{SIN_FAMILIA_LABEL}</option> : null}
-            {families.map((family) => (
-              <option key={family.id} value={family.id}>
-                {family.name}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label className="flex items-center gap-2 text-sm text-slate-300">
-          <span>Uso</span>
-          <select
-            value={usageFilter}
-            onChange={(event) => setUsageFilter(event.target.value as UsageFilter)}
-            className="rounded-md border border-slate-700 bg-slate-950/70 px-2 py-1 text-white"
-          >
-            <option value="all">Todos</option>
-            <option value="in_use">En uso</option>
-            <option value="unused">Sin uso</option>
-          </select>
-        </label>
-        <label className="flex items-center gap-2 text-sm text-slate-300">
-          <span>Alcance</span>
-          <select
-            value={usageScope}
-            onChange={(event) => setUsageScope(event.target.value as UsageScope)}
-            className="rounded-md border border-slate-700 bg-slate-950/70 px-2 py-1 text-white"
-          >
-            <option value="any">Cualquier carta/menú</option>
-            <option value="active">Solo activos</option>
-          </select>
-        </label>
-        <input
-          type="search"
-          value={searchTerm}
-          onChange={(event) => setSearchTerm(event.target.value)}
-          placeholder={`Buscar ${entityLabelSingular} por nombre`}
-          className="w-full max-w-xs rounded-md border border-slate-700 bg-slate-950/70 px-3 py-2 text-sm text-white placeholder:text-slate-500"
-        />
-        {error ? <p className="text-sm text-rose-400">{error}</p> : null}
-      </div>
+    <div className="space-y-4">
+      {error ? (
+        <div className="rounded-xl border border-rose-500/30 bg-rose-500/10 px-4 py-3 text-sm font-medium text-rose-100">
+          {error}
+        </div>
+      ) : null}
 
-      <div className="overflow-x-auto rounded-2xl border border-slate-800/70">
-        <table className="w-full min-w-[1210px] text-left text-sm text-slate-200">
-          <thead className="bg-slate-950/70 text-xs uppercase text-slate-400">
-            <tr>
-              <th className="px-4 py-3">
-                <button type="button" className="inline-flex items-center gap-1" onClick={() => handleSort('name')}>
-                  {firstColumnLabel} <span className="text-[10px]">{indicator('name')}</span>
+      <DataTableShell
+        title={`Listado de ${entityLabelPlural}`}
+        description="Coste, PVP, uso en carta y estado de escandallo."
+        toolbar={
+          <Toolbar
+            leading={
+              <CheffingSearchInput
+                label={`Buscar ${entityLabelSingular} por nombre`}
+                value={searchTerm}
+                onChange={(event) => setSearchTerm(event.target.value)}
+                placeholder={`Buscar ${entityLabelSingular} por nombre`}
+                className="w-full xl:w-[380px]"
+              />
+            }
+            filters={
+              <>
+                <CheffingField label="Familia">
+                  <select
+                    value={selectedFamily}
+                    onChange={(event) => setSelectedFamily(event.target.value)}
+                    className={cheffingSelectClassName}
+                  >
+                    <option value="todas">Todas</option>
+                    {includeFamilylessFilter ? <option value="__none__">{SIN_FAMILIA_LABEL}</option> : null}
+                    {families.map((family) => (
+                      <option key={family.id} value={family.id}>
+                        {family.name}
+                      </option>
+                    ))}
+                  </select>
+                </CheffingField>
+                <CheffingField label="Uso">
+                  <select
+                    value={usageFilter}
+                    onChange={(event) => setUsageFilter(event.target.value as UsageFilter)}
+                    className={cheffingSelectClassName}
+                  >
+                    <option value="all">Todos</option>
+                    <option value="in_use">En uso</option>
+                    <option value="unused">Sin uso</option>
+                  </select>
+                </CheffingField>
+                <CheffingField label="Alcance">
+                  <select
+                    value={usageScope}
+                    onChange={(event) => setUsageScope(event.target.value as UsageScope)}
+                    className={cheffingSelectClassName}
+                  >
+                    <option value="any">Cualquier carta/menú</option>
+                    <option value="active">Solo activos</option>
+                  </select>
+                </CheffingField>
+              </>
+            }
+            actions={
+              <StatusBadge tone={hasActiveFilters ? 'accent' : 'muted'}>
+                {filteredAndSortedDishes.length} visibles
+              </StatusBadge>
+            }
+          />
+        }
+        footer={
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <span>
+              Mostrando {filteredAndSortedDishes.length} de {initialDishes.length} {entityLabelPlural}
+            </span>
+            <span>
+              Orden: {sortLabelByKey[sortState.key]} {sortState.direction === 'asc' ? 'ascendente' : 'descendente'}
+            </span>
+          </div>
+        }
+      >
+        <table className={cn(cheffingTableClassName, 'min-w-[1210px]')}>
+          <thead className={cheffingTheadClassName}>
+            <tr className="border-b border-slate-800/80">
+              <th className="w-[22%] px-4 py-3">
+                <button type="button" className={cheffingHeaderButtonClassName} onClick={() => handleSort('name')}>
+                  {firstColumnLabel} <span className="text-[10px] text-primary-200">{indicator('name')}</span>
                 </button>
               </th>
               <th className="px-4 py-3">
-                <button type="button" className="inline-flex items-center gap-1" onClick={() => handleSort('family')}>
-                  Familia <span className="text-[10px]">{indicator('family')}</span>
+                <button type="button" className={cheffingHeaderButtonClassName} onClick={() => handleSort('family')}>
+                  Familia <span className="text-[10px] text-primary-200">{indicator('family')}</span>
                 </button>
               </th>
-              <th className="px-4 py-3">Imagen</th>
-              <th className="px-4 py-3">Uso</th>
+              <th className="px-4 py-3 font-semibold text-slate-300">Imagen</th>
+              <th className="px-4 py-3 font-semibold text-slate-300">Uso</th>
               <th className="px-4 py-3">
                 <button
                   type="button"
-                  className="inline-flex items-center gap-1"
+                  className={cheffingHeaderButtonClassName}
                   onClick={() => handleSort('selling_price')}
                 >
-                  PVP <span className="text-[10px]">{indicator('selling_price')}</span>
+                  PVP <span className="text-[10px] text-primary-200">{indicator('selling_price')}</span>
                 </button>
               </th>
               <th className="px-4 py-3">
-                <button type="button" className="inline-flex items-center gap-1" onClick={() => handleSort('servings')}>
-                  Raciones base <span className="text-[10px]">{indicator('servings')}</span>
+                <button type="button" className={cheffingHeaderButtonClassName} onClick={() => handleSort('servings')}>
+                  Raciones base <span className="text-[10px] text-primary-200">{indicator('servings')}</span>
                 </button>
               </th>
               <th className="px-4 py-3">
                 <button
                   type="button"
-                  className="inline-flex items-center gap-1"
+                  className={cheffingHeaderButtonClassName}
                   onClick={() => handleSort('items_cost_total')}
                 >
-                  Coste total <span className="text-[10px]">{indicator('items_cost_total')}</span>
+                  Coste total <span className="text-[10px] text-primary-200">{indicator('items_cost_total')}</span>
                 </button>
               </th>
               <th className="px-4 py-3">
                 <button
                   type="button"
-                  className="inline-flex items-center gap-1"
+                  className={cheffingHeaderButtonClassName}
                   onClick={() => handleSort('cost_per_serving')}
                 >
-                  Coste ración <span className="text-[10px]">{indicator('cost_per_serving')}</span>
+                  Coste ración <span className="text-[10px] text-primary-200">{indicator('cost_per_serving')}</span>
                 </button>
               </th>
-              <th className="px-4 py-3">Acciones</th>
+              <th className="px-4 py-3 text-right font-semibold text-slate-300">Acciones</th>
             </tr>
           </thead>
-          <tbody>
+          <tbody className="divide-y divide-slate-800/60 bg-slate-950/20">
             {initialDishes.length === 0 ? (
-              <tr>
-                <td colSpan={9} className="px-4 py-6 text-center text-sm text-slate-500">
-                  No hay {entityLabelPlural} todavía.
-                </td>
-              </tr>
+              <CheffingEmptyState
+                colSpan={9}
+                title={`No hay ${entityLabelPlural} todavia.`}
+                description={`Crea un ${entityLabelSingular} para calcular coste y uso.`}
+              />
             ) : filteredAndSortedDishes.length === 0 ? (
-              <tr>
-                <td colSpan={9} className="px-4 py-6 text-center text-sm text-slate-500">
-                  No hay {entityLabelPlural} que coincidan con el filtro actual.
-                </td>
-              </tr>
+              <CheffingEmptyState
+                colSpan={9}
+                title={`No hay ${entityLabelPlural} para el filtro actual.`}
+                description="Ajusta búsqueda, familia o uso para ampliar resultados."
+              />
             ) : (
               filteredAndSortedDishes.map((dish) => {
                 const isEditing = editingId === dish.id;
@@ -353,11 +410,12 @@ export function DishesManager({
                 const imageUrl = resolveImageUrl(dish);
 
                 return (
-                  <tr key={dish.id} className="border-t border-slate-800/60">
-                    <td className="px-4 py-3">
+                  <tr key={dish.id} className={cn(cheffingRowClassName, isEditing && cheffingEditingRowClassName)}>
+                    <td className="px-4 py-3 align-middle">
                       {isEditing ? (
                         <input
-                          className="w-full rounded-md border border-slate-700 bg-slate-950/70 px-2 py-1 text-white"
+                          aria-label={`Nombre de ${entityLabelSingular}`}
+                          className={cheffingInputClassName}
                           value={editingValues?.name ?? ''}
                           onChange={(event) =>
                             setEditingState((prev) => (prev ? { ...prev, name: event.target.value } : prev))
@@ -366,16 +424,17 @@ export function DishesManager({
                       ) : (
                         <Link
                           href={`${basePath}/${dish.id}`}
-                          className="font-semibold text-white underline-offset-2 transition hover:text-emerald-200 hover:underline"
+                          className="font-semibold text-white underline-offset-4 transition hover:text-primary-100 hover:underline"
                         >
                           {dish.name}
                         </Link>
                       )}
                     </td>
-                    <td className="px-4 py-3 text-slate-300">
+                    <td className="px-4 py-3 align-middle text-slate-300">
                       {isEditing ? (
                         <select
-                          className="rounded-md border border-slate-700 bg-slate-950/70 px-2 py-1 text-white"
+                          aria-label="Familia"
+                          className={cheffingSelectClassName}
                           value={editingValues?.family_id ?? ''}
                           onChange={(event) =>
                             setEditingState((prev) => (prev ? { ...prev, family_id: event.target.value } : prev))
@@ -392,26 +451,27 @@ export function DishesManager({
                         dish.family_name ?? SIN_FAMILIA_LABEL
                       )}
                     </td>
-                    <td className="px-4 py-3">
+                    <td className="px-4 py-3 align-middle">
                       {imageUrl ? (
                         <img
                           src={imageUrl}
                           alt={`Imagen de ${dish.name}`}
-                          className="h-12 w-12 rounded-lg object-cover"
+                          className="h-10 w-10 rounded-lg border border-slate-700/80 object-cover"
                         />
                       ) : (
-                        <span className="text-xs text-slate-500">—</span>
+                        <span className="inline-flex h-10 w-10 items-center justify-center rounded-lg border border-slate-800 bg-slate-950/70 text-slate-600">
+                          <PhotoIcon className="h-4 w-4" aria-hidden="true" />
+                          <span className="sr-only">Sin imagen</span>
+                        </span>
                       )}
                     </td>
-                    <td className="px-4 py-3">
+                    <td className="px-4 py-3 align-middle">
                       {dish.usage_has_any ? (
                         <div className="group relative inline-flex">
-                          <span className="rounded-full border border-emerald-500/50 bg-emerald-500/10 px-2 py-0.5 text-xs font-medium text-emerald-200">
-                            En uso
-                          </span>
+                          <StatusBadge tone={dish.usage_has_active ? 'success' : 'info'}>En uso</StatusBadge>
                           <div
                             role="tooltip"
-                            className="absolute left-0 top-full z-20 mt-2 hidden w-80 rounded-md border border-slate-700 bg-slate-950/95 p-3 text-left text-[11px] normal-case text-slate-200 shadow-lg group-hover:block group-focus-within:block"
+                            className="absolute left-0 top-full z-20 mt-2 hidden w-80 rounded-xl border border-slate-700 bg-slate-950/95 p-3 text-left text-[11px] normal-case text-slate-200 shadow-xl shadow-slate-950/40 group-hover:block group-focus-within:block"
                           >
                             <div className="space-y-2">
                               <div>
@@ -422,7 +482,7 @@ export function DishesManager({
                                       <li key={card.id} className="flex items-center justify-between gap-2">
                                         <Link
                                           href={`/cheffing/carta/${card.id}`}
-                                          className="text-slate-300 underline-offset-2 transition hover:text-emerald-200 hover:underline"
+                                          className="text-slate-300 underline-offset-2 transition hover:text-primary-100 hover:underline"
                                         >
                                           {card.name}
                                         </Link>
@@ -437,14 +497,14 @@ export function DishesManager({
                                 )}
                               </div>
                               <div>
-                                <p className="font-semibold text-slate-100">Menús</p>
+                                <p className="font-semibold text-slate-100">Menus</p>
                                 {dish.usage_menus && dish.usage_menus.length > 0 ? (
                                   <ul className="mt-1 space-y-1">
                                     {dish.usage_menus.map((menu) => (
                                       <li key={menu.id} className="flex items-center justify-between gap-2">
                                         <Link
                                           href={`/cheffing/menus/${menu.id}`}
-                                          className="text-slate-300 underline-offset-2 transition hover:text-emerald-200 hover:underline"
+                                          className="text-slate-300 underline-offset-2 transition hover:text-primary-100 hover:underline"
                                         >
                                           {menu.name}
                                         </Link>
@@ -455,23 +515,24 @@ export function DishesManager({
                                     ))}
                                   </ul>
                                 ) : (
-                                  <p className="mt-1 text-slate-500">Sin menús</p>
+                                  <p className="mt-1 text-slate-500">Sin menus</p>
                                 )}
                               </div>
                             </div>
                           </div>
                         </div>
                       ) : (
-                        <span className="rounded-full border border-slate-700 px-2 py-0.5 text-xs text-slate-400">Sin uso</span>
+                        <StatusBadge tone="muted">Sin uso</StatusBadge>
                       )}
                     </td>
-                    <td className="px-4 py-3 text-slate-300">
+                    <td className={cn('px-4 py-3 align-middle', cheffingNumericClassName)}>
                       {isEditing ? (
                         <input
                           type="number"
                           min="0"
                           step="0.01"
-                          className="w-32 rounded-md border border-slate-700 bg-slate-950/70 px-2 py-1 text-white"
+                          aria-label="PVP"
+                          className={cn(cheffingInputClassName, 'w-32')}
                           value={editingValues?.selling_price ?? ''}
                           onChange={(event) =>
                             setEditingState((prev) => (prev ? { ...prev, selling_price: event.target.value } : prev))
@@ -481,13 +542,14 @@ export function DishesManager({
                         formatCurrency(dish.selling_price)
                       )}
                     </td>
-                    <td className="px-4 py-3 text-slate-300">
+                    <td className={cn('px-4 py-3 align-middle', cheffingNumericClassName)}>
                       {isEditing ? (
                         <input
                           type="number"
                           min="1"
                           step="1"
-                          className="w-20 rounded-md border border-slate-700 bg-slate-950/70 px-2 py-1 text-white"
+                          aria-label="Raciones base"
+                          className={cn(cheffingInputClassName, 'w-20')}
                           value={editingValues?.servings ?? ''}
                           onChange={(event) =>
                             setEditingState((prev) => (prev ? { ...prev, servings: event.target.value } : prev))
@@ -497,55 +559,52 @@ export function DishesManager({
                         dish.servings
                       )}
                     </td>
-                    <td className="px-4 py-3 text-slate-100">
+                    <td className={cn('px-4 py-3 align-middle', cheffingNumericClassName)}>
                       {formatCurrency(dish.items_cost_total)}
                     </td>
-                    <td className="px-4 py-3 text-slate-100">
+                    <td className={cn('px-4 py-3 align-middle', cheffingNumericClassName)}>
                       {formatCurrency(dish.cost_per_serving ?? null)}
                     </td>
-                    <td className="px-4 py-3">
-                      <div className="flex gap-2">
+                    <td className="px-4 py-3 align-middle">
+                      <div className="flex justify-end gap-2">
                         {isEditing ? (
                           <>
-                            <button
+                            <CheffingButton
                               type="button"
+                              tone="success"
                               onClick={() => saveEditing(dish.id)}
                               disabled={isSubmitting}
-                              className="rounded-full border border-emerald-400/60 px-3 py-1 text-xs font-semibold text-emerald-200"
                             >
                               Guardar
-                            </button>
-                            <button
+                            </CheffingButton>
+                            <CheffingTableActionButton
                               type="button"
                               onClick={cancelEditing}
-                              className="rounded-full border border-slate-700 px-3 py-1 text-xs font-semibold text-slate-300"
+                              aria-label="Cancelar edicion"
+                              title="Cancelar"
                             >
-                              Cancelar
-                            </button>
+                              <XMarkIcon className="h-4 w-4" aria-hidden="true" />
+                            </CheffingTableActionButton>
                           </>
                         ) : (
                           <>
-                            <Link
-                              href={`${basePath}/${dish.id}`}
-                              className="rounded-full border border-slate-700 px-3 py-1 text-xs font-semibold text-slate-200"
-                            >
+                            <CheffingTableActionLink href={`${basePath}/${dish.id}`}>
+                              <EyeIcon className="h-4 w-4" aria-hidden="true" />
                               Ver
-                            </Link>
-                            <button
-                              type="button"
-                              onClick={() => startEditing(dish)}
-                              className="rounded-full border border-slate-700 px-3 py-1 text-xs font-semibold text-slate-200"
-                            >
+                            </CheffingTableActionLink>
+                            <CheffingTableActionButton type="button" onClick={() => startEditing(dish)}>
+                              <PencilSquareIcon className="h-4 w-4" aria-hidden="true" />
                               Editar
-                            </button>
-                            <button
+                            </CheffingTableActionButton>
+                            <CheffingTableActionButton
                               type="button"
+                              tone="danger"
                               onClick={() => deleteDish(dish.id)}
                               disabled={isSubmitting}
-                              className="rounded-full border border-rose-500/70 px-3 py-1 text-xs font-semibold text-rose-200"
                             >
+                              <TrashIcon className="h-4 w-4" aria-hidden="true" />
                               Eliminar
-                            </button>
+                            </CheffingTableActionButton>
                           </>
                         )}
                       </div>
@@ -556,7 +615,7 @@ export function DishesManager({
             )}
           </tbody>
         </table>
-      </div>
+      </DataTableShell>
     </div>
   );
 }

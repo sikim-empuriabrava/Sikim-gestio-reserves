@@ -1,8 +1,12 @@
+import { PlusIcon } from '@heroicons/react/24/outline';
+
+import { PageHeader } from '@/components/ui';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { requireCheffingAccess } from '@/lib/cheffing/requireCheffing';
 import { DishesManager, type DishCost } from '@/app/(cheffing)/cheffing/platos/DishesManager';
 import type { CheffingFamily } from '@/lib/cheffing/families';
 import { buildDishUsageIndex, loadCheffingDishUsage } from '@/lib/cheffing/dishUsage';
+import { CheffingLinkButton } from '@/app/(cheffing)/cheffing/components/CheffingUi';
 
 type DishImageRow = {
   id: string;
@@ -82,13 +86,18 @@ export default async function CheffingBebidasPage() {
     }) ?? [];
 
   return (
-    <section className="space-y-6 rounded-2xl border border-slate-800/80 bg-slate-900/70 p-6">
-      <header className="space-y-2">
-        <h2 className="text-xl font-semibold text-white">Bebidas</h2>
-        <p className="text-sm text-slate-400">
-          Gestiona bebidas finales y calcula el coste total a partir de productos y elaboraciones.
-        </p>
-      </header>
+    <>
+      <PageHeader
+        eyebrow="Cheffing"
+        title="Bebidas"
+        description="Gestiona bebidas finales y calcula el coste total a partir de productos y elaboraciones."
+        actions={
+          <CheffingLinkButton href="/cheffing/bebidas/new" tone="success">
+            <PlusIcon className="h-4 w-4" aria-hidden="true" />
+            Nueva bebida
+          </CheffingLinkButton>
+        }
+      />
 
       <DishesManager
         initialDishes={enrichedDishes as DishCost[]}
@@ -98,6 +107,6 @@ export default async function CheffingBebidasPage() {
         entityLabelPlural="bebidas"
         includeFamilylessFilter={false}
       />
-    </section>
+    </>
   );
 }

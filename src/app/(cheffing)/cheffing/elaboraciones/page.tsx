@@ -1,6 +1,10 @@
+import { PlusIcon } from '@heroicons/react/24/outline';
+
+import { PageHeader } from '@/components/ui';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { requireCheffingAccess } from '@/lib/cheffing/requireCheffing';
 import type { Unit } from '@/lib/cheffing/types';
+import { CheffingLinkButton } from '@/app/(cheffing)/cheffing/components/CheffingUi';
 
 import { SubrecipesManager, type SubrecipeCost } from './SubrecipesManager';
 
@@ -48,18 +52,23 @@ export default async function CheffingElaboracionesPage() {
     }) ?? [];
 
   return (
-    <section className="space-y-6 rounded-2xl border border-slate-800/80 bg-slate-900/70 p-6">
-      <header className="space-y-2">
-        <h2 className="text-xl font-semibold text-white">Elaboraciones</h2>
-        <p className="text-sm text-slate-400">
-          Define producciones internas, merma y coste base por unidad para reutilizarlas en platos.
-        </p>
-      </header>
+    <>
+      <PageHeader
+        eyebrow="Cheffing"
+        title="Elaboraciones"
+        description="Define producciones internas, merma y coste base por unidad para reutilizarlas en platos."
+        actions={
+          <CheffingLinkButton href="/cheffing/elaboraciones/new" tone="success">
+            <PlusIcon className="h-4 w-4" aria-hidden="true" />
+            Nueva elaboración
+          </CheffingLinkButton>
+        }
+      />
 
       <SubrecipesManager
         initialSubrecipes={enrichedSubrecipes as SubrecipeCost[]}
         units={(units ?? []) as Unit[]}
       />
-    </section>
+    </>
   );
 }
