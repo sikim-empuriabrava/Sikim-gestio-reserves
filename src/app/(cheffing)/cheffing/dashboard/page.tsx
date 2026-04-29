@@ -119,7 +119,7 @@ export default async function CheffingDashboardPage({
         </div>
       ) : (
         <>
-          <MetricStrip className="xl:grid-cols-[1fr_1fr_1fr_1.2fr]">
+          <MetricStrip className="xl:grid-cols-[1fr_1fr_1fr_1.15fr]">
             <MetricCard
               label="Total platos"
               value={integerFormatter.format(dashboard.totalDishes)}

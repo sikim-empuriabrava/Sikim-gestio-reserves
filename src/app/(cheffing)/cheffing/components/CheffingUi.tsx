@@ -28,13 +28,13 @@ export const cheffingSelectClassName =
 export const cheffingTableClassName = 'w-full text-left text-sm text-slate-200';
 
 export const cheffingTheadClassName =
-  'bg-slate-950/80 text-[11px] uppercase tracking-wide text-slate-400';
+  'bg-slate-950/85 text-[11px] uppercase tracking-wide text-slate-400';
 
 export const cheffingHeaderButtonClassName =
   'inline-flex items-center gap-1.5 rounded-md px-1 py-0.5 font-semibold text-slate-300 transition-colors duration-150 hover:bg-slate-800/60 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500/25';
 
 export const cheffingRowClassName =
-  'border-t border-slate-800/60 transition-colors duration-150 hover:bg-slate-800/35';
+  'border-t border-slate-800/60 transition-colors duration-150 hover:bg-slate-800/40';
 
 export const cheffingEditingRowClassName = 'bg-primary-900/20 hover:bg-primary-900/25';
 
@@ -49,7 +49,7 @@ export function CheffingButton({
   return (
     <button
       className={cn(
-        'inline-flex h-9 items-center justify-center gap-2 rounded-xl border px-3 text-sm font-semibold shadow-lg shadow-slate-950/15 transition duration-150 active:translate-y-px disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2',
+        'inline-flex h-9 items-center justify-center gap-2 rounded-xl border px-3 text-sm font-semibold shadow-lg shadow-slate-950/15 transition duration-150 hover:-translate-y-0.5 active:translate-y-px disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2',
         buttonToneClassName[tone],
         className,
       )}
@@ -75,7 +75,7 @@ export function CheffingLinkButton({
     <Link
       href={href}
       className={cn(
-        'inline-flex h-10 items-center justify-center gap-2 rounded-xl border px-4 text-sm font-semibold shadow-lg shadow-slate-950/20 transition duration-150 active:translate-y-px focus-visible:outline-none focus-visible:ring-2',
+        'inline-flex h-10 items-center justify-center gap-2 rounded-xl border px-4 text-sm font-semibold shadow-lg shadow-slate-950/20 transition duration-150 hover:-translate-y-0.5 active:translate-y-px focus-visible:outline-none focus-visible:ring-2',
         buttonToneClassName[tone],
         className,
       )}
@@ -141,7 +141,7 @@ export function CheffingEmptyState({
   return (
     <tr>
       <td colSpan={colSpan} className="px-4 py-10 text-center">
-        <div className="mx-auto max-w-md rounded-xl border border-dashed border-slate-700/80 bg-slate-950/40 px-4 py-5">
+        <div className="mx-auto max-w-md rounded-xl border border-dashed border-slate-700/80 bg-slate-950/45 px-4 py-5 ring-1 ring-white/[0.025]">
           <p className="text-sm font-semibold text-slate-200">{title}</p>
           {description ? <p className="mt-1 text-sm text-slate-500">{description}</p> : null}
         </div>

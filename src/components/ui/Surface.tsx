@@ -15,9 +15,9 @@ type SurfaceProps = HTMLAttributes<HTMLElement> & {
 
 const toneClassName: Record<SurfaceTone, string> = {
   panel:
-    'border-slate-700/70 bg-slate-900/70 shadow-[0_20px_48px_-36px_rgba(2,6,23,0.95)] ring-1 ring-white/[0.03]',
-  inset: 'border-slate-800/80 bg-slate-950/60 shadow-inner shadow-slate-950/30',
-  muted: 'border-slate-800/70 bg-slate-900/50 ring-1 ring-white/[0.02]',
+    'border-slate-700/70 bg-gradient-to-br from-slate-900/75 via-slate-900/60 to-slate-950/70 shadow-[0_20px_48px_-36px_rgba(2,6,23,0.95)] ring-1 ring-white/[0.035]',
+  inset: 'border-slate-800/80 bg-slate-950/60 shadow-inner shadow-slate-950/30 ring-1 ring-white/[0.02]',
+  muted: 'border-slate-800/70 bg-slate-900/50 ring-1 ring-white/[0.025]',
 };
 
 const paddingClassName: Record<SurfacePadding, string> = {

@@ -404,10 +404,10 @@ export function SubrecipeDetailManager({
   const netDisplayCost = resolveDisplayCost(subrecipe.cost_net_per_base, subrecipe.output_unit_dimension);
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-5">
       <form
         onSubmit={saveHeader}
-        className="space-y-4 rounded-2xl border border-slate-800/70 bg-slate-950/60 p-5"
+        className="space-y-4 rounded-2xl border border-slate-800/70 bg-gradient-to-br from-slate-950/75 via-slate-950/60 to-slate-900/50 p-5 shadow-[0_18px_42px_-34px_rgba(2,6,23,0.95)] ring-1 ring-white/[0.03]"
       >
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
@@ -441,10 +441,7 @@ export function SubrecipeDetailManager({
           </div>
         </div>
         {headerError ? <p className="text-sm text-rose-400">{headerError}</p> : null}
-        <p className="text-sm text-amber-300">
-          Compatibilidad temporal: la imagen de elaboraciones está desactivada porque el schema actual no incluye
-          <code className="mx-1 rounded bg-slate-900 px-1 py-0.5 text-xs">cheffing_subrecipes.image_path</code>.
-        </p>
+        <p className="text-sm text-amber-300">Imagen de elaboración temporalmente no disponible.</p>
         <div className="grid gap-4 md:grid-cols-4">
           <label className="flex flex-col gap-2 text-sm text-slate-300">
             Nombre
@@ -555,7 +552,7 @@ export function SubrecipeDetailManager({
             </div>
           </div>
           <div className="rounded-xl border border-amber-500/40 bg-amber-500/10 p-3 text-xs text-amber-100 md:col-span-4">
-            Imagen de elaboración temporalmente fuera de servicio por compatibilidad de schema.
+            Imagen temporalmente desactivada en esta vista.
             {canManageImages ? ' Se reactivará cuando exista soporte en base de datos.' : ''}
           </div>
         </div>
@@ -578,7 +575,7 @@ export function SubrecipeDetailManager({
         </div>
       </form>
 
-      <div className="space-y-4 rounded-2xl border border-slate-800/70 bg-slate-950/60 p-5">
+      <div className="space-y-4 rounded-2xl border border-slate-800/70 bg-slate-950/60 p-5 shadow-[0_16px_36px_-32px_rgba(2,6,23,0.95)] ring-1 ring-white/[0.025]">
         <h3 className="text-lg font-semibold text-white">Relaciones</h3>
         <div>
           <p className="text-xs uppercase text-slate-500">Usada en platos y bebidas</p>
@@ -602,15 +599,13 @@ export function SubrecipeDetailManager({
         </div>
       </div>
 
-      <div className="space-y-4 rounded-2xl border border-slate-800/70 bg-slate-950/60 p-5">
+      <div className="space-y-4 rounded-2xl border border-slate-800/70 bg-gradient-to-br from-slate-950/70 via-slate-950/60 to-slate-900/50 p-5 shadow-[0_18px_42px_-34px_rgba(2,6,23,0.95)] ring-1 ring-white/[0.03]">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <h3 className="text-lg font-semibold text-white">Productos y elaboraciones</h3>
             <p className="text-sm text-slate-400">Añade líneas de coste para esta elaboración.</p>
             <p className="text-xs text-amber-300">
-              La merma por línea no está disponible en el schema actual (
-              <code className="mx-1 rounded bg-slate-900 px-1 py-0.5 text-[11px]">cheffing_subrecipe_items.waste_pct</code>
-              ).
+              La merma por línea todavía no está disponible en esta vista.
             </p>
           </div>
           {itemsError ? <p className="text-sm text-rose-400">{itemsError}</p> : null}
@@ -623,7 +618,7 @@ export function SubrecipeDetailManager({
           isSubmitting={isSubmitting}
           onAddItem={addItem}
         >
-          <div className="overflow-x-auto rounded-2xl border border-slate-800/70">
+          <div className="overflow-x-auto rounded-2xl border border-slate-800/70 bg-slate-950/20">
             <table className="w-full min-w-[960px] text-left text-sm text-slate-200">
             <thead className="bg-slate-950/70 text-xs uppercase text-slate-400">
               <tr>
@@ -657,7 +652,7 @@ export function SubrecipeDetailManager({
                       : '#';
 
                   return (
-                    <tr key={item.id} className="border-t border-slate-800/60">
+                    <tr key={item.id} className="border-t border-slate-800/60 transition-colors duration-150 hover:bg-slate-900/70">
                       <td className="px-4 py-3">{itemType}</td>
                       <td className="px-4 py-3">
                         {isEditing ? (
@@ -763,7 +758,7 @@ export function SubrecipeDetailManager({
                         )}
                       </td>
                       <td className="px-4 py-3">
-                        <span className="text-slate-400">No disponible en schema actual</span>
+                        <span className="text-slate-400">No disponible en esta vista</span>
                       </td>
                       <td className="px-4 py-3 text-slate-300">
                         {isEditing ? (

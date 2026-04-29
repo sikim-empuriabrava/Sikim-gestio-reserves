@@ -24,12 +24,12 @@ export function DataTableShell({
   return (
     <section
       className={cn(
-        'overflow-hidden rounded-2xl border border-slate-700/70 bg-slate-900/70 shadow-[0_22px_52px_-38px_rgba(2,6,23,0.95)] ring-1 ring-white/[0.03]',
+        'overflow-hidden rounded-2xl border border-slate-700/70 bg-gradient-to-br from-slate-900/75 via-slate-900/60 to-slate-950/70 shadow-[0_22px_52px_-38px_rgba(2,6,23,0.95)] ring-1 ring-white/[0.035]',
         className,
       )}
     >
       {title || description || toolbar ? (
-        <div className="space-y-4 border-b border-slate-800/70 bg-slate-900/35 p-4 md:p-5">
+        <div className="space-y-3.5 border-b border-slate-800/70 bg-slate-950/30 p-4 md:p-5">
           {title || description ? (
             <div className="space-y-1">
               {title ? <h2 className="text-base font-semibold text-white">{title}</h2> : null}
