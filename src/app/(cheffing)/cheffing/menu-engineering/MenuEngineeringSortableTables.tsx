@@ -180,8 +180,8 @@ export function MenuEngineeringSortableMainTable({ rows }: { rows: MenuEngineeri
   }, [rows, mainSort]);
 
   return (
-    <div className="overflow-hidden rounded-2xl border border-slate-700/70 bg-slate-900/70 shadow-[0_22px_52px_-38px_rgba(2,6,23,0.95)] ring-1 ring-white/[0.03]">
-      <table className="min-w-full divide-y divide-slate-800 text-left text-sm text-slate-200">
+    <div className="max-w-full overflow-x-auto rounded-2xl border border-slate-700/70 bg-slate-900/70 pb-2 shadow-[0_22px_52px_-38px_rgba(2,6,23,0.95)] ring-1 ring-white/[0.03]">
+      <table className="min-w-[1520px] divide-y divide-slate-800 text-left text-sm text-slate-200">
         <thead className="bg-slate-950/80 text-[11px] uppercase tracking-wide text-slate-400">
           <tr>
             <th className="px-4 py-3">
@@ -393,8 +393,8 @@ export function MenuEngineeringSortableBcmDetailTable({ bcmDetailRows }: { bcmDe
   }, [bcmDetailRows, detailSort]);
 
   return (
-    <div className="overflow-hidden rounded-xl border border-slate-700/70 bg-slate-900/70 shadow-[0_18px_42px_-34px_rgba(2,6,23,0.95)] ring-1 ring-white/[0.03]">
-      <table className="min-w-full divide-y divide-slate-800 text-left text-sm text-slate-200">
+    <div className="max-w-full overflow-x-auto rounded-xl border border-slate-700/70 bg-slate-900/70 pb-2 shadow-[0_18px_42px_-34px_rgba(2,6,23,0.95)] ring-1 ring-white/[0.03]">
+      <table className="min-w-[1040px] divide-y divide-slate-800 text-left text-sm text-slate-200">
         <thead className="bg-slate-950/80 text-[11px] uppercase tracking-wide text-slate-400">
           <tr>
             <th className="px-4 py-3">

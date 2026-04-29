@@ -394,8 +394,8 @@ export default async function MenuEngineeringPage({
                     </div>
                   </div>
 
-                  <div className="overflow-hidden rounded-xl border border-slate-800/70">
-                    <table className="min-w-full divide-y divide-slate-800 text-left text-sm text-slate-200">
+                  <div className="max-w-full overflow-x-auto rounded-xl border border-slate-800/70 pb-2">
+                    <table className="min-w-[780px] divide-y divide-slate-800 text-left text-sm text-slate-200">
                       <thead className="bg-slate-950/60 text-xs uppercase tracking-wide text-slate-400">
                         <tr>
                           <th className="px-4 py-3">Tipo BCM</th>
