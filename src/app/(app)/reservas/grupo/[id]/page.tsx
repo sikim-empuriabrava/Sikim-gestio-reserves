@@ -43,6 +43,114 @@ export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 export const fetchCache = 'force-no-store';
 
+function ReservaGroupPilotStyles() {
+  return (
+    <style
+      dangerouslySetInnerHTML={{
+        __html: `
+          body:has(.reservas-group-detail-pilot) {
+            background: #11100e;
+          }
+
+          .aforo-standalone-shell:has(.reservas-group-detail-pilot) {
+            max-width: none;
+            gap: 0;
+            padding: 0;
+            background:
+              radial-gradient(circle at 18% 0%, rgba(156, 117, 70, 0.10), transparent 26rem),
+              linear-gradient(135deg, #171614 0%, #11100e 52%, #0f0e0d 100%);
+          }
+
+          .aforo-standalone-shell:has(.reservas-group-detail-pilot) > aside {
+            width: 18.5rem;
+            border-right: 1px solid rgba(120, 103, 82, 0.30);
+            background: linear-gradient(180deg, rgba(29, 28, 25, 0.98), rgba(20, 19, 17, 0.98));
+          }
+
+          .aforo-standalone-shell:has(.reservas-group-detail-pilot) > aside > div {
+            top: 0;
+            min-height: 100dvh;
+            padding: 1rem;
+          }
+
+          .aforo-standalone-shell:has(.reservas-group-detail-pilot) > div {
+            min-width: 0;
+            gap: 0;
+          }
+
+          .aforo-standalone-shell:has(.reservas-group-detail-pilot) > div > header {
+            border-radius: 0;
+            border-width: 0 0 1px 0;
+            border-color: rgba(120, 103, 82, 0.28);
+            background: rgba(18, 17, 15, 0.88);
+            box-shadow: none;
+          }
+
+          .aforo-standalone-shell:has(.reservas-group-detail-pilot) > div > header > div > div:first-child {
+            display: none;
+          }
+
+          .aforo-standalone-shell:has(.reservas-group-detail-pilot) > div > header > div {
+            justify-content: flex-end;
+          }
+
+          .aforo-standalone-shell:has(.reservas-group-detail-pilot) footer {
+            display: none;
+          }
+
+          .aforo-standalone-shell:has(.reservas-group-detail-pilot) aside nav > div {
+            border-color: rgba(120, 103, 82, 0.22);
+            background: transparent;
+            box-shadow: none;
+          }
+
+          .aforo-standalone-shell:has(.reservas-group-detail-pilot) aside nav button {
+            background: rgba(28, 27, 24, 0.62);
+            color: #efe8dc;
+          }
+
+          .aforo-standalone-shell:has(.reservas-group-detail-pilot) aside nav a[aria-current="page"] {
+            background: rgba(150, 112, 66, 0.22);
+            color: #f1c98f;
+            box-shadow: inset 0 0 0 1px rgba(194, 144, 82, 0.20);
+          }
+
+          .aforo-standalone-shell:has(.reservas-group-detail-pilot) a {
+            color: inherit;
+          }
+
+          .reservas-group-detail-pilot input:not([type="checkbox"]),
+          .reservas-group-detail-pilot select,
+          .reservas-group-detail-pilot textarea {
+            border-color: rgba(120, 103, 82, 0.50) !important;
+            background: rgba(18, 17, 15, 0.92) !important;
+            color: #f5eee4 !important;
+          }
+
+          .reservas-group-detail-pilot input:not([type="checkbox"]):focus,
+          .reservas-group-detail-pilot select:focus,
+          .reservas-group-detail-pilot textarea:focus {
+            outline: none !important;
+            border-color: rgba(201, 149, 85, 0.72) !important;
+            box-shadow: 0 0 0 3px rgba(201, 149, 85, 0.16) !important;
+          }
+
+          .reservas-group-detail-pilot button {
+            transition: border-color 160ms ease, background-color 160ms ease, color 160ms ease, transform 160ms ease;
+          }
+
+          .reservas-group-detail-pilot button[class*="bg-emerald"],
+          .reservas-group-detail-pilot button[class*="bg-primary"] {
+            border: 1px solid rgba(214, 167, 110, 0.66) !important;
+            background: linear-gradient(180deg, #d9b170, #a66e38) !important;
+            color: #16120d !important;
+          }
+        `,
+      }}
+    />
+  );
+}
+
 export default async function GroupReservationDetail({
   params,
   searchParams,
@@ -72,11 +180,12 @@ export default async function GroupReservationDetail({
 
   if (!reservation || error) {
     return (
-      <div className="p-6 space-y-4">
-        <Link href="/reservas?view=week" className="text-sm text-emerald-300 hover:underline">
+      <div className="reservas-group-detail-pilot mx-auto w-full max-w-6xl space-y-4 px-4 py-8 sm:px-6 lg:px-8">
+        <ReservaGroupPilotStyles />
+        <Link href="/reservas?view=week" className="text-sm font-medium text-[#d6a76e] hover:text-[#f0c58d]">
           ← Volver a reservas
         </Link>
-        <div className="rounded-lg border border-red-800 bg-red-950/60 p-4 text-sm text-red-100">
+        <div className="rounded-2xl border border-red-500/30 bg-red-950/25 p-4 text-sm text-red-100">
           No se encontró la reserva solicitada.
         </div>
       </div>
@@ -158,7 +267,8 @@ export default async function GroupReservationDetail({
   };
 
   return (
-    <div className="p-6 space-y-4">
+    <div className="reservas-group-detail-pilot mx-auto w-full max-w-6xl space-y-5 px-4 py-8 sm:px-6 lg:px-8">
+      <ReservaGroupPilotStyles />
       <EditableReservationForm
         reservation={preparedReservation}
         offerings={offerings}
@@ -167,11 +277,11 @@ export default async function GroupReservationDetail({
         backDate={dateParam}
       />
 
-      <section className="rounded-xl border border-slate-800 bg-slate-900/60 p-4 space-y-3">
+      <section className="rounded-2xl border border-[#4a3f32]/70 bg-[#181715]/92 p-5 shadow-[0_24px_80px_-56px_rgba(0,0,0,0.95)] space-y-3">
         <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <h2 className="text-lg font-semibold text-slate-100">Crear tarea desde esta reserva</h2>
-            <p className="text-sm text-slate-400">
+            <h2 className="text-lg font-semibold text-[#f5eee4]">Crear tarea desde esta reserva</h2>
+            <p className="text-sm text-[#a89c8e]">
               Envía la información a los tableros de Cocina o Mantenimiento.
             </p>
           </div>

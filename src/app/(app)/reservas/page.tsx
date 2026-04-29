@@ -816,16 +816,20 @@ function MonthView({
                 const extraCount = dayEvents.length > 2 ? dayEvents.length - 2 : 0;
 
                 return (
-                  <Link
+                  <div
                     key={day}
-                    href={`/reservas?view=day&date=${day}`}
-                    className={`group/cell min-h-[8.5rem] p-3 text-left transition-colors ${
+                    className={`group/cell relative min-h-[8.5rem] p-3 text-left transition-colors ${
                       isCurrentMonth
                         ? 'bg-[#181715] hover:bg-[#211f1b]'
                         : 'bg-[#141311] text-[#6f675d] hover:bg-[#1a1815]'
                     }`}
                   >
-                    <div className="flex items-start justify-between gap-2">
+                    <Link
+                      href={`/reservas?view=day&date=${day}`}
+                      className="absolute inset-0 z-0"
+                      aria-label={`Ver detalle del dia ${day}`}
+                    />
+                    <div className="relative z-10 flex items-start justify-between gap-2">
                       <span className={`text-base font-semibold tabular-nums ${isCurrentMonth ? 'text-[#efe8dc]' : 'text-[#756c61]'}`}>
                         {dateObj.getDate()}
                       </span>
@@ -835,23 +839,29 @@ function MonthView({
                         </span>
                       ) : null}
                     </div>
-                    <div className="mt-3 space-y-1.5">
+                    <div className="relative z-10 mt-3 space-y-1.5">
                       {dayEvents.slice(0, 2).map((evt) => (
-                        <div
+                        <Link
                           key={evt.group_event_id}
-                          className="rounded-md border border-[#4a3f32]/60 bg-[#24221f]/70 px-2 py-1.5 text-xs leading-tight text-[#d8cfc2]"
+                          href={`/reservas/grupo/${evt.group_event_id}?date=${evt.event_date}`}
+                          className="block rounded-md border border-[#4a3f32]/60 bg-[#24221f]/70 px-2 py-1.5 text-xs leading-tight text-[#d8cfc2] transition duration-200 hover:-translate-y-0.5 hover:border-[#8b6a43]/70 hover:bg-[#2c2822] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#c99555]/45"
                         >
                           <p className="truncate font-medium">{evt.group_name}</p>
                           <p className="mt-0.5 truncate text-[0.68rem] text-[#9d9285]">
                             {evt.entry_time ? evt.entry_time.slice(0, 5) : 'Sin hora'} · {evt.total_pax ?? '-'} pax
                           </p>
-                        </div>
+                        </Link>
                       ))}
                       {extraCount > 0 ? (
-                        <p className="px-1 text-xs font-semibold text-[#d6a76e]">+{extraCount} más</p>
+                        <Link
+                          href={`/reservas?view=day&date=${day}`}
+                          className="inline-flex px-1 text-xs font-semibold text-[#d6a76e] hover:text-[#f0c58d] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#c99555]/45"
+                        >
+                          +{extraCount} más
+                        </Link>
                       ) : null}
                     </div>
-                  </Link>
+                  </div>
                 );
               })}
             </div>
