@@ -46,9 +46,11 @@ Líneas de subreceta (ingredientes u otras subrecetas).
 - `subrecipe_component_id`: subreceta usada (nullable).
 - `unit_code`: unidad de la línea.
 - `quantity`: cantidad de la línea.
-- `waste_pct`: merma específica de la línea (0..1, UI en porcentaje).
+- `source_waste_pct_raw`: merma de origen/importación cuando exista; no es el campo operativo editable.
 
 > Regla: exactamente uno de `ingredient_id` o `subrecipe_component_id` debe estar presente.
+
+Mejora futura: valorar soporte de merma por línea en elaboraciones/subrecipes mediante `cheffing_subrecipe_items.waste_pct`, con impacto en cálculos de coste y validación específica.
 
 ### `cheffing_dishes`
 Platos/bebidas canónicos de Cheffing (unidad base de reutilización).
@@ -208,7 +210,7 @@ Estas derivaciones se exponen en la vista `v_cheffing_ingredients_cost`.
 - **Coste total de subreceta** = suma de líneas válidas (si no hay líneas → `0`; si hay líneas pero todas son incompatibles → `NULL`).
 - **Coste bruto por base** = `coste_total / (output_qty * output_unit.to_base_factor)`
 - **Coste neto por base** = `coste_bruto * (1 / (1 - waste_pct))`
-- Las líneas de subreceta aplican su merma propia antes de agregarse: `coste_línea / (1 - waste_pct_linea)`.
+- Las líneas de subreceta no aplican merma propia operativa en esta fase.
 - La vista `v_cheffing_subrecipe_items_cost` expone el coste total por línea.
 
 ### Platos

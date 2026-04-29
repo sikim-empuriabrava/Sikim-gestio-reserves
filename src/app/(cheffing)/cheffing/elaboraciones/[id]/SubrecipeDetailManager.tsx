@@ -698,9 +698,6 @@ export function SubrecipeDetailManager({
           <div>
             <h3 className="text-lg font-semibold text-white">Productos y elaboraciones</h3>
             <p className="text-sm text-slate-400">Añade líneas de coste para esta elaboración.</p>
-            <p className="text-xs text-amber-300">
-              La merma por línea todavía no está disponible en esta vista.
-            </p>
           </div>
           {itemsError ? <p className="text-sm text-rose-400">{itemsError}</p> : null}
         </div>
@@ -719,7 +716,6 @@ export function SubrecipeDetailManager({
                 <th className="px-4 py-3">Tipo</th>
                 <th className="px-4 py-3">Detalle</th>
                 <th className="px-4 py-3">Cantidad</th>
-                <th className="px-4 py-3">Merma</th>
                 <th className="px-4 py-3">Notas</th>
                 <th className="px-4 py-3">Coste</th>
                 <th className="px-4 py-3">Acciones</th>
@@ -728,7 +724,7 @@ export function SubrecipeDetailManager({
             <tbody>
               {items.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="px-4 py-6 text-center text-sm text-slate-500">
+                  <td colSpan={6} className="px-4 py-6 text-center text-sm text-slate-500">
                     Añade productos o elaboraciones para calcular el coste.
                   </td>
                 </tr>
@@ -850,9 +846,6 @@ export function SubrecipeDetailManager({
                         ) : (
                           `${item.quantity} ${item.unit_code}`
                         )}
-                      </td>
-                      <td className="px-4 py-3">
-                        <span className="text-slate-400">No disponible en esta vista</span>
                       </td>
                       <td className="px-4 py-3 text-slate-300">
                         {isEditing ? (

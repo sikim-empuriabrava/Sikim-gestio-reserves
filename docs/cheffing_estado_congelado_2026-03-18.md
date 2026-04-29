@@ -237,8 +237,7 @@ Se deja registrada una mejora pequeña-media enfocada a robustez en detalle de e
   - **hotfix de compatibilidad con schema real (2026-03-19):**
     - se mantiene operativa la **merma de cabecera** (`cheffing_subrecipes.waste_pct`);
     - la **imagen de elaboraciones** queda temporalmente fuera por no existir `image_path` en `cheffing_subrecipes`;
-    - la **merma por línea** queda temporalmente fuera por no existir `waste_pct` en `cheffing_subrecipe_items`;
-    - este ajuste queda explícitamente pendiente de normalización futura.
+    - la **merma por línea** queda fuera del flujo activo y se considera mejora futura, no bug operativo;
 - **Breadcrumbs clicables** en fichas de:
   - productos
   - elaboraciones
