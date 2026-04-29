@@ -8,11 +8,14 @@
   }
 
   body {
-    @apply min-h-screen bg-background text-slate-100 antialiased;
+    @apply min-h-screen bg-background text-stone-100 antialiased;
+    background-image:
+      linear-gradient(180deg, rgba(255, 255, 255, 0.018), transparent 18rem),
+      linear-gradient(90deg, rgba(217, 183, 121, 0.028), transparent 38%);
   }
 
   a {
-    @apply text-primary-400 hover:text-primary-300;
+    @apply text-primary-300 transition-colors hover:text-primary-200;
   }
 
   ::-webkit-scrollbar {
@@ -20,49 +23,50 @@
   }
 
   ::-webkit-scrollbar-thumb {
-    background: linear-gradient(180deg, #7c3aed 0%, #22d3ee 100%);
+    background: linear-gradient(180deg, #9a7a46 0%, #4a3724 100%);
     border-radius: 999px;
   }
 }
 
 @layer components {
   .card {
-    @apply rounded-xl border border-slate-800 bg-surface/80 shadow-lg shadow-slate-900/30 backdrop-blur;
+    @apply rounded-xl border border-stone-800 bg-surface/80 shadow-lg shadow-black/25;
   }
 
   .badge {
-    @apply rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-wide;
+    @apply rounded-md px-3 py-1 text-xs font-semibold uppercase tracking-wide;
   }
 
   .section-title {
-    @apply text-lg font-semibold text-white;
+    @apply text-lg font-semibold text-stone-50;
   }
 
   .input {
-    @apply w-full rounded-lg border border-slate-700 bg-slate-900/80 px-4 py-2 text-sm text-slate-100 placeholder:text-slate-500 focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-600;
+    @apply w-full rounded-lg border border-stone-700/90 bg-stone-950/55 px-4 py-2 text-sm text-stone-100 shadow-inner shadow-black/15 transition-colors placeholder:text-stone-500 hover:border-stone-600 focus:border-primary-400 focus:outline-none focus:ring-2 focus:ring-primary-500/25;
   }
 
   .label {
-    @apply text-sm font-medium text-slate-300;
+    @apply text-sm font-medium text-stone-300;
   }
 
   .button-primary {
+    @apply inline-flex items-center justify-center gap-2 rounded-lg border border-primary-300/30 bg-primary-300 px-4 py-2 text-sm font-semibold text-stone-950 shadow-sm shadow-black/20 transition duration-200 hover:-translate-y-0.5 hover:bg-primary-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400/30 active:translate-y-px disabled:pointer-events-none disabled:opacity-60;
   }
 
   .button-ghost {
-    @apply inline-flex items-center justify-center gap-2 rounded-lg border border-slate-700 px-4 py-2 text-sm font-semibold text-slate-200 transition hover:border-primary-500 hover:text-white;
+    @apply inline-flex items-center justify-center gap-2 rounded-lg border border-stone-700/90 bg-stone-950/25 px-4 py-2 text-sm font-semibold text-stone-200 transition duration-200 hover:-translate-y-0.5 hover:border-primary-400/45 hover:bg-stone-900/70 hover:text-stone-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500/25 active:translate-y-px disabled:pointer-events-none disabled:opacity-60;
   }
 
   .table-wrapper {
-    @apply overflow-hidden rounded-xl border border-slate-800 bg-surface/70 shadow-lg shadow-slate-900/30 backdrop-blur;
+    @apply overflow-hidden rounded-xl border border-stone-800 bg-surface/70 shadow-lg shadow-black/25;
   }
 
   table {
-    @apply min-w-full text-sm text-slate-200;
+    @apply min-w-full text-sm text-stone-200;
   }
 
   thead {
-    @apply bg-slate-900/60 text-slate-400;
+    @apply bg-stone-950/40 text-stone-400;
   }
 
   thead th {
@@ -70,7 +74,7 @@
   }
 
   tbody tr {
-    @apply border-b border-slate-800/80 transition hover:bg-slate-900/50;
+    @apply border-b border-stone-800/80 transition-colors hover:bg-stone-900/45;
   }
 
   tbody td {

@@ -1,9 +1,20 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
+import type { ComponentType, SVGProps } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { ChevronDownIcon } from '@heroicons/react/24/outline';
+import {
+  CalendarDaysIcon,
+  ChevronDownIcon,
+  FireIcon,
+  MusicalNoteIcon,
+  SparklesIcon,
+  UserGroupIcon,
+  WrenchScrewdriverIcon,
+} from '@heroicons/react/24/outline';
+
+type IconComponent = ComponentType<SVGProps<SVGSVGElement>>;
 
 type NavigationLink = {
   label: string;
@@ -14,6 +25,7 @@ type NavigationLink = {
 
 type NavigationGroup = {
   label: string;
+  icon: IconComponent;
   links: NavigationLink[];
 };
 
@@ -39,6 +51,7 @@ function buildGroups(allowedUser: AllowedUser | null): NavigationGroup[] {
   if (isAdmin || allowedUser?.can_reservas) {
     groups.push({
       label: 'Reservas',
+      icon: CalendarDaysIcon,
       links: [
         {
           label: 'Calendario',
@@ -58,11 +71,12 @@ function buildGroups(allowedUser: AllowedUser | null): NavigationGroup[] {
   if (isAdmin || allowedUser?.can_mantenimiento) {
     groups.push({
       label: 'Mantenimiento',
+      icon: WrenchScrewdriverIcon,
       links: [
         { label: 'Dashboard', href: '/mantenimiento', basePath: '/mantenimiento' },
         { label: 'Tareas', href: '/mantenimiento/tareas', basePath: '/mantenimiento/tareas' },
         { label: 'Calendario', href: '/mantenimiento/calendario', basePath: '/mantenimiento/calendario' },
-        { label: 'Stock / reposición', href: '/mantenimiento/stock', basePath: '/mantenimiento/stock' },
+        { label: 'Stock / reposicion', href: '/mantenimiento/stock', basePath: '/mantenimiento/stock' },
       ],
     });
   }
@@ -70,6 +84,7 @@ function buildGroups(allowedUser: AllowedUser | null): NavigationGroup[] {
   if (isAdmin || allowedUser?.can_cocina) {
     groups.push({
       label: 'Cocina',
+      icon: FireIcon,
       links: [
         { label: 'Servicio de hoy', href: '/cocina', basePath: '/cocina' },
         { label: 'Tareas', href: '/cocina/tareas', basePath: '/cocina/tareas' },
@@ -82,6 +97,7 @@ function buildGroups(allowedUser: AllowedUser | null): NavigationGroup[] {
   if (isAdmin || allowedUser?.can_cheffing) {
     groups.push({
       label: 'Cheffing',
+      icon: SparklesIcon,
       links: [{ label: 'Cheffing', href: '/cheffing', basePath: '/cheffing' }],
     });
   }
@@ -93,7 +109,7 @@ function buildGroups(allowedUser: AllowedUser | null): NavigationGroup[] {
 
     if (isAdmin) {
       discoLinks.push({
-        label: 'Histórico aforo',
+        label: 'Historico aforo',
         href: '/disco/historico-aforo',
         basePath: '/disco/historico-aforo',
       });
@@ -101,6 +117,7 @@ function buildGroups(allowedUser: AllowedUser | null): NavigationGroup[] {
 
     groups.push({
       label: 'Disco',
+      icon: MusicalNoteIcon,
       links: discoLinks,
     });
   }
@@ -108,9 +125,10 @@ function buildGroups(allowedUser: AllowedUser | null): NavigationGroup[] {
   if (isAdmin) {
     groups.push({
       label: 'Admin',
+      icon: UserGroupIcon,
       links: [
         { label: 'Panel', href: '/admin', basePath: '/admin' },
-        { label: 'Notas del día', href: '/admin/notas-del-dia', basePath: '/admin/notas-del-dia' },
+        { label: 'Notas del dia', href: '/admin/notas-del-dia', basePath: '/admin/notas-del-dia' },
         { label: 'Tareas', href: '/admin/tareas', basePath: '/admin/tareas' },
         { label: 'Rutinas', href: '/admin/rutinas', basePath: '/admin/rutinas' },
         { label: 'Usuarios y permisos', href: '/admin/usuarios', basePath: '/admin/usuarios' },
@@ -191,34 +209,50 @@ export function AppSidebar({ className, allowedUser }: Props) {
   }, [groups, openSection]);
 
   return (
-    <nav className={`space-y-3 ${className ?? ''}`} aria-label="Navegación principal">
-      {groups.map((group) => {
+    <nav className={`space-y-1.5 ${className ?? ''}`} aria-label="Navegacion principal">
+      {groups.map((group, index) => {
+        const Icon = group.icon;
         const isGroupActive = group.links.some((link) => isLinkActive(pathname, link));
 
         const normalizedLabel = group.label.toLowerCase();
         const isOpen = openSection === normalizedLabel || (!openSection && isGroupActive);
 
         return (
-          <div
+          <section
             key={group.label}
-            className="group overflow-hidden rounded-xl border border-slate-800/80 bg-slate-950/60 shadow-lg shadow-slate-950/25"
+            className={`${index > 0 ? 'border-t border-stone-800/75 pt-2.5' : ''}`}
           >
             <button
               type="button"
               onClick={() =>
                 setOpenSection((prev) => (prev === normalizedLabel ? null : normalizedLabel))
               }
-              className="flex w-full items-center justify-between gap-2 bg-slate-900/70 px-4 py-3 text-left text-sm font-semibold text-slate-100 transition hover:bg-slate-900 focus:outline-none focus:ring-2 focus:ring-primary-400/60"
+              className={`group/nav flex w-full items-center justify-between gap-3 rounded-xl px-3 py-2.5 text-left transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500/25 active:translate-y-px ${
+                isGroupActive
+                  ? 'bg-amber-300/10 text-amber-100 shadow-[inset_0_0_0_1px_rgba(217,183,121,0.13)]'
+                  : 'text-stone-300 hover:bg-stone-900/70 hover:text-stone-50'
+              }`}
             >
-              <span>{group.label}</span>
+              <span className="flex min-w-0 items-center gap-3">
+                <Icon
+                  className={`h-5 w-5 shrink-0 transition-colors duration-200 ${
+                    isGroupActive ? 'text-amber-200' : 'text-stone-500 group-hover/nav:text-amber-200/80'
+                  }`}
+                  aria-hidden="true"
+                />
+                <span className="truncate text-[12px] font-semibold uppercase tracking-[0.16em]">
+                  {group.label}
+                </span>
+              </span>
               <ChevronDownIcon
-                className={`h-4 w-4 text-slate-400 transition duration-200 ${
-                  isOpen ? 'rotate-180' : ''
+                className={`h-4 w-4 shrink-0 text-stone-500 transition-transform duration-200 ${
+                  isOpen ? 'rotate-180 text-amber-200/80' : ''
                 }`}
+                aria-hidden="true"
               />
             </button>
             {isOpen ? (
-              <div className="flex flex-col gap-1 p-2">
+              <div className="mt-1.5 space-y-1 pl-8">
                 {group.links.map((link) => {
                   const active = isLinkActive(pathname, link);
                   return (
@@ -226,19 +260,19 @@ export function AppSidebar({ className, allowedUser }: Props) {
                       key={link.href}
                       href={link.href}
                       aria-current={active ? 'page' : undefined}
-                      className={`rounded-lg px-3 py-2 text-sm font-semibold transition focus:outline-none focus:ring-2 focus:ring-primary-400/60 ${
+                      className={`relative flex min-h-9 items-center rounded-lg px-3 py-2 text-sm font-medium transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500/25 active:translate-y-px ${
                         active
-                          ? 'bg-primary-600/85 text-white shadow shadow-primary-950/30'
-                          : 'text-slate-300 hover:bg-slate-800/90 hover:text-white'
+                          ? 'bg-stone-800/75 text-amber-100 shadow-[inset_3px_0_0_rgba(217,183,121,0.9)]'
+                          : 'text-stone-400 hover:bg-stone-900/75 hover:text-stone-100'
                       }`}
                     >
-                      {link.label}
+                      <span className="truncate">{link.label}</span>
                     </Link>
                   );
                 })}
               </div>
             ) : null}
-          </div>
+          </section>
         );
       })}
     </nav>

@@ -13,7 +13,7 @@ export function Toolbar({ leading, filters, actions, className }: ToolbarProps) 
   return (
     <div
       className={cn(
-        'rounded-xl border border-slate-700/70 bg-slate-950/50 p-2.5 shadow-inner shadow-slate-950/30 ring-1 ring-white/[0.025]',
+        'rounded-xl border border-stone-800/80 bg-stone-950/45 p-2.5 shadow-inner shadow-black/25 ring-1 ring-white/[0.02]',
         'flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between',
         className,
       )}
