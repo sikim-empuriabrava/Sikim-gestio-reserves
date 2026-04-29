@@ -124,6 +124,138 @@ const getDefaultAssignedPax = (primaryOffering: ExistingOffering | null, reserva
   return toPositiveInt((reservation.adults ?? 0) + (reservation.children ?? 0));
 };
 
+function ReservaDetailPilotStyles() {
+  return (
+    <style
+      dangerouslySetInnerHTML={{
+        __html: `
+          .reserva-detail-pilot {
+            color: #f5eee4;
+          }
+
+          .reserva-detail-pilot section,
+          .reserva-detail-pilot .detail-panel {
+            border-color: rgba(120, 103, 82, 0.42) !important;
+            background:
+              linear-gradient(180deg, rgba(31, 29, 25, 0.96), rgba(22, 21, 18, 0.96)) !important;
+            box-shadow: 0 24px 80px -56px rgba(0, 0, 0, 0.95);
+          }
+
+          .reserva-detail-pilot h1,
+          .reserva-detail-pilot h2,
+          .reserva-detail-pilot .text-slate-100 {
+            color: #f5eee4 !important;
+          }
+
+          .reserva-detail-pilot label,
+          .reserva-detail-pilot .text-slate-200 {
+            color: #d8cfc2 !important;
+          }
+
+          .reserva-detail-pilot .text-slate-300,
+          .reserva-detail-pilot .text-slate-400,
+          .reserva-detail-pilot .text-slate-500 {
+            color: #a89c8e !important;
+          }
+
+          .reserva-detail-pilot .text-primary-200 {
+            color: #d6a76e !important;
+            letter-spacing: 0.16em;
+          }
+
+          .reserva-detail-pilot input:not([type="checkbox"]),
+          .reserva-detail-pilot select,
+          .reserva-detail-pilot textarea {
+            border-color: rgba(120, 103, 82, 0.50) !important;
+            background: rgba(18, 17, 15, 0.92) !important;
+            color: #f5eee4 !important;
+            box-shadow: inset 0 1px 0 rgba(255,255,255,0.035);
+          }
+
+          .reserva-detail-pilot input:not([type="checkbox"]):focus,
+          .reserva-detail-pilot select:focus,
+          .reserva-detail-pilot textarea:focus {
+            outline: none !important;
+            border-color: rgba(201, 149, 85, 0.72) !important;
+            box-shadow: 0 0 0 3px rgba(201, 149, 85, 0.16), inset 0 1px 0 rgba(255,255,255,0.04) !important;
+          }
+
+          .reserva-detail-pilot input[type="checkbox"] {
+            border-color: rgba(156, 117, 70, 0.72) !important;
+            background-color: #171614 !important;
+            color: #c99555 !important;
+          }
+
+          .reserva-detail-pilot input[readonly],
+          .reserva-detail-pilot input:disabled,
+          .reserva-detail-pilot select:disabled,
+          .reserva-detail-pilot textarea:disabled {
+            background: rgba(30, 28, 24, 0.62) !important;
+            color: #a89c8e !important;
+            opacity: 1 !important;
+          }
+
+          .reserva-detail-pilot [class*="bg-slate-950"],
+          .reserva-detail-pilot [class*="bg-slate-900"],
+          .reserva-detail-pilot [class*="bg-slate-800"] {
+            background-color: rgba(20, 19, 17, 0.78) !important;
+          }
+
+          .reserva-detail-pilot [class*="border-slate-800"],
+          .reserva-detail-pilot [class*="border-slate-700"] {
+            border-color: rgba(120, 103, 82, 0.38) !important;
+          }
+
+          .reserva-detail-pilot button {
+            transition: border-color 160ms ease, background-color 160ms ease, color 160ms ease, transform 160ms ease;
+          }
+
+          .reserva-detail-pilot button:hover {
+            transform: translateY(-1px);
+          }
+
+          .reserva-detail-pilot button:active {
+            transform: translateY(1px);
+          }
+
+          .reserva-detail-pilot button[class*="bg-emerald"] {
+            border: 1px solid rgba(214, 167, 110, 0.66) !important;
+            background: linear-gradient(180deg, #d9b170, #a66e38) !important;
+            color: #16120d !important;
+            box-shadow: 0 18px 40px -28px rgba(214, 167, 110, 0.9);
+          }
+
+          .reserva-detail-pilot button[class*="border-slate"] {
+            border-color: rgba(120, 103, 82, 0.48) !important;
+            background: rgba(18, 17, 15, 0.72) !important;
+            color: #f5eee4 !important;
+          }
+
+          .reserva-detail-pilot button[class*="border-slate"]:hover {
+            border-color: rgba(201, 149, 85, 0.62) !important;
+            background: rgba(42, 39, 34, 0.92) !important;
+          }
+
+          .reserva-detail-pilot .text-emerald-300 {
+            color: #86d29a !important;
+          }
+
+          .reserva-detail-pilot .text-amber-400,
+          .reserva-detail-pilot .text-amber-300,
+          .reserva-detail-pilot .text-amber-200,
+          .reserva-detail-pilot .text-amber-100 {
+            color: #f0c58d !important;
+          }
+
+          .reserva-detail-pilot .text-red-300 {
+            color: #f2a6a6 !important;
+          }
+        `,
+      }}
+    />
+  );
+}
+
 export function EditableReservationForm({
   reservation,
   offerings,
@@ -556,11 +688,12 @@ export function EditableReservationForm({
   }, [selectableOfferingCatalog, selectedOfferingId]);
 
   return (
-    <div className="space-y-4">
+    <div className="reserva-detail-pilot space-y-5">
+      <ReservaDetailPilotStyles />
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="space-y-1">
           <p className="text-sm uppercase tracking-wide text-primary-200">Detalle de reserva</p>
-          <h1 className="text-2xl font-semibold text-slate-100">{form.name}</h1>
+          <h1 className="text-3xl font-semibold tracking-normal text-slate-100">{form.name}</h1>
           <p className="text-slate-400">
             {form.event_date} · {form.entry_time ? `${form.entry_time.slice(0, 5)}h` : '—'}
           </p>
@@ -568,14 +701,14 @@ export function EditableReservationForm({
         <button
           type="button"
           onClick={handleBack}
-          className="rounded-lg border border-slate-800 bg-slate-900 px-3 py-2 text-sm font-medium text-slate-100 hover:bg-slate-800"
+          className="rounded-xl border border-slate-800 bg-slate-900 px-4 py-2.5 text-sm font-medium text-slate-100 hover:bg-slate-800"
         >
           ← Volver al día
         </button>
       </div>
 
-      <div className="space-y-4">
-        <section className="rounded-xl border border-slate-800 bg-slate-900/60 p-4 space-y-4">
+      <div className="space-y-5">
+        <section className="rounded-2xl border border-slate-800 bg-slate-900/60 p-5 space-y-4">
           <div className="flex items-center justify-between">
             <h2 className="text-lg font-semibold text-slate-100">Datos generales</h2>
           </div>
@@ -623,7 +756,7 @@ export function EditableReservationForm({
           </div>
         </section>
 
-        <section className="rounded-xl border border-slate-800 bg-slate-900/60 p-4 space-y-4">
+        <section className="rounded-2xl border border-slate-800 bg-slate-900/60 p-5 space-y-4">
           <h2 className="text-lg font-semibold text-slate-100">Menú y cocina</h2>
 
           <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
@@ -689,7 +822,7 @@ export function EditableReservationForm({
           {offeringsError && <p className="text-xs text-red-300">{offeringsError}</p>}
 
           {isSelectedOfferingMenu && selectedOffering && canEditMenuDetails && (
-            <div className="space-y-4 rounded-lg border border-slate-800 bg-slate-950/30 p-3">
+            <div className="detail-panel space-y-4 rounded-xl border border-slate-800 bg-slate-950/30 p-4">
               <p className="text-sm font-medium text-slate-200">Detalle cocina</p>
 
               <div className="space-y-2">
@@ -704,7 +837,7 @@ export function EditableReservationForm({
                   };
 
                   return (
-                    <div key={segundo.id} className="rounded-md border border-slate-800/60 bg-slate-900/40 p-3 space-y-2">
+                    <div key={segundo.id} className="rounded-xl border border-slate-800/60 bg-slate-900/40 p-3 space-y-2">
                       <div className="flex items-center justify-between gap-3">
                         <div>
                           <p className="text-sm font-semibold text-slate-100">{segundo.nombre}</p>
@@ -758,7 +891,7 @@ export function EditableReservationForm({
                 </div>
 
                 {customSeconds.map((custom) => (
-                  <div key={custom.id} className="grid grid-cols-1 gap-2 rounded-md border border-slate-800/60 bg-slate-900/40 p-3 md:grid-cols-12">
+                  <div key={custom.id} className="grid grid-cols-1 gap-2 rounded-xl border border-slate-800/60 bg-slate-900/40 p-3 md:grid-cols-12">
                     <input
                       value={custom.name}
                       onChange={(e) => updateCustomSecond(custom.id, { name: e.target.value })}
@@ -788,7 +921,7 @@ export function EditableReservationForm({
           )}
 
           {isSelectedOfferingMenu && selectedOffering && !canEditMenuDetails && (
-            <div className="rounded-lg border border-slate-800 bg-slate-950/30 p-3 text-sm text-slate-300">
+            <div className="detail-panel rounded-xl border border-slate-800 bg-slate-950/30 p-4 text-sm text-slate-300">
               {hasMultipleOfferings
                 ? 'Esta reserva está en modo protegido por múltiples ofertas. El detalle de cocina se muestra en solo lectura.'
                 : 'Este menú histórico no tiene catálogo activo de segundos. Para editar detalle, cambia a un menú activo.'}
@@ -796,7 +929,7 @@ export function EditableReservationForm({
           )}
 
           {selectedOffering?.kind === 'cheffing_card' && (
-            <div className="rounded-lg border border-slate-800 bg-slate-950/30 p-3 text-sm text-slate-300">
+            <div className="detail-panel rounded-xl border border-slate-800 bg-slate-950/30 p-4 text-sm text-slate-300">
               Oferta tipo carta: no aplica edición de segundos, menús personalizados ni puntos de cocción.
             </div>
           )}
@@ -818,14 +951,14 @@ export function EditableReservationForm({
           )}
 
           {hasStructuredData && (
-            <div className="rounded-lg border border-slate-800 bg-slate-950/30 p-3 space-y-2">
+            <div className="detail-panel rounded-xl border border-slate-800 bg-slate-950/30 p-4 space-y-2">
               <p className="text-sm font-medium text-slate-200">Estructura guardada actualmente (base de datos)</p>
               {offerings.map((offering) => {
                 const offeringSelectionRows = offeringSelections
                   .filter((selection) => selection.group_event_offering_id === offering.id)
                   .sort((a, b) => a.sort_order - b.sort_order);
                 return (
-                  <div key={offering.id} className="rounded border border-slate-800/60 bg-slate-900/30 p-2 text-xs text-slate-300">
+                  <div key={offering.id} className="rounded-lg border border-slate-800/60 bg-slate-900/30 p-3 text-xs text-slate-300">
                     <p className="font-semibold text-slate-100">
                       {offering.display_name_snapshot} · {offering.assigned_pax} pax
                     </p>
@@ -857,7 +990,7 @@ export function EditableReservationForm({
             </div>
           )}
 
-          <div className="rounded-lg border border-slate-800 bg-slate-950/30 p-3 space-y-2">
+          <div className="detail-panel rounded-xl border border-slate-800 bg-slate-950/30 p-4 space-y-2">
             <p className="text-sm font-medium text-slate-200">Resumen estructurado</p>
             <p className="text-xs text-slate-400">
               Oferta: {selectedOffering?.display_name ?? '—'} · Pax asignado: {assignedPax}
@@ -931,7 +1064,7 @@ export function EditableReservationForm({
           </div>
         </section>
 
-        <section className="rounded-xl border border-slate-800 bg-slate-900/60 p-4 space-y-4">
+        <section className="rounded-2xl border border-slate-800 bg-slate-900/60 p-5 space-y-4">
           <h2 className="text-lg font-semibold text-slate-100">Montaje y sala</h2>
           <div className="space-y-2">
             <label className="text-sm font-medium text-slate-200">Montaje / sala</label>
@@ -939,7 +1072,7 @@ export function EditableReservationForm({
           </div>
         </section>
 
-        <section className="rounded-xl border border-slate-800 bg-slate-900/60 p-4 space-y-4">
+        <section className="rounded-2xl border border-slate-800 bg-slate-900/60 p-5 space-y-4">
           <h2 className="text-lg font-semibold text-slate-100">Facturación y depósito</h2>
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
             <div className="space-y-2">
@@ -971,7 +1104,7 @@ export function EditableReservationForm({
           </div>
         </section>
 
-        <div className="flex flex-wrap items-center gap-3">
+        <div className="sticky bottom-4 z-10 flex flex-wrap items-center gap-3 rounded-2xl border border-[#4a3f32]/70 bg-[#181715]/90 p-3 shadow-[0_24px_80px_-48px_rgba(0,0,0,0.95)] backdrop-blur">
           <button type="button" onClick={handleSubmit} disabled={isPending} className="inline-flex items-center rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-500 disabled:opacity-60">
             {isPending ? 'Guardando…' : 'Guardar cambios'}
           </button>

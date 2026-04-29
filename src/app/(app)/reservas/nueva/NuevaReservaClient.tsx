@@ -1,9 +1,10 @@
 'use client';
 
 import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Turno } from '@/types/reservation';
-import { CheckIcon, ChevronDownIcon } from '@heroicons/react/24/outline';
+import { CalendarDaysIcon, CheckIcon, ChevronDownIcon } from '@heroicons/react/24/outline';
 
 type ReservationOfferingKind = 'cheffing_menu' | 'cheffing_card';
 
@@ -54,6 +55,206 @@ type RoomOption = {
   id: string;
   name: string;
 };
+
+function ReservasNewPilotStyles() {
+  return (
+    <style
+      dangerouslySetInnerHTML={{
+        __html: `
+          body:has(.reservas-new-pilot) {
+            background: #11100e;
+          }
+
+          .aforo-standalone-shell:has(.reservas-new-pilot) {
+            max-width: none;
+            gap: 0;
+            padding: 0;
+            background:
+              radial-gradient(circle at 18% 0%, rgba(156, 117, 70, 0.10), transparent 26rem),
+              linear-gradient(135deg, #171614 0%, #11100e 52%, #0f0e0d 100%);
+          }
+
+          .aforo-standalone-shell:has(.reservas-new-pilot) > aside {
+            width: 18.5rem;
+            border-right: 1px solid rgba(120, 103, 82, 0.30);
+            background: linear-gradient(180deg, rgba(29, 28, 25, 0.98), rgba(20, 19, 17, 0.98));
+          }
+
+          .aforo-standalone-shell:has(.reservas-new-pilot) > aside > div {
+            top: 0;
+            min-height: 100dvh;
+            padding: 1rem;
+          }
+
+          .aforo-standalone-shell:has(.reservas-new-pilot) > div {
+            min-width: 0;
+            gap: 0;
+          }
+
+          .aforo-standalone-shell:has(.reservas-new-pilot) > div > header {
+            border-radius: 0;
+            border-width: 0 0 1px 0;
+            border-color: rgba(120, 103, 82, 0.28);
+            background: rgba(18, 17, 15, 0.88);
+            box-shadow: none;
+          }
+
+          .aforo-standalone-shell:has(.reservas-new-pilot) > div > header > div > div:first-child {
+            display: none;
+          }
+
+          .aforo-standalone-shell:has(.reservas-new-pilot) > div > header > div {
+            justify-content: flex-end;
+          }
+
+          .aforo-standalone-shell:has(.reservas-new-pilot) footer {
+            display: none;
+          }
+
+          .aforo-standalone-shell:has(.reservas-new-pilot) aside nav > div {
+            border-color: rgba(120, 103, 82, 0.22);
+            background: transparent;
+            box-shadow: none;
+          }
+
+          .aforo-standalone-shell:has(.reservas-new-pilot) aside nav button {
+            background: rgba(28, 27, 24, 0.62);
+            color: #efe8dc;
+          }
+
+          .aforo-standalone-shell:has(.reservas-new-pilot) aside nav a[aria-current="page"] {
+            background: rgba(150, 112, 66, 0.22);
+            color: #f1c98f;
+            box-shadow: inset 0 0 0 1px rgba(194, 144, 82, 0.20);
+          }
+
+          .aforo-standalone-shell:has(.reservas-new-pilot) a {
+            color: inherit;
+          }
+
+          .reservas-new-pilot .card {
+            border-color: rgba(74, 63, 50, 0.72);
+            background: rgba(24, 23, 21, 0.95);
+            box-shadow: 0 24px 80px -56px rgba(0, 0, 0, 0.95), inset 0 1px 0 rgba(255, 255, 255, 0.035);
+            backdrop-filter: none;
+          }
+
+          .reservas-new-pilot .input {
+            border-color: rgba(74, 63, 50, 0.82);
+            background: rgba(18, 17, 15, 0.90);
+            color: #f4ede3;
+            box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.025);
+          }
+
+          .reservas-new-pilot .input::placeholder {
+            color: #786f64;
+          }
+
+          .reservas-new-pilot .input:focus {
+            border-color: rgba(214, 167, 110, 0.78);
+            outline: none;
+            box-shadow: 0 0 0 2px rgba(214, 167, 110, 0.16), inset 0 1px 0 rgba(255, 255, 255, 0.035);
+          }
+
+          .reservas-new-pilot .label {
+            color: #cfc4b5;
+            font-weight: 500;
+          }
+
+          .reservas-new-pilot [class*="text-slate-500"] {
+            color: #786f64;
+          }
+
+          .reservas-new-pilot [class*="text-slate-400"] {
+            color: #9d9285;
+          }
+
+          .reservas-new-pilot [class*="text-slate-300"],
+          .reservas-new-pilot [class*="text-slate-200"],
+          .reservas-new-pilot [class*="text-slate-100"],
+          .reservas-new-pilot .text-white {
+            color: #efe8dc;
+          }
+
+          .reservas-new-pilot [class*="border-slate-800"],
+          .reservas-new-pilot [class*="border-slate-700"] {
+            border-color: rgba(74, 63, 50, 0.72);
+          }
+
+          .reservas-new-pilot [class*="bg-slate-950"] {
+            background-color: rgba(18, 17, 15, 0.78);
+          }
+
+          .reservas-new-pilot [class*="bg-slate-900"],
+          .reservas-new-pilot [class*="bg-slate-800"] {
+            background-color: rgba(31, 29, 25, 0.74);
+          }
+
+          .reservas-new-pilot [class*="text-primary"] {
+            color: #f0c58b;
+          }
+
+          .reservas-new-pilot [class*="bg-primary"] {
+            background-color: rgba(125, 89, 50, 0.30);
+          }
+
+          .reservas-new-pilot [class*="border-primary"] {
+            border-color: rgba(214, 167, 110, 0.38);
+          }
+
+          .reservas-new-pilot .button-primary {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+            border-radius: 0.75rem;
+            border: 1px solid rgba(225, 181, 121, 0.55);
+            background: #d9b27c;
+            color: #19120b;
+            padding: 0.75rem 1.25rem;
+            font-size: 0.875rem;
+            font-weight: 700;
+            transition: background-color 160ms ease, border-color 160ms ease, transform 160ms ease;
+          }
+
+          .reservas-new-pilot .button-primary:hover {
+            background: #e4bf89;
+            border-color: rgba(239, 202, 146, 0.75);
+          }
+
+          .reservas-new-pilot .button-primary:active {
+            transform: translateY(1px);
+          }
+
+          .reservas-new-pilot .button-primary:disabled {
+            opacity: 0.58;
+            cursor: not-allowed;
+          }
+
+          .reservas-new-pilot .button-secondary {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+            border-radius: 0.75rem;
+            border: 1px solid rgba(74, 63, 50, 0.85);
+            background: rgba(21, 20, 18, 0.86);
+            color: #efe8dc;
+            padding: 0.625rem 0.95rem;
+            font-size: 0.875rem;
+            font-weight: 600;
+            transition: background-color 160ms ease, border-color 160ms ease, transform 160ms ease;
+          }
+
+          .reservas-new-pilot .button-secondary:hover {
+            border-color: rgba(139, 106, 67, 0.70);
+            background: #211f1b;
+          }
+        `,
+      }}
+    />
+  );
+}
 
 export default function NuevaReservaClient() {
   const router = useRouter();
@@ -581,15 +782,35 @@ export default function NuevaReservaClient() {
   };
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col gap-2">
-        <p className="text-sm uppercase tracking-wide text-primary-200">Nueva reserva</p>
-        <h1 className="section-title text-2xl">Crear reserva</h1>
+    <div className="reservas-new-pilot min-h-[calc(100dvh-4.5rem)] space-y-7 bg-[#12110f] px-4 py-5 text-[#efe8dc] md:px-6 lg:px-8">
+      <ReservasNewPilotStyles />
+      <div className="flex flex-col gap-5 xl:flex-row xl:items-end xl:justify-between">
+        <div>
+          <p className="text-sm font-semibold uppercase tracking-[0.18em] text-[#d6a76e]">Nueva reserva</p>
+          <h1 className="mt-2 text-[2rem] font-semibold leading-tight tracking-normal text-[#f6f0e8]">Crear reserva</h1>
         <p className="text-sm text-slate-400">Introduce los datos básicos y asigna menús para cocina.</p>
+        </div>
+        <div className="flex flex-wrap gap-3">
+          <Link
+            href="/reservas?view=week"
+            className="inline-flex items-center justify-center rounded-xl border border-[#4a3f32]/75 bg-[#151412]/90 px-5 py-3 text-sm font-semibold text-[#efe8dc] transition-colors hover:border-[#8b6a43]/70 hover:bg-[#211f1b] active:translate-y-px"
+          >
+            Cancelar
+          </Link>
+          <button type="submit" form="nueva-reserva-form" className="button-primary min-w-[12rem]" disabled={isSubmitting}>
+            {isSubmitting ? 'Guardando...' : 'Guardar reserva'}
+          </button>
+        </div>
       </div>
 
-      <form onSubmit={handleSubmit} className="grid gap-6 lg:grid-cols-3">
-        <div className="card space-y-4 p-5 lg:col-span-2">
+      <form id="nueva-reserva-form" onSubmit={handleSubmit} className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_24rem] 2xl:grid-cols-[minmax(0,1fr)_27rem]">
+        <div className="card space-y-6 rounded-2xl p-5 lg:p-6">
+          <div className="flex items-center gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-[#6f5434]/60 bg-[#3a2d20]/70 text-[#e0b77b]">
+              <CalendarDaysIcon className="h-5 w-5 stroke-[1.7]" aria-hidden="true" />
+            </div>
+            <h2 className="text-lg font-semibold text-[#f6f0e8]">Detalles de la reserva</h2>
+          </div>
           <div className="grid gap-4 md:grid-cols-2">
             <label className="space-y-2">
               <span className="label">Fecha y hora</span>
@@ -679,7 +900,7 @@ export default function NuevaReservaClient() {
           </div>
         </div>
 
-        <div className="card space-y-5 p-5">
+        <aside className="card max-h-none space-y-5 overflow-y-auto rounded-2xl p-5 xl:sticky xl:top-6 xl:max-h-[calc(100dvh-7.5rem)]">
           <div className="space-y-2">
             <p className="label">Oferta asignada</p>
             <div className="relative">
@@ -1071,7 +1292,7 @@ export default function NuevaReservaClient() {
               </button>
             </div>
           )}
-        </div>
+        </aside>
       </form>
     </div>
   );

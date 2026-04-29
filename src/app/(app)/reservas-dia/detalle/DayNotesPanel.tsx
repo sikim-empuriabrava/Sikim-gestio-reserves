@@ -87,9 +87,9 @@ export function DayNotesPanel({
 
   const badgeColor = validated
     ? needsRevalidation
-      ? 'bg-amber-500/20 text-amber-100 ring-1 ring-amber-500/50'
-      : 'bg-emerald-500/20 text-emerald-100 ring-1 ring-emerald-500/50'
-    : 'bg-slate-700/60 text-slate-200 ring-1 ring-slate-500/40';
+      ? 'border-amber-500/30 bg-amber-500/10 text-amber-200'
+      : 'border-emerald-500/30 bg-emerald-500/10 text-emerald-200'
+    : 'border-stone-600/60 bg-stone-900/70 text-stone-300';
 
   const badgeLabel = validated
     ? needsRevalidation
@@ -98,55 +98,55 @@ export function DayNotesPanel({
     : 'No validado';
 
   return (
-    <div className="rounded-xl border border-slate-800 bg-slate-900/60 p-4 space-y-4">
+    <div className="space-y-5 rounded-2xl border border-[#4a3f32]/70 bg-[#181715]/95 p-5 shadow-[0_18px_70px_-58px_rgba(0,0,0,0.95)]">
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h2 className="text-lg font-semibold text-slate-100">Notas del día</h2>
+          <h2 className="text-lg font-semibold text-[#f6f0e8]">Notas del día</h2>
           {validatedInfo?.at && (
-            <p className="text-xs text-slate-400">
+            <p className="text-xs text-[#9d9285]">
               Validado por {validatedInfo.by ?? '—'} el {formatDateTime(validatedInfo.at)}
             </p>
           )}
         </div>
-        <span className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold ${badgeColor}`}>
+        <span className={`inline-flex items-center rounded-full border px-3 py-1 text-xs font-semibold ${badgeColor}`}>
           {badgeLabel}
         </span>
       </div>
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
         <div className="space-y-2">
-          <label className="text-sm font-medium text-slate-200" htmlFor="notes-general">
+          <label className="text-sm font-medium text-[#cfc4b5]" htmlFor="notes-general">
             Notas generales
           </label>
           <textarea
             id="notes-general"
             value={notesGeneral}
             onChange={(e) => setNotesGeneral(e.target.value)}
-            className="h-32 w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-100 placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/60"
+            className="h-32 w-full rounded-xl border border-[#4a3f32]/80 bg-[#12110f]/90 px-3 py-2 text-sm text-[#f4ede3] placeholder:text-[#786f64] focus:border-[#d6a76e]/80 focus:outline-none focus:ring-2 focus:ring-[#d6a76e]/15"
             placeholder="Notas generales del día"
           />
         </div>
         <div className="space-y-2">
-          <label className="text-sm font-medium text-slate-200" htmlFor="notes-kitchen">
+          <label className="text-sm font-medium text-[#cfc4b5]" htmlFor="notes-kitchen">
             Notas cocina
           </label>
           <textarea
             id="notes-kitchen"
             value={notesKitchen}
             onChange={(e) => setNotesKitchen(e.target.value)}
-            className="h-32 w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-100 placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/60"
+            className="h-32 w-full rounded-xl border border-[#4a3f32]/80 bg-[#12110f]/90 px-3 py-2 text-sm text-[#f4ede3] placeholder:text-[#786f64] focus:border-[#d6a76e]/80 focus:outline-none focus:ring-2 focus:ring-[#d6a76e]/15"
             placeholder="Indicaciones para cocina"
           />
         </div>
         <div className="space-y-2">
-          <label className="text-sm font-medium text-slate-200" htmlFor="notes-maintenance">
+          <label className="text-sm font-medium text-[#cfc4b5]" htmlFor="notes-maintenance">
             Notas mantenimiento
           </label>
           <textarea
             id="notes-maintenance"
             value={notesMaintenance}
             onChange={(e) => setNotesMaintenance(e.target.value)}
-            className="h-32 w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-100 placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/60"
+            className="h-32 w-full rounded-xl border border-[#4a3f32]/80 bg-[#12110f]/90 px-3 py-2 text-sm text-[#f4ede3] placeholder:text-[#786f64] focus:border-[#d6a76e]/80 focus:outline-none focus:ring-2 focus:ring-[#d6a76e]/15"
             placeholder="Incidencias o recordatorios de mantenimiento"
           />
         </div>
@@ -157,7 +157,7 @@ export function DayNotesPanel({
           type="button"
           onClick={() => handleAction('save')}
           disabled={saving}
-          className="inline-flex items-center justify-center rounded-lg border border-slate-700 bg-slate-800 px-4 py-2 text-sm font-medium text-slate-100 hover:bg-slate-700 disabled:opacity-60"
+          className="inline-flex items-center justify-center rounded-xl border border-[#4a3f32]/75 bg-[#151412]/90 px-4 py-2 text-sm font-semibold text-[#efe8dc] transition-colors hover:border-[#8b6a43]/70 hover:bg-[#211f1b] disabled:opacity-60"
         >
           {saving ? 'Guardando…' : 'Guardar notas'}
         </button>
@@ -165,7 +165,7 @@ export function DayNotesPanel({
           type="button"
           onClick={() => handleAction('validate')}
           disabled={saving}
-          className="inline-flex items-center justify-center rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-500 disabled:opacity-60"
+          className="inline-flex items-center justify-center rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-2 text-sm font-semibold text-emerald-200 transition-colors hover:bg-emerald-500/15 disabled:opacity-60"
         >
           {saving ? 'Guardando…' : 'Validar día'}
         </button>
