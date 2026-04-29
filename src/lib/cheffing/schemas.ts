@@ -47,6 +47,7 @@ export const subrecipeCreateSchema = z.object({
   waste_pct: wastePctSchema,
   notes: notesSchema,
   indicator_codes: canonicalCodesSchema,
+  image_path: imagePathSchema,
 });
 
 export const subrecipeUpdateSchema = subrecipeCreateSchema.partial().refine((data) => Object.keys(data).length > 0, {

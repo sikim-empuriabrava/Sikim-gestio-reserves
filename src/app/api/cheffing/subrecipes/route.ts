@@ -77,6 +77,7 @@ export async function POST(req: NextRequest) {
       output_qty: subrecipeInput.output_qty,
       waste_pct: subrecipeInput.waste_pct,
       notes: subrecipeInput.notes ?? null,
+      image_path: subrecipeInput.image_path ?? null,
     })
     .select('id')
     .maybeSingle();
