@@ -166,6 +166,35 @@ export function OperationalChromeStyles() {
             color: inherit;
           }
 
+          .operational-warm-page .operational-surface {
+            border-color: rgba(86, 72, 56, 0.76) !important;
+            background:
+              radial-gradient(circle at 0% 0%, rgba(145, 93, 45, 0.12), transparent 18rem),
+              linear-gradient(135deg, rgba(29, 27, 23, 0.98), rgba(23, 21, 18, 0.98) 54%, rgba(16, 15, 13, 0.99)) !important;
+            box-shadow:
+              0 24px 80px -58px rgba(0, 0, 0, 0.96),
+              inset 0 1px 0 rgba(255, 255, 255, 0.045) !important;
+          }
+
+          .operational-warm-page .operational-surface.is-highlighted {
+            border-color: rgba(188, 126, 61, 0.68) !important;
+            background:
+              radial-gradient(circle at 0% 0%, rgba(183, 112, 50, 0.18), transparent 16rem),
+              linear-gradient(135deg, rgba(43, 33, 24, 0.98), rgba(27, 23, 18, 0.98) 55%, rgba(18, 16, 14, 0.99)) !important;
+          }
+
+          .operational-warm-page .operational-inset {
+            border-color: rgba(66, 56, 44, 0.84) !important;
+            background:
+              linear-gradient(135deg, rgba(18, 17, 15, 0.96), rgba(13, 12, 11, 0.98)) !important;
+            box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.025) !important;
+          }
+
+          .operational-warm-page .operational-soft {
+            border-color: rgba(74, 63, 50, 0.78) !important;
+            background: rgba(21, 20, 18, 0.84) !important;
+          }
+
           @media (max-width: 1023px) {
             .aforo-standalone-shell:has(.operational-warm-page) {
               min-height: 100dvh;
@@ -225,7 +254,7 @@ export function OperationalPanel({ children, className, as: Component = 'section
   return (
     <Component
       className={classNames(
-        'relative overflow-hidden rounded-2xl border border-[#4a3f32]/70 bg-gradient-to-br from-[#1d1b18]/96 via-[#181715]/94 to-[#11100e]/96 shadow-[0_24px_80px_-58px_rgba(0,0,0,0.96),inset_0_1px_0_rgba(255,255,255,0.04)]',
+        'operational-surface relative overflow-hidden rounded-2xl border border-[#4a3f32]/70 bg-[#181715] shadow-[0_24px_80px_-58px_rgba(0,0,0,0.96),inset_0_1px_0_rgba(255,255,255,0.04)]',
         className,
       )}
     >
@@ -273,7 +302,7 @@ export function OperationalEmptyState({
   return (
     <div
       className={classNames(
-        'flex min-h-[18rem] flex-col items-center justify-center rounded-2xl border border-[#3c342a]/70 bg-[#12110f]/50 px-5 py-10 text-center shadow-[inset_0_1px_0_rgba(255,255,255,0.025)]',
+        'operational-inset flex min-h-[18rem] flex-col items-center justify-center rounded-2xl border border-[#3c342a]/70 bg-[#12110f]/60 px-5 py-10 text-center shadow-[inset_0_1px_0_rgba(255,255,255,0.025)]',
         className,
       )}
     >
@@ -302,8 +331,8 @@ export function OperationalFeatureCard({
     <OperationalPanel
       as="article"
       className={classNames(
-        'flex min-h-[13rem] flex-col p-5 transition duration-200 hover:-translate-y-0.5 hover:border-[#8b6a43]/75 hover:bg-[#211f1b]',
-        highlighted && 'border-[#c98545]/75 bg-gradient-to-br from-[#2a211a]/96 via-[#1c1915]/96 to-[#151311]/96',
+        'flex min-h-[13rem] flex-col p-5 transition duration-200 hover:-translate-y-0.5 hover:border-[#8b6a43]/75',
+        highlighted && 'is-highlighted border-[#c98545]/75',
       )}
     >
       <div className="flex items-start gap-4">
@@ -355,7 +384,7 @@ export function OperationalPill({
     success: 'border-emerald-500/30 bg-emerald-500/10 text-emerald-200',
     warning: 'border-amber-500/30 bg-amber-500/10 text-amber-200',
     danger: 'border-rose-500/30 bg-rose-500/10 text-rose-200',
-    info: 'border-sky-500/25 bg-sky-500/10 text-sky-200',
+    info: 'border-[#7b684f]/50 bg-[#26221b]/80 text-[#d8cfc2]',
     muted: 'border-[#4a3f32]/70 bg-[#151412]/70 text-[#a99d90]',
   }[tone];
 
@@ -389,7 +418,7 @@ export function OperationalQuickNotes({
         {items.map((item) => (
           <li
             key={item}
-            className="flex gap-3 rounded-xl border border-[#3c342a]/70 bg-[#151412]/70 px-3.5 py-2.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.025)]"
+            className="operational-soft flex gap-3 rounded-xl border border-[#3c342a]/70 bg-[#151412]/70 px-3.5 py-2.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.025)]"
           >
             <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-[#d69c57]" aria-hidden="true" />
             <span className="leading-6 text-[#e8dfd2]">{item}</span>

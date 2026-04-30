@@ -173,7 +173,7 @@ export function SharedProcurementBatchIntake({
   const containerClassName =
     className ??
     (isWarm
-      ? 'space-y-4 rounded-2xl border border-[#4a3f32]/70 bg-gradient-to-br from-[#1d1b18]/96 via-[#181715]/94 to-[#11100e]/96 p-5 text-[#efe8dc] shadow-[0_24px_80px_-58px_rgba(0,0,0,0.96),inset_0_1px_0_rgba(255,255,255,0.04)]'
+      ? 'operational-surface space-y-4 rounded-2xl border border-[#4a3f32]/70 bg-[#181715] p-5 text-[#efe8dc] shadow-[0_24px_80px_-58px_rgba(0,0,0,0.96),inset_0_1px_0_rgba(255,255,255,0.04)]'
       : 'space-y-4 rounded-xl border border-slate-800 bg-slate-950/40 p-4');
   const selectClassName = isWarm
     ? 'rounded-xl border border-[#4a3f32]/80 bg-[#12110f]/90 px-3.5 py-2.5 text-[#f4ede3] shadow-[inset_0_1px_0_rgba(255,255,255,0.03)] focus:border-[#d6a76e]/80 focus:outline-none focus:ring-2 focus:ring-[#d6a76e]/15 disabled:cursor-not-allowed disabled:text-[#7f766b]'
@@ -235,7 +235,7 @@ export function SharedProcurementBatchIntake({
       <div className="flex flex-wrap items-center gap-2 text-xs">
         <span className={isWarm ? 'rounded-full border border-[#4a3f32]/70 bg-[#151412]/70 px-2.5 py-1.5 text-[#d8cfc2]' : 'rounded-full border border-slate-700 bg-slate-900/60 px-2 py-1 text-slate-200'}>Total: {batchSummary.total}</span>
         <span className={isWarm ? 'rounded-full border border-amber-500/35 bg-amber-500/10 px-2.5 py-1.5 text-amber-200' : 'rounded-full border border-slate-700 bg-slate-900/60 px-2 py-1 text-slate-200'}>Pendientes: {batchSummary.pending}</span>
-        <span className={isWarm ? 'rounded-full border border-sky-500/35 bg-sky-500/10 px-2.5 py-1.5 text-sky-200' : 'rounded-full border border-sky-500/40 bg-sky-500/10 px-2 py-1 text-sky-100'}>En proceso: {batchSummary.inProgress}</span>
+        <span className={isWarm ? 'rounded-full border border-[#b77b3e]/40 bg-[#7d5932]/18 px-2.5 py-1.5 text-[#f1c98f]' : 'rounded-full border border-sky-500/40 bg-sky-500/10 px-2 py-1 text-sky-100'}>En proceso: {batchSummary.inProgress}</span>
         <span className={isWarm ? 'rounded-full border border-emerald-500/35 bg-emerald-500/10 px-2.5 py-1.5 text-emerald-200' : 'rounded-full border border-emerald-500/40 bg-emerald-500/10 px-2 py-1 text-emerald-100'}>Completados: {batchSummary.completed}</span>
         <span className={isWarm ? 'rounded-full border border-rose-500/35 bg-rose-500/10 px-2.5 py-1.5 text-rose-200' : 'rounded-full border border-rose-500/40 bg-rose-500/10 px-2 py-1 text-rose-100'}>Fallidos: {batchSummary.failed}</span>
         <button
