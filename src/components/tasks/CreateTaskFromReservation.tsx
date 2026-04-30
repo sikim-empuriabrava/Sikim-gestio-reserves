@@ -26,6 +26,20 @@ const priorityLabels: Record<TaskPriority, string> = {
   high: 'Alta',
 };
 
+const actionButtonClass =
+  'inline-flex items-center justify-center rounded-xl border border-[#5b4934]/80 bg-[#171512]/90 px-3.5 py-2 text-sm font-semibold text-[#efe8dc] shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] transition duration-200 hover:-translate-y-0.5 hover:border-[#9b7548]/70 hover:bg-[#24211d] hover:text-[#ffe2b6] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#c99555]/35 active:translate-y-px';
+
+const labelClass = 'space-y-2 text-sm text-[#d8cfc2]';
+
+const fieldClass =
+  'w-full rounded-xl border border-[#4a3f32]/80 bg-[#12110f]/90 px-3 py-2 text-sm text-[#f4ede3] placeholder:text-[#786f64] shadow-[inset_0_1px_0_rgba(255,255,255,0.03)] transition focus:border-[#d6a76e]/80 focus:outline-none focus:ring-2 focus:ring-[#d6a76e]/15 disabled:cursor-not-allowed disabled:opacity-70';
+
+const secondaryButtonClass =
+  'inline-flex items-center justify-center rounded-xl border border-[#4a3f32]/80 bg-[#151412]/90 px-4 py-2 text-sm font-semibold text-[#efe8dc] transition duration-200 hover:border-[#8b6a43]/70 hover:bg-[#211f1b] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#c99555]/35 active:translate-y-px';
+
+const primaryButtonClass =
+  'inline-flex items-center justify-center rounded-xl border border-[#d6a76e]/60 bg-[#d9b27c] px-4 py-2 text-sm font-bold text-[#19120b] shadow-[0_18px_40px_-28px_rgba(214,167,110,0.9)] transition duration-200 hover:border-[#efca92]/75 hover:bg-[#e4bf89] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#d6a76e]/35 active:translate-y-px disabled:cursor-not-allowed disabled:opacity-60';
+
 function toISODate(date: Date) {
   return date.toISOString().slice(0, 10);
 }
@@ -165,14 +179,14 @@ export function CreateTaskFromReservation({ reservation, onCreated }: Props) {
         <div className="flex flex-wrap gap-2">
           <button
             type="button"
-            className="rounded-md border border-slate-800 bg-slate-900 px-3 py-2 text-sm font-semibold text-primary-100 shadow-sm hover:border-slate-700"
+            className={actionButtonClass}
             onClick={() => setModal({ area: 'kitchen' })}
           >
             + Tarea Cocina
           </button>
           <button
             type="button"
-            className="rounded-md border border-slate-800 bg-slate-900 px-3 py-2 text-sm font-semibold text-amber-100 shadow-sm hover:border-slate-700"
+            className={actionButtonClass}
             onClick={() => setModal({ area: 'maintenance' })}
           >
             + Tarea Mantenimiento
@@ -180,18 +194,18 @@ export function CreateTaskFromReservation({ reservation, onCreated }: Props) {
         </div>
 
       {feedback && (
-        <div className="flex flex-wrap items-center gap-3 rounded-lg border border-emerald-600/50 bg-emerald-900/20 px-3 py-2 text-sm text-emerald-100">
-          <span>Tarea creada ✅</span>
+        <div className="flex flex-wrap items-center gap-3 rounded-xl border border-emerald-500/25 bg-emerald-500/10 px-3 py-2 text-sm text-emerald-100">
+          <span>Tarea creada</span>
           <Link
             href={feedback.area === 'kitchen' ? '/cocina/tareas' : '/mantenimiento/tareas'}
-            className="font-semibold underline underline-offset-2"
+            className="font-semibold text-[#f0c58b] underline underline-offset-2 hover:text-[#ffe2b6]"
           >
             Ver tareas
           </Link>
           <button
             type="button"
             onClick={() => setFeedback(null)}
-            className="text-emerald-100/80 hover:text-emerald-50"
+            className="font-medium text-emerald-100/80 transition hover:text-emerald-50"
           >
             Cerrar
           </button>
@@ -199,17 +213,17 @@ export function CreateTaskFromReservation({ reservation, onCreated }: Props) {
       )}
 
       {modal && (
-        <div className="fixed inset-0 z-50 flex items-start justify-center bg-black/60 px-4 py-10">
-          <div className="w-full max-w-2xl space-y-6 rounded-2xl border border-slate-800 bg-slate-950 p-6 shadow-2xl shadow-black/60">
+        <div className="fixed inset-0 z-50 flex items-start justify-center bg-[#080705]/75 px-4 py-10 backdrop-blur-sm">
+          <div className="w-full max-w-2xl space-y-6 rounded-2xl border border-[#5b4934]/75 bg-[#181715] p-6 text-[#efe8dc] shadow-[0_28px_90px_-48px_rgba(0,0,0,0.98),inset_0_1px_0_rgba(255,255,255,0.04)]">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-xs uppercase tracking-wide text-slate-400">Crear tarea</p>
-                <h3 className="text-xl font-semibold text-slate-100">{areaLabel}</h3>
+                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[#c99a61]">Crear tarea</p>
+                <h3 className="mt-1 text-xl font-semibold text-[#f6f0e8]">{areaLabel}</h3>
               </div>
               <button
                 type="button"
                 onClick={() => setModal(null)}
-                className="rounded-md border border-slate-800 bg-slate-900 px-3 py-1 text-sm font-semibold text-slate-200 hover:bg-slate-800"
+                className={secondaryButtonClass}
               >
                 Cerrar
               </button>
@@ -217,47 +231,47 @@ export function CreateTaskFromReservation({ reservation, onCreated }: Props) {
 
             <form className="space-y-4" onSubmit={handleSubmit}>
               <div className="grid gap-4 md:grid-cols-2">
-                <label className="space-y-2 text-sm text-slate-200">
+                <label className={labelClass}>
                   <span className="block font-semibold">Área</span>
                   <input
                     type="text"
                     value={modal.area === 'kitchen' ? 'Cocina' : 'Mantenimiento'}
                     readOnly
-                    className="w-full rounded-lg border border-slate-800 bg-slate-900 px-3 py-2 text-sm text-slate-200"
+                    className={`${fieldClass} text-[#cfc4b5]`}
                   />
                 </label>
-                <label className="space-y-2 text-sm text-slate-200">
+                <label className={labelClass}>
                   <span className="block font-semibold">Fecha límite</span>
                   <input
                     type="date"
                     value={dueDate}
                     onChange={(event) => setDueDate(event.target.value)}
-                    className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-white focus:border-slate-500 focus:outline-none"
+                    className={fieldClass}
                   />
                 </label>
               </div>
 
-              <label className="space-y-2 text-sm text-slate-200">
+              <label className={labelClass}>
                 <span className="block font-semibold">Título</span>
                 <input
                   required
                   value={title}
                   onChange={(event) => setTitle(event.target.value)}
-                  className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-white focus:border-slate-500 focus:outline-none"
+                  className={fieldClass}
                 />
               </label>
 
-              <label className="space-y-2 text-sm text-slate-200">
+              <label className={labelClass}>
                 <span className="block font-semibold">Descripción</span>
                 <textarea
                   value={description}
                   onChange={(event) => setDescription(event.target.value)}
                   rows={5}
-                  className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-white focus:border-slate-500 focus:outline-none"
+                  className={fieldClass}
                 />
               </label>
 
-              <div className="space-y-2 text-sm text-slate-200">
+              <div className="space-y-2 text-sm text-[#d8cfc2]">
                 <span className="block font-semibold">Prioridad</span>
                 <div className="flex flex-wrap gap-2">
                   {(Object.keys(priorityLabels) as TaskPriority[]).map((value) => (
@@ -265,10 +279,10 @@ export function CreateTaskFromReservation({ reservation, onCreated }: Props) {
                       key={value}
                       type="button"
                       onClick={() => setPriority(value)}
-                      className={`rounded-md border px-3 py-2 text-sm font-medium transition ${
+                      className={`rounded-xl border px-3 py-2 text-sm font-semibold transition duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#c99555]/35 active:translate-y-px ${
                         priority === value
-                          ? 'border-slate-300 bg-slate-100 text-slate-900'
-                          : 'border-slate-700 text-slate-200 hover:border-slate-500'
+                          ? 'border-[#d6a76e]/60 bg-[#7d5932]/55 text-[#ffe2b6]'
+                          : 'border-[#4a3f32]/80 bg-[#151412]/70 text-[#cfc4b5] hover:border-[#8b6a43]/70 hover:bg-[#211f1b] hover:text-[#efe8dc]'
                       }`}
                     >
                       {priorityLabels[value]}
@@ -285,14 +299,14 @@ export function CreateTaskFromReservation({ reservation, onCreated }: Props) {
                 <button
                   type="button"
                   onClick={() => setModal(null)}
-                  className="rounded-md border border-slate-700 px-4 py-2 text-sm font-semibold text-slate-200 transition hover:border-slate-500"
+                  className={secondaryButtonClass}
                 >
                   Cancelar
                 </button>
                 <button
                   type="submit"
                   disabled={isSubmitting || !title.trim()}
-                  className="rounded-md bg-emerald-500 px-4 py-2 text-sm font-semibold text-slate-900 transition hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-60"
+                  className={primaryButtonClass}
                 >
                   {isSubmitting ? 'Guardando...' : 'Guardar tarea'}
                 </button>

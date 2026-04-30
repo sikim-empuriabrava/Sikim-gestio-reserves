@@ -250,6 +250,22 @@ function ReservasNewPilotStyles() {
             border-color: rgba(139, 106, 67, 0.70);
             background: #211f1b;
           }
+
+          .reservas-new-pilot .button-secondary:active {
+            transform: translateY(1px);
+          }
+
+          .reservas-new-pilot .reservation-modal-overlay {
+            background: rgba(8, 7, 5, 0.76);
+            backdrop-filter: blur(8px);
+          }
+
+          .reservas-new-pilot .reservation-modal-panel {
+            border-color: rgba(91, 73, 52, 0.75);
+            background: #181715;
+            color: #efe8dc;
+            box-shadow: 0 28px 90px -48px rgba(0, 0, 0, 0.98), inset 0 1px 0 rgba(255, 255, 255, 0.04);
+          }
         `,
       }}
     />
@@ -1147,8 +1163,8 @@ export default function NuevaReservaClient() {
               )}
 
               {isCustomMenuModalOpen && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4">
-                  <div className="w-full max-w-lg space-y-4 rounded-xl border border-slate-800 bg-slate-950 p-6">
+                <div className="reservation-modal-overlay fixed inset-0 z-50 flex items-center justify-center px-4">
+                  <div className="reservation-modal-panel w-full max-w-lg space-y-4 rounded-2xl border p-6">
                     <div>
                       <p className="text-lg font-semibold text-white">Crear menú personalizado</p>
                       <p className="text-sm text-slate-400">Añade un nombre y cantidad para este menú.</p>
@@ -1203,8 +1219,8 @@ export default function NuevaReservaClient() {
               )}
 
               {isKidsMenuModalOpen && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4">
-                  <div className="w-full max-w-lg space-y-4 rounded-xl border border-slate-800 bg-slate-950 p-6">
+                <div className="reservation-modal-overlay fixed inset-0 z-50 flex items-center justify-center px-4">
+                  <div className="reservation-modal-panel w-full max-w-lg space-y-4 rounded-2xl border p-6">
                     <div>
                       <p className="text-lg font-semibold text-white">Crear menú infantil</p>
                       <p className="text-sm text-slate-400">Indica cantidad y notas para este menú.</p>
