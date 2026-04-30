@@ -2,6 +2,19 @@
 
 import Link from 'next/link';
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import {
+  ArrowPathIcon,
+  CalendarDaysIcon,
+  ClipboardDocumentListIcon,
+  ExclamationTriangleIcon,
+} from '@heroicons/react/24/outline';
+import {
+  OperationalEmptyState,
+  OperationalPageHeader,
+  OperationalPanel,
+  OperationalPill,
+  operationalSecondaryButtonClass,
+} from '@/components/operational/OperationalUI';
 
 type UiStatus = 'open' | 'done';
 type TaskPriority = 'low' | 'normal' | 'high';
@@ -33,15 +46,10 @@ const priorityLabels: Record<TaskPriority, string> = {
   high: 'Alta',
 };
 
-const statusStyles: Record<UiStatus, string> = {
-  open: 'bg-amber-900/40 text-amber-200 border-amber-700/70',
-  done: 'bg-emerald-900/40 text-emerald-100 border-emerald-700/60',
-};
-
-const priorityStyles: Record<TaskPriority, string> = {
-  low: 'text-emerald-300',
-  normal: 'text-slate-200',
-  high: 'text-amber-200',
+const priorityTone: Record<TaskPriority, 'success' | 'neutral' | 'warning'> = {
+  low: 'success',
+  normal: 'neutral',
+  high: 'warning',
 };
 
 function toUiStatus(status: string): UiStatus {
@@ -93,6 +101,71 @@ function buildWeek() {
   }).format(end)}`;
 
   return { days, start: days[0].iso, end: days[6].iso, rangeLabel };
+}
+
+function TaskCard({
+  task,
+  isUpdating,
+  onStatusAdvance,
+  onPriorityChange,
+}: {
+  task: Task;
+  isUpdating: boolean;
+  onStatusAdvance: (task: Task) => void;
+  onPriorityChange: (task: Task, priority: TaskPriority) => void;
+}) {
+  const currentStatus = toUiStatus(task.status);
+
+  return (
+    <div className="space-y-3 rounded-2xl border border-[#4a3f32]/70 bg-[#151412]/80 p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.035)]">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0 space-y-2">
+          <p className="text-lg font-semibold leading-tight text-[#f6f0e8]">{task.title}</p>
+          {task.description ? <p className="text-sm leading-6 text-[#b9aea1]">{task.description}</p> : null}
+          <div className="flex flex-wrap gap-2">
+            <OperationalPill tone={currentStatus === 'done' ? 'success' : 'warning'}>
+              {statusLabels[currentStatus]}
+            </OperationalPill>
+            <OperationalPill tone={priorityTone[task.priority]}>Prioridad: {priorityLabels[task.priority]}</OperationalPill>
+          </div>
+        </div>
+        <Link
+          href="/mantenimiento/tareas"
+          className="shrink-0 text-sm font-semibold text-[#d69c57] transition hover:text-[#ffe2b6] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#d6a76e]/35"
+        >
+          Ver/editar
+        </Link>
+      </div>
+
+      <div className="flex flex-wrap gap-2 text-sm">
+        <button
+          type="button"
+          disabled={isUpdating}
+          onClick={() => onStatusAdvance(task)}
+          className={operationalSecondaryButtonClass}
+        >
+          <ArrowPathIcon className="h-4 w-4" aria-hidden="true" />
+          {currentStatus === 'open' ? 'Marcar como hecha' : 'Reabrir'}
+        </button>
+
+        <label className="flex items-center gap-2 rounded-xl border border-[#4a3f32]/80 bg-[#12110f]/80 px-3 py-2 text-xs font-medium text-[#d8cfc2]">
+          Prioridad
+          <select
+            className="rounded-lg border border-[#4a3f32]/70 bg-[#181715] px-2 py-1 text-xs text-[#f6f0e8] focus:outline-none focus:ring-2 focus:ring-[#d6a76e]/20 disabled:cursor-not-allowed disabled:opacity-70"
+            value={task.priority}
+            onChange={(event) => onPriorityChange(task, event.target.value as TaskPriority)}
+            disabled={isUpdating}
+          >
+            {(Object.keys(priorityLabels) as TaskPriority[]).map((option) => (
+              <option key={option} value={option}>
+                {priorityLabels[option]}
+              </option>
+            ))}
+          </select>
+        </label>
+      </div>
+    </div>
+  );
 }
 
 export function MaintenanceCalendarWeek() {
@@ -206,7 +279,7 @@ export function MaintenanceCalendarWeek() {
         acc[day.iso] = visibleTasks.filter((task) => task.due_date === day.iso);
         return acc;
       }, {}),
-    [days, visibleTasks]
+    [days, visibleTasks],
   );
 
   const undatedTasks = useMemo(() => visibleTasks.filter((task) => !task.due_date), [visibleTasks]);
@@ -215,192 +288,119 @@ export function MaintenanceCalendarWeek() {
 
   return (
     <div className="space-y-6">
-      <div className="space-y-1">
-        <h1 className="text-2xl font-semibold">Calendario de tareas (semana)</h1>
-        <p className="text-slate-400">Semana actual: {rangeLabel}</p>
-      </div>
+      <OperationalPageHeader
+        title="Calendario de tareas (semana)"
+        meta={
+          <span className="inline-flex items-center gap-2">
+            <CalendarDaysIcon className="h-5 w-5 text-[#a99d90]" aria-hidden="true" />
+            Semana actual: {rangeLabel}
+          </span>
+        }
+      />
 
-      <div className="flex flex-wrap items-center gap-3 rounded-xl border border-slate-800 bg-slate-900/70 p-3">
-        <span className="text-sm font-medium text-slate-300">Estado:</span>
-        {(['all', 'open', 'done'] as const).map((status) => (
-          <button
-            key={status}
-            type="button"
-            onClick={() => setStatusFilter(status)}
-            className={`rounded-lg px-3 py-1.5 text-sm font-semibold transition ${
-              statusFilter === status
-                ? 'bg-primary-600/80 text-white shadow shadow-primary-900/30'
-                : 'text-slate-200 hover:bg-slate-800 hover:text-white'
-            }`}
-          >
-            {status === 'all' ? 'Todas' : statusLabels[status]}
-          </button>
-        ))}
-      </div>
+      <OperationalPanel className="p-4">
+        <div className="flex flex-wrap items-center gap-3">
+          <span className="text-sm font-medium text-[#d8cfc2]">Estado:</span>
+          {(['all', 'open', 'done'] as const).map((status) => (
+            <button
+              key={status}
+              type="button"
+              onClick={() => setStatusFilter(status)}
+              className={`rounded-xl border px-4 py-2 text-sm font-semibold transition duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#d6a76e]/35 ${
+                statusFilter === status
+                  ? 'border-[#b77b3e]/55 bg-[#7d5932]/48 text-[#ffe2b6]'
+                  : 'border-[#4a3f32]/75 bg-[#151412]/70 text-[#d8cfc2] hover:border-[#8b6a43]/70 hover:bg-[#211f1b]'
+              }`}
+            >
+              {status === 'all' ? 'Todas' : statusLabels[status]}
+            </button>
+          ))}
+        </div>
+      </OperationalPanel>
 
-      {error && <div className="rounded-lg border border-amber-700 bg-amber-900/40 p-3 text-amber-100">{error}</div>}
+      {error ? (
+        <div className="rounded-xl border border-amber-500/35 bg-amber-500/10 p-3 text-sm text-amber-100">
+          {error}
+        </div>
+      ) : null}
 
       {loading ? (
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-          {Array.from({ length: 4 }).map((_, index) => (
-            <div key={index} className="h-40 animate-pulse rounded-xl border border-slate-800 bg-slate-900/60" />
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-7">
+          {Array.from({ length: 7 }).map((_, index) => (
+            <div key={index} className="h-48 animate-pulse rounded-2xl border border-[#4a3f32]/55 bg-[#181715]/70" />
           ))}
         </div>
       ) : (
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-7">
-          {days.map((day) => (
-            <div key={day.iso} className="flex flex-col gap-3 rounded-xl border border-slate-800 bg-slate-900/60 p-3">
-              <div className="flex items-center justify-between gap-2">
-                <p className="text-sm font-semibold text-white">{day.label}</p>
-                <span className="text-xs text-slate-400">{day.iso}</span>
+          {days.map((day, index) => (
+            <OperationalPanel
+              key={day.iso}
+              className={`min-h-[13rem] p-4 ${index === 0 ? 'border-[#c98545]/75 bg-[#211b16]/95' : ''}`}
+            >
+              <div className="flex items-start justify-between gap-2">
+                <div>
+                  <p className="text-lg font-semibold leading-tight text-[#f6f0e8]">{day.label}</p>
+                  <p className="mt-1 text-xs text-[#8f8578]">{day.iso}</p>
+                </div>
+                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-[#6f5434]/65 bg-[#3a2a1b]/60 text-[#e0aa69]">
+                  <CalendarDaysIcon className="h-4 w-4" aria-hidden="true" />
+                </div>
               </div>
 
-              <div className="space-y-3">
+              <div className="mt-5 space-y-3">
                 {tasksByDate[day.iso]?.length ? (
-                  tasksByDate[day.iso].map((task) => {
-                    const currentStatus = toUiStatus(task.status);
-                    return (
-                    <div
+                  tasksByDate[day.iso].map((task) => (
+                    <TaskCard
                       key={task.id}
-                      className="space-y-2 rounded-lg border border-slate-800 bg-slate-950/50 p-3"
-                    >
-                      <div className="flex items-start justify-between gap-2">
-                        <div className="space-y-1">
-                          <p className="font-semibold text-white">{task.title}</p>
-                          <div className="flex flex-wrap items-center gap-2 text-xs text-slate-300">
-                            <span className={`rounded-md border px-2 py-0.5 ${statusStyles[currentStatus]}`}>
-                              {statusLabels[currentStatus]}
-                            </span>
-                            <span className={`${priorityStyles[task.priority]} rounded-md border border-slate-800 px-2 py-0.5`}>
-                              Prioridad: {priorityLabels[task.priority]}
-                            </span>
-                          </div>
-                        </div>
-                        <Link
-                          href="/mantenimiento/tareas"
-                          className="text-xs font-semibold text-primary-300 transition hover:text-primary-100"
-                        >
-                          Ver/editar
-                        </Link>
-                      </div>
-
-                      <div className="flex flex-wrap gap-2 text-sm">
-                        <button
-                          type="button"
-                          disabled={isUpdating(task.id)}
-                          onClick={() => handleStatusAdvance(task)}
-                          className={`rounded-lg px-3 py-1.5 font-semibold transition ${
-                            isUpdating(task.id)
-                              ? 'cursor-not-allowed bg-slate-800 text-slate-500'
-                              : 'bg-slate-100 text-slate-900 hover:bg-white'
-                          }`}
-                        >
-                          {currentStatus === 'open' ? 'Marcar como hecha' : 'Reabrir'}
-                        </button>
-
-                        <label className="flex items-center gap-2 rounded-lg border border-slate-800 bg-slate-950/60 px-2 py-1 text-xs font-medium text-slate-200">
-                          Prioridad
-                          <select
-                            className="rounded-md bg-slate-900 px-2 py-1 text-xs text-white focus:outline-none disabled:cursor-not-allowed disabled:opacity-70"
-                            value={task.priority}
-                            onChange={(event) => handlePriorityChange(task, event.target.value as TaskPriority)}
-                            disabled={isUpdating(task.id)}
-                          >
-                            {(Object.keys(priorityLabels) as TaskPriority[]).map((option) => (
-                              <option key={option} value={option}>
-                                {priorityLabels[option]}
-                              </option>
-                            ))}
-                          </select>
-                        </label>
-                      </div>
-                    </div>
-                  );
-                })
+                      task={task}
+                      isUpdating={isUpdating(task.id)}
+                      onStatusAdvance={handleStatusAdvance}
+                      onPriorityChange={handlePriorityChange}
+                    />
+                  ))
                 ) : (
-                  <p className="text-sm text-slate-500">Sin tareas programadas</p>
+                  <p className="inline-flex items-center gap-2 text-sm text-[#a99d90]">
+                    <span className="h-1.5 w-1.5 rounded-full bg-[#d69c57]" aria-hidden="true" />
+                    Sin tareas programadas
+                  </p>
                 )}
               </div>
-            </div>
+            </OperationalPanel>
           ))}
         </div>
       )}
 
-      {!loading && (
-        <div className="space-y-3 rounded-xl border border-slate-800 bg-slate-900/70 p-4">
-          <div className="flex items-center justify-between">
-            <h2 className="text-lg font-semibold text-white">Sin fecha</h2>
-            <span className="text-xs text-slate-400">Tareas sin due_date</span>
+      {!loading ? (
+        <OperationalPanel className="p-5">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <h2 className="text-xl font-semibold text-[#f6f0e8]">Sin fecha</h2>
+            <span className="text-sm text-[#a99d90]">Tareas sin due_date</span>
           </div>
 
-          {undatedTasks.length ? (
-            <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
-              {undatedTasks.map((task) => {
-                const currentStatus = toUiStatus(task.status);
-                return (
-                <div
-                  key={task.id}
-                  className="space-y-2 rounded-lg border border-slate-800 bg-slate-950/60 p-3"
-                >
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="space-y-1">
-                      <p className="font-semibold text-white">{task.title}</p>
-                      <div className="flex flex-wrap items-center gap-2 text-xs text-slate-300">
-                        <span className={`rounded-md border px-2 py-0.5 ${statusStyles[currentStatus]}`}>
-                          {statusLabels[currentStatus]}
-                        </span>
-                        <span className={`${priorityStyles[task.priority]} rounded-md border border-slate-800 px-2 py-0.5`}>
-                          Prioridad: {priorityLabels[task.priority]}
-                        </span>
-                      </div>
-                    </div>
-                    <Link
-                      href="/mantenimiento/tareas"
-                      className="text-xs font-semibold text-primary-300 transition hover:text-primary-100"
-                    >
-                      Ver/editar
-                    </Link>
-                  </div>
-
-                  <div className="flex flex-wrap gap-2 text-sm">
-                    <button
-                      type="button"
-                      disabled={isUpdating(task.id)}
-                      onClick={() => handleStatusAdvance(task)}
-                      className={`rounded-lg px-3 py-1.5 font-semibold transition ${
-                        isUpdating(task.id)
-                          ? 'cursor-not-allowed bg-slate-800 text-slate-500'
-                          : 'bg-slate-100 text-slate-900 hover:bg-white'
-                      }`}
-                    >
-                      {currentStatus === 'open' ? 'Marcar como hecha' : 'Reabrir'}
-                    </button>
-
-                    <label className="flex items-center gap-2 rounded-lg border border-slate-800 bg-slate-950/60 px-2 py-1 text-xs font-medium text-slate-200">
-                      Prioridad
-                      <select
-                        className="rounded-md bg-slate-900 px-2 py-1 text-xs text-white focus:outline-none disabled:cursor-not-allowed disabled:opacity-70"
-                        value={task.priority}
-                        onChange={(event) => handlePriorityChange(task, event.target.value as TaskPriority)}
-                        disabled={isUpdating(task.id)}
-                      >
-                        {(Object.keys(priorityLabels) as TaskPriority[]).map((option) => (
-                          <option key={option} value={option}>
-                            {priorityLabels[option]}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
-                  </div>
-                </div>
-              );
-            })}
-            </div>
-          ) : (
-            <p className="text-sm text-slate-400">Sin tareas sin fecha.</p>
-          )}
-        </div>
-      )}
+          <div className="mt-5">
+            {undatedTasks.length ? (
+              <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+                {undatedTasks.map((task) => (
+                  <TaskCard
+                    key={task.id}
+                    task={task}
+                    isUpdating={isUpdating(task.id)}
+                    onStatusAdvance={handleStatusAdvance}
+                    onPriorityChange={handlePriorityChange}
+                  />
+                ))}
+              </div>
+            ) : (
+              <OperationalEmptyState
+                icon={statusFilter === 'all' ? ClipboardDocumentListIcon : ExclamationTriangleIcon}
+                title="Sin tareas sin fecha."
+                description="Las tareas que no tengan fecha límite aparecerán agrupadas en esta sección."
+                className="min-h-[12rem]"
+              />
+            )}
+          </div>
+        </OperationalPanel>
+      ) : null}
     </div>
   );
 }

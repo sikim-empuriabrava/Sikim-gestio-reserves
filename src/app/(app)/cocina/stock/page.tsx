@@ -1,5 +1,6 @@
 import { redirect } from 'next/navigation';
 import { ModulePlaceholder } from '@/components/ModulePlaceholder';
+import { OperationalPage } from '@/components/operational/OperationalUI';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 
 const cards = [
@@ -37,11 +38,13 @@ export default async function CocinaStockPage() {
   }
 
   return (
-    <ModulePlaceholder
-      title="Stock / mise en place"
-      subtitle="Planea reposiciones y mise en place para cada servicio sin perder control de los básicos."
-      cards={cards}
-      quickNotes={quickNotes}
-    />
+    <OperationalPage>
+      <ModulePlaceholder
+        title="Stock / mise en place"
+        subtitle="Planea reposiciones y mise en place para cada servicio sin perder control de los básicos."
+        cards={cards}
+        quickNotes={quickNotes}
+      />
+    </OperationalPage>
   );
 }
