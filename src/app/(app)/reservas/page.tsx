@@ -190,8 +190,11 @@ function validationBadge(statusRow?: DayStatusRow) {
   if (validated) {
     return { label: 'Validado', className: 'border-emerald-500/30 bg-emerald-500/10 text-emerald-200' };
   }
-  return { label: 'No validado', className: 'border-stone-600/60 bg-stone-900/70 text-stone-300' };
+  return { label: 'No validado', className: 'border-[#4a3f32]/80 bg-[#151412]/85 text-[#cfc4b5]' };
 }
+
+const validationBadgeClass =
+  'inline-flex w-fit shrink-0 items-center justify-center whitespace-nowrap rounded-full border px-2.5 py-1 text-[0.68rem] font-semibold leading-none';
 
 function getReservationMeta(event: GroupEventDailyDetail) {
   const menu = event.second_course_type ?? event.menu_text;
@@ -550,14 +553,14 @@ function WeekView({
             <div key={day} className="group/day flex min-h-[28rem] flex-col bg-[#181715] transition-colors hover:bg-[#1c1a17]">
               <Link
                 href={`/reservas?view=day&date=${day}`}
-                className="flex items-start justify-between gap-3 border-b border-[#3c342a]/70 px-4 py-4"
+                className="flex flex-col items-start gap-3 border-b border-[#3c342a]/70 px-4 py-4 2xl:flex-row 2xl:justify-between"
               >
-                <div>
+                <div className="min-w-0">
                   <p className="text-[0.95rem] font-semibold leading-tight text-[#f3eadf]">{dayLabel.label}</p>
                   <p className="mt-1 text-sm text-[#9d9285]">{dayLabel.iso}</p>
                 </div>
                 <span
-                  className={`inline-flex max-w-[7.5rem] items-center rounded-full border px-2 py-1 text-center text-[0.68rem] font-semibold leading-tight ${badge.className}`}
+                  className={`${validationBadgeClass} ${badge.className}`}
                 >
                   {badge.label}
                 </span>
