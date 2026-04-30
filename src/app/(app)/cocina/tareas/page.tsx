@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation';
 import { KitchenTasksBoard } from './KitchenTasksBoard';
 import { createSupabaseAdminClient } from '@/lib/supabaseAdmin';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
+import { OperationalPage, OperationalPageHeader } from '@/components/operational/OperationalUI';
 
 type Task = {
   id: string;
@@ -39,15 +40,12 @@ export default async function CocinaTareasPage() {
   const tasks: Task[] = data ?? [];
 
   return (
-    <div className="space-y-6">
-      <div className="space-y-1">
-        <h1 className="text-2xl font-semibold">Tareas cocina</h1>
-        <p className="text-slate-400">
-          Organiza y sigue las tareas y notas de la cocina en un solo sitio.
-        </p>
-      </div>
-
+    <OperationalPage>
+      <OperationalPageHeader
+        title="Tareas cocina"
+        description="Organiza y sigue las tareas y notas de la cocina en un solo sitio."
+      />
       <KitchenTasksBoard initialTasks={tasks} />
-    </div>
+    </OperationalPage>
   );
 }

@@ -1,6 +1,22 @@
 'use client';
 
 import { useMemo, useState } from 'react';
+import {
+  CalendarDaysIcon,
+  CheckIcon,
+  ClipboardDocumentCheckIcon,
+  ClipboardDocumentListIcon,
+  PlusIcon,
+} from '@heroicons/react/24/outline';
+import {
+  OperationalEmptyState,
+  OperationalPanel,
+  OperationalPill,
+  operationalFieldClass,
+  operationalLabelClass,
+  operationalPrimaryButtonClass,
+  operationalSecondaryButtonClass,
+} from '@/components/operational/OperationalUI';
 
 type UiStatus = 'open' | 'done';
 type TaskPriority = 'low' | 'normal' | 'high';
@@ -30,10 +46,10 @@ const priorityLabels: Record<TaskPriority, string> = {
   high: 'Alta',
 };
 
-const priorityStyles: Record<TaskPriority, string> = {
-  low: 'bg-emerald-900/30 text-emerald-300 border-emerald-800/60',
-  normal: 'bg-slate-800/60 text-slate-200 border-slate-700',
-  high: 'bg-amber-900/40 text-amber-200 border-amber-700/80',
+const priorityTone: Record<TaskPriority, 'success' | 'neutral' | 'warning'> = {
+  low: 'success',
+  normal: 'neutral',
+  high: 'warning',
 };
 
 function formatShortDay(value: string | null | undefined) {
@@ -70,7 +86,7 @@ export function KitchenTasksBoard({ initialTasks }: Props) {
 
   const filteredTasks = useMemo(
     () => tasks.filter((task) => toUiStatus(task.status) === activeStatus),
-    [tasks, activeStatus]
+    [tasks, activeStatus],
   );
 
   const resetForm = () => {
@@ -147,17 +163,17 @@ export function KitchenTasksBoard({ initialTasks }: Props) {
   };
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-5">
       <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-        <div className="flex gap-2 rounded-lg border border-slate-800 bg-slate-900/80 p-1 text-sm">
+        <div className="inline-flex w-fit rounded-xl border border-[#4a3f32]/80 bg-[#151412]/90 p-1 text-sm shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
           {(Object.keys(statusLabels) as UiStatus[]).map((status) => (
             <button
               key={status}
               type="button"
-              className={`rounded-md px-3 py-2 font-medium transition ${
+              className={`rounded-lg px-5 py-2.5 font-semibold transition duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#d6a76e]/35 ${
                 activeStatus === status
-                  ? 'bg-slate-100 text-slate-900'
-                  : 'text-slate-200 hover:bg-slate-800'
+                  ? 'bg-[#7d5932]/70 text-[#ffe2b6] shadow-[inset_0_0_0_1px_rgba(231,181,118,0.34)]'
+                  : 'text-[#b9aea1] hover:bg-[#24211d] hover:text-[#f2eadf]'
               }`}
               onClick={() => setActiveStatus(status)}
             >
@@ -169,135 +185,160 @@ export function KitchenTasksBoard({ initialTasks }: Props) {
         <button
           type="button"
           onClick={() => setShowForm((prev) => !prev)}
-          className="inline-flex items-center justify-center rounded-md border border-slate-700 bg-slate-100 px-4 py-2 text-sm font-semibold text-slate-900 transition hover:bg-white"
+          className={showForm ? operationalSecondaryButtonClass : operationalPrimaryButtonClass}
         >
+          <PlusIcon className="h-4 w-4" aria-hidden="true" />
           {showForm ? 'Cerrar' : 'Nueva tarea'}
         </button>
       </div>
 
-      {showForm && (
-        <form
-          onSubmit={handleCreate}
-          className="space-y-4 rounded-xl border border-slate-800 bg-slate-900/70 p-4"
-        >
-          <div className="grid gap-4 md:grid-cols-2">
-            <label className="space-y-2 text-sm text-slate-200">
-              <span className="block font-semibold">Título</span>
-              <input
-                required
-                value={title}
-                onChange={(event) => setTitle(event.target.value)}
-                className="w-full rounded-lg border border-slate-700 bg-slate-950/60 px-3 py-2 text-sm text-white focus:border-slate-500 focus:outline-none"
-                placeholder="Descripción corta de la tarea"
-              />
-            </label>
+      {showForm ? (
+        <OperationalPanel className="p-5">
+          <form onSubmit={handleCreate} className="space-y-4">
+            <div className="grid gap-4 md:grid-cols-2">
+              <label className={operationalLabelClass}>
+                <span className="block font-semibold">Título</span>
+                <input
+                  required
+                  value={title}
+                  onChange={(event) => setTitle(event.target.value)}
+                  className={operationalFieldClass}
+                  placeholder="Descripción corta de la tarea"
+                />
+              </label>
 
-            <label className="space-y-2 text-sm text-slate-200">
-              <span className="block font-semibold">Fecha límite (opcional)</span>
-              <input
-                type="date"
-                value={dueDate}
-                onChange={(event) => setDueDate(event.target.value)}
-                className="w-full rounded-lg border border-slate-700 bg-slate-950/60 px-3 py-2 text-sm text-white focus:border-slate-500 focus:outline-none"
-              />
-            </label>
-          </div>
-
-          <label className="space-y-2 text-sm text-slate-200">
-            <span className="block font-semibold">Descripción</span>
-            <textarea
-              value={description}
-              onChange={(event) => setDescription(event.target.value)}
-              className="w-full rounded-lg border border-slate-700 bg-slate-950/60 px-3 py-2 text-sm text-white focus:border-slate-500 focus:outline-none"
-              rows={3}
-              placeholder="Detalles para el equipo de cocina"
-            />
-          </label>
-
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-            <label className="space-y-2 text-sm text-slate-200">
-              <span className="block font-semibold">Prioridad</span>
-              <div className="flex gap-3">
-                {(Object.keys(priorityLabels) as TaskPriority[]).map((value) => (
-                  <button
-                    key={value}
-                    type="button"
-                    onClick={() => setPriority(value)}
-                    className={`rounded-md border px-3 py-2 text-sm font-medium transition ${
-                      priority === value
-                        ? 'border-slate-300 bg-slate-100 text-slate-900'
-                        : 'border-slate-700 text-slate-200 hover:border-slate-500'
-                    }`}
-                  >
-                    {priorityLabels[value]}
-                  </button>
-                ))}
-              </div>
-            </label>
-
-            <div className="flex gap-3 sm:justify-end">
-              <button
-                type="button"
-                onClick={() => {
-                  resetForm();
-                  setShowForm(false);
-                }}
-                className="rounded-md border border-slate-700 px-4 py-2 text-sm font-semibold text-slate-200 transition hover:border-slate-500"
-              >
-                Cancelar
-              </button>
-              <button
-                type="submit"
-                disabled={isSubmitting || !title.trim()}
-                className="rounded-md bg-emerald-500 px-4 py-2 text-sm font-semibold text-slate-900 transition hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                {isSubmitting ? 'Guardando...' : 'Guardar tarea'}
-              </button>
+              <label className={operationalLabelClass}>
+                <span className="block font-semibold">Fecha límite (opcional)</span>
+                <input
+                  type="date"
+                  value={dueDate}
+                  onChange={(event) => setDueDate(event.target.value)}
+                  className={operationalFieldClass}
+                />
+              </label>
             </div>
-          </div>
 
-          {error && <p className="text-sm text-amber-200">{error}</p>}
-          {message && <p className="text-sm text-emerald-300">{message}</p>}
-        </form>
-      )}
+            <label className={operationalLabelClass}>
+              <span className="block font-semibold">Descripción</span>
+              <textarea
+                value={description}
+                onChange={(event) => setDescription(event.target.value)}
+                className={operationalFieldClass}
+                rows={3}
+                placeholder="Detalles para el equipo de cocina"
+              />
+            </label>
 
-      {error && !showForm && <p className="text-sm text-amber-200">{error}</p>}
-      {message && !showForm && <p className="text-sm text-emerald-300">{message}</p>}
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+              <div className="space-y-2 text-sm text-[#d8cfc2]">
+                <span className="block font-semibold">Prioridad</span>
+                <div className="flex flex-wrap gap-2">
+                  {(Object.keys(priorityLabels) as TaskPriority[]).map((value) => (
+                    <button
+                      key={value}
+                      type="button"
+                      onClick={() => setPriority(value)}
+                      className={`rounded-xl border px-3 py-2 text-sm font-semibold transition duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#d6a76e]/35 ${
+                        priority === value
+                          ? 'border-[#d6a76e]/60 bg-[#7d5932]/55 text-[#ffe2b6]'
+                          : 'border-[#4a3f32]/80 bg-[#151412]/70 text-[#cfc4b5] hover:border-[#8b6a43]/70 hover:bg-[#211f1b] hover:text-[#efe8dc]'
+                      }`}
+                    >
+                      {priorityLabels[value]}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="flex flex-wrap gap-3 sm:justify-end">
+                <button
+                  type="button"
+                  onClick={() => {
+                    resetForm();
+                    setShowForm(false);
+                  }}
+                  className={operationalSecondaryButtonClass}
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSubmitting || !title.trim()}
+                  className={operationalPrimaryButtonClass}
+                >
+                  {isSubmitting ? 'Guardando...' : 'Guardar tarea'}
+                </button>
+              </div>
+            </div>
+
+            {error ? <p className="text-sm text-amber-200">{error}</p> : null}
+            {message ? <p className="text-sm text-emerald-300">{message}</p> : null}
+          </form>
+        </OperationalPanel>
+      ) : null}
+
+      {error && !showForm ? <p className="text-sm text-amber-200">{error}</p> : null}
+      {message && !showForm ? <p className="text-sm text-emerald-300">{message}</p> : null}
 
       <div className="grid gap-3">
-        {filteredTasks.length === 0 && (
-          <div className="rounded-lg border border-dashed border-slate-800 bg-slate-950/40 p-6 text-sm text-slate-300">
-            No hay tareas en esta columna.
-          </div>
-        )}
+        {filteredTasks.length === 0 ? (
+          <OperationalPanel className="p-5">
+            <OperationalEmptyState
+              icon={ClipboardDocumentCheckIcon}
+              title={activeStatus === 'open' ? 'No hay tareas abiertas' : 'No hay tareas hechas'}
+              description={
+                activeStatus === 'open'
+                  ? 'Cuando crees una nueva tarea aparecerá aquí.'
+                  : 'Las tareas marcadas como hechas quedarán agrupadas en esta vista.'
+              }
+              action={
+                activeStatus === 'open' ? (
+                  <button
+                    type="button"
+                    onClick={() => setShowForm(true)}
+                    className={operationalPrimaryButtonClass}
+                  >
+                    <PlusIcon className="h-4 w-4" aria-hidden="true" />
+                    Crear primera tarea
+                  </button>
+                ) : null
+              }
+            />
+          </OperationalPanel>
+        ) : null}
 
         {filteredTasks.map((task) => {
           const currentStatus = toUiStatus(task.status);
           const windowStartLabel = formatShortDay(task.window_start_date);
           const windowEndLabel = formatShortDay(task.due_date ?? null);
           return (
-            <div key={task.id} className="rounded-xl border border-slate-800 bg-slate-900/70 p-4">
-              <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
-                <div className="space-y-1">
-                  <p className="text-sm font-semibold text-slate-100">{task.title}</p>
-                  {task.description && (
-                    <p className="text-sm whitespace-pre-wrap text-slate-300">{task.description}</p>
-                  )}
-                  <div className="flex flex-wrap gap-2 text-xs text-slate-400">
-                    <span
-                      className={`rounded-full border px-2 py-1 font-semibold ${priorityStyles[task.priority]}`}
-                    >
-                      Prioridad: {priorityLabels[task.priority]}
-                    </span>
-                    {windowStartLabel && task.due_date ? (
-                      <span className="rounded-full bg-slate-800 px-2 py-1">
-                        Ventana: {windowStartLabel} → {windowEndLabel ?? task.due_date}
-                      </span>
-                    ) : (
-                      task.due_date && (
-                        <span className="rounded-full bg-slate-800 px-2 py-1">Límite: {task.due_date}</span>
-                      )
-                    )}
+            <OperationalPanel key={task.id} className="p-4">
+              <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+                <div className="flex min-w-0 gap-4">
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full border border-[#6f5434]/65 bg-[#3a2a1b]/60 text-[#e0aa69]">
+                    <ClipboardDocumentListIcon className="h-5 w-5" aria-hidden="true" />
+                  </div>
+                  <div className="min-w-0 space-y-2">
+                    <p className="text-lg font-semibold leading-tight text-[#f6f0e8]">{task.title}</p>
+                    {task.description ? (
+                      <p className="whitespace-pre-wrap text-sm leading-6 text-[#b9aea1]">{task.description}</p>
+                    ) : null}
+                    <div className="flex flex-wrap gap-2">
+                      <OperationalPill tone={priorityTone[task.priority]}>
+                        Prioridad: {priorityLabels[task.priority]}
+                      </OperationalPill>
+                      {windowStartLabel && task.due_date ? (
+                        <OperationalPill tone="muted">
+                          <CalendarDaysIcon className="mr-1.5 h-3.5 w-3.5" aria-hidden="true" />
+                          Ventana: {windowStartLabel} - {windowEndLabel ?? task.due_date}
+                        </OperationalPill>
+                      ) : task.due_date ? (
+                        <OperationalPill tone="muted">
+                          <CalendarDaysIcon className="mr-1.5 h-3.5 w-3.5" aria-hidden="true" />
+                          Límite: {task.due_date}
+                        </OperationalPill>
+                      ) : null}
+                    </div>
                   </div>
                 </div>
 
@@ -305,8 +346,9 @@ export function KitchenTasksBoard({ initialTasks }: Props) {
                   type="button"
                   disabled={updatingId === task.id}
                   onClick={() => handleStatusChange(task)}
-                  className="rounded-md border border-slate-700 bg-slate-800 px-3 py-2 text-sm font-semibold text-slate-100 transition hover:border-slate-500 disabled:cursor-not-allowed disabled:opacity-60"
+                  className={operationalSecondaryButtonClass}
                 >
+                  <CheckIcon className="h-4 w-4" aria-hidden="true" />
                   {updatingId === task.id
                     ? 'Actualizando...'
                     : currentStatus === 'open'
@@ -314,7 +356,7 @@ export function KitchenTasksBoard({ initialTasks }: Props) {
                       : 'Reabrir'}
                 </button>
               </div>
-            </div>
+            </OperationalPanel>
           );
         })}
       </div>

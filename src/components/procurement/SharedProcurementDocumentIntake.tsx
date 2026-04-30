@@ -102,6 +102,7 @@ type SharedProcurementDocumentIntakeProps = {
   redirectToDetailOnSuccess?: boolean;
   showDocumentLinkOnSuccess?: boolean;
   className?: string;
+  variant?: 'default' | 'warm';
 };
 
 export function SharedProcurementDocumentIntake({
@@ -112,6 +113,7 @@ export function SharedProcurementDocumentIntake({
   redirectToDetailOnSuccess = false,
   showDocumentLinkOnSuccess = true,
   className,
+  variant = 'default',
 }: SharedProcurementDocumentIntakeProps) {
   const router = useRouter();
   const cameraInputRef = useRef<HTMLInputElement | null>(null);
@@ -126,6 +128,7 @@ export function SharedProcurementDocumentIntake({
   const [documentKind, setDocumentKind] = useState<ProcurementDocumentKind>(initialDocumentKind);
   const [pendingCameraFile, setPendingCameraFile] = useState<File | null>(null);
   const [cameraPreviewUrl, setCameraPreviewUrl] = useState<string | null>(null);
+  const isWarm = variant === 'warm';
 
   useEffect(() => {
     return () => {
@@ -195,18 +198,37 @@ export function SharedProcurementDocumentIntake({
     createdDocumentId && !error && isUploadCompleted && (!runOcrAfterUpload || isOcrCompleted),
   );
 
+  const sectionClassName =
+    className ??
+    (isWarm
+      ? 'operational-surface space-y-4 rounded-2xl border border-[#4a3f32]/70 bg-[#181715] p-5 text-[#efe8dc] shadow-[0_24px_80px_-58px_rgba(0,0,0,0.96),inset_0_1px_0_rgba(255,255,255,0.04)]'
+      : 'space-y-3 rounded-xl border border-slate-800 bg-slate-950/40 p-4');
+  const selectClassName = isWarm
+    ? 'rounded-xl border border-[#4a3f32]/80 bg-[#12110f]/90 px-3.5 py-2.5 text-[#f4ede3] shadow-[inset_0_1px_0_rgba(255,255,255,0.03)] focus:border-[#d6a76e]/80 focus:outline-none focus:ring-2 focus:ring-[#d6a76e]/15 disabled:cursor-not-allowed disabled:opacity-70'
+    : 'rounded-md border border-slate-700 bg-slate-950/70 px-3 py-2 text-white';
+  const warmActionClassName =
+    'rounded-xl border border-[#d6a76e]/60 bg-[#2a1e16]/90 px-4 py-2.5 text-sm font-semibold text-[#f3c98d] transition duration-200 hover:-translate-y-0.5 hover:border-[#bd8145]/80 hover:bg-[#3a2618] disabled:cursor-not-allowed disabled:border-[#4a3f32]/70 disabled:text-[#7f766b]';
+  const warmSecondaryClassName =
+    'rounded-xl border border-[#4a3f32]/80 bg-[#151412]/90 px-4 py-2.5 text-sm font-semibold text-[#efe8dc] transition duration-200 hover:-translate-y-0.5 hover:border-[#8b6a43]/75 hover:bg-[#211f1b] disabled:cursor-not-allowed disabled:border-[#4a3f32]/70 disabled:text-[#7f766b]';
+  const cameraButtonClassName = isWarm
+    ? warmActionClassName
+    : 'rounded-full border border-sky-400/60 px-4 py-2 text-sm font-semibold text-sky-200 disabled:cursor-not-allowed disabled:border-slate-700 disabled:text-slate-500';
+  const fileButtonClassName = isWarm
+    ? warmSecondaryClassName
+    : 'rounded-full border border-slate-600 px-4 py-2 text-sm font-semibold text-slate-200 disabled:cursor-not-allowed disabled:border-slate-700 disabled:text-slate-500';
+
   return (
-    <section className={className ?? 'space-y-3 rounded-xl border border-slate-800 bg-slate-950/40 p-4'}>
+    <section className={sectionClassName}>
       <div className="space-y-1">
-        <h3 className="text-sm font-semibold text-white">{title}</h3>
-        <p className="text-xs text-slate-400">{description}</p>
+        <h3 className={isWarm ? 'text-lg font-semibold text-[#f6f0e8]' : 'text-sm font-semibold text-white'}>{title}</h3>
+        <p className={isWarm ? 'max-w-3xl text-sm leading-6 text-[#b9aea1]' : 'text-xs text-slate-400'}>{description}</p>
       </div>
 
       <div className="grid gap-3 sm:grid-cols-[minmax(180px,220px)_1fr]">
         <select
           value={documentKind}
           onChange={(event) => setDocumentKind(event.target.value as ProcurementDocumentKind)}
-          className="rounded-md border border-slate-700 bg-slate-950/70 px-3 py-2 text-white"
+          className={selectClassName}
           disabled={isSubmitting}
         >
           <option value="delivery_note">Albarán</option>
@@ -218,7 +240,7 @@ export function SharedProcurementDocumentIntake({
             type="button"
             onClick={() => cameraInputRef.current?.click()}
             disabled={isSubmitting}
-            className="rounded-full border border-sky-400/60 px-4 py-2 text-sm font-semibold text-sky-200 disabled:cursor-not-allowed disabled:border-slate-700 disabled:text-slate-500"
+            className={cameraButtonClassName}
           >
             Hacer foto
           </button>
@@ -227,7 +249,7 @@ export function SharedProcurementDocumentIntake({
             type="button"
             onClick={() => fileInputRef.current?.click()}
             disabled={isSubmitting}
-            className="rounded-full border border-slate-600 px-4 py-2 text-sm font-semibold text-slate-200 disabled:cursor-not-allowed disabled:border-slate-700 disabled:text-slate-500"
+            className={fileButtonClassName}
           >
             Galería / archivo
           </button>
@@ -250,12 +272,12 @@ export function SharedProcurementDocumentIntake({
         onChange={(event) => createDraftFromFile(event.target.files?.[0] ?? null)}
       />
 
-      <p className="text-xs text-slate-500">
+      <p className={isWarm ? 'text-xs leading-5 text-[#8f8578]' : 'text-xs text-slate-500'}>
         Soportado en este bloque: 1 documento por subida (imagen o PDF). Si haces foto, primero verás una preview local y no se subirá hasta confirmar.
       </p>
 
       {pendingCameraFile && cameraPreviewUrl ? (
-        <div className="space-y-3 rounded-xl border border-slate-800/90 bg-slate-900/50 p-3">
+        <div className={isWarm ? 'operational-inset space-y-3 rounded-xl border border-[#4a3f32]/80 bg-[#12110f]/70 p-3' : 'space-y-3 rounded-xl border border-slate-800/90 bg-slate-900/50 p-3'}>
           <p className="text-xs text-amber-200">
             Vista previa de cámara: esta imagen aún no se ha subido. Confirma para iniciar el intake real.
           </p>
@@ -263,14 +285,14 @@ export function SharedProcurementDocumentIntake({
           <img
             src={cameraPreviewUrl}
             alt={`Preview de cámara: ${pendingCameraFile.name}`}
-            className="max-h-[320px] w-full rounded-lg border border-slate-700 object-contain"
+            className={isWarm ? 'max-h-[320px] w-full rounded-xl border border-[#4a3f32]/80 object-contain' : 'max-h-[320px] w-full rounded-lg border border-slate-700 object-contain'}
           />
           <div className="flex flex-wrap gap-2">
             <button
               type="button"
               onClick={() => createDraftFromFile(pendingCameraFile)}
               disabled={isSubmitting}
-              className="rounded-full border border-emerald-400/60 px-4 py-2 text-sm font-semibold text-emerald-200 disabled:cursor-not-allowed disabled:border-slate-700 disabled:text-slate-500"
+              className={isWarm ? 'rounded-xl border border-emerald-500/40 bg-emerald-500/10 px-4 py-2.5 text-sm font-semibold text-emerald-200 disabled:cursor-not-allowed disabled:border-[#4a3f32]/70 disabled:text-[#7f766b]' : 'rounded-full border border-emerald-400/60 px-4 py-2 text-sm font-semibold text-emerald-200 disabled:cursor-not-allowed disabled:border-slate-700 disabled:text-slate-500'}
             >
               Confirmar y subir
             </button>
@@ -281,7 +303,7 @@ export function SharedProcurementDocumentIntake({
                 cameraInputRef.current?.click();
               }}
               disabled={isSubmitting}
-              className="rounded-full border border-sky-400/60 px-4 py-2 text-sm font-semibold text-sky-200 disabled:cursor-not-allowed disabled:border-slate-700 disabled:text-slate-500"
+              className={cameraButtonClassName}
             >
               Repetir foto
             </button>
@@ -289,7 +311,7 @@ export function SharedProcurementDocumentIntake({
               type="button"
               onClick={clearPendingCameraState}
               disabled={isSubmitting}
-              className="rounded-full border border-slate-600 px-4 py-2 text-sm font-semibold text-slate-200 disabled:cursor-not-allowed disabled:border-slate-700 disabled:text-slate-500"
+              className={fileButtonClassName}
             >
               Cancelar
             </button>
@@ -298,16 +320,16 @@ export function SharedProcurementDocumentIntake({
       ) : null}
 
       {isSubmitting ? (
-        <p className="text-sm text-sky-300">
+        <p className={isWarm ? 'text-sm text-[#f3c98d]' : 'text-sm text-sky-300'}>
           {currentStep === 'creating_draft'
-            ? 'Creando borrador…'
+            ? 'Creando borrador...'
             : currentStep === 'uploading_file'
-              ? 'Subiendo archivo original…'
+              ? 'Subiendo archivo original...'
               : currentStep === 'running_ocr'
-                ? 'Procesando OCR inicial…'
+                ? 'Procesando OCR inicial...'
                 : runOcrAfterUpload
-                  ? 'Subiendo documento, creando borrador y lanzando OCR…'
-                  : 'Subiendo documento y creando borrador…'}
+                  ? 'Subiendo documento, creando borrador y lanzando OCR...'
+                  : 'Subiendo documento y creando borrador...'}
         </p>
       ) : null}
 

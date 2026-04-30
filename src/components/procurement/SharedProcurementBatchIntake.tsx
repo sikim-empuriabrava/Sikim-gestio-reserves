@@ -34,6 +34,7 @@ type SharedProcurementBatchIntakeProps = {
   className?: string;
   completionMessage?: string;
   possibleDuplicateByDocumentId?: Map<string, boolean>;
+  variant?: 'default' | 'warm';
 };
 
 export function SharedProcurementBatchIntake({
@@ -45,11 +46,13 @@ export function SharedProcurementBatchIntake({
   className,
   completionMessage = 'Lote finalizado. Se refresca la bandeja para mostrar nuevos borradores sin redirigir al detalle.',
   possibleDuplicateByDocumentId,
+  variant = 'default',
 }: SharedProcurementBatchIntakeProps) {
   const router = useRouter();
   const [batchDocumentKind, setBatchDocumentKind] = useState<ProcurementDocumentKind>(initialDocumentKind);
   const [batchQueue, setBatchQueue] = useState<BatchQueueItem[]>([]);
   const [isBatchRunning, setIsBatchRunning] = useState(false);
+  const isWarm = variant === 'warm';
 
   const batchSummary = useMemo(() => {
     const summary = {
@@ -167,11 +170,26 @@ export function SharedProcurementBatchIntake({
     router.refresh();
   }
 
+  const containerClassName =
+    className ??
+    (isWarm
+      ? 'operational-surface space-y-4 rounded-2xl border border-[#4a3f32]/70 bg-[#181715] p-5 text-[#efe8dc] shadow-[0_24px_80px_-58px_rgba(0,0,0,0.96),inset_0_1px_0_rgba(255,255,255,0.04)]'
+      : 'space-y-4 rounded-xl border border-slate-800 bg-slate-950/40 p-4');
+  const selectClassName = isWarm
+    ? 'rounded-xl border border-[#4a3f32]/80 bg-[#12110f]/90 px-3.5 py-2.5 text-[#f4ede3] shadow-[inset_0_1px_0_rgba(255,255,255,0.03)] focus:border-[#d6a76e]/80 focus:outline-none focus:ring-2 focus:ring-[#d6a76e]/15 disabled:cursor-not-allowed disabled:text-[#7f766b]'
+    : 'rounded-md border border-slate-700 bg-slate-950/70 px-3 py-2 text-white disabled:cursor-not-allowed disabled:text-slate-500';
+  const addFilesClassName = isWarm
+    ? 'inline-flex cursor-pointer items-center justify-center rounded-xl border border-[#4a3f32]/80 bg-[#151412]/90 px-4 py-2.5 text-sm font-semibold text-[#efe8dc] transition duration-200 hover:-translate-y-0.5 hover:border-[#8b6a43]/75 hover:bg-[#211f1b]'
+    : 'inline-flex cursor-pointer items-center justify-center rounded-full border border-slate-600 px-4 py-2 text-sm font-semibold text-slate-200 hover:border-slate-500';
+  const processClassName = isWarm
+    ? 'rounded-xl border border-[#d6a76e]/60 bg-[#2a1e16]/90 px-4 py-2.5 text-sm font-semibold text-[#f3c98d] transition duration-200 hover:-translate-y-0.5 hover:border-[#bd8145]/80 hover:bg-[#3a2618] disabled:cursor-not-allowed disabled:border-[#4a3f32]/70 disabled:text-[#7f766b]'
+    : 'rounded-full border border-emerald-400/60 px-4 py-2 text-sm font-semibold text-emerald-200 disabled:cursor-not-allowed disabled:border-slate-700 disabled:text-slate-500';
+
   return (
-    <div className={className ?? 'space-y-4 rounded-xl border border-slate-800 bg-slate-950/40 p-4'}>
+    <div className={containerClassName}>
       <div className="space-y-1">
-        <h3 className="text-sm font-semibold text-white">{title}</h3>
-        <p className="text-xs text-slate-400">{description}</p>
+        <h3 className={isWarm ? 'text-lg font-semibold text-[#f6f0e8]' : 'text-sm font-semibold text-white'}>{title}</h3>
+        <p className={isWarm ? 'max-w-3xl text-sm leading-6 text-[#b9aea1]' : 'text-xs text-slate-400'}>{description}</p>
       </div>
 
       <div className="grid gap-3 md:grid-cols-[220px_1fr_auto] md:items-center">
@@ -179,13 +197,13 @@ export function SharedProcurementBatchIntake({
           value={batchDocumentKind}
           onChange={(event) => setBatchDocumentKind(event.target.value as ProcurementDocumentKind)}
           disabled={isBatchRunning}
-          className="rounded-md border border-slate-700 bg-slate-950/70 px-3 py-2 text-white disabled:cursor-not-allowed disabled:text-slate-500"
+          className={selectClassName}
         >
           <option value="delivery_note">Albarán</option>
           <option value="invoice">Factura</option>
         </select>
 
-        <label className="inline-flex cursor-pointer items-center justify-center rounded-full border border-slate-600 px-4 py-2 text-sm font-semibold text-slate-200 hover:border-slate-500">
+        <label className={addFilesClassName}>
           Añadir archivos
           <input
             type="file"
@@ -204,35 +222,37 @@ export function SharedProcurementBatchIntake({
           type="button"
           disabled={isBatchRunning || batchSummary.pending === 0}
           onClick={runBatchUpload}
-          className="rounded-full border border-emerald-400/60 px-4 py-2 text-sm font-semibold text-emerald-200 disabled:cursor-not-allowed disabled:border-slate-700 disabled:text-slate-500"
+          className={processClassName}
         >
-          {isBatchRunning ? 'Procesando lote…' : 'Procesar lote'}
+          {isBatchRunning ? 'Procesando lote...' : 'Procesar lote'}
         </button>
       </div>
 
-      <p className="text-xs text-slate-500">Formatos permitidos: PDF, JPG, PNG o WEBP. Cada archivo conserva su estado y errores parciales.</p>
+      <p className={isWarm ? 'text-xs leading-5 text-[#8f8578]' : 'text-xs text-slate-500'}>
+        Formatos permitidos: PDF, JPG, PNG o WEBP. Cada archivo conserva su estado y errores parciales.
+      </p>
 
       <div className="flex flex-wrap items-center gap-2 text-xs">
-        <span className="rounded-full border border-slate-700 bg-slate-900/60 px-2 py-1 text-slate-200">Total: {batchSummary.total}</span>
-        <span className="rounded-full border border-slate-700 bg-slate-900/60 px-2 py-1 text-slate-200">Pendientes: {batchSummary.pending}</span>
-        <span className="rounded-full border border-sky-500/40 bg-sky-500/10 px-2 py-1 text-sky-100">En proceso: {batchSummary.inProgress}</span>
-        <span className="rounded-full border border-emerald-500/40 bg-emerald-500/10 px-2 py-1 text-emerald-100">Completados: {batchSummary.completed}</span>
-        <span className="rounded-full border border-rose-500/40 bg-rose-500/10 px-2 py-1 text-rose-100">Fallidos: {batchSummary.failed}</span>
+        <span className={isWarm ? 'rounded-full border border-[#4a3f32]/70 bg-[#151412]/70 px-2.5 py-1.5 text-[#d8cfc2]' : 'rounded-full border border-slate-700 bg-slate-900/60 px-2 py-1 text-slate-200'}>Total: {batchSummary.total}</span>
+        <span className={isWarm ? 'rounded-full border border-amber-500/35 bg-amber-500/10 px-2.5 py-1.5 text-amber-200' : 'rounded-full border border-slate-700 bg-slate-900/60 px-2 py-1 text-slate-200'}>Pendientes: {batchSummary.pending}</span>
+        <span className={isWarm ? 'rounded-full border border-[#b77b3e]/40 bg-[#7d5932]/18 px-2.5 py-1.5 text-[#f1c98f]' : 'rounded-full border border-sky-500/40 bg-sky-500/10 px-2 py-1 text-sky-100'}>En proceso: {batchSummary.inProgress}</span>
+        <span className={isWarm ? 'rounded-full border border-emerald-500/35 bg-emerald-500/10 px-2.5 py-1.5 text-emerald-200' : 'rounded-full border border-emerald-500/40 bg-emerald-500/10 px-2 py-1 text-emerald-100'}>Completados: {batchSummary.completed}</span>
+        <span className={isWarm ? 'rounded-full border border-rose-500/35 bg-rose-500/10 px-2.5 py-1.5 text-rose-200' : 'rounded-full border border-rose-500/40 bg-rose-500/10 px-2 py-1 text-rose-100'}>Fallidos: {batchSummary.failed}</span>
         <button
           type="button"
           onClick={clearFinishedBatchQueue}
           disabled={isBatchRunning || (!batchSummary.completed && !batchSummary.failed)}
-          className="rounded-full border border-slate-600 px-3 py-1 text-xs font-semibold text-slate-300 disabled:cursor-not-allowed disabled:border-slate-700 disabled:text-slate-500"
+          className={isWarm ? 'ml-auto rounded-xl border border-[#6f4d2a]/70 bg-[#2a1e16]/80 px-3 py-1.5 text-xs font-semibold text-[#f3c98d] disabled:cursor-not-allowed disabled:border-[#4a3f32]/70 disabled:text-[#7f766b]' : 'rounded-full border border-slate-600 px-3 py-1 text-xs font-semibold text-slate-300 disabled:cursor-not-allowed disabled:border-slate-700 disabled:text-slate-500'}
         >
           Limpiar finalizados
         </button>
       </div>
 
-      {isBatchFinished ? <p className="text-xs text-slate-400">{completionMessage}</p> : null}
+      {isBatchFinished ? <p className={isWarm ? 'text-xs text-[#a99d90]' : 'text-xs text-slate-400'}>{completionMessage}</p> : null}
 
-      <div className="overflow-x-auto rounded-xl border border-slate-800/80">
-        <table className="w-full min-w-[900px] text-left text-sm text-slate-200">
-          <thead className="bg-slate-950/70 text-xs uppercase text-slate-400">
+      <div className={isWarm ? 'overflow-x-auto rounded-xl border border-[#3c342a]/80' : 'overflow-x-auto rounded-xl border border-slate-800/80'}>
+        <table className={isWarm ? 'w-full min-w-[900px] text-left text-sm text-[#d8cfc2]' : 'w-full min-w-[900px] text-left text-sm text-slate-200'}>
+          <thead className={isWarm ? 'bg-[#12110f]/80 text-xs uppercase text-[#a99d90]' : 'bg-slate-950/70 text-xs uppercase text-slate-400'}>
             <tr>
               <th className="px-4 py-3">Archivo</th>
               <th className="px-4 py-3">Tipo</th>
@@ -243,18 +263,18 @@ export function SharedProcurementBatchIntake({
           </thead>
           <tbody>
             {batchQueue.length === 0 ? (
-              <tr className="border-t border-slate-800/60">
-                <td className="px-4 py-5 text-sm text-slate-400" colSpan={5}>
+              <tr className={isWarm ? 'border-t border-[#3c342a]/70' : 'border-t border-slate-800/60'}>
+                <td className={isWarm ? 'px-4 py-8 text-center text-sm text-[#a99d90]' : 'px-4 py-5 text-sm text-slate-400'} colSpan={5}>
                   Sin archivos en cola. Añade uno o varios para lanzar el lote OCR.
                 </td>
               </tr>
             ) : null}
             {batchQueue.map((item) => (
-              <tr key={item.id} className="border-t border-slate-800/60 align-top">
+              <tr key={item.id} className={isWarm ? 'border-t border-[#3c342a]/70 align-top' : 'border-t border-slate-800/60 align-top'}>
                 <td className="px-4 py-3">{item.fileName}</td>
                 <td className="px-4 py-3">{documentKindLabel(item.documentKind)}</td>
                 <td className="px-4 py-3">
-                  <span className="rounded-full border border-slate-700 bg-slate-900/60 px-2 py-1 text-xs text-slate-100">
+                  <span className={isWarm ? 'rounded-full border border-[#4a3f32]/70 bg-[#151412]/70 px-2 py-1 text-xs text-[#f6f0e8]' : 'rounded-full border border-slate-700 bg-slate-900/60 px-2 py-1 text-xs text-slate-100'}>
                     {item.status === 'pending'
                       ? 'Pendiente'
                       : item.status === 'creating_draft'
@@ -271,11 +291,11 @@ export function SharedProcurementBatchIntake({
                 <td className="px-4 py-3">
                   <div className="space-y-1">
                     {item.documentId ? (
-                      <Link href={`/cheffing/compras/${item.documentId}`} className="text-sky-300 underline">
-                        Abrir {item.documentId.slice(0, 8)}…
+                      <Link href={`/cheffing/compras/${item.documentId}`} className={isWarm ? 'text-[#d69c57] underline' : 'text-sky-300 underline'}>
+                        Abrir {item.documentId.slice(0, 8)}...
                       </Link>
                     ) : (
-                      <span className="text-slate-500">—</span>
+                      <span className={isWarm ? 'text-[#8f8578]' : 'text-slate-500'}>-</span>
                     )}
                     {item.documentId && item.status === 'completed' && possibleDuplicateByDocumentId?.get(item.documentId) ? (
                       <span className="inline-flex rounded-full border border-amber-400/50 bg-amber-500/10 px-2 py-1 text-[11px] font-medium text-amber-100">
@@ -284,7 +304,7 @@ export function SharedProcurementBatchIntake({
                     ) : null}
                   </div>
                 </td>
-                <td className="px-4 py-3 text-xs text-rose-300">{item.error ?? '—'}</td>
+                <td className="px-4 py-3 text-xs text-rose-300">{item.error ?? '-'}</td>
               </tr>
             ))}
           </tbody>

@@ -1,6 +1,23 @@
 import { redirect } from 'next/navigation';
+import {
+  ArrowPathIcon,
+  CalendarDaysIcon,
+  ClipboardDocumentListIcon,
+  ExclamationTriangleIcon,
+  PencilSquareIcon,
+  UserGroupIcon,
+} from '@heroicons/react/24/outline';
 import { createSupabaseAdminClient } from '@/lib/supabaseAdmin';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
+import {
+  OperationalEmptyState,
+  OperationalPage,
+  OperationalPageHeader,
+  OperationalPanel,
+  OperationalPill,
+  OperationalSectionHeader,
+  operationalButtonClass,
+} from '@/components/operational/OperationalUI';
 import { KitchenReservations } from './KitchenReservations';
 import type { TodayGroupEvent } from './types';
 
@@ -80,52 +97,90 @@ export default async function CocinaPage() {
   const { totalReservations, totalPax } = getReservationTotals(reservations);
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="text-2xl font-semibold">Servicio de hoy</h1>
-          <p className="text-slate-400">{formatLongDate(today)}</p>
-        </div>
-        <div className="flex flex-wrap gap-2 text-sm font-semibold text-slate-100">
-          <span className="rounded-lg border border-slate-800 bg-slate-900/70 px-3 py-1">
-            {totalReservations} reservas
-          </span>
-          <span className="rounded-lg border border-slate-800 bg-slate-900/70 px-3 py-1">
-            {totalPax} pax
-          </span>
-        </div>
-      </div>
+    <OperationalPage>
+      <OperationalPageHeader
+        title="Servicio de hoy"
+        meta={
+          <>
+            <span className="inline-flex items-center gap-2">
+              <CalendarDaysIcon className="h-5 w-5 text-[#a99d90]" aria-hidden="true" />
+              {formatLongDate(today)}
+            </span>
+          </>
+        }
+        actions={
+          <>
+            <OperationalPill tone="accent" className="h-10 px-4">
+              <ClipboardDocumentListIcon className="mr-2 h-4 w-4" aria-hidden="true" />
+              {totalReservations} reservas
+            </OperationalPill>
+            <OperationalPill tone="accent" className="h-10 px-4">
+              <UserGroupIcon className="mr-2 h-4 w-4" aria-hidden="true" />
+              {totalPax} pax
+            </OperationalPill>
+          </>
+        }
+      />
 
-      <div className="grid gap-4 lg:grid-cols-2">
-        <div className="rounded-xl border border-slate-800 bg-slate-900/60 p-4 space-y-2">
-          <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
-            <h2 className="text-lg font-semibold text-slate-100">Notas de hoy (Cocina)</h2>
-            <p className="text-sm text-slate-400">{formatLongDate(today)}</p>
+      <div className="grid gap-5 xl:grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)]">
+        <OperationalPanel className="p-5">
+          <OperationalSectionHeader
+            icon={PencilSquareIcon}
+            title="Notas de hoy (Cocina)"
+            meta={formatLongDate(today)}
+          />
+          <div className="mt-5">
+            {notes ? (
+              <div className="min-h-[18rem] whitespace-pre-wrap rounded-2xl border border-[#3c342a]/70 bg-[#12110f]/55 p-4 text-sm leading-6 text-[#efe8dc] shadow-[inset_0_1px_0_rgba(255,255,255,0.025)]">
+                {notes}
+              </div>
+            ) : (
+              <OperationalEmptyState
+                icon={ClipboardDocumentListIcon}
+                title="Sin notas para hoy."
+                description="Cuando el chef o el equipo añadan notas, las verás aquí."
+              />
+            )}
           </div>
-          <p className="whitespace-pre-wrap rounded-lg border border-slate-800 bg-slate-950/40 p-3 text-sm text-slate-100">
-            {notes || 'Sin notas para hoy.'}
-          </p>
-        </div>
+        </OperationalPanel>
 
-        <div className="rounded-xl border border-slate-800 bg-slate-900/60 p-4 space-y-3">
-          <div className="flex items-center justify-between">
-            <h2 className="text-lg font-semibold text-slate-100">Reservas de hoy</h2>
-            <span className="text-sm text-slate-400">Ordenadas por hora de entrada</span>
+        <OperationalPanel className="p-5">
+          <OperationalSectionHeader
+            icon={CalendarDaysIcon}
+            title="Reservas de hoy"
+            meta={
+              <span className="rounded-xl border border-[#4a3f32]/80 bg-[#151412]/85 px-3 py-2 text-sm text-[#b9aea1]">
+                Ordenadas por hora de entrada
+              </span>
+            }
+          />
+
+          <div className="mt-5">
+            {reservationsError ? (
+              <OperationalEmptyState
+                icon={ExclamationTriangleIcon}
+                title="No se pudieron cargar reservas de hoy."
+                description="Intenta actualizar la vista o verifica la conexión con el sistema de reservas."
+                tone="warning"
+                action={
+                  <a href="/cocina" className={operationalButtonClass}>
+                    <ArrowPathIcon className="h-4 w-4" aria-hidden="true" />
+                    Reintentar
+                  </a>
+                }
+              />
+            ) : reservations.length === 0 ? (
+              <OperationalEmptyState
+                icon={CalendarDaysIcon}
+                title="No hay reservas de grupo para hoy."
+                description="El pase de cocina aparecerá aquí cuando haya reservas cargadas."
+              />
+            ) : (
+              <KitchenReservations reservations={reservations} />
+            )}
           </div>
-
-          {reservationsError ? (
-            <p className="rounded-lg border border-red-900/40 bg-red-950/30 px-3 py-2 text-sm text-red-100">
-              No se pudieron cargar reservas de hoy.
-            </p>
-          ) : reservations.length === 0 ? (
-            <p className="rounded-lg border border-slate-800 bg-slate-950/40 px-3 py-2 text-sm text-slate-200">
-              No hay reservas de grupo para hoy.
-            </p>
-          ) : (
-            <KitchenReservations reservations={reservations} />
-          )}
-        </div>
+        </OperationalPanel>
       </div>
-    </div>
+    </OperationalPage>
   );
 }

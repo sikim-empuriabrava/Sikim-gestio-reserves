@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation';
 import { MaintenanceTasksBoard } from './MaintenanceTasksBoard';
 import { createSupabaseAdminClient } from '@/lib/supabaseAdmin';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
+import { OperationalPage, OperationalPageHeader } from '@/components/operational/OperationalUI';
 
 type Task = {
   id: string;
@@ -40,18 +41,12 @@ export default async function MantenimientoTareasPage() {
   const tasks: Task[] = data ?? [];
 
   return (
-    <div className="space-y-6">
-      <div className="space-y-1">
-        <h1 className="text-2xl font-semibold">Tareas</h1>
-        <p className="text-slate-400">
-          Organiza incidencias, tareas recurrentes y responsables para mantener el servicio en marcha.
-        </p>
-        <p className="text-sm text-slate-300">
-          Filtra por tipo para separar tareas de rutina y las incidencias creadas manualmente.
-        </p>
-      </div>
-
+    <OperationalPage>
+      <OperationalPageHeader
+        title="Tareas"
+        description="Organiza incidencias, tareas recurrentes y responsables para mantener el servicio en marcha."
+      />
       <MaintenanceTasksBoard initialTasks={tasks} />
-    </div>
+    </OperationalPage>
   );
 }

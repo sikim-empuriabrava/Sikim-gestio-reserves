@@ -1,5 +1,6 @@
 import { redirect } from 'next/navigation';
 import { ModulePlaceholder } from '@/components/ModulePlaceholder';
+import { OperationalPage } from '@/components/operational/OperationalUI';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 
 const cards = [
@@ -9,12 +10,12 @@ const cards = [
   },
   {
     title: 'Histórico de cambios',
-    description: 'Visualiza ajustes recientes en recetas o técnicas y marca qué turnos ya han sido informados.',
+    description: 'Visualiza ajustes recientes en recetas o técnicas y revisa qué turnos ya han sido informados.',
     badge: 'Historial',
   },
   {
     title: 'Compartir con sala',
-    description: 'Pronto podrás enviar avisos a sala sobre alérgenos, faltas de stock o tiempos estimados.',
+    description: 'Envía avisos a sala sobre alérgenos, faltas de stock o tiempos estimados de preparación.',
   },
 ];
 
@@ -37,11 +38,14 @@ export default async function CocinaNotasPage() {
   }
 
   return (
-    <ModulePlaceholder
-      title="Notas de cocina"
-      subtitle="Anota instrucciones clave para el pase y comparte cambios con el resto del equipo."
-      cards={cards}
-      quickNotes={quickNotes}
-    />
+    <OperationalPage>
+      <ModulePlaceholder
+        eyebrow="Cocina"
+        title="Notas de cocina"
+        subtitle="Anota instrucciones clave para el pase y comparte cambios con el resto del equipo."
+        cards={cards}
+        quickNotes={quickNotes}
+      />
+    </OperationalPage>
   );
 }

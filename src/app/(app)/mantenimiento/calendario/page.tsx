@@ -1,5 +1,6 @@
 import { redirect } from 'next/navigation';
 import { MaintenanceCalendarWeek } from './MaintenanceCalendarWeek';
+import { OperationalPage } from '@/components/operational/OperationalUI';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 
 export const dynamic = 'force-dynamic';
@@ -15,8 +16,8 @@ export default async function MaintenanceCalendarPage() {
   }
 
   return (
-    <div className="space-y-6">
+    <OperationalPage>
       <MaintenanceCalendarWeek />
-    </div>
+    </OperationalPage>
   );
 }
