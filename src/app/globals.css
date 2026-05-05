@@ -375,7 +375,7 @@ html.aforo-live-capacity-route .aforo-live-capacity-hide-footer {
   :root[data-theme="light"] .reservas-new-pilot input,
   :root[data-theme="light"] .reservas-new-pilot select,
   :root[data-theme="light"] .reservas-new-pilot textarea,
-  :root[data-theme="light"] .reservas-group-detail-pilot input,
+  :root[data-theme="light"] .reservas-group-detail-pilot input:not([type="checkbox"]),
   :root[data-theme="light"] .reservas-group-detail-pilot select,
   :root[data-theme="light"] .reservas-group-detail-pilot textarea {
     border-color: var(--reservas-border) !important;
@@ -399,12 +399,24 @@ html.aforo-live-capacity-route .aforo-live-capacity-hide-footer {
   :root[data-theme="light"] .reservas-new-pilot input:focus,
   :root[data-theme="light"] .reservas-new-pilot select:focus,
   :root[data-theme="light"] .reservas-new-pilot textarea:focus,
-  :root[data-theme="light"] .reservas-group-detail-pilot input:focus,
+  :root[data-theme="light"] .reservas-group-detail-pilot input:not([type="checkbox"]):focus,
   :root[data-theme="light"] .reservas-group-detail-pilot select:focus,
   :root[data-theme="light"] .reservas-group-detail-pilot textarea:focus {
     border-color: var(--reservas-accent) !important;
     outline: none !important;
     box-shadow: 0 0 0 3px rgb(183 100 31 / 0.16), inset 0 1px 0 rgb(255 255 255 / 0.84) !important;
+  }
+
+  :root[data-theme="light"] .reservas-group-detail-pilot input[type="checkbox"] {
+    border-color: var(--reservas-border-strong) !important;
+    background-color: var(--reservas-surface-raised) !important;
+    color: var(--reservas-accent) !important;
+    box-shadow: none !important;
+  }
+
+  :root[data-theme="light"] .reservas-group-detail-pilot input[type="checkbox"]:checked {
+    border-color: var(--reservas-accent) !important;
+    background-color: var(--reservas-accent) !important;
   }
 
   :root[data-theme="light"] .reservas-calendar-pilot [class*="text-emerald"],
