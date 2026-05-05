@@ -3,16 +3,90 @@
 @tailwind utilities;
 
 @layer base {
-  :root {
+  :root,
+  :root[data-theme="dark"] {
     color-scheme: dark;
+
+    --sikim-bg: #090807;
+    --sikim-bg-subtle: #11100e;
+    --sikim-surface: #151311;
+    --sikim-surface-raised: #1d1915;
+    --sikim-surface-subtle: #23201c;
+    --sikim-border: #3a332b;
+    --sikim-border-strong: #5a4b3b;
+    --sikim-text: #f7f0e7;
+    --sikim-text-secondary: #cbbdae;
+    --sikim-text-muted: #8f8173;
+    --sikim-accent: #d08a39;
+    --sikim-accent-hover: #e0a454;
+    --sikim-accent-subtle: #3a2413;
+    --sikim-success: #38a169;
+    --sikim-warning: #d69e2e;
+    --sikim-danger: #e05252;
+    --sikim-info: #5b9bbd;
+    --sikim-focus-ring: rgb(208 138 57 / 0.45);
+    --sikim-scrollbar-thumb: #8b5a2b;
+    --sikim-scrollbar-thumb-hover: #b7793c;
+  }
+
+  :root[data-theme="light"] {
+    color-scheme: light;
+
+    --sikim-bg: #f5efe4;
+    --sikim-bg-subtle: #eee4d4;
+    --sikim-surface: #fff8ec;
+    --sikim-surface-raised: #fffaf2;
+    --sikim-surface-subtle: #ebe0d0;
+    --sikim-border: #d4c3ad;
+    --sikim-border-strong: #ad967b;
+    --sikim-text: #2b2722;
+    --sikim-text-secondary: #5f5348;
+    --sikim-text-muted: #857567;
+    --sikim-accent: #a85f24;
+    --sikim-accent-hover: #854a1c;
+    --sikim-accent-subtle: #f0ddc1;
+    --sikim-success: #2f855a;
+    --sikim-warning: #b7791f;
+    --sikim-danger: #c53030;
+    --sikim-info: #2b6f8f;
+    --sikim-focus-ring: rgb(168 95 36 / 0.35);
+    --sikim-scrollbar-thumb: #b89265;
+    --sikim-scrollbar-thumb-hover: #95693d;
+  }
+
+  html {
+    background: var(--sikim-bg);
   }
 
   body {
-    @apply min-h-screen bg-background text-slate-100 antialiased;
+    min-height: 100vh;
+    background: var(--sikim-bg);
+    color: var(--sikim-text);
+    @apply antialiased;
+  }
+
+  .sikim-app-background {
+    position: fixed;
+    inset: 0;
+    z-index: -1;
+    pointer-events: none;
+    background:
+      linear-gradient(180deg, rgb(255 255 255 / 0.025), transparent 34rem),
+      var(--sikim-bg);
   }
 
   a {
-    @apply text-primary-400 hover:text-primary-300;
+    color: var(--sikim-accent);
+    @apply transition-colors;
+  }
+
+  a:hover {
+    color: var(--sikim-accent-hover);
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--sikim-focus-ring);
+    outline-offset: 2px;
   }
 
   ::-webkit-scrollbar {
@@ -20,8 +94,12 @@
   }
 
   ::-webkit-scrollbar-thumb {
-    background: linear-gradient(180deg, #7c3aed 0%, #22d3ee 100%);
+    background: var(--sikim-scrollbar-thumb);
     border-radius: 999px;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    background: var(--sikim-scrollbar-thumb-hover);
   }
 }
 

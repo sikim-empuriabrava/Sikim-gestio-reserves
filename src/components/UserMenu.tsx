@@ -9,6 +9,113 @@ type Props = {
   email?: string | null;
 };
 
+type ThemePreference = 'dark' | 'light' | 'system';
+type ResolvedTheme = 'dark' | 'light';
+
+const THEME_STORAGE_KEY = 'sikim-theme-preference';
+const THEME_OPTIONS: Array<{ value: ThemePreference; label: string }> = [
+  { value: 'dark', label: 'Oscuro' },
+  { value: 'light', label: 'Claro' },
+  { value: 'system', label: 'Sistema' },
+];
+
+function isThemePreference(value: string | null): value is ThemePreference {
+  return value === 'dark' || value === 'light' || value === 'system';
+}
+
+function getSystemTheme(): ResolvedTheme {
+  if (typeof window === 'undefined') return 'dark';
+  if (!window.matchMedia) return 'dark';
+  return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+}
+
+function resolveTheme(preference: ThemePreference): ResolvedTheme {
+  return preference === 'system' ? getSystemTheme() : preference;
+}
+
+function applyTheme(preference: ThemePreference) {
+  const theme = resolveTheme(preference);
+
+  try {
+    document.documentElement.dataset.theme = theme;
+    document.documentElement.style.colorScheme = theme;
+  } catch {
+    // Keep the control usable if the document root cannot be updated.
+  }
+}
+
+function ThemePreferenceControl() {
+  const [preference, setPreference] = useState<ThemePreference>('dark');
+
+  useEffect(() => {
+    let storedPreference: string | null = null;
+
+    try {
+      storedPreference = window.localStorage.getItem(THEME_STORAGE_KEY);
+    } catch {
+      storedPreference = null;
+    }
+
+    const nextPreference = isThemePreference(storedPreference) ? storedPreference : 'dark';
+
+    setPreference(nextPreference);
+    applyTheme(nextPreference);
+  }, []);
+
+  useEffect(() => {
+    if (preference !== 'system') return;
+    if (!window.matchMedia) return;
+
+    const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
+    const handleSystemThemeChange = () => applyTheme('system');
+
+    mediaQuery.addEventListener('change', handleSystemThemeChange);
+    return () => mediaQuery.removeEventListener('change', handleSystemThemeChange);
+  }, [preference]);
+
+  const handlePreferenceChange = (nextPreference: ThemePreference) => {
+    setPreference(nextPreference);
+
+    try {
+      window.localStorage.setItem(THEME_STORAGE_KEY, nextPreference);
+    } catch {
+      // The theme still applies for this page view if storage is unavailable.
+    }
+
+    applyTheme(nextPreference);
+  };
+
+  return (
+    <div
+      className="flex shrink-0 rounded-lg border p-0.5"
+      style={{ borderColor: 'var(--sikim-border)', backgroundColor: 'var(--sikim-surface-subtle)' }}
+      role="radiogroup"
+      aria-label="Tema de la aplicacion"
+    >
+      {THEME_OPTIONS.map((option) => {
+        const isSelected = preference === option.value;
+
+        return (
+          <button
+            key={option.value}
+            type="button"
+            role="radio"
+            aria-checked={isSelected}
+            onClick={() => handlePreferenceChange(option.value)}
+            className="rounded-md px-2 py-1 text-[11px] font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--sikim-focus-ring)] sm:text-xs"
+            style={{
+              backgroundColor: isSelected ? 'var(--sikim-accent-subtle)' : 'transparent',
+              color: isSelected ? 'var(--sikim-accent-hover)' : 'var(--sikim-text-secondary)',
+            }}
+          >
+            {option.label}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
 export function UserMenu({ email: initialEmail }: Props) {
   const router = useRouter();
   const pathname = usePathname();
@@ -70,7 +177,7 @@ export function UserMenu({ email: initialEmail }: Props) {
   }
 
   return (
-    <div className="flex w-full min-w-0 items-center gap-2 rounded-xl border border-slate-800 bg-slate-900/60 px-3 py-2 text-sm text-white shadow-lg shadow-slate-900/40 sm:w-auto sm:gap-3">
+    <div className="flex w-full min-w-0 flex-wrap items-center gap-2 rounded-xl border border-slate-800 bg-slate-900/60 px-3 py-2 text-sm text-white shadow-lg shadow-slate-900/40 sm:w-auto sm:flex-nowrap sm:gap-3">
       {isAuthenticated ? (
         <>
           <Link
@@ -80,6 +187,7 @@ export function UserMenu({ email: initialEmail }: Props) {
           >
             {sessionEmail}
           </Link>
+          <ThemePreferenceControl />
           <span className="hidden text-slate-500 sm:inline">•</span>
           <button
             type="button"

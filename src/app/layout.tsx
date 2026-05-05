@@ -34,11 +34,44 @@ export const metadata: Metadata = {
 
 export const dynamic = 'force-dynamic';
 
+const themeInitScript = `
+(function () {
+  var storageKey = 'sikim-theme-preference';
+  var fallbackPreference = 'dark';
+  var allowed = { dark: true, light: true, system: true };
+
+  function resolveTheme(preference) {
+    if (preference === 'system') {
+      return window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches
+        ? 'dark'
+        : 'light';
+    }
+
+    return preference === 'light' ? 'light' : 'dark';
+  }
+
+  try {
+    var storedPreference = window.localStorage.getItem(storageKey);
+    var preference = allowed[storedPreference] ? storedPreference : fallbackPreference;
+    var theme = resolveTheme(preference);
+
+    document.documentElement.dataset.theme = theme;
+    document.documentElement.style.colorScheme = theme;
+  } catch (error) {
+    document.documentElement.dataset.theme = fallbackPreference;
+    document.documentElement.style.colorScheme = fallbackPreference;
+  }
+})();
+`;
+
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="es">
-      <body className="bg-gradient-to-b from-slate-950 via-slate-900 to-slate-950 font-sans text-slate-100">
-        <div className="absolute inset-0 -z-10 bg-[radial-gradient(circle_at_20%_20%,rgba(124,58,237,0.18),transparent_35%),radial-gradient(circle_at_80%_0%,rgba(34,211,238,0.15),transparent_30%)]" />
+    <html lang="es" data-theme="dark" suppressHydrationWarning>
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: themeInitScript }} />
+      </head>
+      <body className="font-sans">
+        <div className="sikim-app-background" aria-hidden="true" />
         <div className="relative min-h-screen">{children}</div>
       </body>
     </html>
