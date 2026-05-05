@@ -465,11 +465,17 @@ html.aforo-live-capacity-route .aforo-live-capacity-hide-footer {
   }
 
   :root[data-theme="light"] .reservas-new-pilot .button-secondary,
+  :root[data-theme="light"] .reservas-group-detail-pilot button[class*="bg-[#171512]"],
   :root[data-theme="light"] .reservas-group-detail-pilot button[class*="border-slate"],
   :root[data-theme="light"] .reservas-group-detail-pilot a[class*="border"] {
     border-color: var(--reservas-border) !important;
     background: var(--reservas-surface-raised) !important;
     color: var(--reservas-text) !important;
+  }
+
+  :root[data-theme="light"] .reservas-group-detail-pilot button[class*="bg-[#171512]"]:hover {
+    background: var(--reservas-accent-soft) !important;
+    color: var(--reservas-accent-strong) !important;
   }
 
   :root[data-theme="light"] .reservas-calendar-pilot a:hover,
