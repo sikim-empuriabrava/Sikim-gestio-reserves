@@ -171,3 +171,347 @@
 html.aforo-live-capacity-route .aforo-live-capacity-hide-footer {
   display: none;
 }
+
+@layer components {
+  :root[data-theme="light"] {
+    --reservas-bg: #f7f1e8;
+    --reservas-bg-soft: #fbf6ef;
+    --reservas-surface: #fffaf3;
+    --reservas-surface-raised: #fffdf8;
+    --reservas-surface-muted: #f3e7d8;
+    --reservas-border: #e5d7c4;
+    --reservas-border-strong: #d2b994;
+    --reservas-text: #28231e;
+    --reservas-text-secondary: #675b4e;
+    --reservas-text-muted: #9a8874;
+    --reservas-accent: #b7641f;
+    --reservas-accent-strong: #8f4a18;
+    --reservas-accent-soft: #f6e4c9;
+    --reservas-success: #177245;
+    --reservas-success-soft: #e4f3df;
+    --reservas-warning: #9b5d12;
+    --reservas-warning-soft: #f8ead0;
+    --reservas-danger: #a13a32;
+    --reservas-danger-soft: #fae5df;
+    --reservas-shadow: 0 20px 70px -54px rgb(106 74 38 / 0.45);
+  }
+
+  :root[data-theme="light"] body:has(.reservas-calendar-pilot),
+  :root[data-theme="light"] body:has(.reservas-new-pilot),
+  :root[data-theme="light"] body:has(.reservas-group-detail-pilot) {
+    background:
+      radial-gradient(circle at 18% 0%, rgb(208 138 57 / 0.11), transparent 25rem),
+      linear-gradient(135deg, #fbf7f0 0%, var(--reservas-bg) 54%, #f4eadc 100%) !important;
+  }
+
+  :root[data-theme="light"] .aforo-standalone-shell:has(.reservas-calendar-pilot),
+  :root[data-theme="light"] .aforo-standalone-shell:has(.reservas-new-pilot),
+  :root[data-theme="light"] .aforo-standalone-shell:has(.reservas-group-detail-pilot) {
+    background:
+      radial-gradient(circle at 18% 0%, rgb(208 138 57 / 0.12), transparent 25rem),
+      linear-gradient(135deg, #fbf7f0 0%, var(--reservas-bg) 54%, #f4eadc 100%) !important;
+  }
+
+  :root[data-theme="light"] .aforo-standalone-shell:has(.reservas-calendar-pilot) > aside,
+  :root[data-theme="light"] .aforo-standalone-shell:has(.reservas-new-pilot) > aside,
+  :root[data-theme="light"] .aforo-standalone-shell:has(.reservas-group-detail-pilot) > aside {
+    border-right-color: var(--reservas-border) !important;
+    background: linear-gradient(180deg, #fffaf3, #f8efe4) !important;
+  }
+
+  :root[data-theme="light"] .aforo-standalone-shell:has(.reservas-calendar-pilot) > div > header,
+  :root[data-theme="light"] .aforo-standalone-shell:has(.reservas-new-pilot) > div > header,
+  :root[data-theme="light"] .aforo-standalone-shell:has(.reservas-group-detail-pilot) > div > header {
+    border-color: var(--reservas-border) !important;
+    background: rgb(255 250 243 / 0.88) !important;
+    color: var(--reservas-text) !important;
+  }
+
+  :root[data-theme="light"] .aforo-standalone-shell:has(.reservas-calendar-pilot) aside nav > div,
+  :root[data-theme="light"] .aforo-standalone-shell:has(.reservas-new-pilot) aside nav > div,
+  :root[data-theme="light"] .aforo-standalone-shell:has(.reservas-group-detail-pilot) aside nav > div {
+    border-color: var(--reservas-border) !important;
+  }
+
+  :root[data-theme="light"] .aforo-standalone-shell:has(.reservas-calendar-pilot) aside nav button,
+  :root[data-theme="light"] .aforo-standalone-shell:has(.reservas-new-pilot) aside nav button,
+  :root[data-theme="light"] .aforo-standalone-shell:has(.reservas-group-detail-pilot) aside nav button {
+    background: rgb(255 250 243 / 0.72) !important;
+    color: var(--reservas-text) !important;
+  }
+
+  :root[data-theme="light"] .aforo-standalone-shell:has(.reservas-calendar-pilot) aside nav a,
+  :root[data-theme="light"] .aforo-standalone-shell:has(.reservas-new-pilot) aside nav a,
+  :root[data-theme="light"] .aforo-standalone-shell:has(.reservas-group-detail-pilot) aside nav a {
+    color: var(--reservas-text-secondary) !important;
+  }
+
+  :root[data-theme="light"] .aforo-standalone-shell:has(.reservas-calendar-pilot) aside nav a:hover,
+  :root[data-theme="light"] .aforo-standalone-shell:has(.reservas-new-pilot) aside nav a:hover,
+  :root[data-theme="light"] .aforo-standalone-shell:has(.reservas-group-detail-pilot) aside nav a:hover,
+  :root[data-theme="light"] .aforo-standalone-shell:has(.reservas-calendar-pilot) aside nav a[aria-current="page"],
+  :root[data-theme="light"] .aforo-standalone-shell:has(.reservas-new-pilot) aside nav a[aria-current="page"],
+  :root[data-theme="light"] .aforo-standalone-shell:has(.reservas-group-detail-pilot) aside nav a[aria-current="page"] {
+    background: var(--reservas-accent-soft) !important;
+    color: var(--reservas-accent-strong) !important;
+    box-shadow: inset 0 0 0 1px rgb(183 100 31 / 0.18) !important;
+  }
+
+  :root[data-theme="light"] .aforo-standalone-shell:has(.reservas-calendar-pilot) header > div > div:last-child > div,
+  :root[data-theme="light"] .aforo-standalone-shell:has(.reservas-new-pilot) header > div > div:last-child > div,
+  :root[data-theme="light"] .aforo-standalone-shell:has(.reservas-group-detail-pilot) header > div > div:last-child > div {
+    border-color: var(--reservas-border) !important;
+    background: rgb(255 253 248 / 0.82) !important;
+    color: var(--reservas-text) !important;
+    box-shadow: none !important;
+  }
+
+  :root[data-theme="light"] .reservas-calendar-pilot,
+  :root[data-theme="light"] .reservas-new-pilot,
+  :root[data-theme="light"] .reservas-group-detail-pilot {
+    background:
+      radial-gradient(circle at 2rem 1rem, rgb(208 138 57 / 0.08), transparent 28rem),
+      var(--reservas-bg) !important;
+    color: var(--reservas-text) !important;
+  }
+
+  :root[data-theme="light"] .reservas-calendar-pilot section,
+  :root[data-theme="light"] .reservas-new-pilot .card,
+  :root[data-theme="light"] .reservas-new-pilot aside,
+  :root[data-theme="light"] .reservas-new-pilot [class*="rounded-2xl"],
+  :root[data-theme="light"] .reservas-group-detail-pilot section,
+  :root[data-theme="light"] .reservas-group-detail-pilot .detail-panel,
+  :root[data-theme="light"] .reservas-group-detail-pilot [class*="rounded-2xl"],
+  :root[data-theme="light"] .reservas-dia-light-panel {
+    border-color: var(--reservas-border) !important;
+    background: var(--reservas-surface) !important;
+    box-shadow: var(--reservas-shadow) !important;
+  }
+
+  :root[data-theme="light"] .reservas-calendar-pilot [class*="bg-[#181715]"],
+  :root[data-theme="light"] .reservas-calendar-pilot [class*="bg-[#1b1916]"],
+  :root[data-theme="light"] .reservas-calendar-pilot [class*="bg-[#151412]"],
+  :root[data-theme="light"] .reservas-calendar-pilot [class*="bg-[#12110f]"],
+  :root[data-theme="light"] .reservas-calendar-pilot [class*="bg-[#24221f]"],
+  :root[data-theme="light"] .reservas-calendar-pilot [class*="bg-[#3a2d20]"],
+  :root[data-theme="light"] .reservas-new-pilot [class*="bg-[#181715]"],
+  :root[data-theme="light"] .reservas-new-pilot [class*="bg-[#151412]"],
+  :root[data-theme="light"] .reservas-new-pilot [class*="bg-[#12110f]"],
+  :root[data-theme="light"] .reservas-new-pilot [class*="bg-[#24221f]"],
+  :root[data-theme="light"] .reservas-new-pilot [class*="bg-slate-"],
+  :root[data-theme="light"] .reservas-group-detail-pilot [class*="bg-[#181715]"],
+  :root[data-theme="light"] .reservas-group-detail-pilot [class*="bg-[#151412]"],
+  :root[data-theme="light"] .reservas-group-detail-pilot [class*="bg-[#12110f]"],
+  :root[data-theme="light"] .reservas-group-detail-pilot [class*="bg-[#24221f]"],
+  :root[data-theme="light"] .reservas-group-detail-pilot [class*="bg-slate-"] {
+    background-color: var(--reservas-surface-raised) !important;
+  }
+
+  :root[data-theme="light"] .reservas-calendar-pilot [class*="bg-[#7d5932]"],
+  :root[data-theme="light"] .reservas-new-pilot [class*="bg-primary"],
+  :root[data-theme="light"] .reservas-group-detail-pilot [class*="bg-primary"] {
+    background-color: var(--reservas-accent-soft) !important;
+  }
+
+  :root[data-theme="light"] .reservas-calendar-pilot [class*="border-[#"],
+  :root[data-theme="light"] .reservas-new-pilot [class*="border-[#"],
+  :root[data-theme="light"] .reservas-group-detail-pilot [class*="border-[#"],
+  :root[data-theme="light"] .reservas-new-pilot [class*="border-slate-"],
+  :root[data-theme="light"] .reservas-group-detail-pilot [class*="border-slate-"] {
+    border-color: var(--reservas-border) !important;
+  }
+
+  :root[data-theme="light"] .reservas-calendar-pilot [class*="divide-[#"] > :not([hidden]) ~ :not([hidden]) {
+    border-color: var(--reservas-border) !important;
+  }
+
+  :root[data-theme="light"] .reservas-calendar-pilot h1,
+  :root[data-theme="light"] .reservas-calendar-pilot h2,
+  :root[data-theme="light"] .reservas-calendar-pilot h3,
+  :root[data-theme="light"] .reservas-new-pilot h1,
+  :root[data-theme="light"] .reservas-new-pilot h2,
+  :root[data-theme="light"] .reservas-new-pilot h3,
+  :root[data-theme="light"] .reservas-group-detail-pilot h1,
+  :root[data-theme="light"] .reservas-group-detail-pilot h2,
+  :root[data-theme="light"] .reservas-group-detail-pilot h3,
+  :root[data-theme="light"] .reservas-calendar-pilot [class*="text-[#f"],
+  :root[data-theme="light"] .reservas-new-pilot [class*="text-[#f"],
+  :root[data-theme="light"] .reservas-group-detail-pilot [class*="text-[#f"],
+  :root[data-theme="light"] .reservas-new-pilot .text-white,
+  :root[data-theme="light"] .reservas-group-detail-pilot .text-white,
+  :root[data-theme="light"] .reservas-new-pilot [class*="text-slate-100"],
+  :root[data-theme="light"] .reservas-group-detail-pilot [class*="text-slate-100"] {
+    color: var(--reservas-text) !important;
+  }
+
+  :root[data-theme="light"] .reservas-calendar-pilot [class*="text-[#b"],
+  :root[data-theme="light"] .reservas-calendar-pilot [class*="text-[#a"],
+  :root[data-theme="light"] .reservas-calendar-pilot [class*="text-[#9"],
+  :root[data-theme="light"] .reservas-calendar-pilot [class*="text-[#8"],
+  :root[data-theme="light"] .reservas-calendar-pilot [class*="text-[#7"],
+  :root[data-theme="light"] .reservas-new-pilot [class*="text-slate-"],
+  :root[data-theme="light"] .reservas-group-detail-pilot [class*="text-slate-"],
+  :root[data-theme="light"] .reservas-group-detail-pilot [class*="text-[#a"],
+  :root[data-theme="light"] .reservas-group-detail-pilot [class*="text-[#9"],
+  :root[data-theme="light"] .reservas-group-detail-pilot [class*="text-[#8"],
+  :root[data-theme="light"] .reservas-group-detail-pilot [class*="text-[#7"] {
+    color: var(--reservas-text-secondary) !important;
+  }
+
+  :root[data-theme="light"] .reservas-calendar-pilot [class*="text-[#d6"],
+  :root[data-theme="light"] .reservas-calendar-pilot [class*="text-[#c99"],
+  :root[data-theme="light"] .reservas-calendar-pilot [class*="text-[#e0"],
+  :root[data-theme="light"] .reservas-new-pilot [class*="text-primary"],
+  :root[data-theme="light"] .reservas-new-pilot [class*="text-[#d6"],
+  :root[data-theme="light"] .reservas-group-detail-pilot [class*="text-primary"],
+  :root[data-theme="light"] .reservas-group-detail-pilot [class*="text-[#d6"],
+  :root[data-theme="light"] .reservas-group-detail-pilot [class*="text-[#c99"] {
+    color: var(--reservas-accent) !important;
+  }
+
+  :root[data-theme="light"] .reservas-calendar-pilot input,
+  :root[data-theme="light"] .reservas-calendar-pilot select,
+  :root[data-theme="light"] .reservas-calendar-pilot textarea,
+  :root[data-theme="light"] .reservas-new-pilot input,
+  :root[data-theme="light"] .reservas-new-pilot select,
+  :root[data-theme="light"] .reservas-new-pilot textarea,
+  :root[data-theme="light"] .reservas-group-detail-pilot input:not([type="checkbox"]),
+  :root[data-theme="light"] .reservas-group-detail-pilot select,
+  :root[data-theme="light"] .reservas-group-detail-pilot textarea {
+    border-color: var(--reservas-border) !important;
+    background: var(--reservas-surface-raised) !important;
+    color: var(--reservas-text) !important;
+    box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.72) !important;
+  }
+
+  :root[data-theme="light"] .reservas-calendar-pilot input::placeholder,
+  :root[data-theme="light"] .reservas-calendar-pilot textarea::placeholder,
+  :root[data-theme="light"] .reservas-new-pilot input::placeholder,
+  :root[data-theme="light"] .reservas-new-pilot textarea::placeholder,
+  :root[data-theme="light"] .reservas-group-detail-pilot input::placeholder,
+  :root[data-theme="light"] .reservas-group-detail-pilot textarea::placeholder {
+    color: var(--reservas-text-muted) !important;
+  }
+
+  :root[data-theme="light"] .reservas-calendar-pilot input:focus,
+  :root[data-theme="light"] .reservas-calendar-pilot select:focus,
+  :root[data-theme="light"] .reservas-calendar-pilot textarea:focus,
+  :root[data-theme="light"] .reservas-new-pilot input:focus,
+  :root[data-theme="light"] .reservas-new-pilot select:focus,
+  :root[data-theme="light"] .reservas-new-pilot textarea:focus,
+  :root[data-theme="light"] .reservas-group-detail-pilot input:not([type="checkbox"]):focus,
+  :root[data-theme="light"] .reservas-group-detail-pilot select:focus,
+  :root[data-theme="light"] .reservas-group-detail-pilot textarea:focus {
+    border-color: var(--reservas-accent) !important;
+    outline: none !important;
+    box-shadow: 0 0 0 3px rgb(183 100 31 / 0.16), inset 0 1px 0 rgb(255 255 255 / 0.84) !important;
+  }
+
+  :root[data-theme="light"] .reservas-group-detail-pilot input[type="checkbox"] {
+    border-color: var(--reservas-border-strong) !important;
+    background-color: var(--reservas-surface-raised) !important;
+    color: var(--reservas-accent) !important;
+    box-shadow: none !important;
+  }
+
+  :root[data-theme="light"] .reservas-group-detail-pilot input[type="checkbox"]:checked {
+    border-color: var(--reservas-accent) !important;
+    background-color: var(--reservas-accent) !important;
+  }
+
+  :root[data-theme="light"] .reservas-calendar-pilot [class*="text-emerald"],
+  :root[data-theme="light"] .reservas-new-pilot [class*="text-emerald"],
+  :root[data-theme="light"] .reservas-group-detail-pilot [class*="text-emerald"] {
+    color: var(--reservas-success) !important;
+  }
+
+  :root[data-theme="light"] .reservas-calendar-pilot [class*="bg-emerald"],
+  :root[data-theme="light"] .reservas-new-pilot [class*="bg-emerald"],
+  :root[data-theme="light"] .reservas-group-detail-pilot [class*="bg-emerald"] {
+    background-color: var(--reservas-success-soft) !important;
+  }
+
+  :root[data-theme="light"] .reservas-calendar-pilot [class*="border-emerald"],
+  :root[data-theme="light"] .reservas-new-pilot [class*="border-emerald"],
+  :root[data-theme="light"] .reservas-group-detail-pilot [class*="border-emerald"] {
+    border-color: rgb(23 114 69 / 0.28) !important;
+  }
+
+  :root[data-theme="light"] .reservas-calendar-pilot [class*="text-amber"],
+  :root[data-theme="light"] .reservas-new-pilot [class*="text-amber"],
+  :root[data-theme="light"] .reservas-group-detail-pilot [class*="text-amber"] {
+    color: var(--reservas-warning) !important;
+  }
+
+  :root[data-theme="light"] .reservas-calendar-pilot [class*="bg-amber"],
+  :root[data-theme="light"] .reservas-new-pilot [class*="bg-amber"],
+  :root[data-theme="light"] .reservas-group-detail-pilot [class*="bg-amber"] {
+    background-color: var(--reservas-warning-soft) !important;
+  }
+
+  :root[data-theme="light"] .reservas-calendar-pilot [class*="text-red"],
+  :root[data-theme="light"] .reservas-calendar-pilot [class*="text-rose"],
+  :root[data-theme="light"] .reservas-new-pilot [class*="text-red"],
+  :root[data-theme="light"] .reservas-new-pilot [class*="text-rose"],
+  :root[data-theme="light"] .reservas-group-detail-pilot [class*="text-red"],
+  :root[data-theme="light"] .reservas-group-detail-pilot [class*="text-rose"] {
+    color: var(--reservas-danger) !important;
+  }
+
+  :root[data-theme="light"] .reservas-calendar-pilot [class*="bg-red"],
+  :root[data-theme="light"] .reservas-calendar-pilot [class*="bg-rose"],
+  :root[data-theme="light"] .reservas-new-pilot [class*="bg-red"],
+  :root[data-theme="light"] .reservas-new-pilot [class*="bg-rose"],
+  :root[data-theme="light"] .reservas-group-detail-pilot [class*="bg-red"],
+  :root[data-theme="light"] .reservas-group-detail-pilot [class*="bg-rose"] {
+    background-color: var(--reservas-danger-soft) !important;
+  }
+
+  :root[data-theme="light"] .reservas-new-pilot .button-primary,
+  :root[data-theme="light"] .reservas-group-detail-pilot button[class*="bg-emerald"],
+  :root[data-theme="light"] .reservas-group-detail-pilot button[class*="bg-primary"] {
+    border-color: rgb(183 100 31 / 0.38) !important;
+    background: linear-gradient(180deg, #d9913d, #bf741f) !important;
+    color: #fffaf3 !important;
+    box-shadow: 0 16px 34px -24px rgb(143 74 24 / 0.85) !important;
+  }
+
+  :root[data-theme="light"] .reservas-new-pilot .button-secondary,
+  :root[data-theme="light"] .reservas-group-detail-pilot button[class*="bg-[#171512]"],
+  :root[data-theme="light"] .reservas-group-detail-pilot button[class*="border-slate"],
+  :root[data-theme="light"] .reservas-group-detail-pilot a[class*="border"] {
+    border-color: var(--reservas-border) !important;
+    background: var(--reservas-surface-raised) !important;
+    color: var(--reservas-text) !important;
+  }
+
+  :root[data-theme="light"] .reservas-group-detail-pilot button[class*="bg-[#171512]"]:hover {
+    background: var(--reservas-accent-soft) !important;
+    color: var(--reservas-accent-strong) !important;
+  }
+
+  :root[data-theme="light"] .reservas-calendar-pilot a:hover,
+  :root[data-theme="light"] .reservas-new-pilot a:hover,
+  :root[data-theme="light"] .reservas-group-detail-pilot a:hover,
+  :root[data-theme="light"] .reservas-new-pilot button:hover,
+  :root[data-theme="light"] .reservas-group-detail-pilot button:hover {
+    border-color: var(--reservas-border-strong) !important;
+  }
+
+  :root[data-theme="light"] .reservas-new-pilot .reservation-modal-overlay,
+  :root[data-theme="light"] .reservas-group-detail-pilot .fixed.inset-0 {
+    background: rgb(42 34 26 / 0.34) !important;
+  }
+
+  :root[data-theme="light"] .reservas-new-pilot .reservation-modal-panel,
+  :root[data-theme="light"] .reservas-group-detail-pilot .fixed.inset-0 > div {
+    border-color: var(--reservas-border) !important;
+    background: var(--reservas-surface-raised) !important;
+    color: var(--reservas-text) !important;
+    box-shadow: 0 26px 80px -44px rgb(92 61 30 / 0.48) !important;
+  }
+
+  :root[data-theme="light"] .reservas-calendar-pilot [class*="bg-[#3c342a]"] {
+    background-color: var(--reservas-border) !important;
+  }
+}
