@@ -849,6 +849,70 @@ html.aforo-live-capacity-route .aforo-live-capacity-hide-footer {
     box-shadow: inset 0 0 0 1px rgb(168 95 36 / 0.18) !important;
   }
 
+  .sikim-user-menu {
+    border-color: rgb(90 75 59 / 0.78) !important;
+    background:
+      radial-gradient(circle at 100% 0%, rgb(208 138 57 / 0.13), transparent 14rem),
+      rgb(29 25 21 / 0.88) !important;
+    color: #f7f0e7 !important;
+    box-shadow: 0 22px 64px -44px rgb(0 0 0 / 0.92), inset 0 1px 0 rgb(255 255 255 / 0.05) !important;
+  }
+
+  .sikim-user-menu a {
+    color: #f1c98f !important;
+  }
+
+  .sikim-user-menu a:hover {
+    color: #ffe2b6 !important;
+  }
+
+  .sikim-user-menu button:not([role="radio"]) {
+    color: #cbbdae !important;
+  }
+
+  .sikim-user-menu button:not([role="radio"]):hover {
+    color: #f1c98f !important;
+  }
+
+  .sikim-theme-control {
+    border-color: rgb(120 103 82 / 0.55) !important;
+    background: rgb(20 17 14 / 0.72) !important;
+  }
+
+  :root[data-theme="light"] .sikim-user-menu {
+    border-color: #d8c2a5 !important;
+    background:
+      radial-gradient(circle at 100% 0%, rgb(184 109 37 / 0.10), transparent 14rem),
+      rgb(255 248 236 / 0.92) !important;
+    color: var(--sikim-text) !important;
+    box-shadow: 0 18px 52px -42px rgb(106 74 38 / 0.55), inset 0 1px 0 rgb(255 255 255 / 0.76) !important;
+  }
+
+  :root[data-theme="light"] .sikim-user-menu a {
+    color: var(--sikim-text) !important;
+  }
+
+  :root[data-theme="light"] .sikim-user-menu a:hover {
+    color: var(--sikim-accent-hover) !important;
+  }
+
+  :root[data-theme="light"] .sikim-user-menu button:not([role="radio"]) {
+    color: var(--sikim-text-secondary) !important;
+  }
+
+  :root[data-theme="light"] .sikim-user-menu button:not([role="radio"]):hover {
+    color: var(--sikim-accent-hover) !important;
+  }
+
+  :root[data-theme="light"] .sikim-user-menu .text-slate-500 {
+    color: #b89973 !important;
+  }
+
+  :root[data-theme="light"] .sikim-theme-control {
+    border-color: #d8c2a5 !important;
+    background: #fff8ec !important;
+  }
+
   body:has(.disco-ops-page) {
     background:
       radial-gradient(circle at 70% 0%, rgb(184 109 37 / 0.14), transparent 24rem),
@@ -962,6 +1026,13 @@ html.aforo-live-capacity-route .aforo-live-capacity-hide-footer {
     border-color: rgb(224 164 84 / 0.72) !important;
   }
 
+  .disco-readonly-notice {
+    border-color: rgb(214 158 46 / 0.34) !important;
+    background: rgb(58 36 19 / 0.40) !important;
+    color: #d8cfc2 !important;
+    box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.04) !important;
+  }
+
   :root[data-theme="light"] body:has(.disco-ops-page) {
     background:
       radial-gradient(circle at 72% 0%, rgb(184 109 37 / 0.12), transparent 25rem),
@@ -1039,6 +1110,13 @@ html.aforo-live-capacity-route .aforo-live-capacity-hide-footer {
     background: #f0ddc1;
     color: #854a1c;
     box-shadow: inset 0 0 0 1px rgb(168 95 36 / 0.18);
+  }
+
+  :root[data-theme="light"] .disco-readonly-notice {
+    border-color: #d8c2a5 !important;
+    background: #f4e2c5 !important;
+    color: #6b4f35 !important;
+    box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.64) !important;
   }
 
   :root[data-theme="light"] {

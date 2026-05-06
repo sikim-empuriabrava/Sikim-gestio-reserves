@@ -87,7 +87,7 @@ function ThemePreferenceControl() {
 
   return (
     <div
-      className="flex shrink-0 rounded-lg border p-0.5"
+      className="sikim-theme-control flex shrink-0 rounded-lg border p-0.5"
       style={{ borderColor: 'var(--sikim-border)', backgroundColor: 'var(--sikim-surface-subtle)' }}
       role="radiogroup"
       aria-label="Tema de la aplicacion"
@@ -177,7 +177,7 @@ export function UserMenu({ email: initialEmail }: Props) {
   }
 
   return (
-    <div className="flex w-full min-w-0 flex-wrap items-center gap-2 rounded-xl border border-slate-800 bg-slate-900/60 px-3 py-2 text-sm text-white shadow-lg shadow-slate-900/40 sm:w-auto sm:flex-nowrap sm:gap-3">
+    <div className="sikim-user-menu flex w-full min-w-0 flex-wrap items-center gap-2 rounded-xl border border-slate-800 bg-slate-900/60 px-3 py-2 text-sm text-white shadow-lg shadow-slate-900/40 sm:w-auto sm:flex-nowrap sm:gap-3">
       {isAuthenticated ? (
         <>
           <Link

@@ -368,7 +368,7 @@ export function LiveCapacityPanel({ initialState, canManage }: Props) {
           })}
         </div>
       ) : (
-        <p className="rounded-lg border border-slate-800 bg-slate-950/40 px-3 py-2 text-sm text-slate-300">
+        <p className="disco-readonly-notice rounded-lg border border-slate-800 bg-slate-950/40 px-3 py-2 text-sm text-slate-300">
           Tienes permiso de lectura. Las acciones de operación están restringidas.
         </p>
       )}
