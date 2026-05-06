@@ -195,6 +195,291 @@ export function OperationalChromeStyles() {
             background: rgba(21, 20, 18, 0.84) !important;
           }
 
+          :root[data-theme="light"] body:has(.operational-warm-page) {
+            background:
+              radial-gradient(circle at 18% 0%, rgb(183 104 34 / 0.10), transparent 26rem),
+              linear-gradient(135deg, var(--ops-light-bg-soft) 0%, var(--ops-light-bg) 54%, #f4eadc 100%) !important;
+          }
+
+          :root[data-theme="light"] .aforo-standalone-shell:has(.operational-warm-page) {
+            background:
+              radial-gradient(circle at 18% 0%, rgb(183 104 34 / 0.12), transparent 25rem),
+              linear-gradient(135deg, var(--ops-light-bg-soft) 0%, var(--ops-light-bg) 54%, #f4eadc 100%) !important;
+          }
+
+          :root[data-theme="light"] .aforo-standalone-shell:has(.operational-warm-page) > aside {
+            border-right-color: var(--ops-light-border) !important;
+            background: linear-gradient(180deg, var(--ops-light-surface), #f8efe4) !important;
+          }
+
+          :root[data-theme="light"] .aforo-standalone-shell:has(.operational-warm-page) > div > header {
+            border-color: var(--ops-light-border) !important;
+            background:
+              radial-gradient(circle at 62% 100%, rgb(183 104 34 / 0.09), transparent 16rem),
+              rgb(255 250 243 / 0.90) !important;
+            color: var(--ops-light-text) !important;
+            box-shadow: 0 18px 58px -48px rgb(106 74 38 / 0.34), inset 0 1px 0 rgb(255 255 255 / 0.70) !important;
+          }
+
+          :root[data-theme="light"] .aforo-standalone-shell:has(.operational-warm-page) > div > header::before {
+            opacity: 0.22;
+            background:
+              linear-gradient(120deg, transparent 0 44%, rgb(183 104 34 / 0.14) 45%, transparent 46%),
+              repeating-linear-gradient(132deg, transparent 0 18px, rgb(183 104 34 / 0.10) 19px, transparent 20px);
+          }
+
+          :root[data-theme="light"] .aforo-standalone-shell:has(.operational-warm-page) footer {
+            border-color: var(--ops-light-border) !important;
+            color: var(--ops-light-text-muted) !important;
+          }
+
+          :root[data-theme="light"] .aforo-standalone-shell:has(.operational-warm-page) nav > div {
+            border-color: rgb(228 212 189 / 0.76) !important;
+          }
+
+          :root[data-theme="light"] .aforo-standalone-shell:has(.operational-warm-page) nav button {
+            background: rgb(255 250 243 / 0.78) !important;
+            color: var(--ops-light-text) !important;
+            box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.70) !important;
+          }
+
+          :root[data-theme="light"] .aforo-standalone-shell:has(.operational-warm-page) nav button:hover {
+            background: var(--ops-light-accent-soft) !important;
+            color: var(--ops-light-accent-strong) !important;
+          }
+
+          :root[data-theme="light"] .aforo-standalone-shell:has(.operational-warm-page) nav a {
+            color: var(--ops-light-text-secondary) !important;
+          }
+
+          :root[data-theme="light"] .aforo-standalone-shell:has(.operational-warm-page) nav a[aria-current="page"],
+          :root[data-theme="light"] .aforo-standalone-shell:has(.operational-warm-page) nav a:not([aria-current="page"]):hover {
+            background: var(--ops-light-accent-soft) !important;
+            color: var(--ops-light-accent-strong) !important;
+            box-shadow: inset 0 0 0 1px rgb(183 104 34 / 0.18) !important;
+          }
+
+          :root[data-theme="light"] .operational-warm-page {
+            background:
+              radial-gradient(circle at 2rem 1rem, rgb(183 104 34 / 0.08), transparent 28rem),
+              var(--ops-light-bg) !important;
+            color: var(--ops-light-text) !important;
+          }
+
+          :root[data-theme="light"] .operational-warm-page .operational-surface,
+          :root[data-theme="light"] .operational-warm-page section.operational-surface,
+          :root[data-theme="light"] .operational-warm-page article.operational-surface {
+            border-color: var(--ops-light-border) !important;
+            background:
+              radial-gradient(circle at 0% 0%, rgb(183 104 34 / 0.08), transparent 17rem),
+              linear-gradient(135deg, var(--ops-light-surface-raised), var(--ops-light-surface) 62%, #fbf2e7) !important;
+            box-shadow: var(--ops-light-shadow), inset 0 1px 0 rgb(255 255 255 / 0.78) !important;
+          }
+
+          :root[data-theme="light"] .operational-warm-page .operational-surface.is-highlighted {
+            border-color: rgb(205 167 111 / 0.82) !important;
+            background:
+              radial-gradient(circle at 0% 0%, rgb(183 104 34 / 0.13), transparent 16rem),
+              linear-gradient(135deg, #fff8ed, #f8ead9 58%, #fffaf3) !important;
+          }
+
+          :root[data-theme="light"] .operational-warm-page .operational-inset {
+            border-color: var(--ops-light-border) !important;
+            background: linear-gradient(135deg, #fffdf8, #fbf2e6) !important;
+            color: var(--ops-light-text) !important;
+            box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.82), 0 14px 38px -34px rgb(106 74 38 / 0.38) !important;
+          }
+
+          :root[data-theme="light"] .operational-warm-page .operational-soft {
+            border-color: var(--ops-light-border) !important;
+            background: rgb(255 250 243 / 0.78) !important;
+            color: var(--ops-light-text-secondary) !important;
+          }
+
+          :root[data-theme="light"] .operational-warm-page [class*="bg-[#181715]"],
+          :root[data-theme="light"] .operational-warm-page [class*="bg-[#171512]"],
+          :root[data-theme="light"] .operational-warm-page [class*="bg-[#151412]"],
+          :root[data-theme="light"] .operational-warm-page [class*="bg-[#12110f]"],
+          :root[data-theme="light"] .operational-warm-page [class*="bg-[#211b16]"],
+          :root[data-theme="light"] .operational-warm-page [class*="bg-[#24211d]"],
+          :root[data-theme="light"] .operational-warm-page [class*="bg-[#25221d]"],
+          :root[data-theme="light"] .operational-warm-page [class*="bg-slate-900"],
+          :root[data-theme="light"] .operational-warm-page [class*="bg-slate-950"] {
+            background-color: var(--ops-light-surface-raised) !important;
+          }
+
+          :root[data-theme="light"] .operational-warm-page [class*="bg-[#3a2a1b]"],
+          :root[data-theme="light"] .operational-warm-page [class*="bg-[#3a2d20]"],
+          :root[data-theme="light"] .operational-warm-page [class*="bg-[#7d5932]"],
+          :root[data-theme="light"] .operational-warm-page [class*="bg-[#7d3f18]"],
+          :root[data-theme="light"] .operational-warm-page [class*="bg-[#2a1e16]"] {
+            background-color: var(--ops-light-accent-soft) !important;
+          }
+
+          :root[data-theme="light"] .operational-warm-page [class*="border-[#"],
+          :root[data-theme="light"] .operational-warm-page [class*="border-slate-"] {
+            border-color: var(--ops-light-border) !important;
+          }
+
+          :root[data-theme="light"] .operational-warm-page [class*="ring-[#"],
+          :root[data-theme="light"] .operational-warm-page [class*="ring-slate-"] {
+            --tw-ring-color: rgb(205 167 111 / 0.36) !important;
+          }
+
+          :root[data-theme="light"] .operational-warm-page h1,
+          :root[data-theme="light"] .operational-warm-page h2,
+          :root[data-theme="light"] .operational-warm-page h3,
+          :root[data-theme="light"] .operational-warm-page [class*="text-[#f"],
+          :root[data-theme="light"] .operational-warm-page .text-white,
+          :root[data-theme="light"] .operational-warm-page [class*="text-slate-100"],
+          :root[data-theme="light"] .operational-warm-page [class*="text-slate-200"] {
+            color: var(--ops-light-text) !important;
+          }
+
+          :root[data-theme="light"] .operational-warm-page [class*="text-[#d8"],
+          :root[data-theme="light"] .operational-warm-page [class*="text-[#d69"],
+          :root[data-theme="light"] .operational-warm-page [class*="text-[#cfc"],
+          :root[data-theme="light"] .operational-warm-page [class*="text-[#b9"],
+          :root[data-theme="light"] .operational-warm-page [class*="text-[#a9"],
+          :root[data-theme="light"] .operational-warm-page [class*="text-[#9d"],
+          :root[data-theme="light"] .operational-warm-page [class*="text-[#8f"],
+          :root[data-theme="light"] .operational-warm-page [class*="text-[#8f"],
+          :root[data-theme="light"] .operational-warm-page [class*="text-slate-300"],
+          :root[data-theme="light"] .operational-warm-page [class*="text-slate-400"],
+          :root[data-theme="light"] .operational-warm-page [class*="text-slate-500"] {
+            color: var(--ops-light-text-secondary) !important;
+          }
+
+          :root[data-theme="light"] .operational-warm-page [class*="text-[#e0"],
+          :root[data-theme="light"] .operational-warm-page [class*="text-[#f1c"],
+          :root[data-theme="light"] .operational-warm-page [class*="text-[#f2b"],
+          :root[data-theme="light"] .operational-warm-page [class*="text-[#f3c"],
+          :root[data-theme="light"] .operational-warm-page [class*="text-[#ffe"],
+          :root[data-theme="light"] .operational-warm-page [class*="text-[#c99"],
+          :root[data-theme="light"] .operational-warm-page [class*="text-[#d69c57]"] {
+            color: var(--ops-light-accent) !important;
+          }
+
+          :root[data-theme="light"] .operational-warm-page input:not([type="checkbox"]),
+          :root[data-theme="light"] .operational-warm-page select,
+          :root[data-theme="light"] .operational-warm-page textarea {
+            border-color: var(--ops-light-border) !important;
+            background: var(--ops-light-surface-raised) !important;
+            color: var(--ops-light-text) !important;
+            box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.82) !important;
+          }
+
+          :root[data-theme="light"] .operational-warm-page input::placeholder,
+          :root[data-theme="light"] .operational-warm-page textarea::placeholder {
+            color: var(--ops-light-text-muted) !important;
+          }
+
+          :root[data-theme="light"] .operational-warm-page input:not([type="checkbox"]):focus,
+          :root[data-theme="light"] .operational-warm-page select:focus,
+          :root[data-theme="light"] .operational-warm-page textarea:focus {
+            border-color: var(--ops-light-accent) !important;
+            outline: none !important;
+            box-shadow: 0 0 0 3px rgb(183 104 34 / 0.16), inset 0 1px 0 rgb(255 255 255 / 0.86) !important;
+          }
+
+          :root[data-theme="light"] .operational-warm-page button[class*="bg-[#c9833f]"],
+          :root[data-theme="light"] .operational-warm-page button[class*="bg-[#d9b27c]"],
+          :root[data-theme="light"] .operational-warm-page button[class*="border-[#d6a76e]"],
+          :root[data-theme="light"] .operational-warm-page a[class*="border-[#6f4d2a]"] {
+            border-color: rgb(183 104 34 / 0.40) !important;
+            background: linear-gradient(180deg, #d9913d, #bf741f) !important;
+            color: #fffaf3 !important;
+            box-shadow: 0 16px 34px -24px rgb(143 76 24 / 0.82), inset 0 1px 0 rgb(255 235 205 / 0.34) !important;
+          }
+
+          :root[data-theme="light"] .operational-warm-page button[class*="bg-[#151412]"],
+          :root[data-theme="light"] .operational-warm-page button[class*="bg-[#171512]"],
+          :root[data-theme="light"] .operational-warm-page label[class*="bg-[#151412]"],
+          :root[data-theme="light"] .operational-warm-page a[class*="bg-[#171512]"] {
+            border-color: var(--ops-light-border) !important;
+            background: var(--ops-light-surface-raised) !important;
+            color: var(--ops-light-text) !important;
+            box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.72) !important;
+          }
+
+          :root[data-theme="light"] .operational-warm-page button:hover,
+          :root[data-theme="light"] .operational-warm-page a:hover,
+          :root[data-theme="light"] .operational-warm-page label:hover {
+            border-color: var(--ops-light-border-strong) !important;
+          }
+
+          :root[data-theme="light"] .operational-warm-page [class*="text-emerald"] {
+            color: var(--ops-light-success) !important;
+          }
+
+          :root[data-theme="light"] .operational-warm-page [class*="bg-emerald"] {
+            background-color: var(--ops-light-success-soft) !important;
+          }
+
+          :root[data-theme="light"] .operational-warm-page [class*="border-emerald"],
+          :root[data-theme="light"] .operational-warm-page [class*="ring-emerald"] {
+            border-color: rgb(23 114 69 / 0.30) !important;
+            --tw-ring-color: rgb(23 114 69 / 0.30) !important;
+          }
+
+          :root[data-theme="light"] .operational-warm-page [class*="text-amber"] {
+            color: var(--ops-light-warning) !important;
+          }
+
+          :root[data-theme="light"] .operational-warm-page [class*="bg-amber"] {
+            background-color: var(--ops-light-warning-soft) !important;
+          }
+
+          :root[data-theme="light"] .operational-warm-page [class*="border-amber"],
+          :root[data-theme="light"] .operational-warm-page [class*="ring-amber"] {
+            border-color: rgb(155 93 18 / 0.32) !important;
+            --tw-ring-color: rgb(155 93 18 / 0.32) !important;
+          }
+
+          :root[data-theme="light"] .operational-warm-page [class*="text-red"],
+          :root[data-theme="light"] .operational-warm-page [class*="text-rose"] {
+            color: var(--ops-light-danger) !important;
+          }
+
+          :root[data-theme="light"] .operational-warm-page [class*="bg-red"],
+          :root[data-theme="light"] .operational-warm-page [class*="bg-rose"] {
+            background-color: var(--ops-light-danger-soft) !important;
+          }
+
+          :root[data-theme="light"] .operational-warm-page [class*="border-red"],
+          :root[data-theme="light"] .operational-warm-page [class*="border-rose"],
+          :root[data-theme="light"] .operational-warm-page [class*="ring-red"],
+          :root[data-theme="light"] .operational-warm-page [class*="ring-rose"] {
+            border-color: rgb(161 58 50 / 0.30) !important;
+            --tw-ring-color: rgb(161 58 50 / 0.30) !important;
+          }
+
+          :root[data-theme="light"] .operational-warm-page table {
+            color: var(--ops-light-text-secondary) !important;
+          }
+
+          :root[data-theme="light"] .operational-warm-page thead,
+          :root[data-theme="light"] .operational-warm-page thead[class*="bg-[#12110f]"] {
+            background: var(--ops-light-surface-muted) !important;
+            color: var(--ops-light-text-secondary) !important;
+          }
+
+          :root[data-theme="light"] .operational-warm-page tbody tr,
+          :root[data-theme="light"] .operational-warm-page tr[class*="border-t"] {
+            border-color: var(--ops-light-border) !important;
+          }
+
+          :root[data-theme="light"] .operational-warm-page .fixed.inset-0 {
+            background: rgb(42 34 26 / 0.34) !important;
+          }
+
+          :root[data-theme="light"] .operational-warm-page .fixed.inset-0 > div {
+            border-color: var(--ops-light-border) !important;
+            background: var(--ops-light-surface-raised) !important;
+            color: var(--ops-light-text) !important;
+            box-shadow: 0 26px 80px -44px rgb(92 61 30 / 0.48), inset 0 1px 0 rgb(255 255 255 / 0.78) !important;
+          }
+
           @media (max-width: 1023px) {
             .aforo-standalone-shell:has(.operational-warm-page) {
               min-height: 100dvh;

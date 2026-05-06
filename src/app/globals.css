@@ -52,6 +52,29 @@
     --sikim-focus-ring: rgb(168 95 36 / 0.35);
     --sikim-scrollbar-thumb: #b89265;
     --sikim-scrollbar-thumb-hover: #95693d;
+
+    --ops-light-bg: #f7f1e8;
+    --ops-light-bg-soft: #fbf7f0;
+    --ops-light-surface: #fffaf3;
+    --ops-light-surface-raised: #fffdf8;
+    --ops-light-surface-muted: #f1e4d3;
+    --ops-light-border: #e4d4bd;
+    --ops-light-border-strong: #cda76f;
+    --ops-light-text: #29231d;
+    --ops-light-text-secondary: #6b5b4a;
+    --ops-light-text-muted: #9a856d;
+    --ops-light-accent: #b76822;
+    --ops-light-accent-strong: #8f4c18;
+    --ops-light-accent-soft: #f5dfbf;
+    --ops-light-success: #177245;
+    --ops-light-success-soft: #e4f3df;
+    --ops-light-warning: #9b5d12;
+    --ops-light-warning-soft: #f8ead0;
+    --ops-light-danger: #a13a32;
+    --ops-light-danger-soft: #fae5df;
+    --ops-light-info: #42627a;
+    --ops-light-info-soft: #e3edf2;
+    --ops-light-shadow: 0 22px 74px -56px rgb(106 74 38 / 0.44);
   }
 
   html {
