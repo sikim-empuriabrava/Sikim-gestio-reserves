@@ -70,7 +70,7 @@ export default async function LiveCapacityPage() {
   const initialState = await getLiveCapacityState();
 
   return (
-    <div className="space-y-5">
+    <div className="disco-ops-page disco-live-page space-y-5">
       <AforoPwaBootstrap />
 
       <AforoAuthHeader

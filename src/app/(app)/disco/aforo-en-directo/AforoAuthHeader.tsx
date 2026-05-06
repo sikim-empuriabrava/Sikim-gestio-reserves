@@ -109,7 +109,7 @@ export function AforoAuthHeader({ title, subtitle, initialEmail = null }: Props)
             ) : (
               <a
                 href={LOGIN_PATH}
-                className="inline-flex min-h-11 shrink-0 items-center rounded-lg border border-sky-700/70 bg-sky-900/40 px-4 py-2 text-sm font-semibold text-sky-100 transition hover:bg-sky-900/60"
+                className="inline-flex min-h-11 shrink-0 items-center rounded-lg border border-primary-500/60 bg-primary-900/40 px-4 py-2 text-sm font-semibold text-primary-100 transition hover:bg-primary-900/60"
               >
                 Iniciar sesión
               </a>

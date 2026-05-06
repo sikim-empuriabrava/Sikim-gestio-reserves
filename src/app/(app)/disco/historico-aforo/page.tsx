@@ -95,7 +95,7 @@ export default async function HistoricoAforoPage({ searchParams }: PageProps) {
   const detail = selectedSessionId ? await getClosedCapacitySessionDetail({ sessionId: selectedSessionId }) : null;
 
   return (
-    <div className="space-y-5">
+    <div className="disco-ops-page disco-history-page space-y-5">
       <div>
         <h1 className="text-2xl font-semibold text-white">Histórico aforo</h1>
         <p className="mt-1 text-sm text-slate-400">Resumen de sesiones cerradas y detalle de movimientos registrados.</p>

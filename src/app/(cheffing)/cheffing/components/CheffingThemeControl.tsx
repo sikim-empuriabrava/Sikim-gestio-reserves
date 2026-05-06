@@ -17,8 +17,8 @@ function isThemePreference(value: string | null): value is ThemePreference {
 }
 
 function getSystemTheme(): ResolvedTheme {
-  if (typeof window === 'undefined') return 'dark';
-  if (!window.matchMedia) return 'dark';
+  if (typeof window === 'undefined') return 'light';
+  if (!window.matchMedia) return 'light';
 
   return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
 }
@@ -39,7 +39,7 @@ function applyTheme(preference: ThemePreference) {
 }
 
 export function CheffingThemeControl() {
-  const [preference, setPreference] = useState<ThemePreference>('dark');
+  const [preference, setPreference] = useState<ThemePreference>('light');
 
   useEffect(() => {
     let storedPreference: string | null = null;
@@ -50,7 +50,7 @@ export function CheffingThemeControl() {
       storedPreference = null;
     }
 
-    const nextPreference = isThemePreference(storedPreference) ? storedPreference : 'dark';
+    const nextPreference = isThemePreference(storedPreference) ? storedPreference : 'light';
 
     setPreference(nextPreference);
     applyTheme(nextPreference);
