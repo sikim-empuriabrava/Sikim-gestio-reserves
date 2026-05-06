@@ -471,7 +471,7 @@ export function ProductsManager({ initialIngredients, units }: ProductsManagerPr
                     key={ingredient.id}
                     className={cn(
                       'transition-colors duration-150 hover:bg-slate-900/75',
-                      isEditing ? 'bg-primary-900/20 shadow-[inset_3px_0_0_rgba(139,92,246,0.55)]' : 'bg-transparent',
+                      isEditing ? 'bg-[#3a2a1b]/45 shadow-[inset_3px_0_0_rgba(214,167,110,0.55)]' : 'bg-transparent',
                     )}
                   >
                     <td className="px-4 py-3 align-middle">
