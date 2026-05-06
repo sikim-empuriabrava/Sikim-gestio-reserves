@@ -359,7 +359,7 @@ export function LiveCapacityPanel({ initialState, canManage }: Props) {
                 className={`rounded-lg border px-4 font-semibold transition disabled:cursor-not-allowed disabled:opacity-50 ${buttonHeight} ${
                   isNegative
                     ? 'border-rose-700/70 bg-rose-900/30 text-rose-100 hover:bg-rose-900/50'
-                    : 'border-sky-700/70 bg-sky-900/30 text-sky-100 hover:bg-sky-900/50'
+                    : 'border-primary-500/70 bg-primary-900/35 text-primary-100 hover:bg-primary-900/55'
                 }`}
               >
                 {delta > 0 ? `+${delta}` : delta}

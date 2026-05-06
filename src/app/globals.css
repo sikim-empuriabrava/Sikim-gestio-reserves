@@ -800,6 +800,247 @@ html.aforo-live-capacity-route .aforo-live-capacity-hide-footer {
 }
 
 @layer components {
+  :root[data-theme="light"] .aforo-standalone-shell {
+    color: var(--sikim-text);
+  }
+
+  :root[data-theme="light"] .aforo-standalone-chrome {
+    border-color: var(--sikim-border) !important;
+    background: rgb(255 248 236 / 0.82) !important;
+    color: var(--sikim-text) !important;
+    box-shadow: 0 22px 74px -58px rgb(106 74 38 / 0.40) !important;
+  }
+
+  :root[data-theme="light"] .aforo-standalone-chrome h1,
+  :root[data-theme="light"] .aforo-standalone-chrome .text-white,
+  :root[data-theme="light"] .aforo-standalone-chrome .text-slate-100,
+  :root[data-theme="light"] .aforo-standalone-chrome .text-slate-200 {
+    color: var(--sikim-text) !important;
+  }
+
+  :root[data-theme="light"] .aforo-standalone-chrome .text-slate-300,
+  :root[data-theme="light"] .aforo-standalone-chrome .text-slate-400,
+  :root[data-theme="light"] .aforo-standalone-chrome .text-slate-500,
+  :root[data-theme="light"] .aforo-standalone-chrome .text-slate-600 {
+    color: var(--sikim-text-muted) !important;
+  }
+
+  :root[data-theme="light"] .aforo-standalone-chrome nav > div,
+  :root[data-theme="light"] .aforo-standalone-chrome details,
+  :root[data-theme="light"] .aforo-standalone-chrome header > div > div:last-child > div {
+    border-color: var(--sikim-border) !important;
+    background: rgb(255 250 242 / 0.78) !important;
+  }
+
+  :root[data-theme="light"] .aforo-standalone-chrome nav button {
+    background: rgb(255 248 236 / 0.82) !important;
+    color: var(--sikim-text) !important;
+  }
+
+  :root[data-theme="light"] .aforo-standalone-chrome nav a {
+    color: var(--sikim-text-secondary) !important;
+  }
+
+  :root[data-theme="light"] .aforo-standalone-chrome nav button:hover,
+  :root[data-theme="light"] .aforo-standalone-chrome nav a:not([aria-current="page"]):hover,
+  :root[data-theme="light"] .aforo-standalone-chrome nav a[aria-current="page"] {
+    background: var(--sikim-accent-subtle) !important;
+    color: var(--sikim-accent-hover) !important;
+    box-shadow: inset 0 0 0 1px rgb(168 95 36 / 0.18) !important;
+  }
+
+  body:has(.disco-ops-page) {
+    background:
+      radial-gradient(circle at 70% 0%, rgb(184 109 37 / 0.14), transparent 24rem),
+      linear-gradient(135deg, #0e0c0a 0%, #15110e 48%, #090807 100%) !important;
+  }
+
+  .aforo-standalone-shell:has(.disco-ops-page) {
+    max-width: none;
+    gap: 0;
+    padding: 0;
+    background:
+      radial-gradient(circle at 82% 4%, rgb(184 109 37 / 0.15), transparent 26rem),
+      linear-gradient(135deg, #11100e 0%, #17120f 50%, #090807 100%);
+  }
+
+  .aforo-standalone-shell:has(.disco-ops-page) > aside {
+    width: 18rem;
+    border-right: 1px solid rgb(90 75 59 / 0.46);
+    background: linear-gradient(180deg, rgb(29 25 21 / 0.98), rgb(15 13 11 / 0.98));
+  }
+
+  .aforo-standalone-shell:has(.disco-ops-page) > aside > div {
+    top: 0;
+    min-height: 100dvh;
+    padding: 1rem;
+  }
+
+  .aforo-standalone-shell:has(.disco-ops-page) > div {
+    min-width: 0;
+    gap: 0;
+  }
+
+  .aforo-standalone-shell:has(.disco-ops-page) > div > header,
+  .disco-ops-page header,
+  .disco-ops-page section,
+  .disco-ops-page article,
+  .disco-ops-page li,
+  .disco-ops-page dl > div,
+  .disco-ops-page .rounded-xl,
+  .disco-ops-page .rounded-2xl {
+    border-color: rgb(90 75 59 / 0.70) !important;
+    background-color: rgb(21 19 16 / 0.78) !important;
+    color: #f7f0e7 !important;
+    box-shadow: 0 24px 80px -58px rgb(0 0 0 / 0.95), inset 0 1px 0 rgb(255 255 255 / 0.04) !important;
+  }
+
+  .aforo-standalone-shell:has(.disco-ops-page) > div > header {
+    margin: 1rem 1rem 0;
+    background:
+      radial-gradient(circle at 75% 0%, rgb(208 138 57 / 0.16), transparent 18rem),
+      linear-gradient(135deg, rgb(32 27 22 / 0.94), rgb(17 16 14 / 0.94)) !important;
+  }
+
+  .disco-ops-page {
+    padding: 1rem;
+    color: #f7f0e7;
+  }
+
+  .disco-ops-page > div:first-child,
+  .disco-ops-page > section:first-child,
+  .disco-ops-page > header:first-child {
+    margin-top: 0;
+  }
+
+  .disco-ops-page h1,
+  .disco-ops-page h2,
+  .disco-ops-page h3,
+  .disco-ops-page .text-white,
+  .disco-ops-page .text-slate-100,
+  .disco-ops-page .text-slate-200 {
+    color: #f7f0e7 !important;
+  }
+
+  .disco-ops-page .text-slate-300,
+  .disco-ops-page .text-slate-400,
+  .disco-ops-page .text-slate-500 {
+    color: #b9aea1 !important;
+  }
+
+  .disco-ops-page .text-primary-100,
+  .disco-ops-page .text-primary-200,
+  .disco-ops-page .text-amber-200 {
+    color: #f1c98f !important;
+  }
+
+  .aforo-standalone-shell:has(.disco-ops-page) nav > div {
+    border-color: rgb(90 75 59 / 0.36);
+    background: transparent;
+    box-shadow: none;
+  }
+
+  .aforo-standalone-shell:has(.disco-ops-page) nav button {
+    background: rgb(35 31 27 / 0.72);
+    color: #efe8dc;
+  }
+
+  .aforo-standalone-shell:has(.disco-ops-page) nav button:hover,
+  .aforo-standalone-shell:has(.disco-ops-page) nav a:not([aria-current="page"]):hover {
+    background: rgb(58 36 19 / 0.46);
+    color: #ffe2b6;
+  }
+
+  .aforo-standalone-shell:has(.disco-ops-page) nav a[aria-current="page"] {
+    background: rgb(208 138 57 / 0.22);
+    color: #f1c98f;
+    box-shadow: inset 0 0 0 1px rgb(208 138 57 / 0.26);
+  }
+
+  .disco-ops-page button:not(:disabled):hover,
+  .disco-ops-page a:hover {
+    border-color: rgb(224 164 84 / 0.72) !important;
+  }
+
+  :root[data-theme="light"] body:has(.disco-ops-page) {
+    background:
+      radial-gradient(circle at 72% 0%, rgb(184 109 37 / 0.12), transparent 25rem),
+      linear-gradient(135deg, #fbf7f0 0%, #f5efe4 56%, #eadcc8 100%) !important;
+  }
+
+  :root[data-theme="light"] .aforo-standalone-shell:has(.disco-ops-page) {
+    background:
+      radial-gradient(circle at 80% 0%, rgb(184 109 37 / 0.12), transparent 24rem),
+      linear-gradient(135deg, #fbf7f0 0%, #f5efe4 58%, #eadcc8 100%) !important;
+  }
+
+  :root[data-theme="light"] .aforo-standalone-shell:has(.disco-ops-page) > aside {
+    border-right-color: #d4c3ad;
+    background: linear-gradient(180deg, #fff8ec, #f0e4d2) !important;
+  }
+
+  :root[data-theme="light"] .aforo-standalone-shell:has(.disco-ops-page) > div > header,
+  :root[data-theme="light"] .disco-ops-page header,
+  :root[data-theme="light"] .disco-ops-page section,
+  :root[data-theme="light"] .disco-ops-page article,
+  :root[data-theme="light"] .disco-ops-page li,
+  :root[data-theme="light"] .disco-ops-page dl > div,
+  :root[data-theme="light"] .disco-ops-page .rounded-xl,
+  :root[data-theme="light"] .disco-ops-page .rounded-2xl {
+    border-color: #d4c3ad !important;
+    background-color: rgb(255 248 236 / 0.86) !important;
+    color: #2b2722 !important;
+    box-shadow: 0 22px 74px -56px rgb(106 74 38 / 0.44), inset 0 1px 0 rgb(255 255 255 / 0.70) !important;
+  }
+
+  :root[data-theme="light"] .aforo-standalone-shell:has(.disco-ops-page) > div > header {
+    background:
+      radial-gradient(circle at 70% 0%, rgb(184 109 37 / 0.10), transparent 18rem),
+      linear-gradient(135deg, rgb(255 250 242 / 0.92), rgb(245 239 228 / 0.92)) !important;
+  }
+
+  :root[data-theme="light"] .disco-ops-page {
+    color: #2b2722;
+  }
+
+  :root[data-theme="light"] .disco-ops-page h1,
+  :root[data-theme="light"] .disco-ops-page h2,
+  :root[data-theme="light"] .disco-ops-page h3,
+  :root[data-theme="light"] .disco-ops-page .text-white,
+  :root[data-theme="light"] .disco-ops-page .text-slate-100,
+  :root[data-theme="light"] .disco-ops-page .text-slate-200 {
+    color: #2b2722 !important;
+  }
+
+  :root[data-theme="light"] .disco-ops-page .text-slate-300,
+  :root[data-theme="light"] .disco-ops-page .text-slate-400,
+  :root[data-theme="light"] .disco-ops-page .text-slate-500 {
+    color: #6f6255 !important;
+  }
+
+  :root[data-theme="light"] .disco-ops-page .text-primary-100,
+  :root[data-theme="light"] .disco-ops-page .text-primary-200,
+  :root[data-theme="light"] .disco-ops-page .text-amber-200 {
+    color: #854a1c !important;
+  }
+
+  :root[data-theme="light"] .aforo-standalone-shell:has(.disco-ops-page) nav button {
+    background: rgb(255 248 236 / 0.80);
+    color: #2b2722;
+  }
+
+  :root[data-theme="light"] .aforo-standalone-shell:has(.disco-ops-page) nav a {
+    color: #5f5348;
+  }
+
+  :root[data-theme="light"] .aforo-standalone-shell:has(.disco-ops-page) nav button:hover,
+  :root[data-theme="light"] .aforo-standalone-shell:has(.disco-ops-page) nav a:not([aria-current="page"]):hover,
+  :root[data-theme="light"] .aforo-standalone-shell:has(.disco-ops-page) nav a[aria-current="page"] {
+    background: #f0ddc1;
+    color: #854a1c;
+    box-shadow: inset 0 0 0 1px rgb(168 95 36 / 0.18);
+  }
+
   :root[data-theme="light"] {
     --reservas-bg: #f7f1e8;
     --reservas-bg-soft: #fbf6ef;

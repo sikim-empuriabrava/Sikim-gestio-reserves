@@ -48,7 +48,7 @@ export function AforoInstallCta() {
                 onClick={() => {
                   void installApp();
                 }}
-                className="inline-flex min-h-9 items-center rounded-md border border-sky-700/70 bg-sky-900/30 px-3 py-1.5 text-xs font-semibold text-sky-100 transition hover:bg-sky-900/50"
+                className="inline-flex min-h-9 items-center rounded-md border border-primary-500/60 bg-primary-900/30 px-3 py-1.5 text-xs font-semibold text-primary-100 transition hover:bg-primary-900/50"
               >
                 Instalar app
               </button>

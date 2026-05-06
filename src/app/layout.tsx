@@ -37,7 +37,7 @@ export const dynamic = 'force-dynamic';
 const themeInitScript = `
 (function () {
   var storageKey = 'sikim-theme-preference';
-  var fallbackPreference = 'dark';
+  var fallbackPreference = 'light';
   var allowed = { dark: true, light: true, system: true };
 
   function resolveTheme(preference) {
@@ -66,7 +66,7 @@ const themeInitScript = `
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="es" data-theme="dark" suppressHydrationWarning>
+    <html lang="es" data-theme="light" suppressHydrationWarning>
       <head>
         <script dangerouslySetInnerHTML={{ __html: themeInitScript }} />
       </head>
