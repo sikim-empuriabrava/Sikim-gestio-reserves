@@ -321,7 +321,7 @@ export default async function MenuEngineeringPage({
         <div className="flex items-end">
           <button
             type="submit"
-            className="h-10 w-full rounded-xl border border-primary-400/50 bg-primary-600 px-4 text-sm font-semibold text-white shadow-lg shadow-primary-900/25 transition hover:border-primary-300 hover:bg-primary-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-300/40 active:translate-y-px"
+            className="h-10 w-full rounded-xl border border-[#d6a76e]/65 bg-[#c9833f] px-4 text-sm font-semibold text-[#160f09] shadow-[0_20px_44px_-30px_rgba(214,143,65,0.95),inset_0_1px_0_rgba(255,235,205,0.28)] transition hover:border-[#efbf7d] hover:bg-[#dc9c58] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#d6a76e]/40 active:translate-y-px"
           >
             Actualizar
           </button>
