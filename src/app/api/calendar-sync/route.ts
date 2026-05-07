@@ -23,6 +23,183 @@ type CalendarSyncRow = {
   calendar_deleted_externally: boolean;
 };
 
+type GroupEventCalendarDetails = {
+  name: string | null;
+  total_pax: number | null;
+  adults: number | null;
+  children: number | null;
+  event_date: string;
+  entry_time: string | null;
+  menu_text: string | null;
+  second_course_type: string | null;
+  allergens_and_diets: string | null;
+  setup_notes: string | null;
+  extras: string | null;
+  invoice_data: string | null;
+  deposit_amount: number | null;
+  deposit_status: string | null;
+  has_private_dining_room: boolean | null;
+  has_private_party: boolean | null;
+  status: string | null;
+};
+
+type GroupEventOfferingCalendarRow = {
+  display_name_snapshot: string | null;
+};
+
+const EMPTY_VALUE_MARKERS = new Set(['-', '--', '---', '—', 'null', 'undefined', 'n/a', 'na']);
+
+function getMeaningfulText(value: unknown): string | null {
+  if (value === null || value === undefined) {
+    return null;
+  }
+
+  const text = String(value).trim();
+  if (!text || EMPTY_VALUE_MARKERS.has(text.toLowerCase())) {
+    return null;
+  }
+
+  return text;
+}
+
+function getMeaningfulLines(value: unknown): string[] {
+  const text = getMeaningfulText(value);
+  if (!text) {
+    return [];
+  }
+
+  return text
+    .split(/\r?\n/)
+    .map((line) => getMeaningfulText(line))
+    .filter((line): line is string => Boolean(line));
+}
+
+function appendLineIfValue(lines: string[], label: string, value: unknown) {
+  const text = getMeaningfulText(value);
+  if (text) {
+    lines.push(`${label}: ${text}`);
+  }
+}
+
+function appendSectionIfLines(lines: string[], title: string, sectionLines: string[]) {
+  const usefulLines = sectionLines
+    .map((line) => getMeaningfulText(line))
+    .filter((line): line is string => Boolean(line));
+
+  if (usefulLines.length === 0) {
+    return;
+  }
+
+  if (lines.length > 0 && lines[lines.length - 1] !== '') {
+    lines.push('');
+  }
+
+  lines.push(`${title}:`, ...usefulLines);
+}
+
+function formatPax(adults: number | null | undefined, children: number | null | undefined, totalPax: number) {
+  const paxParts = [];
+
+  if (typeof adults === 'number' && adults > 0) {
+    paxParts.push(`${adults} adultos`);
+  }
+
+  if (typeof children === 'number' && children > 0) {
+    paxParts.push(`${children} niños`);
+  }
+
+  return paxParts.length > 0 ? paxParts.join(', ') : String(totalPax);
+}
+
+function formatOfferingNames(offerings: GroupEventOfferingCalendarRow[]) {
+  const names = offerings
+    .map((offering) => getMeaningfulText(offering.display_name_snapshot))
+    .filter((name): name is string => Boolean(name));
+
+  return names.length > 0 ? names.join(' + ') : null;
+}
+
+function formatReservationCalendarTitle({
+  groupName,
+  pax,
+  hhmm,
+  offeringNames,
+}: {
+  groupName: string;
+  pax: number;
+  hhmm: string;
+  offeringNames: string | null;
+}) {
+  return [groupName, `${pax} pax`, hhmm, offeringNames]
+    .map((part) => getMeaningfulText(part))
+    .filter((part): part is string => Boolean(part))
+    .join(' · ');
+}
+
+function formatDeposit(depositAmount: number | null | undefined, depositStatus: string | null | undefined) {
+  const parts = [];
+
+  if (typeof depositAmount === 'number' && depositAmount > 0) {
+    parts.push(`${depositAmount} €`);
+  }
+
+  const status = getMeaningfulText(depositStatus);
+  if (status) {
+    parts.push(status);
+  }
+
+  return parts.length > 0 ? parts.join(' · ') : null;
+}
+
+function formatReservationCalendarDescription({
+  groupEvent,
+  row,
+  groupName,
+  pax,
+  hhmm,
+  salaZona,
+  offeringNames,
+}: {
+  groupEvent: GroupEventCalendarDetails | null | undefined;
+  row: CalendarSyncRow;
+  groupName: string;
+  pax: number;
+  hhmm: string;
+  salaZona: string | null;
+  offeringNames: string | null;
+}) {
+  const status = groupEvent?.status ?? row.status;
+  const lines: string[] = [
+    `Grupo: ${groupName}`,
+    `Pax: ${formatPax(groupEvent?.adults, groupEvent?.children, pax)}`,
+    `Entrada: ${hhmm}`,
+  ];
+
+  appendLineIfValue(lines, 'Sala / zona', salaZona);
+  appendLineIfValue(lines, 'Oferta', offeringNames);
+
+  appendSectionIfLines(lines, 'Menú / carta', getMeaningfulLines(groupEvent?.menu_text));
+  appendLineIfValue(lines, 'Segundo plato', groupEvent?.second_course_type);
+  appendSectionIfLines(lines, 'Alérgenos / intolerancias', getMeaningfulLines(groupEvent?.allergens_and_diets));
+  appendSectionIfLines(lines, 'Notas cocina', getMeaningfulLines(groupEvent?.extras));
+  appendSectionIfLines(lines, 'Montaje', getMeaningfulLines(groupEvent?.setup_notes));
+  appendSectionIfLines(lines, 'Facturación', getMeaningfulLines(groupEvent?.invoice_data));
+  appendLineIfValue(lines, 'Depósito', formatDeposit(groupEvent?.deposit_amount, groupEvent?.deposit_status));
+
+  const privateLines = [
+    groupEvent?.has_private_dining_room ? 'Sala privada' : null,
+    groupEvent?.has_private_party ? 'Fiesta privada' : null,
+  ].filter((line): line is string => Boolean(line));
+  appendSectionIfLines(lines, 'Privado', privateLines);
+
+  appendLineIfValue(lines, 'Estado', status.toUpperCase());
+  lines.push(`Group ID: ${row.group_event_id}`);
+  lines.push('');
+  lines.push('Este evento está sincronizado con Sikim Gestió Reserves.');
+
+  return lines.join('\n');
+}
+
 function isNotFoundError(error: unknown) {
   const err = error as { code?: number; response?: { status?: number } };
   return err?.code === 404 || err?.response?.status === 404;
@@ -115,7 +292,7 @@ export async function POST(req: NextRequest) {
     const { data: groupEvent, error: groupEventError } = await supabase
       .from('group_events')
       .select(
-        'name, total_pax, event_date, entry_time, menu_text, allergens_and_diets, setup_notes, extras, status'
+        'name, total_pax, adults, children, event_date, entry_time, menu_text, second_course_type, allergens_and_diets, setup_notes, extras, invoice_data, deposit_amount, deposit_status, has_private_dining_room, has_private_party, status'
       )
       .eq('id', row.group_event_id)
       .single();
@@ -124,6 +301,20 @@ export async function POST(req: NextRequest) {
       console.error('[CalendarSync] Error fetching group event details', {
         groupEventId,
         error: groupEventError,
+      });
+    }
+
+    const { data: offeringsData, error: offeringsError } = await supabase
+      .from('group_event_offerings')
+      .select('display_name_snapshot')
+      .eq('group_event_id', row.group_event_id)
+      .order('sort_order', { ascending: true })
+      .order('created_at', { ascending: true });
+
+    if (offeringsError) {
+      console.error('[CalendarSync] Error fetching group event offerings', {
+        groupEventId,
+        error: offeringsError,
       });
     }
 
@@ -139,10 +330,12 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    const groupName = groupEvent?.name ?? row.group_name;
-    const pax = groupEvent?.total_pax ?? row.total_pax ?? 0;
-    const baseTime = groupEvent?.entry_time ?? row.entry_time ?? '20:00:00';
+    const typedGroupEvent = groupEvent as GroupEventCalendarDetails | null;
+    const groupName = typedGroupEvent?.name ?? row.group_name;
+    const pax = typedGroupEvent?.total_pax ?? row.total_pax ?? 0;
+    const baseTime = typedGroupEvent?.entry_time ?? row.entry_time ?? '20:00:00';
     const hhmm = baseTime.slice(0, 5);
+    const offeringNames = formatOfferingNames((offeringsData ?? []) as GroupEventOfferingCalendarRow[]);
 
     const typedAllocations = (roomAllocations ?? []) as {
       room?: { name?: string };
@@ -152,42 +345,28 @@ export async function POST(req: NextRequest) {
     const salaZona = typedAllocations.length > 0
       ? typedAllocations
           .map((ra) => {
-            const roomName = ra.room?.name ?? '';
-            const notes = ra.notes ? ` (${ra.notes})` : '';
-            return `${roomName}${notes}`;
+            const roomName = getMeaningfulText(ra.room?.name) ?? '';
+            const notes = getMeaningfulText(ra.notes);
+            return `${roomName}${notes ? ` (${notes})` : ''}`.trim();
           })
+          .filter(Boolean)
           .join(', ')
-      : '—';
+      : null;
 
-    const descriptionLines = [
-      `Reserva: ${groupName}`,
-      `Pax: ${pax}`,
-      `Hora: ${hhmm}`,
-      `Sala / zona: ${salaZona}`,
-      '',
-      'Menú:',
-      groupEvent?.menu_text ?? '—',
-      '',
-      'Intolerancias / alergias:',
-      groupEvent?.allergens_and_diets ?? '—',
-      '',
-      'Notas sala:',
-      groupEvent?.setup_notes ?? '—',
-      '',
-      'Notas cocina:',
-      groupEvent?.extras ?? '—',
-      '',
-      `Estado: ${(groupEvent?.status ?? row.status).toUpperCase()}`,
-      `Group ID: ${row.group_event_id}`,
-      '',
-      'Este evento está sincronizado con Sikim Gestió Reserves.',
-    ];
-
-    const summary = `${groupName} ${pax}px ${hhmm}`;
+    const summary = formatReservationCalendarTitle({ groupName, pax, hhmm, offeringNames });
+    const description = formatReservationCalendarDescription({
+      groupEvent: typedGroupEvent,
+      row,
+      groupName,
+      pax,
+      hhmm,
+      salaZona: getMeaningfulText(salaZona),
+      offeringNames,
+    });
 
     const payload = {
       summary,
-      description: descriptionLines.join('\n'),
+      description,
       allDay: true,
       startDate,
       endDate,
