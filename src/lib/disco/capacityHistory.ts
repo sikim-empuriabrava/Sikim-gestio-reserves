@@ -4,8 +4,10 @@ import { DEFAULT_VENUE_SLUG } from '@/lib/disco/liveCapacity';
 import { createSupabaseAdminClient } from '@/lib/supabaseAdmin';
 
 export type HistoryRange = 'today' | '7d' | '30d' | 'all';
+export type HistoryTab = 'sessions' | 'insights';
+export type WeekdayFilter = 'all' | '1' | '2' | '3' | '4' | '5' | '6' | '7';
 
-type SessionRow = {
+export type SessionRow = {
   id: string;
   venue_slug: string;
   status: 'open' | 'closed';
@@ -19,7 +21,7 @@ type SessionRow = {
   updated_at: string;
 };
 
-type EventRow = {
+export type EventRow = {
   id: string;
   session_id: string;
   delta: number;
@@ -34,6 +36,7 @@ export type SessionMetrics = {
   total_exits: number;
   event_count: number;
   duration_minutes: number;
+  peak_time_at: string | null;
 };
 
 export type CapacitySessionHistoryItem = {
@@ -45,10 +48,87 @@ export type CapacitySessionHistoryDetail = {
   session: SessionRow;
   metrics: SessionMetrics;
   events: EventRow[];
+  evolution: ChartPoint[];
+};
+
+export type HistoryFilters = {
+  range: HistoryRange;
+  tab: HistoryTab;
+  from: string | null;
+  to: string | null;
+  weekday: WeekdayFilter;
+  hasManualRange: boolean;
+  dateNotice: string | null;
+};
+
+export type ChartPoint = {
+  label: string;
+  value: number;
+  iso?: string;
+};
+
+export type SessionBarPoint = {
+  sessionId: string;
+  label: string;
+  value: number;
+  secondary?: string;
+};
+
+export type WeekdayChartPoint = {
+  weekday: string;
+  entries: number;
+  averagePeak: number;
+  sessions: number;
+};
+
+export type MovementDistribution = {
+  entries: number;
+  exits: number;
+  net: number;
+};
+
+export type CapacityHistoryInsights = {
+  closedSessions: number;
+  totalEntries: number;
+  totalExits: number;
+  totalMovements: number;
+  rangePeak: number;
+  averagePeak: number;
+  averageFinal: number;
+  averageDurationMinutes: number;
+  bestByPeak: CapacitySessionHistoryItem | null;
+  bestByEntries: CapacitySessionHistoryItem | null;
+  weekdayWithMostTraffic: string | null;
+  approximatePeakHour: string | null;
+  averageEvolution: ChartPoint[];
+  entriesBySession: SessionBarPoint[];
+  peakBySession: SessionBarPoint[];
+  weekdayComparison: WeekdayChartPoint[];
+  movementDistribution: MovementDistribution;
+};
+
+export type CapacityHistoryDataset = {
+  sessions: CapacitySessionHistoryItem[];
+  insights: CapacityHistoryInsights;
+  limit: number;
+  isLimited: boolean;
 };
 
 const UUID_REGEX =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+const WEEKDAY_LABELS: Record<Exclude<WeekdayFilter, 'all'>, string> = {
+  '1': 'Lunes',
+  '2': 'Martes',
+  '3': 'Miercoles',
+  '4': 'Jueves',
+  '5': 'Viernes',
+  '6': 'Sabado',
+  '7': 'Domingo',
+};
+
+const HISTORY_LIMIT_DEFAULT = 300;
+const CHART_SESSION_LIMIT = 40;
 
 export function normalizeUuid(value: string | null | undefined): string | null {
   if (typeof value !== 'string') return null;
@@ -57,6 +137,117 @@ export function normalizeUuid(value: string | null | undefined): string | null {
   if (!trimmedValue) return null;
 
   return UUID_REGEX.test(trimmedValue) ? trimmedValue : null;
+}
+
+export function parseHistoryRange(rawValue: string | null | undefined): HistoryRange {
+  if (rawValue === 'today' || rawValue === '7d' || rawValue === '30d' || rawValue === 'all') {
+    return rawValue;
+  }
+
+  return '7d';
+}
+
+export function parseHistoryTab(rawValue: string | null | undefined): HistoryTab {
+  if (rawValue === 'insights') return 'insights';
+  return 'sessions';
+}
+
+export function parseWeekdayFilter(rawValue: string | null | undefined): WeekdayFilter {
+  if (rawValue === '1' || rawValue === '2' || rawValue === '3' || rawValue === '4' || rawValue === '5' || rawValue === '6' || rawValue === '7') {
+    return rawValue;
+  }
+
+  return 'all';
+}
+
+export function getWeekdayLabel(weekday: WeekdayFilter): string {
+  if (weekday === 'all') return 'Todos';
+  return WEEKDAY_LABELS[weekday];
+}
+
+function parseDateInput(value: string | null | undefined): Date | null {
+  if (!value || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return null;
+
+  const [year, month, day] = value.split('-').map(Number);
+  const date = new Date(year, month - 1, day, 0, 0, 0, 0);
+
+  if (date.getFullYear() !== year || date.getMonth() !== month - 1 || date.getDate() !== day) {
+    return null;
+  }
+
+  return date;
+}
+
+function formatDateInput(date: Date): string {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+export function parseHistoryFilters(searchParams?: Record<string, string | string[] | undefined>): HistoryFilters {
+  const raw = (key: string) => {
+    const value = searchParams?.[key];
+    return Array.isArray(value) ? value[0] : value;
+  };
+
+  const range = parseHistoryRange(raw('range'));
+  const tab = parseHistoryTab(raw('tab'));
+  const weekday = parseWeekdayFilter(raw('weekday'));
+  const fromDate = parseDateInput(raw('from'));
+  const toDate = parseDateInput(raw('to'));
+  let dateNotice: string | null = null;
+
+  if ((raw('from') && !fromDate) || (raw('to') && !toDate)) {
+    dateNotice = 'Alguna fecha no era valida; se ha usado el rango rapido.';
+  }
+
+  if (fromDate && toDate) {
+    if (fromDate.getTime() > toDate.getTime()) {
+      dateNotice = 'El rango estaba invertido; se ha corregido automaticamente.';
+      return {
+        range,
+        tab,
+        from: formatDateInput(toDate),
+        to: formatDateInput(fromDate),
+        weekday,
+        hasManualRange: true,
+        dateNotice,
+      };
+    }
+
+    return {
+      range,
+      tab,
+      from: formatDateInput(fromDate),
+      to: formatDateInput(toDate),
+      weekday,
+      hasManualRange: true,
+      dateNotice,
+    };
+  }
+
+  if (fromDate || toDate) {
+    return {
+      range,
+      tab,
+      from: fromDate ? formatDateInput(fromDate) : null,
+      to: toDate ? formatDateInput(toDate) : null,
+      weekday,
+      hasManualRange: true,
+      dateNotice,
+    };
+  }
+
+  return {
+    range,
+    tab,
+    from: null,
+    to: null,
+    weekday,
+    hasManualRange: false,
+    dateNotice,
+  };
 }
 
 function getTodayStartDate(): Date {
@@ -78,9 +269,54 @@ function getRangeFromDate(range: HistoryRange): Date | null {
   return since;
 }
 
+function endOfDay(value: string): Date {
+  const date = parseDateInput(value) ?? getTodayStartDate();
+  date.setHours(23, 59, 59, 999);
+  return date;
+}
+
+function getDateWindow(filters: HistoryFilters): { from: Date | null; to: Date | null } {
+  if (filters.hasManualRange) {
+    return {
+      from: filters.from ? parseDateInput(filters.from) : null,
+      to: filters.to ? endOfDay(filters.to) : null,
+    };
+  }
+
+  return { from: getRangeFromDate(filters.range), to: null };
+}
+
+function getSessionWeekdayFilterValue(openedAt: string): WeekdayFilter {
+  const day = new Date(openedAt).getDay();
+  return String(day === 0 ? 7 : day) as WeekdayFilter;
+}
+
+function formatShortSessionLabel(openedAt: string): string {
+  const date = new Date(openedAt);
+  return new Intl.DateTimeFormat('es-ES', { day: '2-digit', month: '2-digit' }).format(date);
+}
+
+function formatTimeLabel(value: Date): string {
+  return new Intl.DateTimeFormat('es-ES', { hour: '2-digit', minute: '2-digit', hour12: false }).format(value);
+}
+
+function minutesSinceMidnight(value: Date): number {
+  const minutes = value.getHours() * 60 + value.getMinutes();
+  return value.getHours() < 12 ? minutes + 24 * 60 : minutes;
+}
+
 function buildSessionMetrics(session: SessionRow, events: EventRow[]): SessionMetrics {
-  const totalEntries = events.reduce((sum, event) => (event.delta > 0 ? sum + event.delta : sum), 0);
-  const totalExits = events.reduce((sum, event) => (event.delta < 0 ? sum + Math.abs(event.delta) : sum), 0);
+  let totalEntries = 0;
+  let totalExits = 0;
+  let peakTimeAt: string | null = null;
+
+  for (const event of events) {
+    if (event.delta > 0) totalEntries += event.delta;
+    if (event.delta < 0) totalExits += Math.abs(event.delta);
+    if (!peakTimeAt && event.resulting_count === session.peak_count) {
+      peakTimeAt = event.created_at;
+    }
+  }
 
   const openedAtMs = new Date(session.opened_at).getTime();
   const closedAtMs = session.closed_at ? new Date(session.closed_at).getTime() : Date.now();
@@ -91,15 +327,163 @@ function buildSessionMetrics(session: SessionRow, events: EventRow[]): SessionMe
     total_exits: totalExits,
     event_count: events.length,
     duration_minutes: Math.round(durationMs / 60000),
+    peak_time_at: peakTimeAt,
   };
 }
 
-export function parseHistoryRange(rawValue: string | null | undefined): HistoryRange {
-  if (rawValue === 'today' || rawValue === '7d' || rawValue === '30d' || rawValue === 'all') {
-    return rawValue;
+function groupEventsBySession(events: EventRow[]): Map<string, EventRow[]> {
+  const eventsBySession = new Map<string, EventRow[]>();
+
+  for (const event of events) {
+    const bucket = eventsBySession.get(event.session_id);
+    if (bucket) {
+      bucket.push(event);
+    } else {
+      eventsBySession.set(event.session_id, [event]);
+    }
   }
 
-  return '7d';
+  return eventsBySession;
+}
+
+function buildSessionEvolution(session: SessionRow, events: EventRow[]): ChartPoint[] {
+  const points: ChartPoint[] = [{ label: formatTimeLabel(new Date(session.opened_at)), value: 0, iso: session.opened_at }];
+
+  for (const event of events) {
+    points.push({ label: formatTimeLabel(new Date(event.created_at)), value: event.resulting_count, iso: event.created_at });
+  }
+
+  if (session.closed_at && points[points.length - 1]?.iso !== session.closed_at) {
+    points.push({ label: formatTimeLabel(new Date(session.closed_at)), value: session.current_count, iso: session.closed_at });
+  }
+
+  return points;
+}
+
+function buildAverageEvolution(itemsWithEvents: Array<CapacitySessionHistoryItem & { events: EventRow[] }>): ChartPoint[] {
+  const bins = new Map<string, { sum: number; count: number; order: number }>();
+  const intervalMinutes = 15;
+
+  for (const item of itemsWithEvents) {
+    if (!item.session.closed_at) continue;
+
+    const openedAt = new Date(item.session.opened_at);
+    const closedAt = new Date(item.session.closed_at);
+    if (!Number.isFinite(openedAt.getTime()) || !Number.isFinite(closedAt.getTime()) || closedAt <= openedAt) continue;
+
+    const events = [...item.events].sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
+    const cursor = new Date(openedAt);
+    const minuteRemainder = cursor.getMinutes() % intervalMinutes;
+    if (minuteRemainder !== 0 || cursor.getSeconds() || cursor.getMilliseconds()) {
+      cursor.setMinutes(cursor.getMinutes() + (intervalMinutes - minuteRemainder), 0, 0);
+    } else {
+      cursor.setSeconds(0, 0);
+    }
+
+    let eventIndex = 0;
+    let lastKnownCount = 0;
+
+    while (cursor <= closedAt) {
+      const cursorMs = cursor.getTime();
+      while (eventIndex < events.length && new Date(events[eventIndex].created_at).getTime() <= cursorMs) {
+        lastKnownCount = events[eventIndex].resulting_count;
+        eventIndex += 1;
+      }
+
+      const label = formatTimeLabel(cursor);
+      const order = minutesSinceMidnight(cursor);
+      const current = bins.get(label) ?? { sum: 0, count: 0, order };
+      current.sum += lastKnownCount;
+      current.count += 1;
+      current.order = Math.min(current.order, order);
+      bins.set(label, current);
+
+      cursor.setMinutes(cursor.getMinutes() + intervalMinutes);
+    }
+  }
+
+  return Array.from(bins.entries())
+    .sort(([, a], [, b]) => a.order - b.order)
+    .map(([label, bucket]) => ({ label, value: Math.round(bucket.sum / bucket.count) }));
+}
+
+function buildInsights(itemsWithEvents: Array<CapacitySessionHistoryItem & { events: EventRow[] }>): CapacityHistoryInsights {
+  const items = itemsWithEvents.map((item) => ({ session: item.session, metrics: item.metrics }));
+  const closedSessions = items.length;
+  const totalEntries = items.reduce((sum, item) => sum + item.metrics.total_entries, 0);
+  const totalExits = items.reduce((sum, item) => sum + item.metrics.total_exits, 0);
+  const totalMovements = items.reduce((sum, item) => sum + item.metrics.event_count, 0);
+  const rangePeak = items.reduce((max, item) => Math.max(max, item.session.peak_count), 0);
+  const averagePeak = closedSessions ? Math.round(items.reduce((sum, item) => sum + item.session.peak_count, 0) / closedSessions) : 0;
+  const averageFinal = closedSessions ? Math.round(items.reduce((sum, item) => sum + item.session.current_count, 0) / closedSessions) : 0;
+  const averageDurationMinutes = closedSessions ? Math.round(items.reduce((sum, item) => sum + item.metrics.duration_minutes, 0) / closedSessions) : 0;
+  const bestByPeak = items.reduce<CapacitySessionHistoryItem | null>((best, item) => (!best || item.session.peak_count > best.session.peak_count ? item : best), null);
+  const bestByEntries = items.reduce<CapacitySessionHistoryItem | null>((best, item) => (!best || item.metrics.total_entries > best.metrics.total_entries ? item : best), null);
+  const averageEvolution = buildAverageEvolution(itemsWithEvents);
+  const peakEvolutionPoint = averageEvolution.reduce<ChartPoint | null>((best, point) => (!best || point.value > best.value ? point : best), null);
+
+  const weekdayBuckets = new Map<WeekdayFilter, { entries: number; peakSum: number; sessions: number }>();
+  for (const weekday of ['1', '2', '3', '4', '5', '6', '7'] as const) {
+    weekdayBuckets.set(weekday, { entries: 0, peakSum: 0, sessions: 0 });
+  }
+
+  for (const item of items) {
+    const weekday = getSessionWeekdayFilterValue(item.session.opened_at);
+    if (weekday === 'all') continue;
+    const bucket = weekdayBuckets.get(weekday);
+    if (!bucket) continue;
+    bucket.entries += item.metrics.total_entries;
+    bucket.peakSum += item.session.peak_count;
+    bucket.sessions += 1;
+  }
+
+  const weekdayComparison = Array.from(weekdayBuckets.entries()).map(([weekday, bucket]) => ({
+    weekday: getWeekdayLabel(weekday),
+    entries: bucket.entries,
+    averagePeak: bucket.sessions ? Math.round(bucket.peakSum / bucket.sessions) : 0,
+    sessions: bucket.sessions,
+  }));
+
+  const weekdayWithMostTraffic = weekdayComparison.reduce<WeekdayChartPoint | null>(
+    (best, point) => (!best || point.entries > best.entries ? point : best),
+    null,
+  );
+
+  const chartSource = [...items].reverse().slice(-CHART_SESSION_LIMIT);
+
+  return {
+    closedSessions,
+    totalEntries,
+    totalExits,
+    totalMovements,
+    rangePeak,
+    averagePeak,
+    averageFinal,
+    averageDurationMinutes,
+    bestByPeak,
+    bestByEntries,
+    weekdayWithMostTraffic: weekdayWithMostTraffic && weekdayWithMostTraffic.entries > 0 ? weekdayWithMostTraffic.weekday : null,
+    approximatePeakHour: peakEvolutionPoint ? peakEvolutionPoint.label : null,
+    averageEvolution,
+    entriesBySession: chartSource.map((item) => ({
+      sessionId: item.session.id,
+      label: formatShortSessionLabel(item.session.opened_at),
+      value: item.metrics.total_entries,
+      secondary: getWeekdayLabel(getSessionWeekdayFilterValue(item.session.opened_at)),
+    })),
+    peakBySession: chartSource.map((item) => ({
+      sessionId: item.session.id,
+      label: formatShortSessionLabel(item.session.opened_at),
+      value: item.session.peak_count,
+      secondary: getWeekdayLabel(getSessionWeekdayFilterValue(item.session.opened_at)),
+    })),
+    weekdayComparison,
+    movementDistribution: {
+      entries: totalEntries,
+      exits: totalExits,
+      net: totalEntries - totalExits,
+    },
+  };
 }
 
 export async function listClosedCapacitySessionsWithMetrics(params?: {
@@ -107,12 +491,30 @@ export async function listClosedCapacitySessionsWithMetrics(params?: {
   limit?: number;
   venueSlug?: string;
 }): Promise<CapacitySessionHistoryItem[]> {
-  const range = params?.range ?? '7d';
-  const venueSlug = params?.venueSlug ?? DEFAULT_VENUE_SLUG;
-  const limit = params?.limit ?? 50;
+  const filters: HistoryFilters = {
+    range: params?.range ?? '7d',
+    tab: 'sessions',
+    from: null,
+    to: null,
+    weekday: 'all',
+    hasManualRange: false,
+    dateNotice: null,
+  };
 
+  const dataset = await getCapacityHistoryDataset({ filters, limit: params?.limit, venueSlug: params?.venueSlug });
+  return dataset.sessions;
+}
+
+export async function getCapacityHistoryDataset(params: {
+  filters: HistoryFilters;
+  limit?: number;
+  venueSlug?: string;
+}): Promise<CapacityHistoryDataset> {
+  const filters = params.filters;
+  const venueSlug = params.venueSlug ?? DEFAULT_VENUE_SLUG;
+  const limit = params.limit ?? HISTORY_LIMIT_DEFAULT;
   const supabase = createSupabaseAdminClient();
-  const sinceDate = getRangeFromDate(range);
+  const dateWindow = getDateWindow(filters);
 
   let sessionsQuery = supabase
     .from('discotheque_capacity_sessions')
@@ -122,8 +524,12 @@ export async function listClosedCapacitySessionsWithMetrics(params?: {
     .order('opened_at', { ascending: false })
     .limit(limit);
 
-  if (sinceDate) {
-    sessionsQuery = sessionsQuery.gte('opened_at', sinceDate.toISOString());
+  if (dateWindow.from) {
+    sessionsQuery = sessionsQuery.gte('opened_at', dateWindow.from.toISOString());
+  }
+
+  if (dateWindow.to) {
+    sessionsQuery = sessionsQuery.lte('opened_at', dateWindow.to.toISOString());
   }
 
   const { data: sessionsData, error: sessionsError } = await sessionsQuery;
@@ -132,10 +538,18 @@ export async function listClosedCapacitySessionsWithMetrics(params?: {
     throw new Error(sessionsError.message);
   }
 
-  const sessions = (sessionsData ?? []) as SessionRow[];
+  const rawSessions = (sessionsData ?? []) as SessionRow[];
+  const sessions = filters.weekday === 'all'
+    ? rawSessions
+    : rawSessions.filter((session) => getSessionWeekdayFilterValue(session.opened_at) === filters.weekday);
 
   if (sessions.length === 0) {
-    return [];
+    return {
+      sessions: [],
+      insights: buildInsights([]),
+      limit,
+      isLimited: rawSessions.length >= limit,
+    };
   }
 
   const sessionIds = sessions.map((session) => session.id);
@@ -150,25 +564,23 @@ export async function listClosedCapacitySessionsWithMetrics(params?: {
   }
 
   const events = (eventsData ?? []) as EventRow[];
-  const eventsBySession = new Map<string, EventRow[]>();
-
-  for (const event of events) {
-    const bucket = eventsBySession.get(event.session_id);
-    if (bucket) {
-      bucket.push(event);
-    } else {
-      eventsBySession.set(event.session_id, [event]);
-    }
-  }
-
-  return sessions.map((session) => {
+  const eventsBySession = groupEventsBySession(events);
+  const itemsWithEvents = sessions.map((session) => {
     const sessionEvents = eventsBySession.get(session.id) ?? [];
 
     return {
       session,
       metrics: buildSessionMetrics(session, sessionEvents),
+      events: sessionEvents,
     };
   });
+
+  return {
+    sessions: itemsWithEvents.map((item) => ({ session: item.session, metrics: item.metrics })),
+    insights: buildInsights(itemsWithEvents),
+    limit,
+    isLimited: rawSessions.length >= limit,
+  };
 }
 
 export async function getClosedCapacitySessionDetail(params: {
@@ -218,5 +630,6 @@ export async function getClosedCapacitySessionDetail(params: {
     session,
     metrics: buildSessionMetrics(session, events),
     events,
+    evolution: buildSessionEvolution(session, events),
   };
 }
