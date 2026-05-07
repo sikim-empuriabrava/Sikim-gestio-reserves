@@ -10,11 +10,14 @@ import {
 
 import { SessionEvolutionChart } from '../components/CapacityCharts';
 import {
+  formatDiscoDate,
+  formatDiscoDateTime,
+  formatDiscoTime,
   getClosedCapacitySessionDetail,
+  getSessionWeekdayFilterValue,
   getWeekdayLabel,
   parseHistoryFilters,
   type EventRow,
-  type WeekdayFilter,
 } from '@/lib/disco/capacityHistory';
 import { requireCapacityHistoryAdmin } from '@/lib/disco/requireCapacityHistoryAdmin';
 
@@ -28,18 +31,15 @@ type PageProps = {
 const integerFormatter = new Intl.NumberFormat('es-ES');
 
 function formatDate(value: string | null | undefined) {
-  if (!value) return '-';
-  return new Intl.DateTimeFormat('es-ES', { dateStyle: 'medium' }).format(new Date(value));
+  return formatDiscoDate(value);
 }
 
 function formatDateTime(value: string | null | undefined) {
-  if (!value) return '-';
-  return new Intl.DateTimeFormat('es-ES', { dateStyle: 'short', timeStyle: 'short' }).format(new Date(value));
+  return formatDiscoDateTime(value);
 }
 
 function formatTime(value: string | null | undefined) {
-  if (!value) return '-';
-  return new Intl.DateTimeFormat('es-ES', { timeStyle: 'short' }).format(new Date(value));
+  return formatDiscoTime(value);
 }
 
 function formatDuration(totalMinutes: number) {
@@ -55,7 +55,7 @@ function buildBackHref(searchParams: PageProps['searchParams']) {
   const params = new URLSearchParams();
   params.set('tab', filters.tab);
   params.set('range', filters.range);
-  params.set('weekday', filters.weekday);
+  if (filters.weekdays.length > 0) params.set('weekdays', filters.weekdays.join(','));
   if (filters.from) params.set('from', filters.from);
   if (filters.to) params.set('to', filters.to);
   return `/disco/historico-aforo?${params.toString()}`;
@@ -92,7 +92,7 @@ export default async function CapacitySessionDetailPage({ params, searchParams }
     notFound();
   }
 
-  const weekday = String(new Date(detail.session.opened_at).getDay() || 7) as WeekdayFilter;
+  const weekday = getSessionWeekdayFilterValue(detail.session.opened_at);
   const backHref = buildBackHref(searchParams);
 
   return (

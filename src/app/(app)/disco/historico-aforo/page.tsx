@@ -11,7 +11,11 @@ import {
 
 import { CapacityAnalyticsCharts } from './components/CapacityCharts';
 import {
+  formatDiscoDate,
+  formatDiscoTime,
   getCapacityHistoryDataset,
+  getSessionWeekdayFilterValue,
+  getWeekdayFilterLabel,
   getWeekdayLabel,
   normalizeUuid,
   parseHistoryFilters,
@@ -19,7 +23,7 @@ import {
   type HistoryFilters,
   type HistoryRange,
   type HistoryTab,
-  type WeekdayFilter,
+  type WeekdayValue,
 } from '@/lib/disco/capacityHistory';
 import { requireCapacityHistoryAdmin } from '@/lib/disco/requireCapacityHistoryAdmin';
 
@@ -41,8 +45,7 @@ const TAB_OPTIONS: Array<{ value: HistoryTab; label: string }> = [
   { value: 'insights', label: 'Insights' },
 ];
 
-const WEEKDAY_OPTIONS: Array<{ value: WeekdayFilter; label: string }> = [
-  { value: 'all', label: 'Todos' },
+const WEEKDAY_OPTIONS: Array<{ value: WeekdayValue; label: string }> = [
   { value: '1', label: 'Lunes' },
   { value: '2', label: 'Martes' },
   { value: '3', label: 'Miercoles' },
@@ -59,13 +62,11 @@ function firstParam(value: string | string[] | undefined) {
 }
 
 function formatDate(value: string | null | undefined) {
-  if (!value) return '-';
-  return new Intl.DateTimeFormat('es-ES', { dateStyle: 'medium' }).format(new Date(value));
+  return formatDiscoDate(value);
 }
 
 function formatTime(value: string | null | undefined) {
-  if (!value) return '-';
-  return new Intl.DateTimeFormat('es-ES', { timeStyle: 'short' }).format(new Date(value));
+  return formatDiscoTime(value);
 }
 
 function formatDuration(totalMinutes: number) {
@@ -76,12 +77,12 @@ function formatDuration(totalMinutes: number) {
   return `${hours} h ${minutes.toString().padStart(2, '0')} min`;
 }
 
-function buildHref(filters: HistoryFilters, overrides: Partial<Pick<HistoryFilters, 'range' | 'tab' | 'from' | 'to' | 'weekday'>>) {
+function buildHref(filters: HistoryFilters, overrides: Partial<Pick<HistoryFilters, 'range' | 'tab' | 'from' | 'to' | 'weekdays'>>) {
   const next = { ...filters, ...overrides };
   const params = new URLSearchParams();
   params.set('tab', next.tab);
   params.set('range', next.range);
-  params.set('weekday', next.weekday);
+  if (next.weekdays.length > 0) params.set('weekdays', next.weekdays.join(','));
 
   if (next.from) params.set('from', next.from);
   if (next.to) params.set('to', next.to);
@@ -93,10 +94,21 @@ function buildDetailHref(sessionId: string, filters: HistoryFilters) {
   const params = new URLSearchParams();
   params.set('tab', filters.tab);
   params.set('range', filters.range);
-  params.set('weekday', filters.weekday);
+  if (filters.weekdays.length > 0) params.set('weekdays', filters.weekdays.join(','));
   if (filters.from) params.set('from', filters.from);
   if (filters.to) params.set('to', filters.to);
   return `/disco/historico-aforo/${sessionId}?${params.toString()}`;
+}
+
+function toggleWeekday(weekdays: WeekdayValue[], weekday: WeekdayValue): WeekdayValue[] {
+  const selected = new Set(weekdays);
+  if (selected.has(weekday)) {
+    selected.delete(weekday);
+  } else {
+    selected.add(weekday);
+  }
+
+  return WEEKDAY_OPTIONS.map((option) => option.value).filter((value) => selected.has(value));
 }
 
 function MetricTile({ label, value, description, icon: Icon }: { label: string; value: string; description?: string; icon: typeof UsersIcon }) {
@@ -154,7 +166,7 @@ function SessionTable({ sessions, filters }: { sessions: CapacitySessionHistoryI
             {sessions.map((item) => (
               <tr key={item.session.id} className="transition hover:bg-primary-500/10">
                 <td className="px-4 py-3 font-medium text-slate-100">{formatDate(item.session.opened_at)}</td>
-                <td className="px-4 py-3">{getWeekdayLabel(String(new Date(item.session.opened_at).getDay() || 7) as WeekdayFilter)}</td>
+                <td className="px-4 py-3">{getWeekdayLabel(getSessionWeekdayFilterValue(item.session.opened_at))}</td>
                 <td className="px-4 py-3 tabular-nums">{formatTime(item.session.opened_at)}</td>
                 <td className="px-4 py-3 tabular-nums">{formatTime(item.session.closed_at)}</td>
                 <td className="px-4 py-3 tabular-nums">{formatDuration(item.metrics.duration_minutes)}</td>
@@ -285,7 +297,7 @@ export default async function HistoricoAforoPage({ searchParams }: PageProps) {
           <form action="/disco/historico-aforo" className="grid gap-2 sm:grid-cols-[1fr_1fr_auto]">
             <input type="hidden" name="tab" value={filters.tab} />
             <input type="hidden" name="range" value={filters.range} />
-            <input type="hidden" name="weekday" value={filters.weekday} />
+            {filters.weekdays.length > 0 ? <input type="hidden" name="weekdays" value={filters.weekdays.join(',')} /> : null}
             <label className="text-sm text-slate-300">
               Desde
               <input name="from" type="date" defaultValue={filters.from ?? ''} className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-950/35 px-3 py-2 text-sm text-slate-100" />
@@ -303,12 +315,22 @@ export default async function HistoricoAforoPage({ searchParams }: PageProps) {
         <div>
           <h2 className="text-sm font-semibold text-white">Dia de la semana</h2>
           <div className="mt-2 flex gap-2 overflow-x-auto pb-1">
+            <Link
+              href={buildHref(filters, { weekdays: [] })}
+              className={`shrink-0 rounded-lg border px-3 py-2 text-sm font-semibold transition ${
+                filters.weekdays.length === 0
+                  ? 'border-primary-500/60 bg-primary-500/20 text-primary-100'
+                  : 'border-slate-700/80 bg-slate-950/20 text-slate-300 hover:bg-slate-800/60'
+              }`}
+            >
+              Todos
+            </Link>
             {WEEKDAY_OPTIONS.map((option) => {
-              const active = option.value === filters.weekday;
+              const active = filters.weekdays.includes(option.value);
               return (
                 <Link
                   key={option.value}
-                  href={buildHref(filters, { weekday: option.value })}
+                  href={buildHref(filters, { weekdays: toggleWeekday(filters.weekdays, option.value) })}
                   className={`shrink-0 rounded-lg border px-3 py-2 text-sm font-semibold transition ${
                     active
                       ? 'border-primary-500/60 bg-primary-500/20 text-primary-100'
@@ -328,7 +350,7 @@ export default async function HistoricoAforoPage({ searchParams }: PageProps) {
       </section>
 
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        <MetricTile label="Sesiones cerradas" value={integerFormatter.format(insights.closedSessions)} description={`Filtro: ${getWeekdayLabel(filters.weekday)}`} icon={CalendarDaysIcon} />
+        <MetricTile label="Sesiones cerradas" value={integerFormatter.format(insights.closedSessions)} description={`Filtro: ${getWeekdayFilterLabel(filters.weekdays)}`} icon={CalendarDaysIcon} />
         <MetricTile label="Entradas registradas" value={integerFormatter.format(insights.totalEntries)} description="No equivale necesariamente a clientes unicos." icon={UsersIcon} />
         <MetricTile label="Pico maximo" value={integerFormatter.format(insights.rangePeak)} description={`Pico medio: ${integerFormatter.format(insights.averagePeak)}`} icon={ArrowTrendingUpIcon} />
         <MetricTile label="Movimientos" value={integerFormatter.format(insights.totalMovements)} description={`Salidas: ${integerFormatter.format(insights.totalExits)}`} icon={QueueListIcon} />
@@ -373,7 +395,7 @@ export default async function HistoricoAforoPage({ searchParams }: PageProps) {
             entriesBySession={insights.entriesBySession}
             peakBySession={insights.peakBySession}
             weekdayComparison={insights.weekdayComparison}
-            movementDistribution={insights.movementDistribution}
+            closingQuality={insights.closingQuality}
           />
         </div>
       )}

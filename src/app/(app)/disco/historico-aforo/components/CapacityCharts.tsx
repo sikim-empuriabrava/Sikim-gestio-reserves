@@ -6,7 +6,6 @@ import {
   Bar,
   BarChart,
   CartesianGrid,
-  Cell,
   Legend,
   Line,
   LineChart,
@@ -16,13 +15,11 @@ import {
   YAxis,
 } from 'recharts';
 
-import type { ChartPoint, MovementDistribution, SessionBarPoint, WeekdayChartPoint } from '@/lib/disco/capacityHistory';
+import type { ChartPoint, ClosingQuality, SessionBarPoint, WeekdayChartPoint } from '@/lib/disco/capacityHistory';
 
 const COPPER = '#d08a39';
 const GOLD = '#f1c98f';
 const GRAPHITE_GRID = 'rgba(148, 132, 111, 0.28)';
-const EMERALD = '#4ade80';
-const ROSE = '#fb7185';
 
 function EmptyChart({ message }: { message: string }) {
   return (
@@ -114,20 +111,14 @@ export function CapacityAnalyticsCharts({
   entriesBySession,
   peakBySession,
   weekdayComparison,
-  movementDistribution,
+  closingQuality,
 }: {
   averageEvolution: ChartPoint[];
   entriesBySession: SessionBarPoint[];
   peakBySession: SessionBarPoint[];
   weekdayComparison: WeekdayChartPoint[];
-  movementDistribution: MovementDistribution;
+  closingQuality: ClosingQuality;
 }) {
-  const movementData = [
-    { label: 'Entradas', value: movementDistribution.entries, color: EMERALD },
-    { label: 'Salidas', value: movementDistribution.exits, color: ROSE },
-    { label: 'Neto', value: movementDistribution.net, color: COPPER },
-  ];
-
   return (
     <div className="grid gap-4 xl:grid-cols-2">
       <ChartFrame title="Evolucion media del aforo" description="Media por franjas de 15 minutos en el rango seleccionado.">
@@ -162,21 +153,23 @@ export function CapacityAnalyticsCharts({
         )}
       </ChartFrame>
 
-      <ChartFrame title="Distribucion entradas/salidas" description="Lectura simple del balance de movimientos registrados.">
-        <div className="h-72 w-full">
-          <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={movementData} margin={{ top: 8, right: 16, bottom: 8, left: -18 }}>
-              <CartesianGrid stroke={GRAPHITE_GRID} vertical={false} />
-              <XAxis dataKey="label" tick={{ fill: '#b9aea1', fontSize: 12 }} tickLine={false} axisLine={{ stroke: GRAPHITE_GRID }} />
-              <YAxis tick={{ fill: '#b9aea1', fontSize: 12 }} tickLine={false} axisLine={false} allowDecimals={false} />
-              <Tooltip content={<ChartTooltip />} />
-              <Bar dataKey="value" name="Movimientos" radius={[6, 6, 2, 2]}>
-                {movementData.map((entry) => (
-                  <Cell key={entry.label} fill={entry.color} />
-                ))}
-              </Bar>
-            </BarChart>
-          </ResponsiveContainer>
+      <ChartFrame title="Calidad de cierre" description="Util para detectar cierres con contador sin cuadrar.">
+        <div className="grid h-72 content-center gap-3 sm:grid-cols-2">
+          <div className="border-l border-emerald-400/45 pl-4">
+            <p className="text-sm text-slate-400">Aforo final 0</p>
+            <p className="mt-2 text-3xl font-semibold tabular-nums text-emerald-300">{closingQuality.finalZeroSessions.toLocaleString('es-ES')}</p>
+            <p className="mt-2 text-xs leading-5 text-slate-500">Sesiones cerradas con contador cuadrado.</p>
+          </div>
+          <div className="border-l border-amber-300/45 pl-4">
+            <p className="text-sm text-slate-400">Aforo final distinto de 0</p>
+            <p className="mt-2 text-3xl font-semibold tabular-nums text-amber-200">{closingQuality.finalNonZeroSessions.toLocaleString('es-ES')}</p>
+            <p className="mt-2 text-xs leading-5 text-slate-500">Revisar si el cierre operativo no cuadraba.</p>
+          </div>
+          {closingQuality.finalNonZeroSessions > 0 ? (
+            <p className="rounded-xl border border-amber-500/25 bg-amber-500/10 px-3 py-2 text-sm text-amber-100 sm:col-span-2">
+              Hay sesiones cerradas con aforo final no cero.
+            </p>
+          ) : null}
         </div>
       </ChartFrame>
     </div>

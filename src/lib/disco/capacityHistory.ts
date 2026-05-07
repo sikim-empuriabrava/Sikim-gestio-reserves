@@ -6,6 +6,7 @@ import { createSupabaseAdminClient } from '@/lib/supabaseAdmin';
 export type HistoryRange = 'today' | '7d' | '30d' | 'all';
 export type HistoryTab = 'sessions' | 'insights';
 export type WeekdayFilter = 'all' | '1' | '2' | '3' | '4' | '5' | '6' | '7';
+export type WeekdayValue = Exclude<WeekdayFilter, 'all'>;
 
 export type SessionRow = {
   id: string;
@@ -56,7 +57,7 @@ export type HistoryFilters = {
   tab: HistoryTab;
   from: string | null;
   to: string | null;
-  weekday: WeekdayFilter;
+  weekdays: WeekdayValue[];
   hasManualRange: boolean;
   dateNotice: string | null;
 };
@@ -81,10 +82,9 @@ export type WeekdayChartPoint = {
   sessions: number;
 };
 
-export type MovementDistribution = {
-  entries: number;
-  exits: number;
-  net: number;
+export type ClosingQuality = {
+  finalZeroSessions: number;
+  finalNonZeroSessions: number;
 };
 
 export type CapacityHistoryInsights = {
@@ -104,7 +104,7 @@ export type CapacityHistoryInsights = {
   entriesBySession: SessionBarPoint[];
   peakBySession: SessionBarPoint[];
   weekdayComparison: WeekdayChartPoint[];
-  movementDistribution: MovementDistribution;
+  closingQuality: ClosingQuality;
 };
 
 export type CapacityHistoryDataset = {
@@ -117,7 +117,9 @@ export type CapacityHistoryDataset = {
 const UUID_REGEX =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
-const WEEKDAY_LABELS: Record<Exclude<WeekdayFilter, 'all'>, string> = {
+export const DISCO_TIME_ZONE = 'Europe/Madrid';
+
+const WEEKDAY_LABELS: Record<WeekdayValue, string> = {
   '1': 'Lunes',
   '2': 'Martes',
   '3': 'Miercoles',
@@ -129,6 +131,52 @@ const WEEKDAY_LABELS: Record<Exclude<WeekdayFilter, 'all'>, string> = {
 
 const HISTORY_LIMIT_DEFAULT = 300;
 const CHART_SESSION_LIMIT = 40;
+const LOCAL_DATE_REGEX = /^\d{4}-\d{2}-\d{2}$/;
+
+type LocalDateParts = {
+  year: number;
+  month: number;
+  day: number;
+};
+
+type LocalDateTimeParts = LocalDateParts & {
+  hour: number;
+  minute: number;
+  second: number;
+};
+
+const localDateTimeFormatter = new Intl.DateTimeFormat('en-CA', {
+  timeZone: DISCO_TIME_ZONE,
+  year: 'numeric',
+  month: '2-digit',
+  day: '2-digit',
+  hour: '2-digit',
+  minute: '2-digit',
+  second: '2-digit',
+  hour12: false,
+});
+
+const discoDateFormatter = new Intl.DateTimeFormat('es-ES', {
+  timeZone: DISCO_TIME_ZONE,
+  dateStyle: 'medium',
+});
+
+const discoDateTimeFormatter = new Intl.DateTimeFormat('es-ES', {
+  timeZone: DISCO_TIME_ZONE,
+  dateStyle: 'short',
+  timeStyle: 'short',
+});
+
+const discoTimeFormatter = new Intl.DateTimeFormat('es-ES', {
+  timeZone: DISCO_TIME_ZONE,
+  timeStyle: 'short',
+});
+
+const discoShortDateFormatter = new Intl.DateTimeFormat('es-ES', {
+  timeZone: DISCO_TIME_ZONE,
+  day: '2-digit',
+  month: '2-digit',
+});
 
 export function normalizeUuid(value: string | null | undefined): string | null {
   if (typeof value !== 'string') return null;
@@ -152,12 +200,28 @@ export function parseHistoryTab(rawValue: string | null | undefined): HistoryTab
   return 'sessions';
 }
 
-export function parseWeekdayFilter(rawValue: string | null | undefined): WeekdayFilter {
+function isWeekdayValue(rawValue: string | null | undefined): rawValue is WeekdayValue {
   if (rawValue === '1' || rawValue === '2' || rawValue === '3' || rawValue === '4' || rawValue === '5' || rawValue === '6' || rawValue === '7') {
-    return rawValue;
+    return true;
   }
 
-  return 'all';
+  return false;
+}
+
+export function parseWeekdayFilter(rawValue: string | null | undefined): WeekdayFilter {
+  return isWeekdayValue(rawValue) ? rawValue : 'all';
+}
+
+export function parseWeekdayFilters(rawValue: string | null | undefined, legacyValue?: string | null | undefined): WeekdayValue[] {
+  const source = rawValue || legacyValue;
+  if (!source || source === 'all') return [];
+
+  const weekdays = source
+    .split(',')
+    .map((value) => value.trim())
+    .filter(isWeekdayValue);
+
+  return Array.from(new Set(weekdays));
 }
 
 export function getWeekdayLabel(weekday: WeekdayFilter): string {
@@ -165,24 +229,62 @@ export function getWeekdayLabel(weekday: WeekdayFilter): string {
   return WEEKDAY_LABELS[weekday];
 }
 
-function parseDateInput(value: string | null | undefined): Date | null {
-  if (!value || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return null;
+export function getWeekdayFilterLabel(weekdays: WeekdayValue[]): string {
+  if (weekdays.length === 0) return 'Todos';
+  return weekdays.map((weekday) => WEEKDAY_LABELS[weekday]).join(', ');
+}
+
+function parseDateInput(value: string | null | undefined): LocalDateParts | null {
+  if (!value || !LOCAL_DATE_REGEX.test(value)) return null;
 
   const [year, month, day] = value.split('-').map(Number);
-  const date = new Date(year, month - 1, day, 0, 0, 0, 0);
+  const date = new Date(Date.UTC(year, month - 1, day, 12, 0, 0, 0));
 
-  if (date.getFullYear() !== year || date.getMonth() !== month - 1 || date.getDate() !== day) {
+  if (date.getUTCFullYear() !== year || date.getUTCMonth() !== month - 1 || date.getUTCDate() !== day) {
     return null;
   }
 
-  return date;
+  return { year, month, day };
 }
 
-function formatDateInput(date: Date): string {
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, '0');
-  const day = String(date.getDate()).padStart(2, '0');
+function formatDateInput(date: LocalDateParts): string {
+  const year = String(date.year).padStart(4, '0');
+  const month = String(date.month).padStart(2, '0');
+  const day = String(date.day).padStart(2, '0');
   return `${year}-${month}-${day}`;
+}
+
+function getLocalDateTimeParts(date: Date): LocalDateTimeParts {
+  const parts = localDateTimeFormatter.formatToParts(date);
+  const value = (type: Intl.DateTimeFormatPartTypes) => Number(parts.find((part) => part.type === type)?.value);
+  const hour = value('hour');
+
+  return {
+    year: value('year'),
+    month: value('month'),
+    day: value('day'),
+    hour: hour === 24 ? 0 : hour,
+    minute: value('minute'),
+    second: value('second'),
+  };
+}
+
+function getTimeZoneOffsetMs(date: Date): number {
+  const parts = getLocalDateTimeParts(date);
+  const localAsUtcMs = Date.UTC(parts.year, parts.month - 1, parts.day, parts.hour, parts.minute, parts.second);
+  return localAsUtcMs - Math.floor(date.getTime() / 1000) * 1000;
+}
+
+function makeDiscoLocalDateTime(parts: LocalDateParts, hour = 0, minute = 0, second = 0, millisecond = 0): Date {
+  const localAsUtcMs = Date.UTC(parts.year, parts.month - 1, parts.day, hour, minute, second, millisecond);
+  let utcMs = localAsUtcMs - getTimeZoneOffsetMs(new Date(localAsUtcMs));
+  utcMs = localAsUtcMs - getTimeZoneOffsetMs(new Date(utcMs));
+  return new Date(utcMs);
+}
+
+function getTodayLocalDate(): LocalDateParts {
+  const now = getLocalDateTimeParts(new Date());
+  return { year: now.year, month: now.month, day: now.day };
 }
 
 export function parseHistoryFilters(searchParams?: Record<string, string | string[] | undefined>): HistoryFilters {
@@ -193,7 +295,7 @@ export function parseHistoryFilters(searchParams?: Record<string, string | strin
 
   const range = parseHistoryRange(raw('range'));
   const tab = parseHistoryTab(raw('tab'));
-  const weekday = parseWeekdayFilter(raw('weekday'));
+  const weekdays = parseWeekdayFilters(raw('weekdays'), raw('weekday'));
   const fromDate = parseDateInput(raw('from'));
   const toDate = parseDateInput(raw('to'));
   let dateNotice: string | null = null;
@@ -203,14 +305,14 @@ export function parseHistoryFilters(searchParams?: Record<string, string | strin
   }
 
   if (fromDate && toDate) {
-    if (fromDate.getTime() > toDate.getTime()) {
+    if (formatDateInput(fromDate) > formatDateInput(toDate)) {
       dateNotice = 'El rango estaba invertido; se ha corregido automaticamente.';
       return {
         range,
         tab,
         from: formatDateInput(toDate),
         to: formatDateInput(fromDate),
-        weekday,
+        weekdays,
         hasManualRange: true,
         dateNotice,
       };
@@ -221,7 +323,7 @@ export function parseHistoryFilters(searchParams?: Record<string, string | strin
       tab,
       from: formatDateInput(fromDate),
       to: formatDateInput(toDate),
-      weekday,
+      weekdays,
       hasManualRange: true,
       dateNotice,
     };
@@ -233,7 +335,7 @@ export function parseHistoryFilters(searchParams?: Record<string, string | strin
       tab,
       from: fromDate ? formatDateInput(fromDate) : null,
       to: toDate ? formatDateInput(toDate) : null,
-      weekday,
+      weekdays,
       hasManualRange: true,
       dateNotice,
     };
@@ -244,15 +346,14 @@ export function parseHistoryFilters(searchParams?: Record<string, string | strin
     tab,
     from: null,
     to: null,
-    weekday,
+    weekdays,
     hasManualRange: false,
     dateNotice,
   };
 }
 
 function getTodayStartDate(): Date {
-  const now = new Date();
-  return new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
+  return makeDiscoLocalDateTime(getTodayLocalDate(), 0, 0, 0, 0);
 }
 
 function getRangeFromDate(range: HistoryRange): Date | null {
@@ -270,15 +371,14 @@ function getRangeFromDate(range: HistoryRange): Date | null {
 }
 
 function endOfDay(value: string): Date {
-  const date = parseDateInput(value) ?? getTodayStartDate();
-  date.setHours(23, 59, 59, 999);
-  return date;
+  const date = parseDateInput(value) ?? getTodayLocalDate();
+  return makeDiscoLocalDateTime(date, 23, 59, 59, 999);
 }
 
 function getDateWindow(filters: HistoryFilters): { from: Date | null; to: Date | null } {
   if (filters.hasManualRange) {
     return {
-      from: filters.from ? parseDateInput(filters.from) : null,
+      from: filters.from ? makeDiscoLocalDateTime(parseDateInput(filters.from) ?? getTodayLocalDate(), 0, 0, 0, 0) : null,
       to: filters.to ? endOfDay(filters.to) : null,
     };
   }
@@ -286,23 +386,48 @@ function getDateWindow(filters: HistoryFilters): { from: Date | null; to: Date |
   return { from: getRangeFromDate(filters.range), to: null };
 }
 
-function getSessionWeekdayFilterValue(openedAt: string): WeekdayFilter {
-  const day = new Date(openedAt).getDay();
-  return String(day === 0 ? 7 : day) as WeekdayFilter;
+export function getSessionWeekdayFilterValue(openedAt: string): WeekdayValue {
+  const date = new Date(openedAt);
+  const weekday = new Intl.DateTimeFormat('en-GB', { timeZone: DISCO_TIME_ZONE, weekday: 'short' }).format(date);
+  const weekdayMap: Record<string, WeekdayValue> = {
+    Mon: '1',
+    Tue: '2',
+    Wed: '3',
+    Thu: '4',
+    Fri: '5',
+    Sat: '6',
+    Sun: '7',
+  };
+  return weekdayMap[weekday] ?? '1';
 }
 
 function formatShortSessionLabel(openedAt: string): string {
-  const date = new Date(openedAt);
-  return new Intl.DateTimeFormat('es-ES', { day: '2-digit', month: '2-digit' }).format(date);
+  return discoShortDateFormatter.format(new Date(openedAt));
+}
+
+export function formatDiscoDate(value: string | null | undefined): string {
+  if (!value) return '-';
+  return discoDateFormatter.format(new Date(value));
+}
+
+export function formatDiscoDateTime(value: string | null | undefined): string {
+  if (!value) return '-';
+  return discoDateTimeFormatter.format(new Date(value));
+}
+
+export function formatDiscoTime(value: string | null | undefined): string {
+  if (!value) return '-';
+  return discoTimeFormatter.format(new Date(value));
 }
 
 function formatTimeLabel(value: Date): string {
-  return new Intl.DateTimeFormat('es-ES', { hour: '2-digit', minute: '2-digit', hour12: false }).format(value);
+  return new Intl.DateTimeFormat('es-ES', { timeZone: DISCO_TIME_ZONE, hour: '2-digit', minute: '2-digit', hour12: false }).format(value);
 }
 
 function minutesSinceMidnight(value: Date): number {
-  const minutes = value.getHours() * 60 + value.getMinutes();
-  return value.getHours() < 12 ? minutes + 24 * 60 : minutes;
+  const local = getLocalDateTimeParts(value);
+  const minutes = local.hour * 60 + local.minute;
+  return local.hour < 12 ? minutes + 24 * 60 : minutes;
 }
 
 function buildSessionMetrics(session: SessionRow, events: EventRow[]): SessionMetrics {
@@ -372,13 +497,12 @@ function buildAverageEvolution(itemsWithEvents: Array<CapacitySessionHistoryItem
     if (!Number.isFinite(openedAt.getTime()) || !Number.isFinite(closedAt.getTime()) || closedAt <= openedAt) continue;
 
     const events = [...item.events].sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
-    const cursor = new Date(openedAt);
-    const minuteRemainder = cursor.getMinutes() % intervalMinutes;
-    if (minuteRemainder !== 0 || cursor.getSeconds() || cursor.getMilliseconds()) {
-      cursor.setMinutes(cursor.getMinutes() + (intervalMinutes - minuteRemainder), 0, 0);
-    } else {
-      cursor.setSeconds(0, 0);
-    }
+    const openedLocal = getLocalDateTimeParts(openedAt);
+    const minuteRemainder = openedLocal.minute % intervalMinutes;
+    const minutesToAdd = minuteRemainder !== 0 || openedLocal.second ? intervalMinutes - minuteRemainder : 0;
+    const cursor = new Date(openedAt.getTime() + minutesToAdd * 60000);
+    const cursorLocal = getLocalDateTimeParts(cursor);
+    cursor.setSeconds(cursor.getSeconds() - cursorLocal.second, 0);
 
     let eventIndex = 0;
     let lastKnownCount = 0;
@@ -429,7 +553,6 @@ function buildInsights(itemsWithEvents: Array<CapacitySessionHistoryItem & { eve
 
   for (const item of items) {
     const weekday = getSessionWeekdayFilterValue(item.session.opened_at);
-    if (weekday === 'all') continue;
     const bucket = weekdayBuckets.get(weekday);
     if (!bucket) continue;
     bucket.entries += item.metrics.total_entries;
@@ -478,10 +601,9 @@ function buildInsights(itemsWithEvents: Array<CapacitySessionHistoryItem & { eve
       secondary: getWeekdayLabel(getSessionWeekdayFilterValue(item.session.opened_at)),
     })),
     weekdayComparison,
-    movementDistribution: {
-      entries: totalEntries,
-      exits: totalExits,
-      net: totalEntries - totalExits,
+    closingQuality: {
+      finalZeroSessions: items.filter((item) => item.session.current_count === 0).length,
+      finalNonZeroSessions: items.filter((item) => item.session.current_count !== 0).length,
     },
   };
 }
@@ -496,7 +618,7 @@ export async function listClosedCapacitySessionsWithMetrics(params?: {
     tab: 'sessions',
     from: null,
     to: null,
-    weekday: 'all',
+    weekdays: [],
     hasManualRange: false,
     dateNotice: null,
   };
@@ -539,9 +661,10 @@ export async function getCapacityHistoryDataset(params: {
   }
 
   const rawSessions = (sessionsData ?? []) as SessionRow[];
-  const sessions = filters.weekday === 'all'
+  const selectedWeekdays = new Set(filters.weekdays);
+  const sessions = selectedWeekdays.size === 0
     ? rawSessions
-    : rawSessions.filter((session) => getSessionWeekdayFilterValue(session.opened_at) === filters.weekday);
+    : rawSessions.filter((session) => selectedWeekdays.has(getSessionWeekdayFilterValue(session.opened_at)));
 
   if (sessions.length === 0) {
     return {

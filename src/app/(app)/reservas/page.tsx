@@ -581,16 +581,16 @@ function WeekView({
                         href={`/reservas/grupo/${evt.group_event_id}?date=${evt.event_date}`}
                         className="group rounded-xl border border-[#4a3f32]/60 bg-[#24221f]/80 p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] transition duration-200 hover:-translate-y-0.5 hover:border-[#8b6a43]/70 hover:bg-[#2a2722]"
                       >
-                        <div className="flex items-start justify-between gap-2">
-                          <div className="min-w-0">
+                        <div className="flex flex-wrap items-start gap-2">
+                          <div className="min-w-0 flex-1 basis-32">
                             <p className="text-xs font-medium tabular-nums text-[#c99a61]">
                               {evt.entry_time ? evt.entry_time.slice(0, 5) : 'Sin hora'}
                             </p>
-                            <h3 className="mt-1 truncate text-[0.95rem] font-semibold leading-tight text-[#f5eee4]">
+                            <h3 className="mt-1 min-w-0 break-words text-[0.95rem] font-semibold leading-tight text-[#f5eee4]">
                               {evt.group_name}
                             </h3>
                           </div>
-                          <span className={`shrink-0 rounded-full border px-2 py-1 text-[0.66rem] font-semibold leading-none ${status.className}`}>
+                          <span className={`w-fit shrink-0 rounded-full border px-2 py-1 text-[0.66rem] font-semibold leading-none ${status.className}`}>
                             {status.label}
                           </span>
                         </div>
