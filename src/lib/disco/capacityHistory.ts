@@ -82,11 +82,6 @@ export type WeekdayChartPoint = {
   sessions: number;
 };
 
-export type ClosingQuality = {
-  finalZeroSessions: number;
-  finalNonZeroSessions: number;
-};
-
 export type CapacityHistoryInsights = {
   closedSessions: number;
   totalEntries: number;
@@ -104,7 +99,6 @@ export type CapacityHistoryInsights = {
   entriesBySession: SessionBarPoint[];
   peakBySession: SessionBarPoint[];
   weekdayComparison: WeekdayChartPoint[];
-  closingQuality: ClosingQuality;
 };
 
 export type CapacityHistoryDataset = {
@@ -118,6 +112,7 @@ const UUID_REGEX =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 export const DISCO_TIME_ZONE = 'Europe/Madrid';
+// Europe/Madrid is used as the operational timezone so DST changes are handled by the runtime timezone database instead of fixed UTC offsets.
 
 const WEEKDAY_LABELS: Record<WeekdayValue, string> = {
   '1': 'Lunes',
@@ -601,10 +596,6 @@ function buildInsights(itemsWithEvents: Array<CapacitySessionHistoryItem & { eve
       secondary: getWeekdayLabel(getSessionWeekdayFilterValue(item.session.opened_at)),
     })),
     weekdayComparison,
-    closingQuality: {
-      finalZeroSessions: items.filter((item) => item.session.current_count === 0).length,
-      finalNonZeroSessions: items.filter((item) => item.session.current_count !== 0).length,
-    },
   };
 }
 

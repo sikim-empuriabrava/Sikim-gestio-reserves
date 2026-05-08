@@ -280,6 +280,7 @@ export default function NuevaReservaClient() {
   const [telefono, setTelefono] = useState('');
   const [email, setEmail] = useState('');
   const [numeroPersonas, setNumeroPersonas] = useState(2);
+  const [numeroPersonasInput, setNumeroPersonasInput] = useState('2');
   const [selectedOfferingId, setSelectedOfferingId] = useState('');
   const [intolerancias, setIntolerancias] = useState('');
   const [notasSala, setNotasSala] = useState('');
@@ -326,6 +327,25 @@ export default function NuevaReservaClient() {
     () => customSeconds.reduce((sum, custom) => sum + custom.cantidad, 0),
     [customSeconds],
   );
+
+  const parsePositivePaxInput = (value: string) => {
+    const trimmed = value.trim();
+    if (!trimmed) return null;
+
+    const parsed = Number(trimmed);
+    if (!Number.isInteger(parsed) || parsed < 1) return null;
+
+    return parsed;
+  };
+
+  const handleNumeroPersonasChange = (value: string) => {
+    setNumeroPersonasInput(value);
+
+    const parsed = parsePositivePaxInput(value);
+    if (parsed !== null) {
+      setNumeroPersonas(parsed);
+    }
+  };
 
   const updateEntrecotPoint = (key: keyof EntrecotPoints, value: number) => {
     setEntrecotPoints((prev) => ({
@@ -567,6 +587,16 @@ export default function NuevaReservaClient() {
     setSubmitSuccess(null);
     setCalendarWarning(null);
     setIsSubmitting(true);
+
+    const normalizedNumeroPersonas = parsePositivePaxInput(numeroPersonasInput);
+    if (normalizedNumeroPersonas === null) {
+      setSubmitError('Indica un numero de personas valido, minimo 1.');
+      setIsSubmitting(false);
+      return;
+    }
+
+    setNumeroPersonas(normalizedNumeroPersonas);
+    setNumeroPersonasInput(String(normalizedNumeroPersonas));
 
     if (!roomId) {
       setSubmitError('Selecciona una sala para continuar.');
@@ -859,8 +889,9 @@ export default function NuevaReservaClient() {
               <input
                 type="number"
                 min={1}
-                value={numeroPersonas}
-                onChange={(e) => setNumeroPersonas(parseInt(e.target.value) || 1)}
+                step={1}
+                value={numeroPersonasInput}
+                onChange={(e) => handleNumeroPersonasChange(e.target.value)}
                 className="input"
               />
             </label>

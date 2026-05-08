@@ -39,6 +39,12 @@ type GroupEventOfferingSelectionDoneness = {
   quantity: number;
 };
 
+type GroupRoomAllocation = {
+  room_id: string | null;
+  notes: string | null;
+  room: { name: string | null } | null;
+};
+
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 export const fetchCache = 'force-no-store';
@@ -226,6 +232,16 @@ export default async function GroupReservationDetail({
 
   const selectionDoneness = (selectionDonenessData ?? []) as GroupEventOfferingSelectionDoneness[];
 
+  const { data: roomAllocationData } = await supabaseAdmin
+    .from('group_room_allocations')
+    .select('room_id, notes, room:rooms(name)')
+    .eq('group_event_id', params.id)
+    .order('created_at', { ascending: true })
+    .limit(1)
+    .maybeSingle();
+
+  const roomAllocation = roomAllocationData as GroupRoomAllocation | null;
+
   const preparedReservation = {
     id: reservation.id,
     name: reservation.name ?? '',
@@ -271,6 +287,15 @@ export default async function GroupReservationDetail({
       <ReservaGroupPilotStyles />
       <EditableReservationForm
         reservation={preparedReservation}
+        currentRoomAllocation={
+          roomAllocation
+            ? {
+                room_id: roomAllocation.room_id,
+                room_name: roomAllocation.room?.name ?? null,
+                notes: roomAllocation.notes,
+              }
+            : null
+        }
         offerings={offerings}
         offeringSelections={offeringSelections}
         selectionDoneness={selectionDoneness}

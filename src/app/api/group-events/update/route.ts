@@ -50,12 +50,39 @@ export async function POST(req: NextRequest) {
     }
 
     const sanitizedBody = { ...body };
+    const requestedRoomId =
+      typeof sanitizedBody.room_id === 'string' && sanitizedBody.room_id.trim()
+        ? sanitizedBody.room_id.trim()
+        : null;
+    const shouldUpdateRoom = Object.prototype.hasOwnProperty.call(sanitizedBody, 'room_id');
+    const requestedRoomNotes =
+      typeof sanitizedBody.room_notes === 'string' && sanitizedBody.room_notes.trim()
+        ? sanitizedBody.room_notes.trim()
+        : null;
+
     delete sanitizedBody.total_pax;
     delete sanitizedBody.totalPax;
     delete sanitizedBody.created_at;
     delete sanitizedBody.updated_at;
+    delete sanitizedBody.room_id;
+    delete sanitizedBody.room_notes;
 
     const supabase = createSupabaseAdminClient();
+
+    if (shouldUpdateRoom && requestedRoomId) {
+      const { data: room, error: roomError } = await supabase
+        .from('rooms')
+        .select('id')
+        .eq('id', requestedRoomId)
+        .maybeSingle();
+
+      if (roomError || !room) {
+        const message = roomError?.message ?? 'Selected room not found';
+        const serverError = NextResponse.json({ error: message }, { status: roomError ? 500 : 400 });
+        mergeResponseCookies(supabaseResponse, serverError);
+        return serverError;
+      }
+    }
 
     const { data, error } = await supabase.rpc('update_group_event_with_cheffing_offerings', {
       p_payload: sanitizedBody,
@@ -67,6 +94,74 @@ export async function POST(req: NextRequest) {
       const serverError = NextResponse.json({ error: message }, { status });
       mergeResponseCookies(supabaseResponse, serverError);
       return serverError;
+    }
+
+    if (shouldUpdateRoom) {
+      const groupEventId = String(body.id);
+
+      if (!requestedRoomId) {
+        const { error: deleteRoomError } = await supabase
+          .from('group_room_allocations')
+          .delete()
+          .eq('group_event_id', groupEventId);
+
+        if (deleteRoomError) {
+          const serverError = NextResponse.json({ error: deleteRoomError.message }, { status: 500 });
+          mergeResponseCookies(supabaseResponse, serverError);
+          return serverError;
+        }
+      } else {
+        const { data: updatedEvent, error: eventError } = await supabase
+          .from('group_events')
+          .select('adults, children')
+          .eq('id', groupEventId)
+          .single();
+
+        if (eventError || !updatedEvent) {
+          const message = eventError?.message ?? 'Unable to fetch updated group event';
+          const serverError = NextResponse.json({ error: message }, { status: 500 });
+          mergeResponseCookies(supabaseResponse, serverError);
+          return serverError;
+        }
+
+        const { data: existingAllocation, error: allocationError } = await supabase
+          .from('group_room_allocations')
+          .select('id')
+          .eq('group_event_id', groupEventId)
+          .order('created_at', { ascending: true })
+          .limit(1)
+          .maybeSingle();
+
+        if (allocationError) {
+          const serverError = NextResponse.json({ error: allocationError.message }, { status: 500 });
+          mergeResponseCookies(supabaseResponse, serverError);
+          return serverError;
+        }
+
+        const allocationPayload = {
+          room_id: requestedRoomId,
+          adults: updatedEvent.adults ?? 0,
+          children: updatedEvent.children ?? 0,
+          override_capacity: false,
+          notes: requestedRoomNotes,
+        };
+
+        const { error: writeRoomError } = existingAllocation
+          ? await supabase
+              .from('group_room_allocations')
+              .update(allocationPayload)
+              .eq('id', existingAllocation.id)
+          : await supabase.from('group_room_allocations').insert({
+              group_event_id: groupEventId,
+              ...allocationPayload,
+            });
+
+        if (writeRoomError) {
+          const serverError = NextResponse.json({ error: writeRoomError.message }, { status: 500 });
+          mergeResponseCookies(supabaseResponse, serverError);
+          return serverError;
+        }
+      }
     }
 
     const success = NextResponse.json({ success: true });
