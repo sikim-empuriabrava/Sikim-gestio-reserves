@@ -3890,15 +3890,15 @@ CREATE VIEW public.v_group_events_calendar_sync AS
     status,
     calendar_event_id,
         CASE
+            WHEN ((status = ANY (ARRAY['draft'::text, 'pending'::text, 'cancelled'::text])) AND (calendar_event_id IS NOT NULL)) THEN 'delete'::text
             WHEN calendar_deleted_externally THEN 'noop'::text
-            WHEN ((status = 'cancelled'::text) AND (calendar_event_id IS NOT NULL)) THEN 'delete'::text
             WHEN ((status = ANY (ARRAY['confirmed'::text, 'completed'::text])) AND (calendar_event_id IS NULL)) THEN 'create'::text
             WHEN ((status = ANY (ARRAY['confirmed'::text, 'completed'::text])) AND (calendar_event_id IS NOT NULL)) THEN 'update'::text
             ELSE 'noop'::text
         END AS desired_calendar_action,
         CASE
+            WHEN ((status = ANY (ARRAY['draft'::text, 'pending'::text, 'cancelled'::text])) AND (calendar_event_id IS NOT NULL)) THEN true
             WHEN calendar_deleted_externally THEN false
-            WHEN ((status = 'cancelled'::text) AND (calendar_event_id IS NOT NULL)) THEN true
             WHEN ((status = ANY (ARRAY['confirmed'::text, 'completed'::text])) AND (calendar_event_id IS NULL)) THEN true
             WHEN ((status = ANY (ARRAY['confirmed'::text, 'completed'::text])) AND (calendar_event_id IS NOT NULL)) THEN true
             ELSE false
@@ -6194,4 +6194,3 @@ CREATE POLICY "read own allowlist row" ON public.app_allowed_users FOR SELECT TO
 --
 
 \unrestrict MH3QDn1Uher9sVcZGh8McDp5F7t9HfbRGy3Z3bhE7h38b2tmliq3gBoMmf6imM0
-
