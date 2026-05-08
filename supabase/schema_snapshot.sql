@@ -628,6 +628,173 @@ $$;
 
 
 --
+-- Name: create_group_event_with_cheffing_offerings(jsonb); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.create_group_event_with_cheffing_offerings(p_payload jsonb) RETURNS uuid
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_group_event_id uuid;
+  v_name text;
+  v_event_date date;
+  v_entry_time time;
+  v_adults integer;
+  v_children integer := 0;
+  v_allergens_and_diets text;
+  v_setup_notes text;
+  v_extras text;
+  v_menu_text text;
+  v_second_course_type text;
+  v_room_id uuid;
+  v_override_capacity boolean := false;
+  v_notes text;
+  v_status text := 'confirmed';
+begin
+  if p_payload is null then
+    raise exception 'Missing payload';
+  end if;
+
+  v_name := nullif(trim(coalesce(p_payload ->> 'name', '')), '');
+  if v_name is null then
+    raise exception 'Missing required field: name';
+  end if;
+
+  begin
+    v_event_date := (p_payload ->> 'event_date')::date;
+  exception when others then
+    raise exception 'Invalid or missing event_date';
+  end;
+
+  begin
+    v_adults := (p_payload ->> 'adults')::integer;
+  exception when others then
+    raise exception 'Invalid or missing adults';
+  end;
+
+  if v_adults is null then
+    raise exception 'Invalid or missing adults';
+  end if;
+
+  if p_payload ? 'children' and p_payload ->> 'children' is not null then
+    begin
+      v_children := (p_payload ->> 'children')::integer;
+    exception when others then
+      raise exception 'children must be integer';
+    end;
+  end if;
+
+  if p_payload ? 'entry_time' and p_payload ->> 'entry_time' is not null and trim(p_payload ->> 'entry_time') <> '' then
+    begin
+      v_entry_time := (p_payload ->> 'entry_time')::time;
+    exception when others then
+      raise exception 'entry_time must be a valid time';
+    end;
+  else
+    v_entry_time := null;
+  end if;
+
+  v_allergens_and_diets := nullif(trim(coalesce(p_payload ->> 'allergens_and_diets', '')), '');
+  v_setup_notes := nullif(trim(coalesce(p_payload ->> 'setup_notes', '')), '');
+  v_extras := nullif(trim(coalesce(p_payload ->> 'extras', '')), '');
+  v_menu_text := nullif(trim(coalesce(p_payload ->> 'menu_text', '')), '');
+  v_second_course_type := nullif(trim(coalesce(p_payload ->> 'second_course_type', '')), '');
+  v_notes := nullif(trim(coalesce(p_payload ->> 'notes', '')), '');
+
+  if p_payload ? 'status' and p_payload ->> 'status' is not null and trim(p_payload ->> 'status') <> '' then
+    v_status := trim(p_payload ->> 'status');
+  end if;
+
+  begin
+    v_room_id := (p_payload ->> 'room_id')::uuid;
+  exception when others then
+    raise exception 'Invalid or missing room_id';
+  end;
+
+  if p_payload ? 'override_capacity' and p_payload ->> 'override_capacity' is not null then
+    begin
+      v_override_capacity := (p_payload ->> 'override_capacity')::boolean;
+    exception when others then
+      raise exception 'override_capacity must be boolean';
+    end;
+  end if;
+
+  insert into public.group_events (
+    name,
+    event_date,
+    entry_time,
+    adults,
+    children,
+    has_private_dining_room,
+    has_private_party,
+    second_course_type,
+    menu_text,
+    allergens_and_diets,
+    extras,
+    setup_notes,
+    deposit_amount,
+    deposit_status,
+    invoice_data,
+    status
+  )
+  values (
+    v_name,
+    v_event_date,
+    v_entry_time,
+    v_adults,
+    coalesce(v_children, 0),
+    false,
+    false,
+    v_second_course_type,
+    v_menu_text,
+    v_allergens_and_diets,
+    v_extras,
+    v_setup_notes,
+    null,
+    null,
+    null,
+    v_status
+  )
+  returning id into v_group_event_id;
+
+  insert into public.group_room_allocations (
+    group_event_id,
+    room_id,
+    adults,
+    children,
+    override_capacity,
+    notes
+  )
+  values (
+    v_group_event_id,
+    v_room_id,
+    v_adults,
+    coalesce(v_children, 0),
+    coalesce(v_override_capacity, false),
+    v_notes
+  );
+
+  if p_payload ? 'offeringAssignments' then
+    perform public.sync_group_event_offerings(
+      v_group_event_id,
+      p_payload -> 'offeringAssignments',
+      false
+    );
+  elsif p_payload ? 'menuAssignments' then
+    perform public.sync_group_event_cheffing_menu_offerings(
+      v_group_event_id,
+      p_payload -> 'menuAssignments',
+      false
+    );
+  end if;
+
+  return v_group_event_id;
+end;
+$$;
+
+
+--
 -- Name: day_status_sync_legacy_columns(); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -1156,6 +1323,94 @@ $$;
 
 
 --
+-- Name: rebuild_group_event_menu_text(uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.rebuild_group_event_menu_text(p_group_event_id uuid) RETURNS void
+    LANGUAGE plpgsql
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_offering record;
+  v_selection record;
+  v_point record;
+  v_lines text[] := '{}';
+  v_doneness_lines text[];
+  v_doneness_summary text;
+begin
+  for v_offering in
+    select
+      offered.id,
+      offered.offering_kind,
+      offered.assigned_pax,
+      coalesce(offered.display_name_snapshot, m.name, c.name) as display_name
+    from public.group_event_offerings as offered
+    left join public.cheffing_menus as m on m.id = offered.cheffing_menu_id
+    left join public.cheffing_cards as c on c.id = offered.cheffing_card_id
+    where offered.group_event_id = p_group_event_id
+    order by offered.sort_order, offered.created_at
+  loop
+    v_lines := v_lines || format('%s · %s pax', coalesce(v_offering.display_name, 'Oferta sin nombre'), coalesce(v_offering.assigned_pax, 0));
+
+    if v_offering.offering_kind = 'cheffing_menu' then
+      for v_selection in
+        select
+          sel.id,
+          sel.selection_kind,
+          sel.display_name_snapshot,
+          sel.quantity,
+          sel.notes,
+          sel.needs_doneness_points
+        from public.group_event_offering_selections sel
+        where sel.group_event_offering_id = v_offering.id
+        order by sel.sort_order, sel.created_at
+      loop
+        v_lines := v_lines || format('- %s× %s', v_selection.quantity, v_selection.display_name_snapshot);
+
+        if v_selection.notes is not null and trim(v_selection.notes) <> '' then
+          v_lines := v_lines || format('  · Nota: %s', v_selection.notes);
+        end if;
+
+        if v_selection.needs_doneness_points then
+          v_doneness_lines := '{}';
+
+          for v_point in
+            select point, quantity
+            from public.group_event_offering_selection_doneness
+            where selection_id = v_selection.id
+            order by case point
+              when 'crudo' then 1
+              when 'poco' then 2
+              when 'al_punto' then 3
+              when 'hecho' then 4
+              when 'muy_hecho' then 5
+              else 6
+            end
+          loop
+            v_doneness_lines := v_doneness_lines || format('%s: %s', replace(initcap(replace(v_point.point, '_', ' ')), 'Al Punto', 'Al punto'), v_point.quantity);
+          end loop;
+
+          if array_length(v_doneness_lines, 1) is not null then
+            v_doneness_summary := array_to_string(v_doneness_lines, ' · ');
+            v_lines := v_lines || format('  · Puntos de cocción: %s', v_doneness_summary);
+          end if;
+        end if;
+      end loop;
+    end if;
+  end loop;
+
+  update public.group_events
+  set menu_text = case
+      when array_length(v_lines, 1) is null then null
+      else array_to_string(v_lines, E'\n')
+    end,
+    updated_at = timezone('utc', now())
+  where id = p_group_event_id;
+end;
+$$;
+
+
+--
 -- Name: recalculate_group_staffing_plan(uuid); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -1243,6 +1498,49 @@ $$;
 
 
 --
+-- Name: refresh_group_event_menu_text(uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.refresh_group_event_menu_text(p_group_event_id uuid) RETURNS void
+    LANGUAGE plpgsql
+    AS $$
+declare
+  v_menu_text text;
+begin
+  select string_agg(
+           case
+             when assigned_pax is not null then assigned_pax::text || 'x ' || display_name_snapshot
+             else display_name_snapshot
+           end,
+           ' · '
+           order by sort_order, created_at, id
+         )
+    into v_menu_text
+  from public.group_event_offerings
+  where group_event_id = p_group_event_id;
+
+  update public.group_events
+  set menu_text = nullif(v_menu_text, '')
+  where id = p_group_event_id;
+end;
+$$;
+
+
+--
+-- Name: set_group_event_offerings_updated_at(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.set_group_event_offerings_updated_at() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+begin
+  new.updated_at := timezone('utc', now());
+  return new;
+end;
+$$;
+
+
+--
 -- Name: set_override_capacity(); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -1285,6 +1583,794 @@ $$;
 
 
 --
+-- Name: sync_group_event_cheffing_menu_offerings(uuid, jsonb); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.sync_group_event_cheffing_menu_offerings(p_group_event_id uuid, p_menu_assignments jsonb) RETURNS void
+    LANGUAGE plpgsql
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_assignment jsonb;
+  v_idx bigint;
+  v_menu_id_text text;
+  v_menu_id uuid;
+  v_assigned_pax_numeric numeric;
+  v_assigned_pax integer;
+  v_sort_order integer;
+  v_notes text;
+begin
+  if p_menu_assignments is null then
+    return;
+  end if;
+
+  if jsonb_typeof(p_menu_assignments) <> 'array' then
+    raise exception 'menuAssignments must be an array';
+  end if;
+
+  create temporary table if not exists _tmp_menu_assignments (
+    menu_id uuid not null,
+    assigned_pax integer not null,
+    sort_order integer not null,
+    notes text null
+  ) on commit drop;
+
+  truncate table _tmp_menu_assignments;
+
+  for v_assignment, v_idx in
+    select value, ordinality
+    from jsonb_array_elements(p_menu_assignments) with ordinality
+  loop
+    v_menu_id_text := nullif(trim(v_assignment ->> 'menuId'), '');
+    if v_menu_id_text is null then
+      raise exception 'menuAssignments[%].menuId is required', v_idx - 1;
+    end if;
+
+    begin
+      v_menu_id := v_menu_id_text::uuid;
+    exception when others then
+      raise exception 'menuAssignments[%].menuId must be uuid', v_idx - 1;
+    end;
+
+    begin
+      v_assigned_pax_numeric := (v_assignment ->> 'assignedPax')::numeric;
+    exception when others then
+      raise exception 'menuAssignments[%].assignedPax must be numeric', v_idx - 1;
+    end;
+
+    if v_assigned_pax_numeric is null
+      or v_assigned_pax_numeric <> trunc(v_assigned_pax_numeric)
+      or v_assigned_pax_numeric <= 0 then
+      raise exception 'menuAssignments[%].assignedPax must be a positive integer', v_idx - 1;
+    end if;
+
+    v_assigned_pax := v_assigned_pax_numeric::integer;
+
+    if v_assignment ? 'sortOrder' and v_assignment ->> 'sortOrder' is not null then
+      begin
+        v_sort_order := (v_assignment ->> 'sortOrder')::integer;
+      exception when others then
+        raise exception 'menuAssignments[%].sortOrder must be an integer', v_idx - 1;
+      end;
+    else
+      v_sort_order := (v_idx - 1)::integer;
+    end if;
+
+    v_notes := nullif(trim(coalesce(v_assignment ->> 'notes', '')), '');
+
+    insert into _tmp_menu_assignments (menu_id, assigned_pax, sort_order, notes)
+    values (v_menu_id, v_assigned_pax, v_sort_order, v_notes);
+  end loop;
+
+  if exists (
+    select 1
+    from _tmp_menu_assignments t
+    left join public.cheffing_menus m on m.id = t.menu_id
+    where m.id is null
+  ) then
+    raise exception 'menuAssignments contains unknown menuId';
+  end if;
+
+  if exists (
+    select 1
+    from _tmp_menu_assignments t
+    join public.cheffing_menus m on m.id = t.menu_id
+    where m.is_active is not true
+  ) then
+    raise exception 'menuAssignments contains inactive cheffing menu';
+  end if;
+
+  delete from public.group_event_offerings
+  where group_event_id = p_group_event_id
+    and offering_kind = 'cheffing_menu';
+
+  insert into public.group_event_offerings (
+    group_event_id,
+    offering_kind,
+    cheffing_menu_id,
+    cheffing_card_id,
+    assigned_pax,
+    display_name_snapshot,
+    unit_price_snapshot,
+    notes,
+    sort_order,
+    snapshot_payload
+  )
+  select
+    p_group_event_id,
+    'cheffing_menu',
+    t.menu_id,
+    null,
+    t.assigned_pax,
+    m.name,
+    m.price_per_person,
+    t.notes,
+    t.sort_order,
+    jsonb_build_object(
+      'source_kind', 'cheffing_menu',
+      'source_menu_id', m.id,
+      'source_menu_name', m.name,
+      'source_price_per_person', m.price_per_person
+    )
+  from _tmp_menu_assignments t
+  join public.cheffing_menus m on m.id = t.menu_id
+  order by t.sort_order, t.menu_id;
+
+  update public.group_events
+  set menu_id = null,
+      updated_at = timezone('utc', now())
+  where id = p_group_event_id;
+
+  perform public.rebuild_group_event_menu_text(p_group_event_id);
+end;
+$$;
+
+
+--
+-- Name: sync_group_event_cheffing_menu_offerings(uuid, jsonb, boolean); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.sync_group_event_cheffing_menu_offerings(p_group_event_id uuid, p_menu_assignments jsonb, p_allow_existing_inactive boolean DEFAULT false) RETURNS void
+    LANGUAGE plpgsql
+    SET search_path TO 'public'
+    AS $$
+begin
+  if p_menu_assignments is null then
+    return;
+  end if;
+
+  if jsonb_typeof(p_menu_assignments) <> 'array' then
+    raise exception 'menuAssignments must be an array';
+  end if;
+
+  if exists (
+    select 1
+    from public.group_event_offerings offered
+    join public.group_event_offering_selections sel
+      on sel.group_event_offering_id = offered.id
+    where offered.group_event_id = p_group_event_id
+  )
+  or exists (
+    select 1
+    from public.group_event_offerings offered
+    join public.group_event_offering_selections sel
+      on sel.group_event_offering_id = offered.id
+    join public.group_event_offering_selection_doneness don
+      on don.selection_id = sel.id
+    where offered.group_event_id = p_group_event_id
+  ) then
+    raise exception 'menuAssignments is not allowed for structured reservations. Use offeringAssignments with secondSelections.';
+  end if;
+
+  perform public.sync_group_event_offerings(
+    p_group_event_id,
+    (
+      select coalesce(
+        jsonb_agg(
+          jsonb_build_object(
+            'offeringKind', 'cheffing_menu',
+            'offeringId', entry ->> 'menuId',
+            'assignedPax', entry -> 'assignedPax',
+            'sortOrder', coalesce(entry -> 'sortOrder', to_jsonb((ordinality - 1)::integer)),
+            'notes', entry -> 'notes',
+            'secondSelections', '[]'::jsonb
+          )
+        ),
+        '[]'::jsonb
+      )
+      from jsonb_array_elements(p_menu_assignments) with ordinality as e(entry, ordinality)
+    ),
+    p_allow_existing_inactive
+  );
+end;
+$$;
+
+
+--
+-- Name: sync_group_event_offerings(uuid, jsonb, boolean); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.sync_group_event_offerings(p_group_event_id uuid, p_offering_assignments jsonb, p_allow_existing_inactive boolean DEFAULT false) RETURNS void
+    LANGUAGE plpgsql
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_assignment jsonb;
+  v_assignment_row record;
+  v_second_selection jsonb;
+  v_doneness jsonb;
+  v_idx bigint;
+  v_selection_idx bigint;
+  v_doneness_idx bigint;
+  v_kind text;
+  v_offering_id_text text;
+  v_offering_id uuid;
+  v_assigned_pax_numeric numeric;
+  v_assigned_pax integer;
+  v_sort_order integer;
+  v_notes text;
+  v_second_selections jsonb;
+  v_second_count integer;
+  v_offering_row public.group_event_offerings;
+  v_selection_kind text;
+  v_display_name text;
+  v_description text;
+  v_quantity_numeric numeric;
+  v_quantity integer;
+  v_selection_sort_order integer;
+  v_selection_notes text;
+  v_dish_id uuid;
+  v_dish_name text;
+  v_dish_notes text;
+  v_menu_item_id uuid;
+  v_needs_doneness boolean;
+  v_total_doneness integer;
+  v_doneness_point text;
+  v_doneness_quantity integer;
+  v_doneness_quantity_numeric numeric;
+  v_selection_row public.group_event_offering_selections;
+begin
+  if p_offering_assignments is null then
+    return;
+  end if;
+
+  if jsonb_typeof(p_offering_assignments) <> 'array' then
+    raise exception 'offeringAssignments must be an array';
+  end if;
+
+  create temporary table if not exists _tmp_offering_assignments (
+    row_no integer not null,
+    offering_kind text not null,
+    cheffing_menu_id uuid null,
+    cheffing_card_id uuid null,
+    assigned_pax integer not null,
+    sort_order integer not null,
+    notes text null,
+    second_selections jsonb not null default '[]'::jsonb
+  ) on commit drop;
+
+  truncate table _tmp_offering_assignments;
+
+  for v_assignment, v_idx in
+    select value, ordinality
+    from jsonb_array_elements(p_offering_assignments) with ordinality
+  loop
+    v_kind := nullif(trim(coalesce(v_assignment ->> 'offeringKind', '')), '');
+
+    if v_kind is null then
+      if nullif(trim(coalesce(v_assignment ->> 'menuId', '')), '') is not null then
+        v_kind := 'cheffing_menu';
+      else
+        raise exception 'offeringAssignments[%].offeringKind is required', v_idx - 1;
+      end if;
+    end if;
+
+    if v_kind not in ('cheffing_menu', 'cheffing_card') then
+      raise exception 'offeringAssignments[%].offeringKind is invalid', v_idx - 1;
+    end if;
+
+    if v_kind = 'cheffing_menu' then
+      v_offering_id_text := nullif(trim(coalesce(v_assignment ->> 'offeringId', v_assignment ->> 'menuId', '')), '');
+    else
+      v_offering_id_text := nullif(trim(coalesce(v_assignment ->> 'offeringId', '')), '');
+    end if;
+
+    if v_offering_id_text is null then
+      raise exception 'offeringAssignments[%].offeringId is required', v_idx - 1;
+    end if;
+
+    begin
+      v_offering_id := v_offering_id_text::uuid;
+    exception when others then
+      raise exception 'offeringAssignments[%].offeringId must be uuid', v_idx - 1;
+    end;
+
+    begin
+      v_assigned_pax_numeric := (v_assignment ->> 'assignedPax')::numeric;
+    exception when others then
+      raise exception 'offeringAssignments[%].assignedPax must be numeric', v_idx - 1;
+    end;
+
+    if v_assigned_pax_numeric is null
+      or v_assigned_pax_numeric <> trunc(v_assigned_pax_numeric)
+      or v_assigned_pax_numeric <= 0 then
+      raise exception 'offeringAssignments[%].assignedPax must be a positive integer', v_idx - 1;
+    end if;
+
+    v_assigned_pax := v_assigned_pax_numeric::integer;
+
+    if v_assignment ? 'sortOrder' and v_assignment ->> 'sortOrder' is not null then
+      begin
+        v_sort_order := (v_assignment ->> 'sortOrder')::integer;
+      exception when others then
+        raise exception 'offeringAssignments[%].sortOrder must be an integer', v_idx - 1;
+      end;
+    else
+      v_sort_order := (v_idx - 1)::integer;
+    end if;
+
+    v_notes := nullif(trim(coalesce(v_assignment ->> 'notes', '')), '');
+
+    if v_assignment ? 'secondSelections' then
+      v_second_selections := coalesce(v_assignment -> 'secondSelections', '[]'::jsonb);
+      if jsonb_typeof(v_second_selections) <> 'array' then
+        raise exception 'offeringAssignments[%].secondSelections must be an array', v_idx - 1;
+      end if;
+    else
+      v_second_selections := '[]'::jsonb;
+    end if;
+
+    v_second_count := coalesce(jsonb_array_length(v_second_selections), 0);
+
+    if v_kind = 'cheffing_card' and v_second_count > 0 then
+      raise exception 'offeringAssignments[%] with cheffing_card cannot include secondSelections', v_idx - 1;
+    end if;
+
+    insert into _tmp_offering_assignments (
+      row_no,
+      offering_kind,
+      cheffing_menu_id,
+      cheffing_card_id,
+      assigned_pax,
+      sort_order,
+      notes,
+      second_selections
+    )
+    values (
+      (v_idx - 1)::integer,
+      v_kind,
+      case when v_kind = 'cheffing_menu' then v_offering_id else null end,
+      case when v_kind = 'cheffing_card' then v_offering_id else null end,
+      v_assigned_pax,
+      v_sort_order,
+      v_notes,
+      v_second_selections
+    );
+  end loop;
+
+  if exists (
+    select 1
+    from _tmp_offering_assignments t
+    left join public.cheffing_menus m on m.id = t.cheffing_menu_id
+    where t.offering_kind = 'cheffing_menu'
+      and m.id is null
+  ) then
+    raise exception 'offeringAssignments contains unknown cheffing menu';
+  end if;
+
+  if exists (
+    select 1
+    from _tmp_offering_assignments t
+    left join public.cheffing_cards c on c.id = t.cheffing_card_id
+    where t.offering_kind = 'cheffing_card'
+      and c.id is null
+  ) then
+    raise exception 'offeringAssignments contains unknown cheffing card';
+  end if;
+
+  if p_allow_existing_inactive then
+    if exists (
+      select 1
+      from _tmp_offering_assignments t
+      join public.cheffing_menus m on m.id = t.cheffing_menu_id
+      left join public.group_event_offerings offered
+        on offered.group_event_id = p_group_event_id
+       and offered.offering_kind = 'cheffing_menu'
+       and offered.cheffing_menu_id = t.cheffing_menu_id
+      where t.offering_kind = 'cheffing_menu'
+        and m.is_active is not true
+        and offered.id is null
+    ) then
+      raise exception 'offeringAssignments contains inactive cheffing menu not already linked to this reservation';
+    end if;
+
+    if exists (
+      select 1
+      from _tmp_offering_assignments t
+      join public.cheffing_cards c on c.id = t.cheffing_card_id
+      left join public.group_event_offerings offered
+        on offered.group_event_id = p_group_event_id
+       and offered.offering_kind = 'cheffing_card'
+       and offered.cheffing_card_id = t.cheffing_card_id
+      where t.offering_kind = 'cheffing_card'
+        and c.is_active is not true
+        and offered.id is null
+    ) then
+      raise exception 'offeringAssignments contains inactive cheffing card not already linked to this reservation';
+    end if;
+  else
+    if exists (
+      select 1
+      from _tmp_offering_assignments t
+      join public.cheffing_menus m on m.id = t.cheffing_menu_id
+      where t.offering_kind = 'cheffing_menu'
+        and m.is_active is not true
+    ) then
+      raise exception 'offeringAssignments contains inactive cheffing menu';
+    end if;
+
+    if exists (
+      select 1
+      from _tmp_offering_assignments t
+      join public.cheffing_cards c on c.id = t.cheffing_card_id
+      where t.offering_kind = 'cheffing_card'
+        and c.is_active is not true
+    ) then
+      raise exception 'offeringAssignments contains inactive cheffing card';
+    end if;
+  end if;
+
+  delete from public.group_event_offerings
+  where group_event_id = p_group_event_id;
+
+  for v_idx in
+    select row_no
+    from _tmp_offering_assignments
+    order by sort_order, row_no
+  loop
+    select *
+    into strict v_assignment_row
+    from _tmp_offering_assignments
+    where row_no = v_idx;
+
+    if v_assignment_row.offering_kind = 'cheffing_menu' then
+      insert into public.group_event_offerings (
+        group_event_id,
+        offering_kind,
+        cheffing_menu_id,
+        cheffing_card_id,
+        assigned_pax,
+        display_name_snapshot,
+        unit_price_snapshot,
+        notes,
+        sort_order,
+        snapshot_payload
+      )
+      select
+        p_group_event_id,
+        'cheffing_menu',
+        v_assignment_row.cheffing_menu_id,
+        null,
+        v_assignment_row.assigned_pax,
+        m.name,
+        m.price_per_person,
+        v_assignment_row.notes,
+        v_assignment_row.sort_order,
+        jsonb_build_object(
+          'source_kind', 'cheffing_menu',
+          'source_menu_id', m.id,
+          'source_menu_name', m.name,
+          'source_price_per_person', m.price_per_person
+        )
+      from public.cheffing_menus m
+      where m.id = v_assignment_row.cheffing_menu_id
+      returning * into v_offering_row;
+    else
+      insert into public.group_event_offerings (
+        group_event_id,
+        offering_kind,
+        cheffing_menu_id,
+        cheffing_card_id,
+        assigned_pax,
+        display_name_snapshot,
+        unit_price_snapshot,
+        notes,
+        sort_order,
+        snapshot_payload
+      )
+      select
+        p_group_event_id,
+        'cheffing_card',
+        null,
+        v_assignment_row.cheffing_card_id,
+        v_assignment_row.assigned_pax,
+        c.name,
+        null,
+        v_assignment_row.notes,
+        v_assignment_row.sort_order,
+        jsonb_build_object(
+          'source_kind', 'cheffing_card',
+          'source_card_id', c.id,
+          'source_card_name', c.name
+        )
+      from public.cheffing_cards c
+      where c.id = v_assignment_row.cheffing_card_id
+      returning * into v_offering_row;
+    end if;
+
+    if v_assignment_row.offering_kind = 'cheffing_menu' then
+      for v_second_selection, v_selection_idx in
+        select value, ordinality
+        from jsonb_array_elements(v_assignment_row.second_selections) with ordinality
+      loop
+        v_selection_kind := nullif(trim(coalesce(v_second_selection ->> 'selectionKind', '')), '');
+        if v_selection_kind not in ('menu_second', 'custom_menu', 'kids_menu') then
+          raise exception 'offeringAssignments[%].secondSelections[%].selectionKind is invalid', v_idx, v_selection_idx - 1;
+        end if;
+
+        begin
+          v_quantity_numeric := (v_second_selection ->> 'quantity')::numeric;
+        exception when others then
+          raise exception 'offeringAssignments[%].secondSelections[%].quantity must be numeric', v_idx, v_selection_idx - 1;
+        end;
+
+        if v_quantity_numeric is null
+          or v_quantity_numeric <> trunc(v_quantity_numeric)
+          or v_quantity_numeric <= 0 then
+          raise exception 'offeringAssignments[%].secondSelections[%].quantity must be a positive integer', v_idx, v_selection_idx - 1;
+        end if;
+        v_quantity := v_quantity_numeric::integer;
+
+        if v_second_selection ? 'sortOrder' and v_second_selection ->> 'sortOrder' is not null then
+          begin
+            v_selection_sort_order := (v_second_selection ->> 'sortOrder')::integer;
+          exception when others then
+            raise exception 'offeringAssignments[%].secondSelections[%].sortOrder must be an integer', v_idx, v_selection_idx - 1;
+          end;
+        else
+          v_selection_sort_order := (v_selection_idx - 1)::integer;
+        end if;
+
+        v_selection_notes := nullif(trim(coalesce(v_second_selection ->> 'notes', '')), '');
+
+        if v_selection_kind = 'menu_second' then
+          begin
+            v_dish_id := nullif(trim(coalesce(v_second_selection ->> 'dishId', '')), '')::uuid;
+          exception when others then
+            raise exception 'offeringAssignments[%].secondSelections[%].dishId must be uuid', v_idx, v_selection_idx - 1;
+          end;
+
+          if v_dish_id is null then
+            raise exception 'offeringAssignments[%].secondSelections[%].dishId is required for menu_second', v_idx, v_selection_idx - 1;
+          end if;
+
+          select d.name, d.notes
+          into v_dish_name, v_dish_notes
+          from public.cheffing_dishes d
+          where d.id = v_dish_id;
+
+          if v_dish_name is null then
+            raise exception 'offeringAssignments[%].secondSelections[%].dishId not found', v_idx, v_selection_idx - 1;
+          end if;
+
+          v_display_name := nullif(trim(coalesce(v_second_selection ->> 'displayName', '')), '');
+          if v_display_name is null then
+            v_display_name := v_dish_name;
+          end if;
+
+          v_description := nullif(trim(coalesce(v_second_selection ->> 'description', '')), '');
+
+          if v_second_selection ? 'menuItemId' and nullif(trim(coalesce(v_second_selection ->> 'menuItemId', '')), '') is not null then
+            begin
+              v_menu_item_id := (v_second_selection ->> 'menuItemId')::uuid;
+            exception when others then
+              raise exception 'offeringAssignments[%].secondSelections[%].menuItemId must be uuid', v_idx, v_selection_idx - 1;
+            end;
+
+            if not exists (
+              select 1
+              from public.cheffing_menu_items mi
+              where mi.id = v_menu_item_id
+                and mi.menu_id = v_offering_row.cheffing_menu_id
+            ) then
+              raise exception 'offeringAssignments[%].secondSelections[%].menuItemId does not belong to selected menu', v_idx, v_selection_idx - 1;
+            end if;
+
+            if v_description is null then
+              select nullif(trim(mi.notes), '') into v_description
+              from public.cheffing_menu_items mi
+              where mi.id = v_menu_item_id;
+            end if;
+          else
+            v_menu_item_id := null;
+          end if;
+
+          if v_description is null then
+            v_description := nullif(trim(coalesce(v_dish_notes, '')), '');
+          end if;
+
+          v_needs_doneness := coalesce(
+            (v_second_selection ->> 'needsDonenessPoints')::boolean,
+            position('entrecot' in lower(translate(v_dish_name, 'ÁÀÄÂáàäâÉÈËÊéèëêÍÌÏÎíìïîÓÒÖÔóòöôÚÙÜÛúùüûÑñ', 'AAAAaaaaEEEEeeeeIIIIiiiiOOOOooooUUUUuuuuNn'))) > 0,
+            false
+          );
+        else
+          v_dish_id := null;
+          v_menu_item_id := null;
+          v_display_name := nullif(trim(coalesce(v_second_selection ->> 'displayName', '')), '');
+          if v_display_name is null then
+            raise exception 'offeringAssignments[%].secondSelections[%].displayName is required for %', v_idx, v_selection_idx - 1, v_selection_kind;
+          end if;
+          v_description := nullif(trim(coalesce(v_second_selection ->> 'description', '')), '');
+          v_needs_doneness := false;
+        end if;
+
+        insert into public.group_event_offering_selections (
+          group_event_offering_id,
+          selection_kind,
+          cheffing_dish_id,
+          cheffing_menu_item_id,
+          display_name_snapshot,
+          description_snapshot,
+          quantity,
+          notes,
+          needs_doneness_points,
+          sort_order,
+          snapshot_payload
+        )
+        values (
+          v_offering_row.id,
+          v_selection_kind,
+          v_dish_id,
+          v_menu_item_id,
+          v_display_name,
+          v_description,
+          v_quantity,
+          v_selection_notes,
+          v_needs_doneness,
+          v_selection_sort_order,
+          jsonb_build_object(
+            'selection_kind', v_selection_kind,
+            'dish_id', v_dish_id,
+            'menu_item_id', v_menu_item_id,
+            'payload', v_second_selection
+          )
+        )
+        returning * into v_selection_row;
+
+        if v_second_selection ? 'doneness' and coalesce(v_second_selection -> 'doneness', '[]'::jsonb) is not null then
+          if jsonb_typeof(coalesce(v_second_selection -> 'doneness', '[]'::jsonb)) <> 'array' then
+            raise exception 'offeringAssignments[%].secondSelections[%].doneness must be an array', v_idx, v_selection_idx - 1;
+          end if;
+        end if;
+
+        if v_selection_kind <> 'menu_second' and coalesce(jsonb_array_length(coalesce(v_second_selection -> 'doneness', '[]'::jsonb)), 0) > 0 then
+          raise exception 'offeringAssignments[%].secondSelections[%] only menu_second accepts doneness', v_idx, v_selection_idx - 1;
+        end if;
+
+        v_total_doneness := 0;
+        for v_doneness, v_doneness_idx in
+          select value, ordinality
+          from jsonb_array_elements(coalesce(v_second_selection -> 'doneness', '[]'::jsonb)) with ordinality
+        loop
+          v_doneness_point := nullif(trim(coalesce(v_doneness ->> 'point', '')), '');
+          if v_doneness_point not in ('crudo', 'poco', 'al_punto', 'hecho', 'muy_hecho') then
+            raise exception 'offeringAssignments[%].secondSelections[%].doneness[%].point is invalid', v_idx, v_selection_idx - 1, v_doneness_idx - 1;
+          end if;
+
+          begin
+            v_doneness_quantity_numeric := (v_doneness ->> 'quantity')::numeric;
+          exception when others then
+            raise exception 'offeringAssignments[%].secondSelections[%].doneness[%].quantity must be numeric', v_idx, v_selection_idx - 1, v_doneness_idx - 1;
+          end;
+
+          if v_doneness_quantity_numeric is null
+            or v_doneness_quantity_numeric <> trunc(v_doneness_quantity_numeric)
+            or v_doneness_quantity_numeric <= 0 then
+            raise exception 'offeringAssignments[%].secondSelections[%].doneness[%].quantity must be a positive integer', v_idx, v_selection_idx - 1, v_doneness_idx - 1;
+          end if;
+
+          v_doneness_quantity := v_doneness_quantity_numeric::integer;
+          v_total_doneness := v_total_doneness + v_doneness_quantity;
+
+          insert into public.group_event_offering_selection_doneness (
+            selection_id,
+            point,
+            quantity
+          )
+          values (
+            v_selection_row.id,
+            v_doneness_point,
+            v_doneness_quantity
+          );
+        end loop;
+
+        if v_total_doneness > 0 and v_total_doneness <> v_quantity then
+          raise exception 'offeringAssignments[%].secondSelections[%].doneness total must match quantity', v_idx, v_selection_idx - 1;
+        end if;
+      end loop;
+    end if;
+  end loop;
+
+  update public.group_events
+  set menu_id = null,
+      updated_at = timezone('utc', now())
+  where id = p_group_event_id;
+
+  perform public.rebuild_group_event_menu_text(p_group_event_id);
+end;
+$$;
+
+
+--
+-- Name: tg_group_event_offering_doneness_sync_menu_text(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.tg_group_event_offering_doneness_sync_menu_text() RETURNS trigger
+    LANGUAGE plpgsql
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_group_event_id uuid;
+begin
+  select offered.group_event_id
+  into v_group_event_id
+  from public.group_event_offering_selections sel
+  join public.group_event_offerings offered on offered.id = sel.group_event_offering_id
+  where sel.id = coalesce(new.selection_id, old.selection_id);
+
+  if v_group_event_id is not null then
+    perform public.rebuild_group_event_menu_text(v_group_event_id);
+  end if;
+
+  return coalesce(new, old);
+end;
+$$;
+
+
+--
+-- Name: tg_group_event_offering_selections_sync_menu_text(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.tg_group_event_offering_selections_sync_menu_text() RETURNS trigger
+    LANGUAGE plpgsql
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_group_event_id uuid;
+begin
+  select offered.group_event_id
+  into v_group_event_id
+  from public.group_event_offerings offered
+  where offered.id = coalesce(new.group_event_offering_id, old.group_event_offering_id);
+
+  if v_group_event_id is not null then
+    perform public.rebuild_group_event_menu_text(v_group_event_id);
+  end if;
+
+  return coalesce(new, old);
+end;
+$$;
+
+
+--
+-- Name: tg_group_event_offerings_sync_menu_text(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.tg_group_event_offerings_sync_menu_text() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+declare
+  v_group_event_id uuid;
+begin
+  v_group_event_id := coalesce(new.group_event_id, old.group_event_id);
+  perform public.rebuild_group_event_menu_text(v_group_event_id);
+  return coalesce(new, old);
+end;
+$$;
+
+
+--
 -- Name: tg_normalize_allowed_user_email(); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -1315,6 +2401,30 @@ $$;
 
 
 --
+-- Name: trg_group_event_offerings_sync_menu_text(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.trg_group_event_offerings_sync_menu_text() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+begin
+  if tg_op = 'DELETE' then
+    perform public.refresh_group_event_menu_text(old.group_event_id);
+    return old;
+  end if;
+
+  perform public.refresh_group_event_menu_text(new.group_event_id);
+
+  if tg_op = 'UPDATE' and old.group_event_id is distinct from new.group_event_id then
+    perform public.refresh_group_event_menu_text(old.group_event_id);
+  end if;
+
+  return new;
+end;
+$$;
+
+
+--
 -- Name: trg_recalculate_group_staffing_plan(); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -1339,6 +2449,192 @@ $$;
 
 
 --
+-- Name: update_group_event_with_cheffing_offerings(jsonb); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.update_group_event_with_cheffing_offerings(p_payload jsonb) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_group_event_id uuid;
+  v_current public.group_events;
+  v_name text;
+  v_event_date date;
+  v_entry_time time;
+  v_adults integer;
+  v_children integer;
+  v_has_private_dining_room boolean;
+  v_has_private_party boolean;
+  v_second_course_type text;
+  v_menu_text text;
+  v_allergens_and_diets text;
+  v_extras text;
+  v_setup_notes text;
+  v_invoice_data text;
+  v_deposit_amount numeric(10,2);
+  v_deposit_status text;
+  v_status text;
+begin
+  if p_payload is null then
+    raise exception 'Missing payload';
+  end if;
+
+  begin
+    v_group_event_id := (p_payload ->> 'id')::uuid;
+  exception when others then
+    raise exception 'Missing or invalid id';
+  end;
+
+  select *
+  into v_current
+  from public.group_events
+  where id = v_group_event_id
+  for update;
+
+  if not found then
+    raise exception 'group event not found';
+  end if;
+
+  v_name := case when p_payload ? 'name'
+    then coalesce(nullif(trim(p_payload ->> 'name'), ''), v_current.name)
+    else v_current.name end;
+
+  begin
+    v_event_date := case when p_payload ? 'event_date'
+      then (p_payload ->> 'event_date')::date
+      else v_current.event_date end;
+  exception when others then
+    raise exception 'Invalid event_date';
+  end;
+
+  begin
+    if p_payload ? 'entry_time' then
+      if p_payload ->> 'entry_time' is null or trim(p_payload ->> 'entry_time') = '' then
+        v_entry_time := null;
+      else
+        v_entry_time := (p_payload ->> 'entry_time')::time;
+      end if;
+    else
+      v_entry_time := v_current.entry_time;
+    end if;
+  exception when others then
+    raise exception 'Invalid entry_time';
+  end;
+
+  begin
+    v_adults := case when p_payload ? 'adults' then (p_payload ->> 'adults')::integer else v_current.adults end;
+  exception when others then
+    raise exception 'Invalid adults';
+  end;
+
+  begin
+    v_children := case when p_payload ? 'children' then (p_payload ->> 'children')::integer else v_current.children end;
+  exception when others then
+    raise exception 'Invalid children';
+  end;
+
+  begin
+    v_has_private_dining_room := case when p_payload ? 'has_private_dining_room'
+      then (p_payload ->> 'has_private_dining_room')::boolean
+      else v_current.has_private_dining_room end;
+  exception when others then
+    raise exception 'Invalid has_private_dining_room';
+  end;
+
+  begin
+    v_has_private_party := case when p_payload ? 'has_private_party'
+      then (p_payload ->> 'has_private_party')::boolean
+      else v_current.has_private_party end;
+  exception when others then
+    raise exception 'Invalid has_private_party';
+  end;
+
+  v_second_course_type := case when p_payload ? 'second_course_type'
+    then nullif(trim(coalesce(p_payload ->> 'second_course_type', '')), '')
+    else v_current.second_course_type end;
+
+  v_menu_text := case when p_payload ? 'menu_text'
+    then nullif(trim(coalesce(p_payload ->> 'menu_text', '')), '')
+    else v_current.menu_text end;
+
+  v_allergens_and_diets := case when p_payload ? 'allergens_and_diets'
+    then nullif(trim(coalesce(p_payload ->> 'allergens_and_diets', '')), '')
+    else v_current.allergens_and_diets end;
+
+  v_extras := case when p_payload ? 'extras'
+    then nullif(trim(coalesce(p_payload ->> 'extras', '')), '')
+    else v_current.extras end;
+
+  v_setup_notes := case when p_payload ? 'setup_notes'
+    then nullif(trim(coalesce(p_payload ->> 'setup_notes', '')), '')
+    else v_current.setup_notes end;
+
+  v_invoice_data := case when p_payload ? 'invoice_data'
+    then nullif(trim(coalesce(p_payload ->> 'invoice_data', '')), '')
+    else v_current.invoice_data end;
+
+  begin
+    v_deposit_amount := case when p_payload ? 'deposit_amount'
+      then nullif(trim(coalesce(p_payload ->> 'deposit_amount', '')), '')::numeric(10,2)
+      else v_current.deposit_amount end;
+  exception when others then
+    raise exception 'Invalid deposit_amount';
+  end;
+
+  v_deposit_status := case when p_payload ? 'deposit_status'
+    then nullif(trim(coalesce(p_payload ->> 'deposit_status', '')), '')
+    else v_current.deposit_status end;
+
+  v_status := case when p_payload ? 'status'
+    then trim(coalesce(p_payload ->> 'status', ''))
+    else v_current.status end;
+
+  if v_status = '' then
+    v_status := v_current.status;
+  end if;
+
+  update public.group_events
+  set
+    name = v_name,
+    event_date = v_event_date,
+    entry_time = v_entry_time,
+    adults = v_adults,
+    children = v_children,
+    has_private_dining_room = v_has_private_dining_room,
+    has_private_party = v_has_private_party,
+    second_course_type = v_second_course_type,
+    menu_text = v_menu_text,
+    allergens_and_diets = v_allergens_and_diets,
+    extras = v_extras,
+    setup_notes = v_setup_notes,
+    invoice_data = v_invoice_data,
+    deposit_amount = v_deposit_amount,
+    deposit_status = v_deposit_status,
+    status = v_status,
+    updated_at = timezone('utc', now())
+  where id = v_group_event_id;
+
+  if p_payload ? 'offeringAssignments' then
+    perform public.sync_group_event_offerings(
+      v_group_event_id,
+      p_payload -> 'offeringAssignments',
+      true
+    );
+  elsif p_payload ? 'menuAssignments' then
+    perform public.sync_group_event_cheffing_menu_offerings(
+      v_group_event_id,
+      p_payload -> 'menuAssignments',
+      true
+    );
+  end if;
+
+  return jsonb_build_object('success', true, 'groupEventId', v_group_event_id);
+end;
+$$;
+
+
+--
 -- Name: app_allowed_users; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -1357,7 +2653,7 @@ CREATE TABLE public.app_allowed_users (
     view_live_capacity boolean DEFAULT false NOT NULL,
     manage_live_capacity boolean DEFAULT false NOT NULL,
     CONSTRAINT app_allowed_users_email_lower_chk CHECK ((email = lower(email))),
-    CONSTRAINT app_allowed_users_role_check CHECK ((role = ANY (ARRAY['admin'::text, 'staff'::text, 'viewer'::text])))
+    CONSTRAINT app_allowed_users_role_check CHECK ((role = ANY (ARRAY['admin'::text, 'staff'::text, 'viewer'::text, 'porter'::text])))
 );
 
 
@@ -2041,6 +3337,70 @@ CREATE TABLE public.day_status (
     notes_maintenance text,
     validated boolean DEFAULT false NOT NULL,
     last_edited_at timestamp with time zone DEFAULT now()
+);
+
+
+--
+-- Name: group_event_offering_selection_doneness; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.group_event_offering_selection_doneness (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    selection_id uuid NOT NULL,
+    point text NOT NULL,
+    quantity integer NOT NULL,
+    created_at timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL,
+    CONSTRAINT group_event_offering_selection_doneness_point_check CHECK ((point = ANY (ARRAY['crudo'::text, 'poco'::text, 'al_punto'::text, 'hecho'::text, 'muy_hecho'::text]))),
+    CONSTRAINT group_event_offering_selection_doneness_quantity_check CHECK ((quantity > 0))
+);
+
+
+--
+-- Name: group_event_offering_selections; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.group_event_offering_selections (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    group_event_offering_id uuid NOT NULL,
+    selection_kind text NOT NULL,
+    cheffing_dish_id uuid,
+    cheffing_menu_item_id uuid,
+    display_name_snapshot text NOT NULL,
+    description_snapshot text,
+    quantity integer NOT NULL,
+    notes text,
+    needs_doneness_points boolean DEFAULT false NOT NULL,
+    sort_order integer DEFAULT 0 NOT NULL,
+    snapshot_payload jsonb DEFAULT '{}'::jsonb NOT NULL,
+    created_at timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL,
+    updated_at timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL,
+    CONSTRAINT group_event_offering_selections_quantity_check CHECK ((quantity > 0)),
+    CONSTRAINT group_event_offering_selections_reference_chk CHECK ((((selection_kind = 'menu_second'::text) AND (cheffing_dish_id IS NOT NULL)) OR ((selection_kind = ANY (ARRAY['custom_menu'::text, 'kids_menu'::text])) AND (cheffing_dish_id IS NULL) AND (cheffing_menu_item_id IS NULL) AND (length(TRIM(BOTH FROM display_name_snapshot)) > 0)))),
+    CONSTRAINT group_event_offering_selections_selection_kind_check CHECK ((selection_kind = ANY (ARRAY['menu_second'::text, 'custom_menu'::text, 'kids_menu'::text])))
+);
+
+
+--
+-- Name: group_event_offerings; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.group_event_offerings (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    group_event_id uuid NOT NULL,
+    offering_kind text NOT NULL,
+    cheffing_menu_id uuid,
+    cheffing_card_id uuid,
+    assigned_pax integer NOT NULL,
+    display_name_snapshot text NOT NULL,
+    unit_price_snapshot numeric(10,2),
+    notes text,
+    sort_order integer DEFAULT 0 NOT NULL,
+    snapshot_payload jsonb DEFAULT '{}'::jsonb NOT NULL,
+    created_at timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL,
+    updated_at timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL,
+    CONSTRAINT group_event_offerings_assigned_pax_check CHECK ((assigned_pax > 0)),
+    CONSTRAINT group_event_offerings_offering_kind_check CHECK ((offering_kind = ANY (ARRAY['cheffing_menu'::text, 'cheffing_card'::text]))),
+    CONSTRAINT group_event_offerings_source_check CHECK ((((offering_kind = 'cheffing_menu'::text) AND (cheffing_menu_id IS NOT NULL) AND (cheffing_card_id IS NULL)) OR ((offering_kind = 'cheffing_card'::text) AND (cheffing_card_id IS NOT NULL) AND (cheffing_menu_id IS NULL))))
 );
 
 
@@ -2874,6 +4234,38 @@ ALTER TABLE ONLY public.discotheque_capacity_sessions
 
 
 --
+-- Name: group_event_offering_selection_doneness group_event_offering_selection_doneness_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.group_event_offering_selection_doneness
+    ADD CONSTRAINT group_event_offering_selection_doneness_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: group_event_offering_selection_doneness group_event_offering_selection_doneness_selection_id_point_key; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.group_event_offering_selection_doneness
+    ADD CONSTRAINT group_event_offering_selection_doneness_selection_id_point_key UNIQUE (selection_id, point);
+
+
+--
+-- Name: group_event_offering_selections group_event_offering_selections_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.group_event_offering_selections
+    ADD CONSTRAINT group_event_offering_selections_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: group_event_offerings group_event_offerings_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.group_event_offerings
+    ADD CONSTRAINT group_event_offerings_pkey PRIMARY KEY (id);
+
+
+--
 -- Name: group_events group_events_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -3325,6 +4717,48 @@ CREATE INDEX discotheque_capacity_sessions_venue_opened_at_idx ON public.discoth
 
 
 --
+-- Name: group_event_offering_selection_doneness_selection_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX group_event_offering_selection_doneness_selection_idx ON public.group_event_offering_selection_doneness USING btree (selection_id, point);
+
+
+--
+-- Name: group_event_offering_selections_offering_sort_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX group_event_offering_selections_offering_sort_idx ON public.group_event_offering_selections USING btree (group_event_offering_id, sort_order, created_at);
+
+
+--
+-- Name: group_event_offerings_cheffing_card_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX group_event_offerings_cheffing_card_idx ON public.group_event_offerings USING btree (cheffing_card_id) WHERE (cheffing_card_id IS NOT NULL);
+
+
+--
+-- Name: group_event_offerings_cheffing_menu_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX group_event_offerings_cheffing_menu_idx ON public.group_event_offerings USING btree (cheffing_menu_id) WHERE (cheffing_menu_id IS NOT NULL);
+
+
+--
+-- Name: group_event_offerings_event_sort_created_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX group_event_offerings_event_sort_created_idx ON public.group_event_offerings USING btree (group_event_id, sort_order, created_at);
+
+
+--
+-- Name: group_event_offerings_group_event_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX group_event_offerings_group_event_idx ON public.group_event_offerings USING btree (group_event_id, sort_order, created_at);
+
+
+--
 -- Name: group_events_event_date_entry_time_idx; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -3710,6 +5144,20 @@ CREATE TRIGGER set_updated_at_discotheque_capacity_sessions BEFORE UPDATE ON pub
 
 
 --
+-- Name: group_event_offering_selections set_updated_at_group_event_offering_selections; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER set_updated_at_group_event_offering_selections BEFORE UPDATE ON public.group_event_offering_selections FOR EACH ROW EXECUTE FUNCTION public.tg_set_updated_at();
+
+
+--
+-- Name: group_event_offerings set_updated_at_group_event_offerings; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER set_updated_at_group_event_offerings BEFORE UPDATE ON public.group_event_offerings FOR EACH ROW EXECUTE FUNCTION public.tg_set_updated_at();
+
+
+--
 -- Name: menu_second_courses set_updated_at_menu_second_courses; Type: TRIGGER; Schema: public; Owner: -
 --
 
@@ -3721,6 +5169,27 @@ CREATE TRIGGER set_updated_at_menu_second_courses BEFORE UPDATE ON public.menu_s
 --
 
 CREATE TRIGGER set_updated_at_menus BEFORE UPDATE ON public.menus FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
+
+
+--
+-- Name: group_event_offering_selection_doneness sync_group_event_menu_text_from_doneness; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER sync_group_event_menu_text_from_doneness AFTER INSERT OR DELETE OR UPDATE ON public.group_event_offering_selection_doneness FOR EACH ROW EXECUTE FUNCTION public.tg_group_event_offering_doneness_sync_menu_text();
+
+
+--
+-- Name: group_event_offerings sync_group_event_menu_text_from_offerings; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER sync_group_event_menu_text_from_offerings AFTER INSERT OR DELETE OR UPDATE ON public.group_event_offerings FOR EACH ROW EXECUTE FUNCTION public.tg_group_event_offerings_sync_menu_text();
+
+
+--
+-- Name: group_event_offering_selections sync_group_event_menu_text_from_selections; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER sync_group_event_menu_text_from_selections AFTER INSERT OR DELETE OR UPDATE ON public.group_event_offering_selections FOR EACH ROW EXECUTE FUNCTION public.tg_group_event_offering_selections_sync_menu_text();
 
 
 --
@@ -3791,6 +5260,20 @@ CREATE TRIGGER trg_cheffing_units_updated_at BEFORE UPDATE ON public.cheffing_un
 --
 
 CREATE TRIGGER trg_day_status_sync_legacy_columns BEFORE INSERT OR UPDATE ON public.day_status FOR EACH ROW EXECUTE FUNCTION public.day_status_sync_legacy_columns();
+
+
+--
+-- Name: group_event_offerings trg_group_event_offerings_set_updated_at; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER trg_group_event_offerings_set_updated_at BEFORE UPDATE ON public.group_event_offerings FOR EACH ROW EXECUTE FUNCTION public.set_group_event_offerings_updated_at();
+
+
+--
+-- Name: group_event_offerings trg_group_event_offerings_sync_menu_text; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER trg_group_event_offerings_sync_menu_text AFTER INSERT OR DELETE OR UPDATE ON public.group_event_offerings FOR EACH ROW EXECUTE FUNCTION public.trg_group_event_offerings_sync_menu_text();
 
 
 --
@@ -4101,6 +5584,62 @@ ALTER TABLE ONLY public.cheffing_supplier_product_refs
 
 ALTER TABLE ONLY public.discotheque_capacity_events
     ADD CONSTRAINT discotheque_capacity_events_session_id_fkey FOREIGN KEY (session_id) REFERENCES public.discotheque_capacity_sessions(id) ON DELETE CASCADE;
+
+
+--
+-- Name: group_event_offering_selection_doneness group_event_offering_selection_doneness_selection_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.group_event_offering_selection_doneness
+    ADD CONSTRAINT group_event_offering_selection_doneness_selection_id_fkey FOREIGN KEY (selection_id) REFERENCES public.group_event_offering_selections(id) ON DELETE CASCADE;
+
+
+--
+-- Name: group_event_offering_selections group_event_offering_selections_cheffing_dish_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.group_event_offering_selections
+    ADD CONSTRAINT group_event_offering_selections_cheffing_dish_id_fkey FOREIGN KEY (cheffing_dish_id) REFERENCES public.cheffing_dishes(id);
+
+
+--
+-- Name: group_event_offering_selections group_event_offering_selections_cheffing_menu_item_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.group_event_offering_selections
+    ADD CONSTRAINT group_event_offering_selections_cheffing_menu_item_id_fkey FOREIGN KEY (cheffing_menu_item_id) REFERENCES public.cheffing_menu_items(id);
+
+
+--
+-- Name: group_event_offering_selections group_event_offering_selections_group_event_offering_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.group_event_offering_selections
+    ADD CONSTRAINT group_event_offering_selections_group_event_offering_id_fkey FOREIGN KEY (group_event_offering_id) REFERENCES public.group_event_offerings(id) ON DELETE CASCADE;
+
+
+--
+-- Name: group_event_offerings group_event_offerings_cheffing_card_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.group_event_offerings
+    ADD CONSTRAINT group_event_offerings_cheffing_card_id_fkey FOREIGN KEY (cheffing_card_id) REFERENCES public.cheffing_cards(id) ON DELETE RESTRICT;
+
+
+--
+-- Name: group_event_offerings group_event_offerings_cheffing_menu_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.group_event_offerings
+    ADD CONSTRAINT group_event_offerings_cheffing_menu_id_fkey FOREIGN KEY (cheffing_menu_id) REFERENCES public.cheffing_menus(id) ON DELETE RESTRICT;
+
+
+--
+-- Name: group_event_offerings group_event_offerings_group_event_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.group_event_offerings
+    ADD CONSTRAINT group_event_offerings_group_event_id_fkey FOREIGN KEY (group_event_id) REFERENCES public.group_events(id) ON DELETE CASCADE;
 
 
 --
@@ -4654,5 +6193,5 @@ CREATE POLICY "read own allowlist row" ON public.app_allowed_users FOR SELECT TO
 -- PostgreSQL database dump complete
 --
 
-\unrestrict AhI9qrGB2hhSkpd9nYjrqZCzXw1h0aoVCJG3qhYDcIPKUv6KzwFl5YmQRzk9nRb
+\unrestrict MH3QDn1Uher9sVcZGh8McDp5F7t9HfbRGy3Z3bhE7h38b2tmliq3gBoMmf6imM0
 

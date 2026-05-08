@@ -623,6 +623,56 @@ RLS: deshabilitado
 | `created_at` | `timestamp with time zone` | No | `now()` |
 | `updated_at` | `timestamp with time zone` | No | `now()` |
 
+### group_event_offering_selection_doneness
+RLS: deshabilitado
+
+| Columna | Tipo | Nullable | Default |
+| --- | --- | --- | --- |
+| `id` | `uuid` | No | `gen_random_uuid()` |
+| `selection_id` | `uuid` | No |  |
+| `point` | `text` | No |  |
+| `quantity` | `integer` | No |  |
+| `created_at` | `timestamp with time zone` | No | `timezone('utc'::text, now())` |
+
+### group_event_offering_selections
+RLS: deshabilitado
+
+| Columna | Tipo | Nullable | Default |
+| --- | --- | --- | --- |
+| `id` | `uuid` | No | `gen_random_uuid()` |
+| `group_event_offering_id` | `uuid` | No |  |
+| `selection_kind` | `text` | No |  |
+| `cheffing_dish_id` | `uuid` | Sí |  |
+| `cheffing_menu_item_id` | `uuid` | Sí |  |
+| `display_name_snapshot` | `text` | No |  |
+| `description_snapshot` | `text` | Sí |  |
+| `quantity` | `integer` | No |  |
+| `notes` | `text` | Sí |  |
+| `needs_doneness_points` | `boolean` | No | `false` |
+| `sort_order` | `integer` | No | `0` |
+| `snapshot_payload` | `jsonb` | No | `'{}'::jsonb` |
+| `created_at` | `timestamp with time zone` | No | `timezone('utc'::text, now())` |
+| `updated_at` | `timestamp with time zone` | No | `timezone('utc'::text, now())` |
+
+### group_event_offerings
+RLS: deshabilitado
+
+| Columna | Tipo | Nullable | Default |
+| --- | --- | --- | --- |
+| `id` | `uuid` | No | `gen_random_uuid()` |
+| `group_event_id` | `uuid` | No |  |
+| `offering_kind` | `text` | No |  |
+| `cheffing_menu_id` | `uuid` | Sí |  |
+| `cheffing_card_id` | `uuid` | Sí |  |
+| `assigned_pax` | `integer` | No |  |
+| `display_name_snapshot` | `text` | No |  |
+| `unit_price_snapshot` | `numeric(10,2)` | Sí |  |
+| `notes` | `text` | Sí |  |
+| `sort_order` | `integer` | No | `0` |
+| `snapshot_payload` | `jsonb` | No | `'{}'::jsonb` |
+| `created_at` | `timestamp with time zone` | No | `timezone('utc'::text, now())` |
+| `updated_at` | `timestamp with time zone` | No | `timezone('utc'::text, now())` |
+
 ### group_events
 RLS: deshabilitado
 
@@ -654,58 +704,6 @@ RLS: deshabilitado
 | `service_outcome` | `group_service_outcome` | No | `'normal'::group_service_outcome` |
 | `service_outcome_notes` | `text` | Sí |  |
 | `menu_id` | `uuid` | Sí |  |
-
-### group_event_offerings
-RLS: deshabilitado
-
-| Columna | Tipo | Nullable | Default |
-| --- | --- | --- | --- |
-| `id` | `uuid` | No | `gen_random_uuid()` |
-| `group_event_id` | `uuid` | No |  |
-| `offering_kind` | `text` | No |  |
-| `cheffing_menu_id` | `uuid` | Sí |  |
-| `cheffing_card_id` | `uuid` | Sí |  |
-| `assigned_pax` | `integer` | No |  |
-| `display_name_snapshot` | `text` | No |  |
-| `unit_price_snapshot` | `numeric(10,2)` | Sí |  |
-| `notes` | `text` | Sí |  |
-| `sort_order` | `integer` | No | `0` |
-| `snapshot_payload` | `jsonb` | No | `'{}'::jsonb` |
-| `created_at` | `timestamp with time zone` | No | `timezone('utc'::text, now())` |
-| `updated_at` | `timestamp with time zone` | No | `timezone('utc'::text, now())` |
-
-> Integración reservas ↔ cheffing (Fase 2B): las escrituras de alta/edición con asignaciones pasan por RPC transaccional (`create_group_event_with_cheffing_offerings`, `update_group_event_with_cheffing_offerings`) con payload `offeringAssignments`. `group_events.menu_text` se conserva como snapshot de compatibilidad, pero su generación se deriva de `group_event_offerings` + `group_event_offering_selections` + `group_event_offering_selection_doneness`.
-
-### group_event_offering_selections
-RLS: deshabilitado
-
-| Columna | Tipo | Nullable | Default |
-| --- | --- | --- | --- |
-| `id` | `uuid` | No | `gen_random_uuid()` |
-| `group_event_offering_id` | `uuid` | No |  |
-| `selection_kind` | `text` | No |  |
-| `cheffing_dish_id` | `uuid` | Sí |  |
-| `cheffing_menu_item_id` | `uuid` | Sí |  |
-| `display_name_snapshot` | `text` | No |  |
-| `description_snapshot` | `text` | Sí |  |
-| `quantity` | `integer` | No |  |
-| `notes` | `text` | Sí |  |
-| `needs_doneness_points` | `boolean` | No | `false` |
-| `sort_order` | `integer` | No | `0` |
-| `snapshot_payload` | `jsonb` | No | `'{}'::jsonb` |
-| `created_at` | `timestamp with time zone` | No | `timezone('utc'::text, now())` |
-| `updated_at` | `timestamp with time zone` | No | `timezone('utc'::text, now())` |
-
-### group_event_offering_selection_doneness
-RLS: deshabilitado
-
-| Columna | Tipo | Nullable | Default |
-| --- | --- | --- | --- |
-| `id` | `uuid` | No | `gen_random_uuid()` |
-| `selection_id` | `uuid` | No |  |
-| `point` | `text` | No |  |
-| `quantity` | `integer` | No |  |
-| `created_at` | `timestamp with time zone` | No | `timezone('utc'::text, now())` |
 
 ### group_room_allocations
 RLS: deshabilitado
@@ -961,6 +959,13 @@ RLS: deshabilitado
 | `cheffing_units` | `trg_cheffing_units_updated_at` | BEFORE | UPDATE |
 | `day_status` | `trg_day_status_sync_legacy_columns` | BEFORE | INSERT, UPDATE |
 | `discotheque_capacity_sessions` | `set_updated_at_discotheque_capacity_sessions` | BEFORE | UPDATE |
+| `group_event_offering_selection_doneness` | `sync_group_event_menu_text_from_doneness` | AFTER | INSERT, DELETE, UPDATE |
+| `group_event_offering_selections` | `set_updated_at_group_event_offering_selections` | BEFORE | UPDATE |
+| `group_event_offering_selections` | `sync_group_event_menu_text_from_selections` | AFTER | INSERT, DELETE, UPDATE |
+| `group_event_offerings` | `set_updated_at_group_event_offerings` | BEFORE | UPDATE |
+| `group_event_offerings` | `sync_group_event_menu_text_from_offerings` | AFTER | INSERT, DELETE, UPDATE |
+| `group_event_offerings` | `trg_group_event_offerings_set_updated_at` | BEFORE | UPDATE |
+| `group_event_offerings` | `trg_group_event_offerings_sync_menu_text` | AFTER | INSERT, DELETE, UPDATE |
 | `group_events` | `set_timestamp_group_events` | BEFORE | UPDATE |
 | `group_events` | `trg_group_events_recalculate_staffing` | AFTER | INSERT, UPDATE |
 | `group_room_allocations` | `set_timestamp_group_room_allocations` | BEFORE | UPDATE |
@@ -989,6 +994,7 @@ RLS: deshabilitado
 | `cheffing_set_purchase_line_effective_at` | `` | `trigger` |
 | `cheffing_sync_purchase_lines_effective_at` | `` | `trigger` |
 | `close_discotheque_capacity_session` | `p_actor_email text, p_venue_slug text DEFAULT 'sikim-discoteca'::text` | `discotheque_capacity_sessions` |
+| `create_group_event_with_cheffing_offerings` | `p_payload jsonb` | `uuid` |
 | `day_status_sync_legacy_columns` | `` | `trigger` |
 | `delete_routine_pack` | `p_pack_id uuid, p_mode text DEFAULT 'keep_all'::text, p_cutoff_week_start date DEFAULT NULL::date` | `TABLE(deleted_pack boolean, deleted_routines integer, deleted_tasks integer, unlinked_tasks integer)` |
 | `delete_routine_template` | `p_routine_id uuid, p_mode text DEFAULT 'keep_all'::text, p_cutoff_week_start date DEFAULT NULL::date` | `TABLE(deleted boolean, deleted_tasks integer, unlinked_tasks integer)` |
@@ -1001,12 +1007,23 @@ RLS: deshabilitado
 | `generate_weekly_tasks_for_pack` | `p_week_start date, p_pack_id uuid, p_created_by_email text DEFAULT NULL::text` | `TABLE(created integer, skipped integer)` |
 | `mark_past_events_completed` | `` | `void` |
 | `open_discotheque_capacity_session` | `p_actor_email text, p_venue_slug text DEFAULT 'sikim-discoteca'::text` | `discotheque_capacity_sessions` |
+| `rebuild_group_event_menu_text` | `p_group_event_id uuid` | `void` |
 | `recalculate_group_staffing_plan` | `p_group_event_id uuid` | `void` |
+| `refresh_group_event_menu_text` | `p_group_event_id uuid` | `void` |
+| `set_group_event_offerings_updated_at` | `` | `trigger` |
 | `set_override_capacity` | `` | `trigger` |
 | `set_updated_at` | `` | `trigger` |
+| `sync_group_event_cheffing_menu_offerings` | `p_group_event_id uuid, p_menu_assignments jsonb, p_allow_existing_inactive boolean DEFAULT false` | `void` |
+| `sync_group_event_cheffing_menu_offerings` | `p_group_event_id uuid, p_menu_assignments jsonb` | `void` |
+| `sync_group_event_offerings` | `p_group_event_id uuid, p_offering_assignments jsonb, p_allow_existing_inactive boolean DEFAULT false` | `void` |
+| `tg_group_event_offering_doneness_sync_menu_text` | `` | `trigger` |
+| `tg_group_event_offering_selections_sync_menu_text` | `` | `trigger` |
+| `tg_group_event_offerings_sync_menu_text` | `` | `trigger` |
 | `tg_normalize_allowed_user_email` | `` | `trigger` |
 | `tg_set_updated_at` | `` | `trigger` |
+| `trg_group_event_offerings_sync_menu_text` | `` | `trigger` |
 | `trg_recalculate_group_staffing_plan` | `` | `trigger` |
+| `update_group_event_with_cheffing_offerings` | `p_payload jsonb` | `jsonb` |
 
 ## Cómo actualizar
 El snapshot de esquema vive en `supabase/schema_snapshot.sql` y se genera con `pg_dump --schema-only`.
