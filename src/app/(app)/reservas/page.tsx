@@ -149,13 +149,18 @@ function statusBadge(status: string) {
       };
     case 'draft':
       return {
-        label: 'Pendiente',
-        className: 'border-amber-500/30 bg-amber-500/10 text-amber-200',
+        label: 'Borrador',
+        className: 'border-amber-400/45 bg-amber-500/10 text-amber-100',
       };
     case 'completed':
       return {
         label: 'Completada',
         className: 'border-emerald-500/25 bg-emerald-900/30 text-emerald-100',
+      };
+    case 'pending':
+      return {
+        label: 'Pendiente',
+        className: 'border-sky-500/30 bg-sky-500/10 text-sky-200',
       };
     case 'no_show':
       return {
@@ -178,6 +183,22 @@ function statusBadge(status: string) {
         className: 'border-stone-600/70 bg-stone-900/70 text-stone-200',
       };
   }
+}
+
+function reservationCardClassName(status: string) {
+  if (status === 'draft') {
+    return 'border-amber-400/45 bg-[#2b2117]/85 hover:border-amber-300/55 hover:bg-[#332719]';
+  }
+
+  return 'border-[#4a3f32]/60 bg-[#24221f]/80 hover:border-[#8b6a43]/70 hover:bg-[#2a2722]';
+}
+
+function monthReservationClassName(status: string) {
+  if (status === 'draft') {
+    return 'border-amber-400/45 bg-[#2b2117]/80 text-amber-50 hover:border-amber-300/55 hover:bg-[#332719]';
+  }
+
+  return 'border-[#4a3f32]/60 bg-[#24221f]/70 text-[#d8cfc2] hover:border-[#8b6a43]/70 hover:bg-[#2c2822]';
 }
 
 function validationBadge(statusRow?: DayStatusRow) {
@@ -579,7 +600,7 @@ function WeekView({
                       <Link
                         key={evt.group_event_id}
                         href={`/reservas/grupo/${evt.group_event_id}?date=${evt.event_date}`}
-                        className="group rounded-xl border border-[#4a3f32]/60 bg-[#24221f]/80 p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] transition duration-200 hover:-translate-y-0.5 hover:border-[#8b6a43]/70 hover:bg-[#2a2722]"
+                        className={`group rounded-xl border p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] transition duration-200 hover:-translate-y-0.5 ${reservationCardClassName(evt.status)}`}
                       >
                         <div className="flex flex-wrap items-start gap-2">
                           <div className="min-w-0 flex-1 basis-32">
@@ -661,7 +682,7 @@ function MetricStrip({
     {
       label: 'Confirmadas',
       value: confirmed,
-      detail: 'Estado confirmed',
+      detail: 'Solo reservas confirmadas',
       icon: CheckCircleIcon,
     },
   ];
@@ -847,9 +868,14 @@ function MonthView({
                         <Link
                           key={evt.group_event_id}
                           href={`/reservas/grupo/${evt.group_event_id}?date=${evt.event_date}`}
-                          className="block rounded-md border border-[#4a3f32]/60 bg-[#24221f]/70 px-2 py-1.5 text-xs leading-tight text-[#d8cfc2] transition duration-200 hover:-translate-y-0.5 hover:border-[#8b6a43]/70 hover:bg-[#2c2822] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#c99555]/45"
+                          className={`block rounded-md border px-2 py-1.5 text-xs leading-tight transition duration-200 hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#c99555]/45 ${monthReservationClassName(evt.status)}`}
                         >
-                          <p className="truncate font-medium">{evt.group_name}</p>
+                          <div className="flex items-center gap-1.5">
+                            <p className="min-w-0 flex-1 truncate font-medium">{evt.group_name}</p>
+                            <span className={`shrink-0 rounded-full border px-1.5 py-0.5 text-[0.58rem] font-semibold leading-none ${statusBadge(evt.status).className}`}>
+                              {statusBadge(evt.status).label}
+                            </span>
+                          </div>
                           <p className="mt-0.5 truncate text-[0.68rem] text-[#9d9285]">
                             {evt.entry_time ? evt.entry_time.slice(0, 5) : 'Sin hora'} · {evt.total_pax ?? '-'} pax
                           </p>

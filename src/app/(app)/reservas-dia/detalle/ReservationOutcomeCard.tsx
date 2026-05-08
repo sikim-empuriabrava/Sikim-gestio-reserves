@@ -6,10 +6,21 @@ import { useMemo, useState } from 'react';
 const statusStyles: Record<string, string> = {
   confirmed: 'border-emerald-500/30 bg-emerald-500/10 text-emerald-200',
   completed: 'border-emerald-500/25 bg-emerald-900/30 text-emerald-100',
-  draft: 'border-amber-500/30 bg-amber-500/10 text-amber-200',
+  draft: 'border-amber-400/45 bg-amber-500/10 text-amber-100',
+  pending: 'border-sky-500/30 bg-sky-500/10 text-sky-200',
   no_show: 'border-rose-500/30 bg-rose-500/10 text-rose-200',
   incident: 'border-red-500/30 bg-red-500/10 text-red-200',
   cancelled: 'border-stone-600/60 bg-stone-900/70 text-stone-300',
+};
+
+const statusLabels: Record<string, string> = {
+  confirmed: 'Confirmada',
+  completed: 'Completada',
+  draft: 'Borrador',
+  no_show: 'No-show',
+  incident: 'Incidencia',
+  cancelled: 'Cancelada',
+  pending: 'Pendiente',
 };
 
 type ReservationOutcomeCardProps = {
@@ -92,6 +103,10 @@ export function ReservationOutcomeCard({
   };
 
   const statusClass = statusStyles[status] ?? 'border-stone-600/70 bg-stone-900/70 text-stone-200';
+  const cardClass =
+    status === 'draft'
+      ? 'border-amber-400/45 bg-[#211a13]/95 hover:border-amber-300/55'
+      : 'border-[#4a3f32]/70 bg-[#181715]/95 hover:border-[#8b6a43]/55';
 
   const paxValue = useMemo(() => {
     if (typeof totalPax === 'number') return totalPax;
@@ -106,7 +121,7 @@ export function ReservationOutcomeCard({
   const showServiceNotes = currentOutcome !== 'normal';
 
   return (
-    <div className="space-y-4 rounded-2xl border border-[#4a3f32]/70 bg-[#181715]/95 p-5 shadow-[0_18px_70px_-58px_rgba(0,0,0,0.95)] transition-colors hover:border-[#8b6a43]/55">
+    <div className={`space-y-4 rounded-2xl border p-5 shadow-[0_18px_70px_-58px_rgba(0,0,0,0.95)] transition-colors ${cardClass}`}>
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div className="space-y-1">
           <p className="text-sm tabular-nums text-[#c99a61]">{entryTime ? `${entryTime.slice(0, 5)}h` : '—'}</p>
@@ -120,7 +135,7 @@ export function ReservationOutcomeCard({
         <div className="flex flex-col items-start gap-2 sm:items-end sm:text-right">
           <div className="flex items-center gap-3">
             <span className={`inline-flex items-center rounded-full border px-3 py-1 text-xs font-semibold whitespace-nowrap ${statusClass}`}>
-              {status}
+              {statusLabels[status] ?? status}
             </span>
             <Link
               href={`/reservas/grupo/${groupEventId}${eventDate ? `?date=${eventDate}` : ''}`}

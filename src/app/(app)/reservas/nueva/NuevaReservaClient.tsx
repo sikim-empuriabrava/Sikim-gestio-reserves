@@ -56,6 +56,8 @@ type RoomOption = {
   name: string;
 };
 
+type CreateReservationStatus = 'confirmed' | 'draft';
+
 function ReservasNewPilotStyles() {
   return (
     <style
@@ -310,6 +312,7 @@ export default function NuevaReservaClient() {
   const [isLoadingRooms, setIsLoadingRooms] = useState(false);
   const [loadRoomsError, setLoadRoomsError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submittingStatus, setSubmittingStatus] = useState<CreateReservationStatus | null>(null);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [submitSuccess, setSubmitSuccess] = useState<string | null>(null);
   const [calendarWarning, setCalendarWarning] = useState<string | null>(null);
@@ -581,17 +584,22 @@ export default function NuevaReservaClient() {
     validateMenus();
   }, [validateMenus]);
 
-  const handleSubmit = async (event: FormEvent) => {
+  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setSubmitError(null);
     setSubmitSuccess(null);
     setCalendarWarning(null);
     setIsSubmitting(true);
 
+    const submitter = (event.nativeEvent as SubmitEvent).submitter as HTMLButtonElement | null;
+    const requestedStatus: CreateReservationStatus = submitter?.value === 'draft' ? 'draft' : 'confirmed';
+    setSubmittingStatus(requestedStatus);
+
     const normalizedNumeroPersonas = parsePositivePaxInput(numeroPersonasInput);
     if (normalizedNumeroPersonas === null) {
       setSubmitError('Indica un numero de personas valido, minimo 1.');
       setIsSubmitting(false);
+      setSubmittingStatus(null);
       return;
     }
 
@@ -601,6 +609,7 @@ export default function NuevaReservaClient() {
     if (!roomId) {
       setSubmitError('Selecciona una sala para continuar.');
       setIsSubmitting(false);
+      setSubmittingStatus(null);
       return;
     }
 
@@ -619,6 +628,7 @@ export default function NuevaReservaClient() {
 
       if (!proceed) {
         setIsSubmitting(false);
+        setSubmittingStatus(null);
         return;
       }
     }
@@ -778,7 +788,7 @@ export default function NuevaReservaClient() {
           room_id: roomId,
           override_capacity: false,
           notes: mesa || null,
-          status: 'confirmed',
+          status: requestedStatus,
         }),
       });
 
@@ -789,41 +799,49 @@ export default function NuevaReservaClient() {
         console.error('[Nueva reserva] Error creando reserva', message);
         setSubmitError(message);
         setIsSubmitting(false);
+        setSubmittingStatus(null);
         return;
       }
 
       const groupEventId = createResult.groupEventId;
 
-      try {
-        const resCalendar = await fetch('/api/calendar-sync', {
-          method: 'POST',
-          cache: 'no-store',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({ groupEventId }),
-        });
+      if (requestedStatus === 'confirmed') {
+        try {
+          const resCalendar = await fetch('/api/calendar-sync', {
+            method: 'POST',
+            cache: 'no-store',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ groupEventId }),
+          });
 
-        if (!resCalendar.ok) {
-          console.error('[Nueva reserva] Error sincronizando con Google Calendar', resCalendar.statusText);
-          setCalendarWarning(
+          if (!resCalendar.ok) {
+            console.error('[Nueva reserva] Error sincronizando con Google Calendar', resCalendar.statusText);
+            setCalendarWarning(
             'La reserva se ha creado, pero ha habido un problema al sincronizar con Google Calendar. Revisa el calendario o inténtalo más tarde.',
-          );
+            );
         }
-      } catch (e) {
-        console.error('[Nueva reserva] Error sincronizando con Google Calendar', e);
-        setCalendarWarning(
+        } catch (e) {
+          console.error('[Nueva reserva] Error sincronizando con Google Calendar', e);
+          setCalendarWarning(
           'La reserva se ha creado, pero ha habido un problema al sincronizar con Google Calendar. Revisa el calendario o inténtalo más tarde.',
-        );
+          );
+          }
       }
 
-      setSubmitSuccess('Reserva creada correctamente.');
+      setSubmitSuccess(
+        requestedStatus === 'draft'
+          ? 'Borrador guardado. No se ha sincronizado con Google Calendar.'
+          : 'Reserva creada correctamente.',
+      );
       router.refresh();
     } catch (error) {
       console.error('[Nueva reserva] Error creando reserva', error);
       setSubmitError('No se ha podido crear la reserva. Inténtalo de nuevo.');
     } finally {
       setIsSubmitting(false);
+      setSubmittingStatus(null);
     }
   };
 
@@ -843,8 +861,15 @@ export default function NuevaReservaClient() {
           >
             Cancelar
           </Link>
-          <button type="submit" form="nueva-reserva-form" className="button-primary min-w-[12rem]" disabled={isSubmitting}>
-            {isSubmitting ? 'Guardando...' : 'Guardar reserva'}
+          <button
+            type="submit"
+            form="nueva-reserva-form"
+            name="reservationStatus"
+            value="confirmed"
+            className="button-primary min-w-[12rem]"
+            disabled={isSubmitting}
+          >
+            {isSubmitting && submittingStatus === 'confirmed' ? 'Creando...' : 'Crear reserva confirmada'}
           </button>
         </div>
       </div>
@@ -1334,9 +1359,26 @@ export default function NuevaReservaClient() {
               {warningMenus && <p className="text-sm text-amber-300">{warningMenus}</p>}
               {warningEntrecot && <p className="text-sm text-amber-300">{warningEntrecot}</p>}
 
-              <button type="submit" className="button-primary w-full justify-center" disabled={isSubmitting}>
-                {isSubmitting ? 'Guardando...' : 'Guardar reserva'}
-              </button>
+              <div className="grid gap-2 sm:grid-cols-[1fr_auto]">
+                <button
+                  type="submit"
+                  name="reservationStatus"
+                  value="confirmed"
+                  className="button-primary justify-center"
+                  disabled={isSubmitting}
+                >
+                  {isSubmitting && submittingStatus === 'confirmed' ? 'Creando...' : 'Crear reserva confirmada'}
+                </button>
+                <button
+                  type="submit"
+                  name="reservationStatus"
+                  value="draft"
+                  className="button-secondary justify-center"
+                  disabled={isSubmitting}
+                >
+                  {isSubmitting && submittingStatus === 'draft' ? 'Guardando...' : 'Guardar borrador'}
+                </button>
+              </div>
             </div>
           )}
         </aside>
