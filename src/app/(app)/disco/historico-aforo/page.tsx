@@ -395,7 +395,6 @@ export default async function HistoricoAforoPage({ searchParams }: PageProps) {
             entriesBySession={insights.entriesBySession}
             peakBySession={insights.peakBySession}
             weekdayComparison={insights.weekdayComparison}
-            closingQuality={insights.closingQuality}
           />
         </div>
       )}

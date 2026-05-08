@@ -75,6 +75,17 @@ type EditableReservation = {
   status: string;
 };
 
+type RoomOption = {
+  id: string;
+  name: string;
+};
+
+type CurrentRoomAllocation = {
+  room_id: string | null;
+  room_name: string | null;
+  notes: string | null;
+};
+
 type CustomSecondKind = 'custom_menu' | 'kids_menu';
 
 type CustomSecond = {
@@ -97,6 +108,7 @@ type SelectedSecond = {
 
 type Props = {
   reservation: EditableReservation;
+  currentRoomAllocation: CurrentRoomAllocation | null;
   offerings: ExistingOffering[];
   offeringSelections: ExistingOfferingSelection[];
   selectionDoneness: ExistingOfferingSelectionDoneness[];
@@ -258,6 +270,7 @@ function ReservaDetailPilotStyles() {
 
 export function EditableReservationForm({
   reservation,
+  currentRoomAllocation,
   offerings,
   offeringSelections,
   selectionDoneness,
@@ -269,6 +282,11 @@ export function EditableReservationForm({
   const [error, setError] = useState<string | null>(null);
   const [calendarWarning, setCalendarWarning] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
+  const [rooms, setRooms] = useState<RoomOption[]>([]);
+  const [roomId, setRoomId] = useState<string>(currentRoomAllocation?.room_id ?? '');
+  const [roomNotes, setRoomNotes] = useState<string>(currentRoomAllocation?.notes ?? '');
+  const [isLoadingRooms, setIsLoadingRooms] = useState(false);
+  const [loadRoomsError, setLoadRoomsError] = useState<string | null>(null);
 
   const [offeringCatalog, setOfferingCatalog] = useState<ReservationOfferingCatalogItem[]>([]);
   const [offeringsLoading, setOfferingsLoading] = useState(true);
@@ -322,6 +340,25 @@ export function EditableReservationForm({
     [...offeringCatalog, ...inactiveHistoricalOfferings].forEach((item) => map.set(item.id, item));
     return Array.from(map.values());
   }, [inactiveHistoricalOfferings, offeringCatalog]);
+
+  const selectableRooms = useMemo(() => {
+    const map = new Map<string, RoomOption>();
+
+    rooms.forEach((room) => map.set(room.id, room));
+
+    if (
+      currentRoomAllocation?.room_id &&
+      currentRoomAllocation.room_name &&
+      !map.has(currentRoomAllocation.room_id)
+    ) {
+      map.set(currentRoomAllocation.room_id, {
+        id: currentRoomAllocation.room_id,
+        name: `${currentRoomAllocation.room_name} (actual)`,
+      });
+    }
+
+    return Array.from(map.values());
+  }, [currentRoomAllocation, rooms]);
 
   const selectedOffering = useMemo(
     () => selectableOfferingCatalog.find((offering) => offering.id === selectedOfferingId) ?? null,
@@ -517,7 +554,11 @@ export function EditableReservationForm({
 
     startTransition(async () => {
       try {
-        let payload: Record<string, unknown> = { ...form };
+        let payload: Record<string, unknown> = {
+          ...form,
+          room_id: roomId || null,
+          room_notes: roomNotes.trim() || null,
+        };
 
         if (includeOfferingAssignments && selectedOffering && canEditStructuredOffering) {
           if (hasStructuredWarnings && isSelectedOfferingMenu) {
@@ -676,6 +717,30 @@ export function EditableReservationForm({
     };
 
     void loadOfferings();
+  }, []);
+
+  useEffect(() => {
+    const loadRooms = async () => {
+      setIsLoadingRooms(true);
+      setLoadRoomsError(null);
+
+      try {
+        const response = await fetch('/api/rooms', { cache: 'no-store' });
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}`);
+        }
+
+        const data = (await response.json()) as { rooms?: RoomOption[] };
+        setRooms(data.rooms ?? []);
+      } catch (loadError) {
+        console.error('[Editar reserva] Error cargando salas', loadError);
+        setLoadRoomsError('No se han podido cargar las salas.');
+      } finally {
+        setIsLoadingRooms(false);
+      }
+    };
+
+    void loadRooms();
   }, []);
 
   useEffect(() => {
@@ -1066,6 +1131,35 @@ export function EditableReservationForm({
 
         <section className="rounded-2xl border border-slate-800 bg-slate-900/60 p-5 space-y-4">
           <h2 className="text-lg font-semibold text-slate-100">Montaje y sala</h2>
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-slate-200">Sala / zona asignada</label>
+              <select
+                value={roomId}
+                onChange={(e) => setRoomId(e.target.value)}
+                className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-100"
+                disabled={isLoadingRooms}
+              >
+                <option value="">Sin sala asignada</option>
+                {selectableRooms.map((room) => (
+                  <option key={room.id} value={room.id}>
+                    {room.name}
+                  </option>
+                ))}
+              </select>
+              {loadRoomsError && <p className="text-xs text-red-300">{loadRoomsError}</p>}
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-slate-200">Mesa / zona dentro de sala</label>
+              <input
+                type="text"
+                value={roomNotes}
+                onChange={(e) => setRoomNotes(e.target.value)}
+                placeholder="Terraza 1, Interior 3..."
+                className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-100"
+              />
+            </div>
+          </div>
           <div className="space-y-2">
             <label className="text-sm font-medium text-slate-200">Montaje / sala</label>
             <textarea value={form.setup_notes ?? ''} onChange={(e) => handleChange('setup_notes', e.target.value)} className="h-24 w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-100" />

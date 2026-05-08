@@ -15,7 +15,7 @@ import {
   YAxis,
 } from 'recharts';
 
-import type { ChartPoint, ClosingQuality, SessionBarPoint, WeekdayChartPoint } from '@/lib/disco/capacityHistory';
+import type { ChartPoint, SessionBarPoint, WeekdayChartPoint } from '@/lib/disco/capacityHistory';
 
 const COPPER = '#d08a39';
 const GOLD = '#f1c98f';
@@ -111,13 +111,11 @@ export function CapacityAnalyticsCharts({
   entriesBySession,
   peakBySession,
   weekdayComparison,
-  closingQuality,
 }: {
   averageEvolution: ChartPoint[];
   entriesBySession: SessionBarPoint[];
   peakBySession: SessionBarPoint[];
   weekdayComparison: WeekdayChartPoint[];
-  closingQuality: ClosingQuality;
 }) {
   return (
     <div className="grid gap-4 xl:grid-cols-2">
@@ -151,26 +149,6 @@ export function CapacityAnalyticsCharts({
             </ResponsiveContainer>
           </div>
         )}
-      </ChartFrame>
-
-      <ChartFrame title="Calidad de cierre" description="Util para detectar cierres con contador sin cuadrar.">
-        <div className="grid h-72 content-center gap-3 sm:grid-cols-2">
-          <div className="border-l border-emerald-400/45 pl-4">
-            <p className="text-sm text-slate-400">Aforo final 0</p>
-            <p className="mt-2 text-3xl font-semibold tabular-nums text-emerald-300">{closingQuality.finalZeroSessions.toLocaleString('es-ES')}</p>
-            <p className="mt-2 text-xs leading-5 text-slate-500">Sesiones cerradas con contador cuadrado.</p>
-          </div>
-          <div className="border-l border-amber-300/45 pl-4">
-            <p className="text-sm text-slate-400">Aforo final distinto de 0</p>
-            <p className="mt-2 text-3xl font-semibold tabular-nums text-amber-200">{closingQuality.finalNonZeroSessions.toLocaleString('es-ES')}</p>
-            <p className="mt-2 text-xs leading-5 text-slate-500">Revisar si el cierre operativo no cuadraba.</p>
-          </div>
-          {closingQuality.finalNonZeroSessions > 0 ? (
-            <p className="rounded-xl border border-amber-500/25 bg-amber-500/10 px-3 py-2 text-sm text-amber-100 sm:col-span-2">
-              Hay sesiones cerradas con aforo final no cero.
-            </p>
-          ) : null}
-        </div>
       </ChartFrame>
     </div>
   );
