@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useId, useMemo, useRef, useState } from 'react';
 
 import { useAforoUiMode } from './useAforoUiMode';
 
@@ -63,12 +63,15 @@ export function LiveCapacityPanel({ initialState, canManage }: Props) {
   const [serverState, setServerState] = useState<LiveCapacityState>(initialState);
   const [pendingAdjustments, setPendingAdjustments] = useState<PendingAdjust[]>([]);
   const [loadingAction, setLoadingAction] = useState<'open_session' | 'close_session' | null>(null);
+  const [isCloseSessionConfirmOpen, setIsCloseSessionConfirmOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const nextAdjustmentIdRef = useRef(1);
   const isProcessingAdjustmentsRef = useRef(false);
   const pendingAdjustmentsRef = useRef<PendingAdjust[]>([]);
   const loadingActionRef = useRef<typeof loadingAction>(null);
+  const closeSessionDialogTitleId = useId();
+  const closeSessionDialogDescriptionId = useId();
 
   const { uiMode, isTouchPrimary } = useAforoUiMode();
 
@@ -79,6 +82,19 @@ export function LiveCapacityPanel({ initialState, canManage }: Props) {
   useEffect(() => {
     loadingActionRef.current = loadingAction;
   }, [loadingAction]);
+
+  useEffect(() => {
+    if (!isCloseSessionConfirmOpen) return;
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape' && loadingAction !== 'close_session') {
+        setIsCloseSessionConfirmOpen(false);
+      }
+    };
+
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [isCloseSessionConfirmOpen, loadingAction]);
 
   useEffect(() => {
     let isMounted = true;
@@ -268,10 +284,19 @@ export function LiveCapacityPanel({ initialState, canManage }: Props) {
 
       if (payload.action === 'open_session') setMessage('Sesión abierta.');
       if (payload.action === 'close_session') setMessage('Sesión cerrada.');
+      return true;
     } catch (actionError) {
       setError(toUserFriendlyError(actionError));
+      return false;
     } finally {
       setLoadingAction(null);
+    }
+  };
+
+  const handleConfirmCloseSession = async () => {
+    const didClose = await submitAction({ action: 'close_session' });
+    if (didClose) {
+      setIsCloseSessionConfirmOpen(false);
     }
   };
 
@@ -310,7 +335,7 @@ export function LiveCapacityPanel({ initialState, canManage }: Props) {
               <button
                 type="button"
                 disabled={!isSessionOpen || loadingAction !== null || pendingAdjustments.length > 0}
-                onClick={() => submitAction({ action: 'close_session' })}
+                onClick={() => setIsCloseSessionConfirmOpen(true)}
                 className="min-h-10 rounded-lg border border-amber-800/70 bg-amber-950/40 px-3 py-2 text-xs font-semibold text-amber-200 transition hover:bg-amber-900/40 disabled:cursor-not-allowed disabled:opacity-50"
               >
                 {loadingAction === 'close_session' ? 'Cerrando...' : 'Cerrar sesión'}
@@ -415,6 +440,55 @@ export function LiveCapacityPanel({ initialState, canManage }: Props) {
           </ul>
         )}
       </div>
+
+      {isCloseSessionConfirmOpen ? (
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/70 px-4 py-5 backdrop-blur-sm sm:items-center sm:py-8">
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby={closeSessionDialogTitleId}
+            aria-describedby={closeSessionDialogDescriptionId}
+            className="w-full max-w-md space-y-5 rounded-2xl border border-amber-800/50 bg-slate-950 p-5 shadow-2xl shadow-black/70 sm:p-6"
+          >
+            <div className="space-y-2">
+              <p className="text-xs font-semibold uppercase tracking-wide text-amber-200">Confirmar cierre</p>
+              <h3 id={closeSessionDialogTitleId} className="text-xl font-semibold text-white">
+                ¿Seguro que quieres cerrar la sesión de aforo actual?
+              </h3>
+              <p id={closeSessionDialogDescriptionId} className="text-sm leading-6 text-slate-300">
+                Se cerrará la sesión activa y se registrará el aforo final. El conteo no cambia hasta que confirmes.
+              </p>
+            </div>
+
+            {loadingAction === 'close_session' ? (
+              <p className="rounded-lg border border-amber-800/50 bg-amber-950/30 px-3 py-2 text-sm text-amber-100">
+                Cerrando sesión...
+              </p>
+            ) : null}
+
+            {error ? <p className="text-sm text-rose-300">{error}</p> : null}
+
+            <div className="grid gap-3 sm:grid-cols-2">
+              <button
+                type="button"
+                disabled={loadingAction === 'close_session'}
+                onClick={() => setIsCloseSessionConfirmOpen(false)}
+                className="min-h-12 rounded-lg border border-slate-700 bg-slate-900 px-4 py-3 text-base font-semibold text-slate-100 transition hover:border-slate-500 hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                disabled={loadingAction === 'close_session'}
+                onClick={handleConfirmCloseSession}
+                className="min-h-12 rounded-lg border border-amber-600/70 bg-amber-700 px-4 py-3 text-base font-semibold text-white shadow-sm transition hover:bg-amber-600 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {loadingAction === 'close_session' ? 'Cerrando...' : 'Sí, cerrar sesión'}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
 
     </section>
   );
