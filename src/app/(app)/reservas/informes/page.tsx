@@ -37,6 +37,7 @@ type SearchParams = {
 type ReservationRow = {
   id: string;
   name: string;
+  status: 'confirmed' | 'completed' | string;
   event_date: string;
   entry_time: string | null;
   adults: number | null;
@@ -207,9 +208,9 @@ async function getReportData(from: string, to: string): Promise<ReportData> {
   const { data: reservationsData, error } = await supabase
     .from('group_events')
     .select(
-      'id, name, event_date, entry_time, adults, children, total_pax, has_private_dining_room, has_private_party, second_course_type, menu_text, allergens_and_diets, extras, setup_notes, invoice_data, service_outcome, service_outcome_notes',
+      'id, name, status, event_date, entry_time, adults, children, total_pax, has_private_dining_room, has_private_party, second_course_type, menu_text, allergens_and_diets, extras, setup_notes, invoice_data, service_outcome, service_outcome_notes',
     )
-    .eq('status', 'confirmed')
+    .in('status', ['confirmed', 'completed'])
     .gte('event_date', from)
     .lte('event_date', to)
     .order('event_date', { ascending: true })
@@ -376,6 +377,9 @@ function ReportChromeStyles() {
             html,
             body {
               background: #ffffff !important;
+              color: #1f1a14 !important;
+              print-color-adjust: exact;
+              -webkit-print-color-adjust: exact;
             }
 
             .aforo-standalone-shell,
@@ -400,12 +404,35 @@ function ReportChromeStyles() {
               display: block !important;
               width: 100% !important;
               max-width: none !important;
-              padding: 0 !important;
+              padding: 8mm !important;
               margin: 0 !important;
-              border: 0 !important;
+              border: 1px solid #d8c6ae !important;
+              border-radius: 8px !important;
               box-shadow: none !important;
-              background: #ffffff !important;
+              background: #fffaf2 !important;
               color: #1f1a14 !important;
+            }
+
+            .reservation-report-paper,
+            .reservation-report-paper * {
+              print-color-adjust: exact;
+              -webkit-print-color-adjust: exact;
+            }
+
+            .reservation-report-paper > header {
+              border-bottom: 2px solid #d7b98f !important;
+              padding-bottom: 6mm !important;
+              margin-bottom: 7mm !important;
+            }
+
+            .reservation-report-paper > header h2 {
+              font-size: 25pt !important;
+              line-height: 1.04 !important;
+            }
+
+            .reservation-report-paper > header .report-summary-card {
+              border: 1px solid #6e563b !important;
+              box-shadow: none !important;
             }
 
             .reservation-day-block,
@@ -416,7 +443,65 @@ function ReportChromeStyles() {
             }
 
             .reservation-day-block {
-              margin-top: 8mm !important;
+              margin-top: 7mm !important;
+              padding: 5mm !important;
+              border: 1px solid #d8c6ae !important;
+              border-radius: 7px !important;
+              background: #ffffff !important;
+            }
+
+            .reservation-day-block:first-child {
+              margin-top: 0 !important;
+            }
+
+            .reservation-day-heading {
+              border: 1px solid #d4b98f !important;
+              border-radius: 6px !important;
+              background: #f8edda !important;
+              padding: 4mm !important;
+            }
+
+            .reservation-day-heading h2 {
+              font-size: 17pt !important;
+              line-height: 1.12 !important;
+            }
+
+            .reservation-print-card {
+              overflow: hidden !important;
+              border: 1px solid #cdb89d !important;
+              border-radius: 7px !important;
+              background: #ffffff !important;
+              margin-top: 4mm !important;
+            }
+
+            .reservation-print-card > div:first-child {
+              border-bottom: 1px solid #dcc9ae !important;
+              background: #fbf4e8 !important;
+              padding: 4mm !important;
+            }
+
+            .reservation-print-card > div:last-child {
+              padding: 4mm !important;
+            }
+
+            .reservation-print-card h3 {
+              font-size: 16pt !important;
+              line-height: 1.12 !important;
+            }
+
+            .reservation-field-pill,
+            .reservation-text-section,
+            .reservation-offering-block,
+            .reservation-selection-item {
+              border: 1px solid #decab0 !important;
+              box-shadow: none !important;
+              background: #fffaf2 !important;
+            }
+
+            .reservation-status-badge,
+            .reservation-count-badge {
+              border: 1px solid #d0ad7d !important;
+              background: #ffffff !important;
             }
 
             .reservation-report-paper * {
@@ -433,7 +518,7 @@ function FieldPill({ label, value }: { label: string; value: string | number | n
   if (value === null || value === undefined || value === '') return null;
 
   return (
-    <div className="rounded-xl border border-[#e4d4bf] bg-[#fffaf2] px-3 py-2">
+    <div className="reservation-field-pill rounded-xl border border-[#e4d4bf] bg-[#fffaf2] px-3 py-2">
       <dt className="text-[0.66rem] font-bold uppercase tracking-[0.12em] text-[#98764c]">{label}</dt>
       <dd className="mt-1 text-sm font-semibold text-[#2e241a]">{value}</dd>
     </div>
@@ -445,7 +530,7 @@ function TextSection({ title, value }: { title: string; value: string | null | u
   if (!text) return null;
 
   return (
-    <div className="rounded-xl border border-[#eadcca] bg-white/72 p-3">
+    <div className="reservation-text-section rounded-xl border border-[#eadcca] bg-white/72 p-3">
       <p className="text-[0.68rem] font-bold uppercase tracking-[0.14em] text-[#9a7447]">{title}</p>
       <p className="mt-1 whitespace-pre-line text-sm leading-relaxed text-[#3a3026]">{text}</p>
     </div>
@@ -483,7 +568,7 @@ function SelectionList({
               .join(' / ');
 
             return (
-              <li key={selection.id} className="rounded-lg border border-[#eadcca] bg-white/78 px-3 py-2">
+              <li key={selection.id} className="reservation-selection-item rounded-lg border border-[#eadcca] bg-white/78 px-3 py-2">
                 <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
                   <span className="font-semibold text-[#30261d]">{selection.quantity}x {selection.display_name_snapshot}</span>
                   <span className="text-xs font-medium text-[#8b6842]">
@@ -533,16 +618,24 @@ function ReservationCard({
     reservation.has_private_dining_room ? 'Comedor privado' : null,
     reservation.has_private_party ? 'Fiesta privada' : null,
   ].filter(Boolean);
+  const statusLabel = reservation.status === 'completed' ? 'Completada' : null;
 
   return (
     <article className="reservation-print-card overflow-hidden rounded-2xl border border-[#dfcdb7] bg-white shadow-[0_16px_48px_-36px_rgba(64,40,18,0.72)]">
       <div className="border-b border-[#eadcca] bg-[#fbf4e8] px-5 py-4">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div className="min-w-0">
-            <p className="inline-flex items-center gap-1.5 rounded-full border border-[#d9bd96] bg-white px-2.5 py-1 text-xs font-bold text-[#795226]">
-              <ClockIcon className="h-3.5 w-3.5" aria-hidden="true" />
-              {formatTime(reservation.entry_time)}
-            </p>
+            <div className="flex flex-wrap gap-2">
+              <p className="inline-flex items-center gap-1.5 rounded-full border border-[#d9bd96] bg-white px-2.5 py-1 text-xs font-bold text-[#795226]">
+                <ClockIcon className="h-3.5 w-3.5" aria-hidden="true" />
+                {formatTime(reservation.entry_time)}
+              </p>
+              {statusLabel ? (
+                <p className="reservation-status-badge inline-flex items-center rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-xs font-bold text-emerald-800">
+                  {statusLabel}
+                </p>
+              ) : null}
+            </div>
             <h3 className="mt-2 break-words text-xl font-bold leading-tight text-[#251d16]">{reservation.name}</h3>
           </div>
           <div className="rounded-xl bg-[#2d2419] px-4 py-3 text-right text-[#fff1d8]">
@@ -598,8 +691,8 @@ function EmptyState() {
   return (
     <section className="rounded-2xl border border-dashed border-[#d4bea1] bg-white/64 p-8 text-center">
       <DocumentTextIcon className="mx-auto h-10 w-10 text-[#ad8758]" aria-hidden="true" />
-      <h2 className="mt-3 text-lg font-bold text-[#2d2419]">No hay reservas confirmadas en este rango</h2>
-      <p className="mt-1 text-sm text-[#7b6c5f]">Ajusta las fechas o confirma reservas para generar contenido imprimible.</p>
+      <h2 className="mt-3 text-lg font-bold text-[#2d2419]">No hay reservas confirmadas o completadas en este rango</h2>
+      <p className="mt-1 text-sm text-[#7b6c5f]">Ajusta las fechas o revisa el estado de las reservas para generar contenido imprimible.</p>
     </section>
   );
 }
@@ -658,7 +751,7 @@ export default async function ReservationReportsPage({ searchParams }: { searchP
                 Informes
               </p>
               <h1 className="mt-1 text-2xl font-bold text-[#2d2419]">Informe completo de reservas</h1>
-              <p className="mt-1 text-sm text-[#7b6c5f]">Solo reservas confirmadas. Máximo {MAX_RANGE_DAYS} días por informe.</p>
+              <p className="mt-1 text-sm text-[#7b6c5f]">Reservas confirmadas y completadas. Máximo {MAX_RANGE_DAYS} días por informe.</p>
             </div>
 
             <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
@@ -687,7 +780,11 @@ export default async function ReservationReportsPage({ searchParams }: { searchP
                 <CalendarDaysIcon className="h-4 w-4" aria-hidden="true" />
                 Generar informe
               </button>
-              <PrintReportButton disabled={!validation.valid || Boolean(loadError) || reservations.length === 0} />
+              <PrintReportButton
+                dateFrom={from}
+                dateTo={to}
+                disabled={!validation.valid || Boolean(loadError) || reservations.length === 0}
+              />
             </div>
           </form>
         </section>
@@ -716,11 +813,11 @@ export default async function ReservationReportsPage({ searchParams }: { searchP
                 <p className="mt-1 text-sm text-[#8a7b70]">Generado el {formatDateTime(generatedAt)}</p>
               </div>
               <div className="grid grid-cols-2 gap-3 sm:min-w-72">
-                <div className="rounded-2xl bg-[#2d2419] p-4 text-[#fff1d8]">
+                <div className="report-summary-card rounded-2xl bg-[#2d2419] p-4 text-[#fff1d8]">
                   <p className="text-[0.66rem] font-bold uppercase tracking-[0.16em] text-[#d6b57f]">Reservas</p>
                   <p className="mt-2 text-3xl font-bold leading-none">{reservations.length}</p>
                 </div>
-                <div className="rounded-2xl bg-[#8a5b2b] p-4 text-white">
+                <div className="report-summary-card rounded-2xl bg-[#8a5b2b] p-4 text-white">
                   <p className="text-[0.66rem] font-bold uppercase tracking-[0.16em] text-[#ffe2b6]">Comensales</p>
                   <p className="mt-2 text-3xl font-bold leading-none">{totalPax}</p>
                 </div>
@@ -735,17 +832,17 @@ export default async function ReservationReportsPage({ searchParams }: { searchP
               const dayPax = dayReservations.reduce((sum, reservation) => sum + (reservation.total_pax ?? 0), 0);
               return (
                 <section key={date} className="reservation-day-block space-y-4">
-                  <div className="flex flex-col gap-3 rounded-2xl border border-[#dfcdb7] bg-[#f9efe0] px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="reservation-day-heading flex flex-col gap-3 rounded-2xl border border-[#dfcdb7] bg-[#f9efe0] px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
                     <div>
                       <h2 className="text-2xl font-bold text-[#2d2419]">{formatLongDate(date)}</h2>
-                      <p className="mt-1 text-sm text-[#7b6c5f]">Reservas confirmadas ordenadas por hora</p>
+                      <p className="mt-1 text-sm text-[#7b6c5f]">Reservas confirmadas y completadas ordenadas por hora</p>
                     </div>
                     <div className="flex flex-wrap gap-2">
-                      <span className="inline-flex items-center gap-1.5 rounded-full border border-[#d8c09d] bg-white px-3 py-1.5 text-sm font-bold text-[#6b4925]">
+                      <span className="reservation-count-badge inline-flex items-center gap-1.5 rounded-full border border-[#d8c09d] bg-white px-3 py-1.5 text-sm font-bold text-[#6b4925]">
                         <DocumentTextIcon className="h-4 w-4" aria-hidden="true" />
                         {dayReservations.length} {dayReservations.length === 1 ? 'reserva' : 'reservas'}
                       </span>
-                      <span className="inline-flex items-center gap-1.5 rounded-full border border-[#d8c09d] bg-white px-3 py-1.5 text-sm font-bold text-[#6b4925]">
+                      <span className="reservation-count-badge inline-flex items-center gap-1.5 rounded-full border border-[#d8c09d] bg-white px-3 py-1.5 text-sm font-bold text-[#6b4925]">
                         <UsersIcon className="h-4 w-4" aria-hidden="true" />
                         {dayPax} pax
                       </span>

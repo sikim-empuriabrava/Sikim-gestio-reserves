@@ -832,7 +832,7 @@ function MonthView({
                 </span>
               ))}
             </div>
-            <div className="grid grid-cols-7 bg-[#3c342a]/70 [grid-auto-rows:minmax(8.5rem,1fr)] gap-px">
+            <div className="grid grid-cols-7 border-l border-t border-[#3c342a]/70 bg-[#181715] [grid-auto-rows:minmax(8.5rem,1fr)]">
               {days.map((day) => {
                 const dateObj = new Date(day);
                 const isCurrentMonth = dateObj.getMonth() === refMonth;
@@ -842,7 +842,7 @@ function MonthView({
                 return (
                   <div
                     key={day}
-                    className={`group/cell relative min-h-[8.5rem] p-3 text-left transition-colors ${
+                    className={`group/cell relative min-h-[8.5rem] border-b border-r border-[#3c342a]/70 p-3 text-left transition-colors ${
                       isCurrentMonth
                         ? 'bg-[#181715] hover:bg-[#211f1b]'
                         : 'bg-[#141311] text-[#6f675d] hover:bg-[#1a1815]'
