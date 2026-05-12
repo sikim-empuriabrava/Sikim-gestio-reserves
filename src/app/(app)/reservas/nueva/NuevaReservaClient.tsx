@@ -865,6 +865,16 @@ export default function NuevaReservaClient() {
             type="submit"
             form="nueva-reserva-form"
             name="reservationStatus"
+            value="draft"
+            className="button-secondary min-w-[10rem]"
+            disabled={isSubmitting}
+          >
+            {isSubmitting && submittingStatus === 'draft' ? 'Guardando...' : 'Guardar borrador'}
+          </button>
+          <button
+            type="submit"
+            form="nueva-reserva-form"
+            name="reservationStatus"
             value="confirmed"
             className="button-primary min-w-[12rem]"
             disabled={isSubmitting}
