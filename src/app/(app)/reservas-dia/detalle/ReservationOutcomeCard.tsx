@@ -6,7 +6,7 @@ import { useMemo, useState } from 'react';
 const statusStyles: Record<string, string> = {
   confirmed: 'border-emerald-500/30 bg-emerald-500/10 text-emerald-200',
   completed: 'border-emerald-500/25 bg-emerald-900/30 text-emerald-100',
-  draft: 'border-amber-400/45 bg-amber-500/10 text-amber-100',
+  draft: 'border-[#e99a64]/60 bg-[#8a4728]/35 text-[#ffd9c2]',
   pending: 'border-sky-500/30 bg-sky-500/10 text-sky-200',
   no_show: 'border-rose-500/30 bg-rose-500/10 text-rose-200',
   incident: 'border-red-500/30 bg-red-500/10 text-red-200',
@@ -105,7 +105,7 @@ export function ReservationOutcomeCard({
   const statusClass = statusStyles[status] ?? 'border-stone-600/70 bg-stone-900/70 text-stone-200';
   const cardClass =
     status === 'draft'
-      ? 'border-amber-400/45 bg-[#211a13]/95 hover:border-amber-300/55'
+      ? 'border-[#e99a64]/60 bg-[#332015]/95 hover:border-[#f2b07b]/70'
       : 'border-[#4a3f32]/70 bg-[#181715]/95 hover:border-[#8b6a43]/55';
 
   const paxValue = useMemo(() => {
