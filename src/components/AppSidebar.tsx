@@ -10,6 +10,7 @@ type NavigationLink = {
   href: string;
   basePath: string;
   matchPaths?: string[];
+  includeChildren?: boolean;
 };
 
 type NavigationGroup = {
@@ -45,11 +46,17 @@ function buildGroups(allowedUser: AllowedUser | null): NavigationGroup[] {
           href: '/reservas?view=week',
           basePath: '/reservas',
           matchPaths: ['/reservas-dia', '/reservas-semana', '/reservas/grupo'],
+          includeChildren: false,
         },
         {
           label: 'Nueva reserva',
           href: '/reservas/nueva',
           basePath: '/reservas/nueva',
+        },
+        {
+          label: 'Informes',
+          href: '/reservas/informes',
+          basePath: '/reservas/informes',
         },
       ],
     });
@@ -122,7 +129,8 @@ function buildGroups(allowedUser: AllowedUser | null): NavigationGroup[] {
 }
 
 function isLinkActive(pathname: string, link: NavigationLink) {
-  const matchChildren = pathname === link.basePath || pathname.startsWith(`${link.basePath}/`);
+  const allowChildren = link.includeChildren ?? true;
+  const matchChildren = pathname === link.basePath || (allowChildren && pathname.startsWith(`${link.basePath}/`));
   const matchesExtra = link.matchPaths?.some((matchPath) => pathname.startsWith(matchPath));
   return matchChildren || Boolean(matchesExtra);
 }

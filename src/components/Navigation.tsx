@@ -30,6 +30,7 @@ const sections: NavigationSection[] = [
         includeChildren: false,
       },
       { key: 'reservas-nueva', label: 'Nueva reserva', href: '/reservas/nueva', basePath: '/reservas/nueva' },
+      { key: 'reservas-informes', label: 'Informes', href: '/reservas/informes', basePath: '/reservas/informes' },
     ],
   },
   {
