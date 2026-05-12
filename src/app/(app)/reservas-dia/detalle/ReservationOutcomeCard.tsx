@@ -6,7 +6,7 @@ import { useMemo, useState } from 'react';
 const statusStyles: Record<string, string> = {
   confirmed: 'border-emerald-500/30 bg-emerald-500/10 text-emerald-200',
   completed: 'border-emerald-500/25 bg-emerald-900/30 text-emerald-100',
-  draft: 'border-[#e99a64]/60 bg-[#8a4728]/35 text-[#ffd9c2]',
+  draft: 'border-[#e2b19b]/90 bg-[#f7e1d7] text-[#8a5c49]',
   pending: 'border-sky-500/30 bg-sky-500/10 text-sky-200',
   no_show: 'border-rose-500/30 bg-rose-500/10 text-rose-200',
   incident: 'border-red-500/30 bg-red-500/10 text-red-200',
@@ -105,7 +105,7 @@ export function ReservationOutcomeCard({
   const statusClass = statusStyles[status] ?? 'border-stone-600/70 bg-stone-900/70 text-stone-200';
   const cardClass =
     status === 'draft'
-      ? 'border-[#e99a64]/60 bg-[#332015]/95 hover:border-[#f2b07b]/70'
+      ? 'border-[#e2b19b]/90 bg-[#f3ddd2] hover:border-[#d99d84]/90 [&>div:first-child_h3]:text-[#5f4033] [&>div:first-child_p]:text-[#8a5c49] [&>div:first-child_a]:text-[#8a5c49] hover:[&>div:first-child_a]:text-[#6f4b3c] [&>div:first-child_button]:text-[#8a5c49] hover:[&>div:first-child_button]:text-[#6f4b3c]'
       : 'border-[#4a3f32]/70 bg-[#181715]/95 hover:border-[#8b6a43]/55';
 
   const paxValue = useMemo(() => {

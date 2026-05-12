@@ -150,7 +150,7 @@ function statusBadge(status: string) {
     case 'draft':
       return {
         label: 'Borrador',
-        className: 'border-[#e99a64]/60 bg-[#8a4728]/35 text-[#ffd9c2]',
+        className: 'border-[#e2b19b]/90 bg-[#f7e1d7] text-[#8a5c49]',
       };
     case 'completed':
       return {
@@ -187,7 +187,7 @@ function statusBadge(status: string) {
 
 function reservationCardClassName(status: string) {
   if (status === 'draft') {
-    return 'border-[#e99a64]/60 bg-[#332015]/90 hover:border-[#f2b07b]/70 hover:bg-[#3f2719]';
+    return 'border-[#e2b19b]/90 bg-[#f3ddd2] hover:border-[#d99d84]/90 hover:bg-[#efd6ca] [&_h3]:text-[#5f4033] [&_p]:text-[#8a5c49]';
   }
 
   return 'border-[#4a3f32]/60 bg-[#24221f]/80 hover:border-[#8b6a43]/70 hover:bg-[#2a2722]';
@@ -195,7 +195,7 @@ function reservationCardClassName(status: string) {
 
 function monthReservationClassName(status: string) {
   if (status === 'draft') {
-    return 'border-[#e99a64]/60 bg-[#3a2418]/90 text-[#ffe3d0] hover:border-[#f2b07b]/70 hover:bg-[#472b1c]';
+    return 'border-[#e2b19b]/90 bg-[#f3ddd2] text-[#6f4b3c] hover:border-[#d99d84]/90 hover:bg-[#efd6ca] [&>p]:text-[#8a5c49]';
   }
 
   return 'border-[#4a3f32]/60 bg-[#24221f]/70 text-[#d8cfc2] hover:border-[#8b6a43]/70 hover:bg-[#2c2822]';
