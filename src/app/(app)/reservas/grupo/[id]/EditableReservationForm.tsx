@@ -282,6 +282,9 @@ export function EditableReservationForm({
   const [error, setError] = useState<string | null>(null);
   const [calendarWarning, setCalendarWarning] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
   const [rooms, setRooms] = useState<RoomOption[]>([]);
   const [roomId, setRoomId] = useState<string>(currentRoomAllocation?.room_id ?? '');
   const [roomNotes, setRoomNotes] = useState<string>(currentRoomAllocation?.notes ?? '');
@@ -692,6 +695,34 @@ export function EditableReservationForm({
       router.push(`/reservas?view=day&date=${backDate}`);
     } else {
       router.back();
+    }
+  };
+
+  const handleDeleteReservation = async () => {
+    if (isDeleting) return;
+
+    setIsDeleting(true);
+    setDeleteError(null);
+    setError(null);
+    setMessage(null);
+    setCalendarWarning(null);
+
+    try {
+      const response = await fetch(`/api/group-events/${form.id}`, {
+        method: 'DELETE',
+        cache: 'no-store',
+      });
+
+      if (!response.ok) {
+        const body = await response.json().catch(() => ({}));
+        throw new Error(body?.error || 'No se pudo eliminar la reserva');
+      }
+
+      router.push('/reservas');
+      router.refresh();
+    } catch (err) {
+      setDeleteError(err instanceof Error ? err.message : 'Error inesperado al eliminar la reserva');
+      setIsDeleting(false);
     }
   };
 
@@ -1198,6 +1229,29 @@ export function EditableReservationForm({
           </div>
         </section>
 
+        <section className="rounded-2xl border border-red-900/60 bg-red-950/15 p-5 space-y-4">
+          <div className="space-y-2">
+            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-red-300">Zona peligrosa</p>
+            <h2 className="text-lg font-semibold text-slate-100">Eliminar reserva</h2>
+            <p className="max-w-3xl text-sm leading-6 text-slate-300">
+              Eliminar esta reserva solo debe usarse si se creó por error, duplicada o como prueba. Si el cliente ha
+              anulado la reserva, usa el estado Cancelada.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => {
+              setDeleteError(null);
+              setIsDeleteModalOpen(true);
+            }}
+            disabled={isDeleting}
+            className="inline-flex w-full items-center justify-center rounded-lg border border-red-700/70 bg-red-950/40 px-4 py-2.5 text-sm font-semibold text-red-100 hover:border-red-500/80 hover:bg-red-900/55 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-400/35 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
+          >
+            Eliminar reserva
+          </button>
+          {deleteError && <p className="text-sm text-red-300">{deleteError}</p>}
+        </section>
+
         <div className="sticky bottom-4 z-10 flex flex-wrap items-center gap-3 rounded-2xl border border-[#4a3f32]/70 bg-[#181715]/90 p-3 shadow-[0_24px_80px_-48px_rgba(0,0,0,0.95)] backdrop-blur">
           <button type="button" onClick={handleSubmit} disabled={isPending} className="inline-flex items-center rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-500 disabled:opacity-60">
             {isPending ? 'Guardando…' : 'Guardar cambios'}
@@ -1207,6 +1261,60 @@ export function EditableReservationForm({
           {error && <span className="text-sm text-red-300">{error}</span>}
         </div>
       </div>
+
+      {isDeleteModalOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-end justify-center bg-[#080705]/75 px-4 py-6 backdrop-blur-sm sm:items-center"
+          role="presentation"
+        >
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="delete-reservation-title"
+            className="w-full max-w-lg space-y-5 rounded-2xl border border-[#5b4934]/75 bg-[#181715] p-5 text-[#efe8dc] shadow-[0_28px_90px_-48px_rgba(0,0,0,0.98),inset_0_1px_0_rgba(255,255,255,0.04)]"
+          >
+            <div className="space-y-2">
+              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-red-300">Confirmar eliminación</p>
+              <h3 id="delete-reservation-title" className="text-xl font-semibold text-[#f6f0e8]">
+                ¿Seguro que quieres eliminar esta reserva?
+              </h3>
+              <p className="text-sm leading-6 text-[#d8cfc2]">
+                Esta acción eliminará la reserva de Sikim. Si tenía evento en Google Calendar, también se intentará
+                eliminar. Usa esta opción solo para errores o tests.
+              </p>
+            </div>
+
+            {deleteError && (
+              <div className="rounded-xl border border-red-500/35 bg-red-950/35 px-3 py-2 text-sm text-red-100">
+                {deleteError}
+              </div>
+            )}
+
+            <div className="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+              <button
+                type="button"
+                onClick={() => {
+                  if (!isDeleting) {
+                    setIsDeleteModalOpen(false);
+                  }
+                }}
+                disabled={isDeleting}
+                className="inline-flex justify-center rounded-xl border border-[#4a3f32]/80 bg-[#151412]/90 px-4 py-2 text-sm font-semibold text-[#efe8dc] transition hover:border-[#8b6a43]/70 hover:bg-[#211f1b] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#c99555]/35 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={handleDeleteReservation}
+                disabled={isDeleting}
+                className="inline-flex justify-center rounded-xl border border-red-500/70 bg-red-700 px-4 py-2 text-sm font-semibold text-white transition hover:border-red-400 hover:bg-red-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-400/35 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {isDeleting ? 'Eliminando...' : 'Sí, eliminar reserva'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
