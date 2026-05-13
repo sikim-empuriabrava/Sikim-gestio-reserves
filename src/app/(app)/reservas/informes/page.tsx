@@ -34,7 +34,6 @@ import {
   type RoomAllocationRow,
   type SelectionRow,
 } from '@/lib/server/reservation-reports/reportData';
-import { PrintReportButton } from './PrintReportButton';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -519,11 +518,6 @@ export default async function ReservationReportsPage({ searchParams }: { searchP
                   Descargar PDF
                 </a>
               )}
-              <PrintReportButton
-                dateFrom={from}
-                dateTo={to}
-                disabled={reportActionsDisabled}
-              />
             </div>
           </form>
         </section>
