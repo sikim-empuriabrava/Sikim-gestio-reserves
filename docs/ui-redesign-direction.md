@@ -169,7 +169,7 @@ When these primitives are revisited, prefer semantic theme tokens and warm-neutr
 2. Reservas light-mode pilot: adapt `/reservas` first because it is already validated as the strongest visual pattern.
 3. Reservas forms/detail adaptation: normalize `/reservas/nueva` and `/reservas/grupo/[id]` using the same themed primitives and current behavior.
 4. Cocina and Mantenimiento light-mode adaptation: carry the same theme system into the already-redesigned operational modules without changing workflows.
-5. Disco, Admin, and Cheffing redesigns: continue pending redesign work using theme tokens from the start, including future decisions for Cheffing.
+5. Disco, Admin, and Cheffing redesigns: Admin now uses the warm operational shell and theme-aware treatment for its management screens; continue pending Disco and Cheffing decisions with the same token-first direction.
 6. Extension across remaining modules: complete dark and light support progressively without duplicating layouts, components, routes, or data logic.
 
 ## First pilot recommendation

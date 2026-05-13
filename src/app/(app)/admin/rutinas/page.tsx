@@ -1,4 +1,5 @@
 import { redirect } from 'next/navigation';
+import { OperationalPageHeader } from '@/components/operational/OperationalUI';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { WeeklyRoutinesManager } from './WeeklyRoutinesManager';
 
@@ -15,16 +16,14 @@ export default async function AdminRoutinesPage() {
   }
 
   return (
-    <div className="space-y-4">
-      <div className="space-y-2">
-        <h1 className="text-2xl font-semibold">Rutinas semanales</h1>
-        <p className="text-slate-400">
-          Configura plantillas para generar tareas recurrentes de cocina y mantenimiento y lanza las de una semana
-          concreta evitando duplicados.
-        </p>
-      </div>
+    <>
+      <OperationalPageHeader
+        eyebrow="Admin"
+        title="Rutinas semanales"
+        description="Configura plantillas para generar tareas recurrentes de cocina y mantenimiento y lanza las de una semana concreta evitando duplicados."
+      />
 
       <WeeklyRoutinesManager />
-    </div>
+    </>
   );
 }

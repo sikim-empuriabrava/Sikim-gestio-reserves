@@ -1,6 +1,12 @@
 'use client';
 
+import { ArrowPathIcon } from '@heroicons/react/24/outline';
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import {
+  OperationalPageHeader,
+  OperationalPill,
+  operationalSecondaryButtonClass,
+} from '@/components/operational/OperationalUI';
 import { VALID_APP_ROLES, type AppRole } from '@/lib/auth/roles';
 
 type Role = AppRole;
@@ -167,30 +173,26 @@ export function AllowedUsersManager({
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="text-2xl font-semibold text-white">Usuarios y permisos</h1>
-          <p className="text-sm text-slate-400">
-            Activa usuarios y controla el acceso a Reservas, Disco, Mantenimiento, Cocina y Cheffing.
-          </p>
-        </div>
-        <div className="flex items-center gap-3 text-sm text-slate-300">
-          <span className="rounded-full border border-slate-700 bg-slate-900/70 px-3 py-1">
-            {counts.active} activos
-          </span>
-          <span className="rounded-full border border-slate-700 bg-slate-900/70 px-3 py-1">
-            {counts.total} en total
-          </span>
+      <OperationalPageHeader
+        eyebrow="Admin"
+        title="Usuarios y permisos"
+        description="Activa usuarios y controla el acceso a Reservas, Disco, Mantenimiento, Cocina y Cheffing."
+        actions={
+          <>
+          <OperationalPill tone="success">{counts.active} activos</OperationalPill>
+          <OperationalPill tone="muted">{counts.total} en total</OperationalPill>
           <button
             type="button"
             onClick={loadUsers}
             disabled={loading}
-            className="rounded-md border border-slate-700 bg-slate-900/70 px-3 py-1 text-sm font-semibold text-slate-200 transition hover:border-slate-500 disabled:opacity-60"
+            className={operationalSecondaryButtonClass}
           >
+            <ArrowPathIcon className="h-4 w-4" aria-hidden="true" />
             {loading ? 'Actualizando...' : 'Refrescar'}
           </button>
-        </div>
-      </div>
+          </>
+        }
+      />
 
       {initialLoadError && (
         <div className="rounded-2xl border border-amber-900/60 bg-amber-950/40 p-4 text-sm text-amber-100">
