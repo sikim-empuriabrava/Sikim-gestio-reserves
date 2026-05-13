@@ -29,7 +29,7 @@ const SELECTIONS_PER_PDF_GROUP = 3;
 const styles = StyleSheet.create({
   page: {
     padding: 28,
-    backgroundColor: '#fffdf8',
+    backgroundColor: '#ffffff',
     color: '#2d2419',
     fontFamily: 'Helvetica',
     fontSize: 8.5,
@@ -39,8 +39,8 @@ const styles = StyleSheet.create({
     padding: 12,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: '#d8bea0',
-    backgroundColor: '#fffaf2',
+    borderColor: '#d6b98f',
+    backgroundColor: '#ffffff',
     color: '#2d2419',
     marginBottom: 10,
   },
@@ -77,7 +77,7 @@ const styles = StyleSheet.create({
     borderRadius: 7,
     borderWidth: 1,
     borderColor: '#e1cdb6',
-    backgroundColor: '#fffdf8',
+    backgroundColor: '#ffffff',
   },
   summaryRow: {
     flexDirection: 'row',
@@ -117,7 +117,7 @@ const styles = StyleSheet.create({
     borderRadius: 7,
     borderWidth: 1,
     borderColor: '#dec7a6',
-    backgroundColor: '#fff8ed',
+    backgroundColor: '#ffffff',
     marginBottom: 5,
   },
   dayTitle: {
@@ -144,9 +144,9 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingVertical: 7,
     paddingHorizontal: 8,
-    backgroundColor: '#fffdf8',
+    backgroundColor: '#ffffff',
     borderBottomWidth: 1,
-    borderBottomColor: '#eadcca',
+    borderBottomColor: '#e6d7c3',
   },
   reservationMain: {
     flexGrow: 1,
@@ -194,7 +194,7 @@ const styles = StyleSheet.create({
     borderRadius: 7,
     borderWidth: 1,
     borderColor: '#d2ad7b',
-    backgroundColor: '#fff8ed',
+    backgroundColor: '#ffffff',
     color: '#2d2419',
     textAlign: 'right',
   },
@@ -286,7 +286,7 @@ const styles = StyleSheet.create({
     borderRadius: 6,
     borderWidth: 1,
     borderColor: '#eadcca',
-    backgroundColor: '#fffdf8',
+    backgroundColor: '#ffffff',
   },
   selectionTitle: {
     color: '#30261d',
