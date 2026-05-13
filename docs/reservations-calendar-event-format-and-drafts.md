@@ -73,6 +73,18 @@ Borrador, Confirmado, Completado, Cancelado
 
 Ese selector permite guardar una reserva existente como `draft`.
 
+## Cancelar vs eliminar
+
+`Cancelada` (`status = cancelled`) es el estado operativo para una reserva real anulada por el cliente. Se conserva en
+Sikim como histórico de trabajo, y si tenía `calendar_event_id`, `/api/calendar-sync` elimina el evento externo y limpia
+el identificador.
+
+`Eliminar reserva` es una acción destructiva distinta para registros creados por error, duplicados o pruebas. Se ejecuta
+desde `/reservas/grupo/[id]`, pide confirmación en modal y llama a `DELETE /api/group-events/[id]`. Si hay
+`calendar_event_id`, primero intenta borrar el evento de Google Calendar; si ese borrado falla, la reserva no se elimina
+de Sikim. Al borrar `group_events`, las relaciones directas de sala, staffing y ofertas estructuradas se limpian por las
+FK `ON DELETE CASCADE` verificadas en el esquema.
+
 No hay autosave tipo Gmail en `/reservas/nueva`: abandonar el formulario no crea ni persiste una reserva parcial.
 
 No hay un mecanismo de borrador local o remoto para recuperar formularios abandonados.
