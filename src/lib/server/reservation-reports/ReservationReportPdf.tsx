@@ -24,9 +24,11 @@ import {
   type SelectionRow,
 } from './reportData';
 
+const SELECTIONS_PER_PDF_GROUP = 3;
+
 const styles = StyleSheet.create({
   page: {
-    padding: 34,
+    padding: 30,
     backgroundColor: '#fbf6ed',
     color: '#2d2419',
     fontFamily: 'Helvetica',
@@ -34,11 +36,11 @@ const styles = StyleSheet.create({
     lineHeight: 1.35,
   },
   header: {
-    padding: 18,
+    padding: 15,
     borderRadius: 10,
     backgroundColor: '#2d2419',
     color: '#fff1d8',
-    marginBottom: 16,
+    marginBottom: 12,
   },
   eyebrow: {
     color: '#d6b57f',
@@ -48,23 +50,23 @@ const styles = StyleSheet.create({
     letterSpacing: 1.2,
   },
   title: {
-    fontSize: 24,
+    fontSize: 22,
     fontWeight: 700,
     marginTop: 5,
   },
   headerMeta: {
     color: '#ead7ba',
     fontSize: 9,
-    marginTop: 8,
+    marginTop: 6,
   },
   summaryRow: {
     flexDirection: 'row',
-    marginTop: 14,
+    marginTop: 11,
   },
   summaryCard: {
     width: '31%',
     marginRight: 8,
-    padding: 10,
+    padding: 8,
     borderRadius: 8,
     backgroundColor: '#fffaf2',
     color: '#2d2419',
@@ -77,22 +79,22 @@ const styles = StyleSheet.create({
     letterSpacing: 0.8,
   },
   summaryValue: {
-    fontSize: 18,
+    fontSize: 16,
     fontWeight: 700,
     marginTop: 3,
   },
   dayBlock: {
-    marginBottom: 15,
+    marginBottom: 11,
   },
   dayHeading: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    padding: 11,
+    padding: 9,
     borderRadius: 8,
     borderWidth: 1,
     borderColor: '#dec7a6',
     backgroundColor: '#f4e3c9',
-    marginBottom: 8,
+    marginBottom: 6,
   },
   dayTitle: {
     fontSize: 14,
@@ -110,13 +112,13 @@ const styles = StyleSheet.create({
     borderColor: '#dfcdb7',
     borderRadius: 9,
     backgroundColor: '#ffffff',
-    marginBottom: 8,
+    marginBottom: 6,
     overflow: 'hidden',
   },
   reservationHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    padding: 11,
+    padding: 9,
     backgroundColor: '#fff3df',
     borderBottomWidth: 1,
     borderBottomColor: '#eadcca',
@@ -134,7 +136,7 @@ const styles = StyleSheet.create({
   },
   completedBadge: {
     alignSelf: 'flex-start',
-    marginTop: 4,
+    marginTop: 3,
     paddingVertical: 3,
     paddingHorizontal: 7,
     borderRadius: 999,
@@ -146,14 +148,14 @@ const styles = StyleSheet.create({
     fontWeight: 700,
   },
   reservationName: {
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: 700,
     marginTop: 5,
     color: '#251d16',
   },
   paxBox: {
     minWidth: 70,
-    padding: 8,
+    padding: 7,
     borderRadius: 8,
     backgroundColor: '#8a5b2b',
     color: '#ffffff',
@@ -166,23 +168,23 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
   },
   paxValue: {
-    fontSize: 18,
+    fontSize: 16,
     fontWeight: 700,
     marginTop: 2,
   },
   cardBody: {
-    padding: 11,
+    padding: 9,
   },
   fieldGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    marginBottom: 8,
+    marginBottom: 6,
   },
   fieldPill: {
     width: '48%',
     marginRight: 5,
     marginBottom: 5,
-    padding: 7,
+    padding: 5,
     borderRadius: 7,
     borderWidth: 1,
     borderColor: '#eadcca',
@@ -205,16 +207,22 @@ const styles = StyleSheet.create({
     fontSize: 8,
     fontWeight: 700,
     textTransform: 'uppercase',
-    marginTop: 4,
-    marginBottom: 5,
+    marginTop: 2,
+    marginBottom: 4,
   },
   offering: {
-    padding: 8,
+    padding: 6,
     borderRadius: 7,
     borderWidth: 1,
     borderColor: '#e2d1bd',
     backgroundColor: '#fffaf2',
-    marginBottom: 5,
+    marginBottom: 4,
+  },
+  continuedLabel: {
+    color: '#98764c',
+    fontSize: 7,
+    fontWeight: 700,
+    textTransform: 'uppercase',
   },
   offeringHeader: {
     flexDirection: 'row',
@@ -233,11 +241,11 @@ const styles = StyleSheet.create({
   mutedText: {
     color: '#6f6258',
     fontSize: 8,
-    marginTop: 3,
+    marginTop: 2,
   },
   selection: {
-    marginTop: 5,
-    padding: 6,
+    marginTop: 4,
+    padding: 5,
     borderRadius: 6,
     borderWidth: 1,
     borderColor: '#eadcca',
@@ -252,7 +260,7 @@ const styles = StyleSheet.create({
     width: '48%',
     marginRight: 5,
     marginBottom: 5,
-    padding: 7,
+    padding: 5,
     borderRadius: 7,
     borderWidth: 1,
     borderColor: '#eadcca',
@@ -261,8 +269,8 @@ const styles = StyleSheet.create({
   pageNumber: {
     position: 'absolute',
     bottom: 16,
-    left: 34,
-    right: 34,
+    left: 30,
+    right: 30,
     color: '#9a8874',
     fontSize: 8,
     textAlign: 'right',
@@ -273,7 +281,7 @@ function FieldPill({ label, value }: { label: string; value: string | number | n
   if (value === null || value === undefined || value === '') return null;
 
   return (
-    <View style={styles.fieldPill}>
+    <View style={styles.fieldPill} wrap={false}>
       <Text style={styles.fieldLabel}>{label}</Text>
       <Text style={styles.fieldValue}>{String(value)}</Text>
     </View>
@@ -283,9 +291,10 @@ function FieldPill({ label, value }: { label: string; value: string | number | n
 function TextSection({ title, value }: { title: string; value: string | null | undefined }) {
   const text = cleanText(value);
   if (!text) return null;
+  const shouldKeepTogether = text.length <= 360;
 
   return (
-    <View style={styles.textSection}>
+    <View style={styles.textSection} wrap={shouldKeepTogether ? false : undefined}>
       <Text style={styles.fieldLabel}>{title}</Text>
       <Text style={styles.mutedText}>{text}</Text>
     </View>
@@ -298,22 +307,63 @@ function getSelectionKindLabel(kind: SelectionRow['selection_kind']) {
   return 'Segundo';
 }
 
+function chunkSelections(selections: SelectionRow[]) {
+  if (selections.length === 0) return [[]];
+
+  const chunks: SelectionRow[][] = [];
+  for (let index = 0; index < selections.length; index += SELECTIONS_PER_PDF_GROUP) {
+    chunks.push(selections.slice(index, index + SELECTIONS_PER_PDF_GROUP));
+  }
+  return chunks;
+}
+
+function getReservationContentSize({
+  reservation,
+  offerings,
+  selectionsByOffering,
+}: {
+  reservation: ReservationRow;
+  offerings: OfferingRow[];
+  selectionsByOffering: Map<string, SelectionRow[]>;
+}) {
+  const selectionCount = offerings.reduce(
+    (total, offering) => total + (selectionsByOffering.get(offering.id)?.length ?? 0),
+    0,
+  );
+  const textLength = [
+    reservation.menu_text,
+    reservation.second_course_type,
+    reservation.allergens_and_diets,
+    reservation.extras,
+    reservation.setup_notes,
+    reservation.service_outcome_notes,
+    reservation.invoice_data,
+  ].reduce((total, value) => total + (cleanText(value)?.length ?? 0), 0);
+
+  return { selectionCount, textLength };
+}
+
 function SelectionList({
   offering,
   selections,
   donenessBySelection,
+  continued = false,
 }: {
   offering: OfferingRow;
   selections: SelectionRow[];
   donenessBySelection: Map<string, DonenessRow[]>;
+  continued?: boolean;
 }) {
   return (
-    <View style={styles.offering}>
-      <View style={styles.offeringHeader}>
-        <Text style={styles.offeringName}>{offering.display_name_snapshot}</Text>
+    <View style={styles.offering} wrap={false}>
+      <View style={styles.offeringHeader} wrap={false}>
+        <View>
+          <Text style={styles.offeringName}>{offering.display_name_snapshot}</Text>
+          {continued ? <Text style={styles.continuedLabel}>Continuación</Text> : null}
+        </View>
         <Text style={styles.offeringPax}>{offering.assigned_pax} pax</Text>
       </View>
-      {cleanText(offering.notes) ? <Text style={styles.mutedText}>{offering.notes}</Text> : null}
+      {cleanText(offering.notes) && !continued ? <Text style={styles.mutedText}>{offering.notes}</Text> : null}
 
       {selections.map((selection) => {
         const points = (donenessBySelection.get(selection.id) ?? [])
@@ -325,7 +375,7 @@ function SelectionList({
           .join(' / ');
 
         return (
-          <View key={selection.id} style={styles.selection}>
+          <View key={selection.id} style={styles.selection} wrap={false}>
             <Text style={styles.selectionTitle}>
               {selection.quantity}x {selection.display_name_snapshot} · {getSelectionKindLabel(selection.selection_kind)}
             </Text>
@@ -364,10 +414,16 @@ function ReservationCard({
     reservation.has_private_dining_room ? 'Comedor privado' : null,
     reservation.has_private_party ? 'Fiesta privada' : null,
   ].filter(Boolean);
+  const { selectionCount, textLength } = getReservationContentSize({
+    reservation,
+    offerings,
+    selectionsByOffering,
+  });
+  const shouldKeepReservationTogether = selectionCount <= 4 && textLength <= 420;
 
   return (
-    <View style={styles.reservationCard}>
-      <View style={styles.reservationHeader} wrap={false}>
+    <View style={styles.reservationCard} wrap={shouldKeepReservationTogether ? false : undefined}>
+      <View style={styles.reservationHeader} wrap={false} minPresenceAhead={120}>
         <View>
           <Text style={styles.timePill}>{formatTime(reservation.entry_time)}</Text>
           {reservation.status === 'completed' ? <Text style={styles.completedBadge}>Completada</Text> : null}
@@ -380,7 +436,7 @@ function ReservationCard({
       </View>
 
       <View style={styles.cardBody}>
-        <View style={styles.fieldGrid}>
+        <View style={styles.fieldGrid} wrap={false}>
           <FieldPill label="Sala" value={roomLabel ?? 'Sin sala asignada'} />
           <FieldPill label="Mesa / zona" value={roomNotes} />
           <FieldPill label="Personas" value={peopleParts.length > 0 ? peopleParts.join(' / ') : `${reservation.total_pax ?? 0} pax`} />
@@ -389,18 +445,23 @@ function ReservationCard({
 
         {offerings.length > 0 ? (
           <View>
-            <Text style={styles.sectionTitle}>Oferta y selecciones</Text>
-            {offerings.map((offering) => (
-              <SelectionList
-                key={offering.id}
-                offering={offering}
-                selections={selectionsByOffering.get(offering.id) ?? []}
-                donenessBySelection={donenessBySelection}
-              />
-            ))}
+            <Text style={styles.sectionTitle} minPresenceAhead={70}>
+              Oferta y selecciones
+            </Text>
+            {offerings.flatMap((offering) =>
+              chunkSelections(selectionsByOffering.get(offering.id) ?? []).map((selectionChunk, chunkIndex) => (
+                <SelectionList
+                  key={`${offering.id}-${chunkIndex}`}
+                  offering={offering}
+                  selections={selectionChunk}
+                  donenessBySelection={donenessBySelection}
+                  continued={chunkIndex > 0}
+                />
+              )),
+            )}
           </View>
         ) : (
-          <View style={styles.fieldGrid}>
+          <View style={styles.fieldGrid} wrap={false}>
             <TextSection title="Menú / carta" value={reservation.menu_text} />
             <TextSection title="Segundo plato" value={reservation.second_course_type} />
           </View>
@@ -467,7 +528,7 @@ export function ReservationReportPdf({
           const dayPax = dayReservations.reduce((sum, reservation) => sum + (reservation.total_pax ?? 0), 0);
           return (
             <View key={date} style={styles.dayBlock}>
-              <View style={styles.dayHeading} wrap={false}>
+              <View style={styles.dayHeading} wrap={false} minPresenceAhead={90}>
                 <Text style={styles.dayTitle}>{formatLongDate(date)}</Text>
                 <Text style={styles.dayMeta}>
                   {dayReservations.length} {dayReservations.length === 1 ? 'reserva' : 'reservas'} · {dayPax} pax
