@@ -11,6 +11,7 @@
   },
   "dependencies": {
     "@heroicons/react": "2.1.5",
+    "@react-pdf/renderer": "^4.5.1",
     "@supabase/ssr": "file:supabase-ssr",
     "@supabase/supabase-js": "^2.45.4",
     "csv-parse": "^6.1.0",
