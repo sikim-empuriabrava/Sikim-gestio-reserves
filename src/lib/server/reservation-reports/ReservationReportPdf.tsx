@@ -28,47 +28,70 @@ const SELECTIONS_PER_PDF_GROUP = 3;
 
 const styles = StyleSheet.create({
   page: {
-    padding: 30,
-    backgroundColor: '#fbf6ed',
+    padding: 28,
+    backgroundColor: '#fffdf8',
     color: '#2d2419',
     fontFamily: 'Helvetica',
-    fontSize: 9,
-    lineHeight: 1.35,
+    fontSize: 8.5,
+    lineHeight: 1.28,
   },
   header: {
-    padding: 15,
-    borderRadius: 10,
-    backgroundColor: '#2d2419',
-    color: '#fff1d8',
-    marginBottom: 12,
+    padding: 12,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#d8bea0',
+    backgroundColor: '#fffaf2',
+    color: '#2d2419',
+    marginBottom: 10,
   },
   eyebrow: {
-    color: '#d6b57f',
+    color: '#8a5b2b',
     fontSize: 8,
     fontWeight: 700,
     textTransform: 'uppercase',
     letterSpacing: 1.2,
   },
   title: {
-    fontSize: 22,
+    fontSize: 20,
     fontWeight: 700,
-    marginTop: 5,
+    marginTop: 4,
+    lineHeight: 1.12,
   },
   headerMeta: {
-    color: '#ead7ba',
-    fontSize: 9,
-    marginTop: 6,
+    color: '#6b4925',
+    fontSize: 8.5,
+    marginTop: 5,
+    lineHeight: 1.25,
+  },
+  headerTopRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
+  headerTitleBlock: {
+    width: '66%',
+    paddingRight: 10,
+  },
+  headerMetaBlock: {
+    width: '34%',
+    padding: 7,
+    borderRadius: 7,
+    borderWidth: 1,
+    borderColor: '#e1cdb6',
+    backgroundColor: '#fffdf8',
   },
   summaryRow: {
     flexDirection: 'row',
-    marginTop: 11,
+    marginTop: 9,
   },
   summaryCard: {
-    width: '31%',
-    marginRight: 8,
-    padding: 8,
-    borderRadius: 8,
-    backgroundColor: '#fffaf2',
+    width: '24%',
+    marginRight: 7,
+    paddingVertical: 6,
+    paddingHorizontal: 7,
+    borderRadius: 7,
+    borderWidth: 1,
+    borderColor: '#e1cdb6',
+    backgroundColor: '#ffffff',
     color: '#2d2419',
   },
   summaryLabel: {
@@ -79,25 +102,26 @@ const styles = StyleSheet.create({
     letterSpacing: 0.8,
   },
   summaryValue: {
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: 700,
-    marginTop: 3,
+    marginTop: 2,
   },
   dayBlock: {
-    marginBottom: 11,
+    marginBottom: 9,
   },
   dayHeading: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    padding: 9,
-    borderRadius: 8,
+    paddingVertical: 7,
+    paddingHorizontal: 8,
+    borderRadius: 7,
     borderWidth: 1,
     borderColor: '#dec7a6',
-    backgroundColor: '#f4e3c9',
-    marginBottom: 6,
+    backgroundColor: '#fff8ed',
+    marginBottom: 5,
   },
   dayTitle: {
-    fontSize: 14,
+    fontSize: 12,
     fontWeight: 700,
     color: '#2d2419',
   },
@@ -110,85 +134,98 @@ const styles = StyleSheet.create({
   reservationCard: {
     borderWidth: 1,
     borderColor: '#dfcdb7',
-    borderRadius: 9,
+    borderRadius: 7,
     backgroundColor: '#ffffff',
-    marginBottom: 6,
+    marginBottom: 5,
     overflow: 'hidden',
   },
   reservationHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    padding: 9,
-    backgroundColor: '#fff3df',
+    paddingVertical: 7,
+    paddingHorizontal: 8,
+    backgroundColor: '#fffdf8',
     borderBottomWidth: 1,
     borderBottomColor: '#eadcca',
   },
+  reservationMain: {
+    flexGrow: 1,
+    paddingRight: 8,
+  },
+  reservationMetaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 3,
+  },
   timePill: {
     alignSelf: 'flex-start',
-    paddingVertical: 3,
-    paddingHorizontal: 7,
+    paddingVertical: 2,
+    paddingHorizontal: 6,
     borderRadius: 999,
     borderWidth: 1,
     borderColor: '#d2ad7b',
     color: '#6b4925',
-    fontSize: 8,
+    fontSize: 7.5,
     fontWeight: 700,
   },
   completedBadge: {
     alignSelf: 'flex-start',
-    marginTop: 3,
-    paddingVertical: 3,
-    paddingHorizontal: 7,
+    marginLeft: 5,
+    paddingVertical: 2,
+    paddingHorizontal: 6,
     borderRadius: 999,
     borderWidth: 1,
     borderColor: '#99c7a3',
     color: '#166534',
-    backgroundColor: '#edf8ef',
-    fontSize: 8,
+    backgroundColor: '#ffffff',
+    fontSize: 7.5,
     fontWeight: 700,
   },
   reservationName: {
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: 700,
-    marginTop: 5,
     color: '#251d16',
+    lineHeight: 1.15,
   },
   paxBox: {
-    minWidth: 70,
-    padding: 7,
-    borderRadius: 8,
-    backgroundColor: '#8a5b2b',
-    color: '#ffffff',
+    minWidth: 58,
+    paddingVertical: 5,
+    paddingHorizontal: 7,
+    borderRadius: 7,
+    borderWidth: 1,
+    borderColor: '#d2ad7b',
+    backgroundColor: '#fff8ed',
+    color: '#2d2419',
     textAlign: 'right',
   },
   paxLabel: {
-    color: '#ffe2b6',
+    color: '#8a5b2b',
     fontSize: 7,
     fontWeight: 700,
     textTransform: 'uppercase',
   },
   paxValue: {
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: 700,
-    marginTop: 2,
   },
   cardBody: {
-    padding: 9,
+    padding: 7,
   },
   fieldGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    marginBottom: 6,
+    marginBottom: 4,
   },
   fieldPill: {
     width: '48%',
-    marginRight: 5,
-    marginBottom: 5,
-    padding: 5,
-    borderRadius: 7,
+    marginRight: 4,
+    marginBottom: 4,
+    paddingVertical: 4,
+    paddingHorizontal: 5,
+    borderRadius: 6,
     borderWidth: 1,
     borderColor: '#eadcca',
-    backgroundColor: '#fffaf2',
+    backgroundColor: '#ffffff',
   },
   fieldLabel: {
     color: '#98764c',
@@ -198,25 +235,25 @@ const styles = StyleSheet.create({
   },
   fieldValue: {
     color: '#2e241a',
-    fontSize: 9,
+    fontSize: 8.5,
     fontWeight: 700,
-    marginTop: 2,
+    marginTop: 1,
   },
   sectionTitle: {
     color: '#7f592d',
     fontSize: 8,
     fontWeight: 700,
     textTransform: 'uppercase',
-    marginTop: 2,
-    marginBottom: 4,
+    marginTop: 1,
+    marginBottom: 3,
   },
   offering: {
-    padding: 6,
-    borderRadius: 7,
+    padding: 5,
+    borderRadius: 6,
     borderWidth: 1,
     borderColor: '#e2d1bd',
-    backgroundColor: '#fffaf2',
-    marginBottom: 4,
+    backgroundColor: '#ffffff',
+    marginBottom: 3,
   },
   continuedLabel: {
     color: '#98764c',
@@ -230,7 +267,7 @@ const styles = StyleSheet.create({
   },
   offeringName: {
     color: '#2e241a',
-    fontSize: 10,
+    fontSize: 9.5,
     fontWeight: 700,
   },
   offeringPax: {
@@ -240,16 +277,16 @@ const styles = StyleSheet.create({
   },
   mutedText: {
     color: '#6f6258',
-    fontSize: 8,
-    marginTop: 2,
+    fontSize: 7.7,
+    marginTop: 1,
   },
   selection: {
-    marginTop: 4,
-    padding: 5,
+    marginTop: 3,
+    padding: 4,
     borderRadius: 6,
     borderWidth: 1,
     borderColor: '#eadcca',
-    backgroundColor: '#ffffff',
+    backgroundColor: '#fffdf8',
   },
   selectionTitle: {
     color: '#30261d',
@@ -258,13 +295,14 @@ const styles = StyleSheet.create({
   },
   textSection: {
     width: '48%',
-    marginRight: 5,
-    marginBottom: 5,
-    padding: 5,
-    borderRadius: 7,
+    marginRight: 4,
+    marginBottom: 4,
+    paddingVertical: 4,
+    paddingHorizontal: 5,
+    borderRadius: 6,
     borderWidth: 1,
     borderColor: '#eadcca',
-    backgroundColor: '#fffdf8',
+    backgroundColor: '#ffffff',
   },
   pageNumber: {
     position: 'absolute',
@@ -424,9 +462,11 @@ function ReservationCard({
   return (
     <View style={styles.reservationCard} wrap={shouldKeepReservationTogether ? false : undefined}>
       <View style={styles.reservationHeader} wrap={false} minPresenceAhead={120}>
-        <View>
-          <Text style={styles.timePill}>{formatTime(reservation.entry_time)}</Text>
-          {reservation.status === 'completed' ? <Text style={styles.completedBadge}>Completada</Text> : null}
+        <View style={styles.reservationMain}>
+          <View style={styles.reservationMetaRow}>
+            <Text style={styles.timePill}>{formatTime(reservation.entry_time)}</Text>
+            {reservation.status === 'completed' ? <Text style={styles.completedBadge}>Completada</Text> : null}
+          </View>
           <Text style={styles.reservationName}>{reservation.name}</Text>
         </View>
         <View style={styles.paxBox}>
@@ -508,10 +548,16 @@ export function ReservationReportPdf({
     >
       <Page size="A4" style={styles.page} wrap>
         <View style={styles.header}>
-          <Text style={styles.eyebrow}>Sikim Empuriabrava</Text>
-          <Text style={styles.title}>Informe de reservas</Text>
-          <Text style={styles.headerMeta}>Rango seleccionado: {rangeLabel}</Text>
-          <Text style={styles.headerMeta}>Generado el {formatDateTime(generatedAt)}</Text>
+          <View style={styles.headerTopRow}>
+            <View style={styles.headerTitleBlock}>
+              <Text style={styles.eyebrow}>Sikim Empuriabrava</Text>
+              <Text style={styles.title}>Informe de reservas</Text>
+            </View>
+            <View style={styles.headerMetaBlock}>
+              <Text style={styles.headerMeta}>Rango seleccionado: {rangeLabel}</Text>
+              <Text style={styles.headerMeta}>Generado el {formatDateTime(generatedAt)}</Text>
+            </View>
+          </View>
           <View style={styles.summaryRow}>
             <View style={styles.summaryCard}>
               <Text style={styles.summaryLabel}>Reservas</Text>
