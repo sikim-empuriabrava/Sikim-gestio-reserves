@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { unstable_noStore as noStore } from 'next/cache';
 import { redirect } from 'next/navigation';
 import {
+  ArrowDownTrayIcon,
   CalendarDaysIcon,
   ChevronLeftIcon,
   ClockIcon,
@@ -10,320 +11,39 @@ import {
   SparklesIcon,
   UsersIcon,
 } from '@heroicons/react/24/outline';
-import { createSupabaseAdminClient } from '@/lib/supabaseAdmin';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
+import {
+  cleanText,
+  DATE_REGEX,
+  DONENESS_LABELS,
+  DONENESS_ORDER,
+  formatDateTime,
+  formatLongDate,
+  formatShortDate,
+  formatTime,
+  getRangeValidation,
+  getReportData,
+  groupByDate,
+  MAX_RANGE_DAYS,
+  roomName,
+  todayISO,
+  type DonenessRow,
+  type OfferingRow,
+  type ReportData,
+  type ReservationRow,
+  type RoomAllocationRow,
+  type SelectionRow,
+} from '@/lib/server/reservation-reports/reportData';
 import { PrintReportButton } from './PrintReportButton';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 export const fetchCache = 'force-no-store';
 
-const DATE_REGEX = /^\d{4}-\d{2}-\d{2}$/;
-const MAX_RANGE_DAYS = 31;
-const DONENESS_LABELS: Record<string, string> = {
-  crudo: 'Crudo',
-  poco: 'Poco hecho',
-  al_punto: 'Al punto',
-  hecho: 'Hecho',
-  muy_hecho: 'Muy hecho',
-};
-const DONENESS_ORDER = ['crudo', 'poco', 'al_punto', 'hecho', 'muy_hecho'];
-
 type SearchParams = {
   desde?: string;
   hasta?: string;
 };
-
-type ReservationRow = {
-  id: string;
-  name: string;
-  status: 'confirmed' | 'completed' | string;
-  event_date: string;
-  entry_time: string | null;
-  adults: number | null;
-  children: number | null;
-  total_pax: number | null;
-  has_private_dining_room: boolean | null;
-  has_private_party: boolean | null;
-  second_course_type: string | null;
-  menu_text: string | null;
-  allergens_and_diets: string | null;
-  extras: string | null;
-  setup_notes: string | null;
-  invoice_data: string | null;
-  service_outcome: string | null;
-  service_outcome_notes: string | null;
-};
-
-type RoomAllocationRow = {
-  group_event_id: string;
-  notes: string | null;
-  room: { name: string | null } | { name: string | null }[] | null;
-};
-
-type OfferingRow = {
-  id: string;
-  group_event_id: string;
-  offering_kind: 'cheffing_menu' | 'cheffing_card';
-  assigned_pax: number;
-  display_name_snapshot: string;
-  notes: string | null;
-  sort_order: number;
-};
-
-type SelectionRow = {
-  id: string;
-  group_event_offering_id: string;
-  selection_kind: 'menu_second' | 'custom_menu' | 'kids_menu';
-  display_name_snapshot: string;
-  description_snapshot: string | null;
-  quantity: number;
-  notes: string | null;
-  needs_doneness_points: boolean;
-  sort_order: number;
-};
-
-type DonenessRow = {
-  selection_id: string;
-  point: string;
-  quantity: number;
-};
-
-type ReportData = {
-  reservations: ReservationRow[];
-  roomsByReservation: Map<string, RoomAllocationRow>;
-  offeringsByReservation: Map<string, OfferingRow[]>;
-  selectionsByOffering: Map<string, SelectionRow[]>;
-  donenessBySelection: Map<string, DonenessRow[]>;
-};
-
-function todayISO() {
-  const parts = new Intl.DateTimeFormat('en-CA', {
-    timeZone: 'Europe/Madrid',
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-  }).formatToParts(new Date());
-  const year = parts.find((part) => part.type === 'year')?.value;
-  const month = parts.find((part) => part.type === 'month')?.value;
-  const day = parts.find((part) => part.type === 'day')?.value;
-
-  return `${year}-${month}-${day}`;
-}
-
-function parseISODateParts(value: string) {
-  if (!DATE_REGEX.test(value)) return null;
-  const [year, month, day] = value.split('-').map(Number);
-  const date = new Date(Date.UTC(year, month - 1, day));
-  if (
-    date.getUTCFullYear() !== year ||
-    date.getUTCMonth() !== month - 1 ||
-    date.getUTCDate() !== day
-  ) {
-    return null;
-  }
-  return { year, month, day, utcTime: date.getTime() };
-}
-
-function getRangeValidation(from: string, to: string) {
-  const fromParts = parseISODateParts(from);
-  const toParts = parseISODateParts(to);
-  if (!fromParts || !toParts) {
-    return { valid: false, message: 'Selecciona fechas válidas en formato día/mes/año.' };
-  }
-
-  const diffDays = Math.floor((toParts.utcTime - fromParts.utcTime) / 86_400_000) + 1;
-  if (diffDays < 1) {
-    return { valid: false, message: 'La fecha hasta debe ser igual o posterior a la fecha desde.' };
-  }
-  if (diffDays > MAX_RANGE_DAYS) {
-    return {
-      valid: false,
-      message: `El rango máximo es de ${MAX_RANGE_DAYS} días. Ajusta las fechas para generar el informe.`,
-    };
-  }
-
-  return { valid: true, days: diffDays };
-}
-
-function formatDate(dateString: string, options: Intl.DateTimeFormatOptions) {
-  const parts = parseISODateParts(dateString);
-  const date = parts
-    ? new Date(Date.UTC(parts.year, parts.month - 1, parts.day, 12))
-    : new Date(`${dateString}T12:00:00`);
-  return new Intl.DateTimeFormat('es-ES', { timeZone: 'Europe/Madrid', ...options }).format(date);
-}
-
-function formatLongDate(dateString: string) {
-  const value = formatDate(dateString, {
-    weekday: 'long',
-    day: 'numeric',
-    month: 'long',
-    year: 'numeric',
-  });
-  return value.charAt(0).toUpperCase() + value.slice(1);
-}
-
-function formatShortDate(dateString: string) {
-  return formatDate(dateString, { day: '2-digit', month: '2-digit', year: 'numeric' });
-}
-
-function formatDateTime(date: Date) {
-  return new Intl.DateTimeFormat('es-ES', {
-    timeZone: 'Europe/Madrid',
-    day: '2-digit',
-    month: '2-digit',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  }).format(date);
-}
-
-function formatTime(time?: string | null) {
-  return time ? time.slice(0, 5) : 'Sin hora';
-}
-
-function cleanText(value?: string | null) {
-  const text = value?.trim();
-  return text ? text : null;
-}
-
-function roomName(room: RoomAllocationRow['room']) {
-  if (Array.isArray(room)) return room[0]?.name ?? null;
-  return room?.name ?? null;
-}
-
-function groupByDate(reservations: ReservationRow[]) {
-  return reservations.reduce<Map<string, ReservationRow[]>>((acc, reservation) => {
-    const list = acc.get(reservation.event_date) ?? [];
-    list.push(reservation);
-    acc.set(reservation.event_date, list);
-    return acc;
-  }, new Map());
-}
-
-async function getReportData(from: string, to: string): Promise<ReportData> {
-  const supabase = createSupabaseAdminClient();
-
-  const { data: reservationsData, error } = await supabase
-    .from('group_events')
-    .select(
-      'id, name, status, event_date, entry_time, adults, children, total_pax, has_private_dining_room, has_private_party, second_course_type, menu_text, allergens_and_diets, extras, setup_notes, invoice_data, service_outcome, service_outcome_notes',
-    )
-    .in('status', ['confirmed', 'completed'])
-    .gte('event_date', from)
-    .lte('event_date', to)
-    .order('event_date', { ascending: true })
-    .order('entry_time', { ascending: true })
-    .order('name', { ascending: true });
-
-  if (error) {
-    throw new Error(error.message);
-  }
-
-  const reservations = (reservationsData ?? []) as ReservationRow[];
-  const reservationIds = reservations.map((reservation) => reservation.id);
-
-  if (reservationIds.length === 0) {
-    return {
-      reservations,
-      roomsByReservation: new Map(),
-      offeringsByReservation: new Map(),
-      selectionsByOffering: new Map(),
-      donenessBySelection: new Map(),
-    };
-  }
-
-  const [{ data: roomsData, error: roomsError }, { data: offeringsData, error: offeringsError }] = await Promise.all([
-    supabase
-      .from('group_room_allocations')
-      .select('group_event_id, notes, room:rooms(name)')
-      .in('group_event_id', reservationIds)
-      .order('created_at', { ascending: true }),
-    supabase
-      .from('group_event_offerings')
-      .select('id, group_event_id, offering_kind, assigned_pax, display_name_snapshot, notes, sort_order')
-      .in('group_event_id', reservationIds)
-      .order('sort_order', { ascending: true })
-      .order('created_at', { ascending: true }),
-  ]);
-
-  if (roomsError) {
-    throw new Error(roomsError.message);
-  }
-
-  if (offeringsError) {
-    throw new Error(offeringsError.message);
-  }
-
-  const roomsByReservation = new Map<string, RoomAllocationRow>();
-  ((roomsData ?? []) as RoomAllocationRow[]).forEach((room) => {
-    if (!roomsByReservation.has(room.group_event_id)) {
-      roomsByReservation.set(room.group_event_id, room);
-    }
-  });
-
-  const offerings = (offeringsData ?? []) as OfferingRow[];
-  const offeringsByReservation = offerings.reduce<Map<string, OfferingRow[]>>((acc, offering) => {
-    const list = acc.get(offering.group_event_id) ?? [];
-    list.push(offering);
-    acc.set(offering.group_event_id, list);
-    return acc;
-  }, new Map());
-
-  const offeringIds = offerings.map((offering) => offering.id);
-  if (offeringIds.length === 0) {
-    return { reservations, roomsByReservation, offeringsByReservation, selectionsByOffering: new Map(), donenessBySelection: new Map() };
-  }
-
-  const { data: selectionsData, error: selectionsError } = await supabase
-    .from('group_event_offering_selections')
-    .select(
-      'id, group_event_offering_id, selection_kind, display_name_snapshot, description_snapshot, quantity, notes, needs_doneness_points, sort_order',
-    )
-    .in('group_event_offering_id', offeringIds)
-    .order('sort_order', { ascending: true })
-    .order('created_at', { ascending: true });
-
-  if (selectionsError) {
-    throw new Error(selectionsError.message);
-  }
-
-  const selections = (selectionsData ?? []) as SelectionRow[];
-  const selectionsByOffering = selections.reduce<Map<string, SelectionRow[]>>((acc, selection) => {
-    const list = acc.get(selection.group_event_offering_id) ?? [];
-    list.push(selection);
-    acc.set(selection.group_event_offering_id, list);
-    return acc;
-  }, new Map());
-
-  const selectionIds = selections.map((selection) => selection.id);
-  if (selectionIds.length === 0) {
-    return { reservations, roomsByReservation, offeringsByReservation, selectionsByOffering, donenessBySelection: new Map() };
-  }
-
-  const { data: donenessData, error: donenessError } = await supabase
-    .from('group_event_offering_selection_doneness')
-    .select('selection_id, point, quantity')
-    .in('selection_id', selectionIds);
-
-  if (donenessError) {
-    throw new Error(donenessError.message);
-  }
-
-  const donenessBySelection = ((donenessData ?? []) as DonenessRow[]).reduce<Map<string, DonenessRow[]>>(
-    (acc, point) => {
-      const list = acc.get(point.selection_id) ?? [];
-      list.push(point);
-      acc.set(point.selection_id, list);
-      return acc;
-    },
-    new Map(),
-  );
-
-  return { reservations, roomsByReservation, offeringsByReservation, selectionsByOffering, donenessBySelection };
-}
-
 function ReportChromeStyles() {
   return (
     <style
@@ -730,6 +450,8 @@ export default async function ReservationReportsPage({ searchParams }: { searchP
   const reservationsByDate = groupByDate(reservations);
   const totalPax = reservations.reduce((sum, reservation) => sum + (reservation.total_pax ?? 0), 0);
   const rangeLabel = `${formatShortDate(from)} - ${formatShortDate(to)}`;
+  const pdfHref = `/api/reservas/informes/pdf?${new URLSearchParams({ desde: from, hasta: to }).toString()}`;
+  const reportActionsDisabled = !validation.valid || Boolean(loadError) || reservations.length === 0;
 
   return (
     <div className="reservation-report-page min-h-screen bg-[#f4efe6] px-4 py-6 text-[#2d2419] md:px-8">
@@ -780,10 +502,27 @@ export default async function ReservationReportsPage({ searchParams }: { searchP
                 <CalendarDaysIcon className="h-4 w-4" aria-hidden="true" />
                 Generar informe
               </button>
+              {reportActionsDisabled ? (
+                <span
+                  aria-disabled="true"
+                  className="inline-flex cursor-not-allowed items-center justify-center gap-2 rounded-xl bg-[#2d2419] px-4 py-2.5 text-sm font-bold text-[#fff1d8] opacity-45 shadow-[0_18px_45px_-34px_rgba(95,62,26,0.85)]"
+                >
+                  <ArrowDownTrayIcon className="h-4 w-4" aria-hidden="true" />
+                  Descargar PDF
+                </span>
+              ) : (
+                <a
+                  href={pdfHref}
+                  className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#2d2419] px-4 py-2.5 text-sm font-bold text-[#fff1d8] shadow-[0_18px_45px_-34px_rgba(95,62,26,0.85)] transition hover:bg-[#3a2b1b]"
+                >
+                  <ArrowDownTrayIcon className="h-4 w-4" aria-hidden="true" />
+                  Descargar PDF
+                </a>
+              )}
               <PrintReportButton
                 dateFrom={from}
                 dateTo={to}
-                disabled={!validation.valid || Boolean(loadError) || reservations.length === 0}
+                disabled={reportActionsDisabled}
               />
             </div>
           </form>
