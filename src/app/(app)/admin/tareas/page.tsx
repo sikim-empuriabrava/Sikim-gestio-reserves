@@ -1,4 +1,5 @@
 import { redirect } from 'next/navigation';
+import { OperationalPageHeader } from '@/components/operational/OperationalUI';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { TaskControlCenter } from './TaskControlCenter';
 
@@ -15,15 +16,14 @@ export default async function AdminTasksPage() {
   }
 
   return (
-    <div className="space-y-4">
-      <div className="space-y-2">
-        <h1 className="text-2xl font-semibold">Centro de control de tareas</h1>
-        <p className="text-slate-400">
-          Visión rápida de Cocina y Mantenimiento con filtros por estado, fechas y acciones rápidas.
-        </p>
-      </div>
+    <>
+      <OperationalPageHeader
+        eyebrow="Admin"
+        title="Centro de control de tareas"
+        description="Visión rápida de Cocina y Mantenimiento con filtros por estado, fechas y acciones rápidas."
+      />
 
       <TaskControlCenter />
-    </div>
+    </>
   );
 }

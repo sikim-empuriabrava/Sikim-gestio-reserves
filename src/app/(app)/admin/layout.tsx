@@ -1,4 +1,5 @@
 import { getAllowlistRoleForUserEmail, getDefaultModulePath, isAdmin } from '@/lib/auth/requireRole';
+import { OperationalPage } from '@/components/operational/OperationalUI';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { redirect } from 'next/navigation';
 
@@ -29,7 +30,5 @@ export default async function AdminLayout({ children }: { children: React.ReactN
     redirect(getDefaultModulePath(allowlistInfo.allowedUser));
   }
 
-  return (
-    <div className="space-y-6">{children}</div>
-  );
+  return <OperationalPage className="admin-warm-page">{children}</OperationalPage>;
 }
