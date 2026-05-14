@@ -3682,7 +3682,7 @@ CREATE VIEW public.v_cheffing_ingredients_cost WITH (security_invoker='true') AS
 -- Name: v_cheffing_subrecipe_cost; Type: VIEW; Schema: public; Owner: -
 --
 
-CREATE VIEW public.v_cheffing_subrecipe_cost AS
+CREATE VIEW public.v_cheffing_subrecipe_cost WITH (security_invoker='true') AS
  WITH RECURSIVE expanded_items AS (
          SELECT si.subrecipe_id AS root_subrecipe_id,
             si.ingredient_id,
@@ -3743,7 +3743,7 @@ CREATE VIEW public.v_cheffing_subrecipe_cost AS
 -- Name: v_cheffing_dish_items_cost; Type: VIEW; Schema: public; Owner: -
 --
 
-CREATE VIEW public.v_cheffing_dish_items_cost AS
+CREATE VIEW public.v_cheffing_dish_items_cost WITH (security_invoker='true') AS
  SELECT di.id,
     di.dish_id,
     di.ingredient_id,
@@ -3812,7 +3812,7 @@ CREATE VIEW public.v_cheffing_dish_cost WITH (security_invoker='true') AS
 -- Name: v_cheffing_menu_engineering_dish_cost; Type: VIEW; Schema: public; Owner: -
 --
 
-CREATE VIEW public.v_cheffing_menu_engineering_dish_cost AS
+CREATE VIEW public.v_cheffing_menu_engineering_dish_cost WITH (security_invoker='true') AS
  WITH item_costs AS (
          SELECT d_1.id AS dish_id,
                 CASE
@@ -6236,5 +6236,5 @@ CREATE POLICY "read own allowlist row" ON public.app_allowed_users FOR SELECT TO
 -- PostgreSQL database dump complete
 --
 
-\unrestrict aUXwL0KCebWgm8DhL2FPKXtYJrPw7fZJC8b9ZCeu3UL95OCw7dk1LT8Eddl1PLb
+\unrestrict B7KlCIfDIo2rtu2wU2nb5I34gG0psPjV9VB3fYTPuHwJpigMSEicPi9EQFnGyct
 
