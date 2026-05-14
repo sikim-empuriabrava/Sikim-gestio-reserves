@@ -1,0 +1,10 @@
+ALTER TABLE public.group_staffing_plans ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.rooms ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.group_events ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.group_room_allocations ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.menus ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.menu_second_courses ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.staffing_ratios ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.group_event_offerings ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.group_event_offering_selections ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.group_event_offering_selection_doneness ENABLE ROW LEVEL SECURITY;
