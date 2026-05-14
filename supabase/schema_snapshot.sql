@@ -159,6 +159,7 @@ $$;
 
 CREATE FUNCTION public.app_allowed_users_email_lowercase() RETURNS trigger
     LANGUAGE plpgsql
+    SET search_path TO 'public', 'pg_temp'
     AS $$
 begin
   if new.email is not null then
@@ -175,6 +176,7 @@ $$;
 
 CREATE FUNCTION public.cheffing_apply_purchase_document(p_document_id uuid, p_applied_by text DEFAULT NULL::text) RETURNS TABLE(applied_lines integer, updated_ingredients integer)
     LANGUAGE plpgsql
+    SET search_path TO 'public', 'pg_temp'
     AS $$
 declare
   v_document record;
@@ -305,6 +307,7 @@ $$;
 
 CREATE FUNCTION public.cheffing_enforce_purchase_document_apply_ready() RETURNS trigger
     LANGUAGE plpgsql
+    SET search_path TO 'public', 'pg_temp'
     AS $$
 begin
   if new.status = 'applied' and (tg_op = 'INSERT' or old.status is distinct from 'applied') then
@@ -373,6 +376,7 @@ $$;
 
 CREATE FUNCTION public.cheffing_menu_engineering_dish_cost(p_from date DEFAULT NULL::date, p_to date DEFAULT NULL::date) RETURNS TABLE(id uuid, name text, selling_price numeric, cost_per_serving numeric, created_at timestamp with time zone, updated_at timestamp with time zone, units_sold integer)
     LANGUAGE sql STABLE
+    SET search_path TO 'public', 'pg_temp'
     AS $$
 with item_costs as (
   select
@@ -442,6 +446,7 @@ $$;
 
 CREATE FUNCTION public.cheffing_pos_import_status() RETURNS TABLE(last_order_id text, last_opened_at timestamp without time zone, range_from date, range_to date)
     LANGUAGE sql STABLE
+    SET search_path TO 'public', 'pg_temp'
     AS $$
   select
     (select pos_order_id
@@ -466,6 +471,7 @@ $$;
 
 CREATE FUNCTION public.cheffing_pos_refresh_sales_daily(p_from date DEFAULT NULL::date, p_to date DEFAULT NULL::date) RETURNS void
     LANGUAGE plpgsql
+    SET search_path TO 'public', 'pg_temp'
     AS $$
 begin
   insert into public.cheffing_pos_sales_daily (
@@ -506,6 +512,7 @@ end $$;
 
 CREATE FUNCTION public.cheffing_set_purchase_document_effective_at() RETURNS trigger
     LANGUAGE plpgsql
+    SET search_path TO 'public', 'pg_temp'
     AS $$
 begin
   new.effective_at := new.document_date::timestamp + coalesce(new.document_time, time '00:00:00');
@@ -521,6 +528,7 @@ $$;
 
 CREATE FUNCTION public.cheffing_set_purchase_document_storage_retention() RETURNS trigger
     LANGUAGE plpgsql
+    SET search_path TO 'public', 'pg_temp'
     AS $$
 begin
   if new.status = 'applied' then
@@ -540,6 +548,7 @@ $$;
 
 CREATE FUNCTION public.cheffing_set_purchase_line_effective_at() RETURNS trigger
     LANGUAGE plpgsql
+    SET search_path TO 'public', 'pg_temp'
     AS $$
 begin
   select d.effective_at into new.line_effective_at
@@ -557,6 +566,7 @@ $$;
 
 CREATE FUNCTION public.cheffing_sync_purchase_lines_effective_at() RETURNS trigger
     LANGUAGE plpgsql
+    SET search_path TO 'public', 'pg_temp'
     AS $$
 begin
   update public.cheffing_purchase_document_lines
@@ -800,6 +810,7 @@ $$;
 
 CREATE FUNCTION public.day_status_sync_legacy_columns() RETURNS trigger
     LANGUAGE plpgsql
+    SET search_path TO 'public', 'pg_temp'
     AS $$
 begin
   -- Notes: canonical <-> legacy
@@ -846,6 +857,7 @@ $$;
 
 CREATE FUNCTION public.delete_routine_pack(p_pack_id uuid, p_mode text DEFAULT 'keep_all'::text, p_cutoff_week_start date DEFAULT NULL::date) RETURNS TABLE(deleted_pack boolean, deleted_routines integer, deleted_tasks integer, unlinked_tasks integer)
     LANGUAGE plpgsql
+    SET search_path TO 'public', 'pg_temp'
     AS $$
 declare
   routine_ids uuid[];
@@ -922,6 +934,7 @@ $$;
 
 CREATE FUNCTION public.delete_routine_template(p_routine_id uuid, p_mode text DEFAULT 'keep_all'::text, p_cutoff_week_start date DEFAULT NULL::date) RETURNS TABLE(deleted boolean, deleted_tasks integer, unlinked_tasks integer)
     LANGUAGE plpgsql
+    SET search_path TO 'public', 'pg_temp'
     AS $$
 declare
   deleted_tasks_count integer := 0;
@@ -983,6 +996,7 @@ $$;
 
 CREATE FUNCTION public.fn_bool_01(v text) RETURNS boolean
     LANGUAGE sql IMMUTABLE
+    SET search_path TO 'public', 'pg_temp'
     AS $$
   select case lower(btrim(coalesce(v, '')))
     when '1' then true
@@ -1006,6 +1020,7 @@ $$;
 
 CREATE FUNCTION public.fn_norm_purchase_unit(v text) RETURNS text
     LANGUAGE sql IMMUTABLE
+    SET search_path TO 'public', 'pg_temp'
     AS $$
   select case lower(btrim(coalesce(v, '')))
     when 'kg' then 'kg'
@@ -1026,6 +1041,7 @@ $$;
 
 CREATE FUNCTION public.fn_split_pipe(v text) RETURNS text[]
     LANGUAGE sql IMMUTABLE
+    SET search_path TO 'public', 'pg_temp'
     AS $$
   select case
     when v is null or btrim(v) = '' then '{}'::text[]
@@ -1040,6 +1056,7 @@ $$;
 
 CREATE FUNCTION public.fn_text_to_numeric(v text) RETURNS numeric
     LANGUAGE sql IMMUTABLE
+    SET search_path TO 'public', 'pg_temp'
     AS $$
   select case
     when v is null or btrim(v) = '' then null
@@ -1054,6 +1071,7 @@ $$;
 
 CREATE FUNCTION public.generate_weekly_tasks(p_week_start date, p_created_by_email text DEFAULT NULL::text) RETURNS TABLE(created integer, skipped integer)
     LANGUAGE plpgsql
+    SET search_path TO 'public', 'pg_temp'
     AS $$
 declare
   total_count integer;
@@ -1119,6 +1137,7 @@ $$;
 
 CREATE FUNCTION public.generate_weekly_tasks_auto(p_week_start date, p_created_by_email text DEFAULT 'system'::text) RETURNS TABLE(created integer, skipped integer)
     LANGUAGE plpgsql
+    SET search_path TO 'public', 'pg_temp'
     AS $$
 declare
   total_count integer;
@@ -1190,6 +1209,7 @@ $$;
 
 CREATE FUNCTION public.generate_weekly_tasks_for_pack(p_week_start date, p_pack_id uuid, p_created_by_email text DEFAULT NULL::text) RETURNS TABLE(created integer, skipped integer)
     LANGUAGE plpgsql
+    SET search_path TO 'public', 'pg_temp'
     AS $$
 declare
   total_count integer;
@@ -1269,6 +1289,7 @@ $$;
 
 CREATE FUNCTION public.mark_past_events_completed() RETURNS void
     LANGUAGE sql
+    SET search_path TO 'public', 'pg_temp'
     AS $$
   update public.group_events
   set status = 'completed'
@@ -1416,6 +1437,7 @@ $$;
 
 CREATE FUNCTION public.recalculate_group_staffing_plan(p_group_event_id uuid) RETURNS void
     LANGUAGE plpgsql
+    SET search_path TO 'public', 'pg_temp'
     AS $$
 declare
   v_event       public.group_events;
@@ -1503,6 +1525,7 @@ $$;
 
 CREATE FUNCTION public.refresh_group_event_menu_text(p_group_event_id uuid) RETURNS void
     LANGUAGE plpgsql
+    SET search_path TO 'public', 'pg_temp'
     AS $$
 declare
   v_menu_text text;
@@ -1532,6 +1555,7 @@ $$;
 
 CREATE FUNCTION public.set_group_event_offerings_updated_at() RETURNS trigger
     LANGUAGE plpgsql
+    SET search_path TO 'public', 'pg_temp'
     AS $$
 begin
   new.updated_at := timezone('utc', now());
@@ -1546,6 +1570,7 @@ $$;
 
 CREATE FUNCTION public.set_override_capacity() RETURNS trigger
     LANGUAGE plpgsql
+    SET search_path TO 'public', 'pg_temp'
     AS $$
 declare
   room_capacity integer;
@@ -1574,6 +1599,7 @@ $$;
 
 CREATE FUNCTION public.set_updated_at() RETURNS trigger
     LANGUAGE plpgsql
+    SET search_path TO 'public', 'pg_temp'
     AS $$
 begin
   new.updated_at = now();
@@ -2359,6 +2385,7 @@ $$;
 
 CREATE FUNCTION public.tg_group_event_offerings_sync_menu_text() RETURNS trigger
     LANGUAGE plpgsql
+    SET search_path TO 'public', 'pg_temp'
     AS $$
 declare
   v_group_event_id uuid;
@@ -2376,6 +2403,7 @@ $$;
 
 CREATE FUNCTION public.tg_normalize_allowed_user_email() RETURNS trigger
     LANGUAGE plpgsql
+    SET search_path TO 'public', 'pg_temp'
     AS $$
 begin
   if new.email is not null then
@@ -2392,6 +2420,7 @@ $$;
 
 CREATE FUNCTION public.tg_set_updated_at() RETURNS trigger
     LANGUAGE plpgsql
+    SET search_path TO 'public', 'pg_temp'
     AS $$
 begin
   new.updated_at := now();
@@ -2406,6 +2435,7 @@ $$;
 
 CREATE FUNCTION public.trg_group_event_offerings_sync_menu_text() RETURNS trigger
     LANGUAGE plpgsql
+    SET search_path TO 'public', 'pg_temp'
     AS $$
 begin
   if tg_op = 'DELETE' then
@@ -2430,6 +2460,7 @@ $$;
 
 CREATE FUNCTION public.trg_recalculate_group_staffing_plan() RETURNS trigger
     LANGUAGE plpgsql
+    SET search_path TO 'public', 'pg_temp'
     AS $$
 begin
   -- Si el evento está cancelado, eliminamos su plan de staffing (si existe)
@@ -6193,5 +6224,5 @@ CREATE POLICY "read own allowlist row" ON public.app_allowed_users FOR SELECT TO
 -- PostgreSQL database dump complete
 --
 
-\unrestrict XvjB93DtYqq6eKfWVVbFsP0eEoa4tKb6gL18qa6p9hRBBuasqOS1ejQNLVYV0qX
+\unrestrict 1IpEamBk0ktx8bNyv6CMNyxGSRTMFUNjBsfaWKSBES9udAnswLlQx4u0cCq1IM5
 
