@@ -624,7 +624,7 @@ RLS: habilitado
 | `updated_at` | `timestamp with time zone` | No | `now()` |
 
 ### group_event_offering_selection_doneness
-RLS: deshabilitado
+RLS: habilitado
 
 | Columna | Tipo | Nullable | Default |
 | --- | --- | --- | --- |
@@ -635,7 +635,7 @@ RLS: deshabilitado
 | `created_at` | `timestamp with time zone` | No | `timezone('utc'::text, now())` |
 
 ### group_event_offering_selections
-RLS: deshabilitado
+RLS: habilitado
 
 | Columna | Tipo | Nullable | Default |
 | --- | --- | --- | --- |
@@ -655,7 +655,7 @@ RLS: deshabilitado
 | `updated_at` | `timestamp with time zone` | No | `timezone('utc'::text, now())` |
 
 ### group_event_offerings
-RLS: deshabilitado
+RLS: habilitado
 
 | Columna | Tipo | Nullable | Default |
 | --- | --- | --- | --- |
@@ -674,7 +674,7 @@ RLS: deshabilitado
 | `updated_at` | `timestamp with time zone` | No | `timezone('utc'::text, now())` |
 
 ### group_events
-RLS: deshabilitado
+RLS: habilitado
 
 | Columna | Tipo | Nullable | Default |
 | --- | --- | --- | --- |
@@ -706,7 +706,7 @@ RLS: deshabilitado
 | `menu_id` | `uuid` | Sí |  |
 
 ### group_room_allocations
-RLS: deshabilitado
+RLS: habilitado
 
 | Columna | Tipo | Nullable | Default |
 | --- | --- | --- | --- |
@@ -722,7 +722,7 @@ RLS: deshabilitado
 | `updated_at` | `timestamp with time zone` | No | `now()` |
 
 ### group_staffing_plans
-RLS: deshabilitado
+RLS: habilitado
 
 | Columna | Tipo | Nullable | Default |
 | --- | --- | --- | --- |
@@ -737,7 +737,7 @@ RLS: deshabilitado
 | `updated_at` | `timestamp with time zone` | No | `now()` |
 
 ### menu_second_courses
-RLS: deshabilitado
+RLS: habilitado
 
 | Columna | Tipo | Nullable | Default |
 | --- | --- | --- | --- |
@@ -752,7 +752,7 @@ RLS: deshabilitado
 | `updated_at` | `timestamp with time zone` | No | `now()` |
 
 ### menus
-RLS: deshabilitado
+RLS: habilitado
 
 | Columna | Tipo | Nullable | Default |
 | --- | --- | --- | --- |
@@ -767,7 +767,7 @@ RLS: deshabilitado
 | `updated_at` | `timestamp with time zone` | No | `now()` |
 
 ### rooms
-RLS: deshabilitado
+RLS: habilitado
 
 | Columna | Tipo | Nullable | Default |
 | --- | --- | --- | --- |
@@ -813,7 +813,7 @@ RLS: habilitado
 | `routine_pack_id` | `uuid` | Sí |  |
 
 ### staffing_ratios
-RLS: deshabilitado
+RLS: habilitado
 
 | Columna | Tipo | Nullable | Default |
 | --- | --- | --- | --- |

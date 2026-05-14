@@ -6364,11 +6364,65 @@ ALTER TABLE public.discotheque_capacity_events ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.discotheque_capacity_sessions ENABLE ROW LEVEL SECURITY;
 
 --
+-- Name: group_event_offering_selection_doneness; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.group_event_offering_selection_doneness ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: group_event_offering_selections; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.group_event_offering_selections ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: group_event_offerings; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.group_event_offerings ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: group_events; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.group_events ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: group_room_allocations; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.group_room_allocations ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: group_staffing_plans; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.group_staffing_plans ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: menu_second_courses; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.menu_second_courses ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: menus; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.menus ENABLE ROW LEVEL SECURITY;
+
+--
 -- Name: app_allowed_users read own allowlist row; Type: POLICY; Schema: public; Owner: -
 --
 
 CREATE POLICY "read own allowlist row" ON public.app_allowed_users FOR SELECT TO authenticated USING (((is_active = true) AND (lower(email) = lower(COALESCE((auth.jwt() ->> 'email'::text), current_setting('request.jwt.claim.email'::text, true))))));
 
+
+--
+-- Name: rooms; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.rooms ENABLE ROW LEVEL SECURITY;
 
 --
 -- Name: routine_packs; Type: ROW SECURITY; Schema: public; Owner: -
@@ -6383,6 +6437,12 @@ ALTER TABLE public.routine_packs ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.routines ENABLE ROW LEVEL SECURITY;
 
 --
+-- Name: staffing_ratios; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.staffing_ratios ENABLE ROW LEVEL SECURITY;
+
+--
 -- Name: tasks; Type: ROW SECURITY; Schema: public; Owner: -
 --
 
@@ -6392,5 +6452,5 @@ ALTER TABLE public.tasks ENABLE ROW LEVEL SECURITY;
 -- PostgreSQL database dump complete
 --
 
-\unrestrict abD9B8mKSQrYPEKTmUqCNfJPSVCC7tFyCOlSPIVDPl7Iqz2hfsImIhHWtncawck
+\unrestrict a5hotAJfx8v0rgxv0fxJJpKR6xfkgcwrq3ANKFnsdskAG5DtQbe6h7WIlnrqyww
 
