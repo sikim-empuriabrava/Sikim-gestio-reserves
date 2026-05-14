@@ -5744,6 +5744,18 @@ ALTER TABLE ONLY public.tasks
 ALTER TABLE public.app_allowed_users ENABLE ROW LEVEL SECURITY;
 
 --
+-- Name: backup_cheffing_dish_items_phase2_20260312; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.backup_cheffing_dish_items_phase2_20260312 ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: backup_cheffing_subrecipe_items_phase2_20260312; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.backup_cheffing_subrecipe_items_phase2_20260312 ENABLE ROW LEVEL SECURITY;
+
+--
 -- Name: cheffing_card_items; Type: ROW SECURITY; Schema: public; Owner: -
 --
 
@@ -6236,5 +6248,5 @@ CREATE POLICY "read own allowlist row" ON public.app_allowed_users FOR SELECT TO
 -- PostgreSQL database dump complete
 --
 
-\unrestrict IatncxaAL4rmj9tTTpaoesK91vRMUhgqZpew64KjuBBMEgVgPWOMufXnMVxxPf0
+\unrestrict XLh7RhwWqCKKEiMA5BXHdflPLP1gGyPMC1hglGOzHulzDecgeBDSpu1fsoJNlXb
 
