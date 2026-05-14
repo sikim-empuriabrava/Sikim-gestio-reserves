@@ -594,7 +594,7 @@ RLS: deshabilitado
 | `last_edited_at` | `timestamp with time zone` | Sí | `now()` |
 
 ### discotheque_capacity_events
-RLS: deshabilitado
+RLS: habilitado
 
 | Columna | Tipo | Nullable | Default |
 | --- | --- | --- | --- |
@@ -607,7 +607,7 @@ RLS: deshabilitado
 | `created_at` | `timestamp with time zone` | No | `now()` |
 
 ### discotheque_capacity_sessions
-RLS: deshabilitado
+RLS: habilitado
 
 | Columna | Tipo | Nullable | Default |
 | --- | --- | --- | --- |

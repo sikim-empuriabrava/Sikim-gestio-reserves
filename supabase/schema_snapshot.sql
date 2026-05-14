@@ -6214,6 +6214,18 @@ CREATE POLICY cheffing_units_update ON public.cheffing_units FOR UPDATE USING (p
 
 
 --
+-- Name: discotheque_capacity_events; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.discotheque_capacity_events ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: discotheque_capacity_sessions; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.discotheque_capacity_sessions ENABLE ROW LEVEL SECURITY;
+
+--
 -- Name: app_allowed_users read own allowlist row; Type: POLICY; Schema: public; Owner: -
 --
 
@@ -6224,5 +6236,5 @@ CREATE POLICY "read own allowlist row" ON public.app_allowed_users FOR SELECT TO
 -- PostgreSQL database dump complete
 --
 
-\unrestrict 1IpEamBk0ktx8bNyv6CMNyxGSRTMFUNjBsfaWKSBES9udAnswLlQx4u0cCq1IM5
+\unrestrict aUXwL0KCebWgm8DhL2FPKXtYJrPw7fZJC8b9ZCeu3UL95OCw7dk1LT8Eddl1PLb
 
