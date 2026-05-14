@@ -23,7 +23,7 @@ RLS: habilitado
 | `manage_live_capacity` | `boolean` | No | `false` |
 
 ### backup_cheffing_dish_items_phase2_20260312
-RLS: deshabilitado
+RLS: habilitado
 
 | Columna | Tipo | Nullable | Default |
 | --- | --- | --- | --- |
@@ -48,7 +48,7 @@ RLS: deshabilitado
 | `source_price_total_raw` | `numeric` | Sí |  |
 
 ### backup_cheffing_subrecipe_items_phase2_20260312
-RLS: deshabilitado
+RLS: habilitado
 
 | Columna | Tipo | Nullable | Default |
 | --- | --- | --- | --- |
