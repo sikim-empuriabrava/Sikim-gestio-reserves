@@ -573,7 +573,7 @@ RLS: habilitado
 | `updated_at` | `timestamp with time zone` | No | `now()` |
 
 ### day_status
-RLS: deshabilitado
+RLS: habilitado
 
 | Columna | Tipo | Nullable | Default |
 | --- | --- | --- | --- |
@@ -781,7 +781,7 @@ RLS: deshabilitado
 | `updated_at` | `timestamp with time zone` | No | `now()` |
 
 ### routine_packs
-RLS: deshabilitado
+RLS: habilitado
 
 | Columna | Tipo | Nullable | Default |
 | --- | --- | --- | --- |
@@ -795,7 +795,7 @@ RLS: deshabilitado
 | `updated_at` | `timestamp with time zone` | No | `now()` |
 
 ### routines
-RLS: deshabilitado
+RLS: habilitado
 
 | Columna | Tipo | Nullable | Default |
 | --- | --- | --- | --- |
@@ -830,7 +830,7 @@ RLS: deshabilitado
 | `updated_at` | `timestamp with time zone` | No | `now()` |
 
 ### tasks
-RLS: deshabilitado
+RLS: habilitado
 
 | Columna | Tipo | Nullable | Default |
 | --- | --- | --- | --- |

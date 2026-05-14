@@ -6346,6 +6346,12 @@ CREATE POLICY cheffing_units_update ON public.cheffing_units FOR UPDATE USING (p
 
 
 --
+-- Name: day_status; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.day_status ENABLE ROW LEVEL SECURITY;
+
+--
 -- Name: discotheque_capacity_events; Type: ROW SECURITY; Schema: public; Owner: -
 --
 
@@ -6365,8 +6371,26 @@ CREATE POLICY "read own allowlist row" ON public.app_allowed_users FOR SELECT TO
 
 
 --
+-- Name: routine_packs; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.routine_packs ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: routines; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.routines ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: tasks; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.tasks ENABLE ROW LEVEL SECURITY;
+
+--
 -- PostgreSQL database dump complete
 --
 
-\unrestrict JnPkO11VZwpQFERuRi6PheLhDAuYJZaUwFmS7ibs5fY1dLBgNeqQLnPdpk4X93g
+\unrestrict abD9B8mKSQrYPEKTmUqCNfJPSVCC7tFyCOlSPIVDPl7Iqz2hfsImIhHWtncawck
 
