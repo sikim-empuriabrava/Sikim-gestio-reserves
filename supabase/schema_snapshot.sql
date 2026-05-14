@@ -3846,7 +3846,7 @@ CREATE VIEW public.v_cheffing_menu_engineering_dish_cost WITH (security_invoker=
 -- Name: v_daily_room_occupancy; Type: VIEW; Schema: public; Owner: -
 --
 
-CREATE VIEW public.v_daily_room_occupancy AS
+CREATE VIEW public.v_daily_room_occupancy WITH (security_invoker='true') AS
  SELECT ge.event_date,
     r.id AS room_id,
     r.name AS room_name,
@@ -3863,7 +3863,7 @@ CREATE VIEW public.v_daily_room_occupancy AS
 -- Name: v_daily_staffing_summary; Type: VIEW; Schema: public; Owner: -
 --
 
-CREATE VIEW public.v_daily_staffing_summary AS
+CREATE VIEW public.v_daily_staffing_summary WITH (security_invoker='true') AS
  SELECT ge.event_date,
     count(DISTINCT ge.id) AS groups_count,
     sum(ge.total_pax) AS total_pax,
@@ -3880,7 +3880,7 @@ CREATE VIEW public.v_daily_staffing_summary AS
 -- Name: v_day_status; Type: VIEW; Schema: public; Owner: -
 --
 
-CREATE VIEW public.v_day_status AS
+CREATE VIEW public.v_day_status WITH (security_invoker='true') AS
  WITH changes AS (
          SELECT ge.event_date,
             GREATEST(max(ge.updated_at), max(gra.updated_at)) AS last_change_at
@@ -3912,7 +3912,7 @@ CREATE VIEW public.v_day_status AS
 -- Name: v_group_events_calendar_sync; Type: VIEW; Schema: public; Owner: -
 --
 
-CREATE VIEW public.v_group_events_calendar_sync AS
+CREATE VIEW public.v_group_events_calendar_sync WITH (security_invoker='true') AS
  SELECT id AS group_event_id,
     event_date,
     entry_time,
@@ -3942,7 +3942,7 @@ CREATE VIEW public.v_group_events_calendar_sync AS
 -- Name: v_group_events_daily_detail; Type: VIEW; Schema: public; Owner: -
 --
 
-CREATE VIEW public.v_group_events_daily_detail AS
+CREATE VIEW public.v_group_events_daily_detail WITH (security_invoker='true') AS
  SELECT ge.event_date,
     ge.entry_time,
     ge.id AS group_event_id,
@@ -3979,7 +3979,7 @@ CREATE VIEW public.v_group_events_daily_detail AS
 -- Name: v_maintenance_daily_detail; Type: VIEW; Schema: public; Owner: -
 --
 
-CREATE VIEW public.v_maintenance_daily_detail AS
+CREATE VIEW public.v_maintenance_daily_detail WITH (security_invoker='true') AS
  SELECT d.event_date,
     d.entry_time,
     d.group_event_id,
@@ -6452,5 +6452,5 @@ ALTER TABLE public.tasks ENABLE ROW LEVEL SECURITY;
 -- PostgreSQL database dump complete
 --
 
-\unrestrict a5hotAJfx8v0rgxv0fxJJpKR6xfkgcwrq3ANKFnsdskAG5DtQbe6h7WIlnrqyww
+\unrestrict ygoJgdZpAWrJvoZyJmDM4fyzFWyRIhJjTg9oFq9AEC6cMcC7t1TTikWnm3QV2J6
 
