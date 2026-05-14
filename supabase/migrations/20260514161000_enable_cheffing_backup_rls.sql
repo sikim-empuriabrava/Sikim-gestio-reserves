@@ -1,0 +1,2 @@
+ALTER TABLE public.backup_cheffing_subrecipe_items_phase2_20260312 ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.backup_cheffing_dish_items_phase2_20260312 ENABLE ROW LEVEL SECURITY;
