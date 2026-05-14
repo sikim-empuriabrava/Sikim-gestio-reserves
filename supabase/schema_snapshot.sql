@@ -5830,6 +5830,46 @@ CREATE POLICY cheffing_dish_items_update ON public.cheffing_dish_items FOR UPDAT
 
 
 --
+-- Name: cheffing_dish_source_labels; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.cheffing_dish_source_labels ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: cheffing_dish_source_labels cheffing_dish_source_labels_select; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY cheffing_dish_source_labels_select ON public.cheffing_dish_source_labels FOR SELECT TO authenticated USING (public.cheffing_is_allowed());
+
+
+--
+-- Name: cheffing_dish_source_labels cheffing_dish_source_labels_write; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY cheffing_dish_source_labels_write ON public.cheffing_dish_source_labels TO authenticated USING (public.cheffing_is_admin()) WITH CHECK (public.cheffing_is_admin());
+
+
+--
+-- Name: cheffing_dish_tags; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.cheffing_dish_tags ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: cheffing_dish_tags cheffing_dish_tags_select; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY cheffing_dish_tags_select ON public.cheffing_dish_tags FOR SELECT TO authenticated USING (public.cheffing_is_allowed());
+
+
+--
+-- Name: cheffing_dish_tags cheffing_dish_tags_write; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY cheffing_dish_tags_write ON public.cheffing_dish_tags TO authenticated USING (public.cheffing_is_admin()) WITH CHECK (public.cheffing_is_admin());
+
+
+--
 -- Name: cheffing_dishes; Type: ROW SECURITY; Schema: public; Owner: -
 --
 
@@ -5901,6 +5941,26 @@ CREATE POLICY cheffing_ingredient_cost_audit_select ON public.cheffing_ingredien
 --
 
 CREATE POLICY cheffing_ingredient_cost_audit_write ON public.cheffing_ingredient_cost_audit USING (public.cheffing_is_admin()) WITH CHECK (public.cheffing_is_admin());
+
+
+--
+-- Name: cheffing_ingredient_tags; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.cheffing_ingredient_tags ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: cheffing_ingredient_tags cheffing_ingredient_tags_select; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY cheffing_ingredient_tags_select ON public.cheffing_ingredient_tags FOR SELECT TO authenticated USING (public.cheffing_is_allowed());
+
+
+--
+-- Name: cheffing_ingredient_tags cheffing_ingredient_tags_write; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY cheffing_ingredient_tags_write ON public.cheffing_ingredient_tags TO authenticated USING (public.cheffing_is_admin()) WITH CHECK (public.cheffing_is_admin());
 
 
 --
@@ -6084,6 +6144,26 @@ CREATE POLICY cheffing_purchase_documents_write ON public.cheffing_purchase_docu
 
 
 --
+-- Name: cheffing_source_labels; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.cheffing_source_labels ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: cheffing_source_labels cheffing_source_labels_select; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY cheffing_source_labels_select ON public.cheffing_source_labels FOR SELECT TO authenticated USING (public.cheffing_is_allowed());
+
+
+--
+-- Name: cheffing_source_labels cheffing_source_labels_write; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY cheffing_source_labels_write ON public.cheffing_source_labels TO authenticated USING (public.cheffing_is_admin()) WITH CHECK (public.cheffing_is_admin());
+
+
+--
 -- Name: cheffing_subrecipe_items; Type: ROW SECURITY; Schema: public; Owner: -
 --
 
@@ -6115,6 +6195,26 @@ CREATE POLICY cheffing_subrecipe_items_select ON public.cheffing_subrecipe_items
 --
 
 CREATE POLICY cheffing_subrecipe_items_update ON public.cheffing_subrecipe_items FOR UPDATE USING (public.cheffing_is_allowed()) WITH CHECK (public.cheffing_is_allowed());
+
+
+--
+-- Name: cheffing_subrecipe_tags; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.cheffing_subrecipe_tags ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: cheffing_subrecipe_tags cheffing_subrecipe_tags_select; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY cheffing_subrecipe_tags_select ON public.cheffing_subrecipe_tags FOR SELECT TO authenticated USING (public.cheffing_is_allowed());
+
+
+--
+-- Name: cheffing_subrecipe_tags cheffing_subrecipe_tags_write; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY cheffing_subrecipe_tags_write ON public.cheffing_subrecipe_tags TO authenticated USING (public.cheffing_is_admin()) WITH CHECK (public.cheffing_is_admin());
 
 
 --
@@ -6192,6 +6292,26 @@ CREATE POLICY cheffing_suppliers_write ON public.cheffing_suppliers USING (publi
 
 
 --
+-- Name: cheffing_tags; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.cheffing_tags ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: cheffing_tags cheffing_tags_select; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY cheffing_tags_select ON public.cheffing_tags FOR SELECT TO authenticated USING (public.cheffing_is_allowed());
+
+
+--
+-- Name: cheffing_tags cheffing_tags_write; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY cheffing_tags_write ON public.cheffing_tags TO authenticated USING (public.cheffing_is_admin()) WITH CHECK (public.cheffing_is_admin());
+
+
+--
 -- Name: cheffing_units; Type: ROW SECURITY; Schema: public; Owner: -
 --
 
@@ -6248,5 +6368,5 @@ CREATE POLICY "read own allowlist row" ON public.app_allowed_users FOR SELECT TO
 -- PostgreSQL database dump complete
 --
 
-\unrestrict XLh7RhwWqCKKEiMA5BXHdflPLP1gGyPMC1hglGOzHulzDecgeBDSpu1fsoJNlXb
+\unrestrict JnPkO11VZwpQFERuRi6PheLhDAuYJZaUwFmS7ibs5fY1dLBgNeqQLnPdpk4X93g
 
