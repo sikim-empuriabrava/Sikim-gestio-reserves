@@ -122,7 +122,7 @@ RLS: habilitado
 | `source_price_total_raw` | `numeric` | Sí |  |
 
 ### cheffing_dish_source_labels
-RLS: deshabilitado
+RLS: habilitado
 
 | Columna | Tipo | Nullable | Default |
 | --- | --- | --- | --- |
@@ -131,7 +131,7 @@ RLS: deshabilitado
 | `created_at` | `timestamp with time zone` | No | `now()` |
 
 ### cheffing_dish_tags
-RLS: deshabilitado
+RLS: habilitado
 
 | Columna | Tipo | Nullable | Default |
 | --- | --- | --- | --- |
@@ -221,7 +221,7 @@ RLS: habilitado
 | `created_at` | `timestamp with time zone` | No | `now()` |
 
 ### cheffing_ingredient_tags
-RLS: deshabilitado
+RLS: habilitado
 
 | Columna | Tipo | Nullable | Default |
 | --- | --- | --- | --- |
@@ -435,7 +435,7 @@ RLS: habilitado
 | `declared_total` | `numeric` | Sí |  |
 
 ### cheffing_source_labels
-RLS: deshabilitado
+RLS: habilitado
 
 | Columna | Tipo | Nullable | Default |
 | --- | --- | --- | --- |
@@ -471,7 +471,7 @@ RLS: habilitado
 | `source_price_unit_raw` | `numeric` | Sí |  |
 
 ### cheffing_subrecipe_tags
-RLS: deshabilitado
+RLS: habilitado
 
 | Columna | Tipo | Nullable | Default |
 | --- | --- | --- | --- |
@@ -552,7 +552,7 @@ RLS: habilitado
 | `updated_at` | `timestamp with time zone` | No | `now()` |
 
 ### cheffing_tags
-RLS: deshabilitado
+RLS: habilitado
 
 | Columna | Tipo | Nullable | Default |
 | --- | --- | --- | --- |
@@ -880,6 +880,10 @@ RLS: deshabilitado
 | `cheffing_dish_items` | `cheffing_dish_items_insert` | INSERT | public | `` | `cheffing_is_allowed()` |
 | `cheffing_dish_items` | `cheffing_dish_items_select` | SELECT | public | `cheffing_is_allowed()` | `` |
 | `cheffing_dish_items` | `cheffing_dish_items_update` | UPDATE | public | `cheffing_is_allowed()` | `cheffing_is_allowed()` |
+| `cheffing_dish_source_labels` | `cheffing_dish_source_labels_select` | SELECT | authenticated | `cheffing_is_allowed()` | `` |
+| `cheffing_dish_source_labels` | `cheffing_dish_source_labels_write` | ALL | authenticated | `cheffing_is_admin()` | `cheffing_is_admin()` |
+| `cheffing_dish_tags` | `cheffing_dish_tags_select` | SELECT | authenticated | `cheffing_is_allowed()` | `` |
+| `cheffing_dish_tags` | `cheffing_dish_tags_write` | ALL | authenticated | `cheffing_is_admin()` | `cheffing_is_admin()` |
 | `cheffing_dishes` | `cheffing_dishes_delete` | DELETE | public | `cheffing_is_allowed()` | `` |
 | `cheffing_dishes` | `cheffing_dishes_insert` | INSERT | public | `` | `cheffing_is_allowed()` |
 | `cheffing_dishes` | `cheffing_dishes_select` | SELECT | public | `cheffing_is_allowed()` | `` |
@@ -888,6 +892,8 @@ RLS: deshabilitado
 | `cheffing_families` | `cheffing_families_write` | ALL | public | `cheffing_is_admin()` | `cheffing_is_admin()` |
 | `cheffing_ingredient_cost_audit` | `cheffing_ingredient_cost_audit_select` | SELECT | public | `cheffing_is_allowed()` | `` |
 | `cheffing_ingredient_cost_audit` | `cheffing_ingredient_cost_audit_write` | ALL | public | `cheffing_is_admin()` | `cheffing_is_admin()` |
+| `cheffing_ingredient_tags` | `cheffing_ingredient_tags_select` | SELECT | authenticated | `cheffing_is_allowed()` | `` |
+| `cheffing_ingredient_tags` | `cheffing_ingredient_tags_write` | ALL | authenticated | `cheffing_is_admin()` | `cheffing_is_admin()` |
 | `cheffing_ingredients` | `cheffing_ingredients_delete` | DELETE | public | `cheffing_is_allowed()` | `` |
 | `cheffing_ingredients` | `cheffing_ingredients_insert` | INSERT | public | `` | `cheffing_is_allowed()` |
 | `cheffing_ingredients` | `cheffing_ingredients_select` | SELECT | public | `cheffing_is_allowed()` | `` |
@@ -906,10 +912,14 @@ RLS: deshabilitado
 | `cheffing_purchase_document_lines` | `cheffing_purchase_document_lines_write` | ALL | public | `cheffing_is_admin()` | `cheffing_is_admin()` |
 | `cheffing_purchase_documents` | `cheffing_purchase_documents_select` | SELECT | public | `cheffing_is_allowed()` | `` |
 | `cheffing_purchase_documents` | `cheffing_purchase_documents_write` | ALL | public | `cheffing_is_admin()` | `cheffing_is_admin()` |
+| `cheffing_source_labels` | `cheffing_source_labels_select` | SELECT | authenticated | `cheffing_is_allowed()` | `` |
+| `cheffing_source_labels` | `cheffing_source_labels_write` | ALL | authenticated | `cheffing_is_admin()` | `cheffing_is_admin()` |
 | `cheffing_subrecipe_items` | `cheffing_subrecipe_items_delete` | DELETE | public | `cheffing_is_allowed()` | `` |
 | `cheffing_subrecipe_items` | `cheffing_subrecipe_items_insert` | INSERT | public | `` | `cheffing_is_allowed()` |
 | `cheffing_subrecipe_items` | `cheffing_subrecipe_items_select` | SELECT | public | `cheffing_is_allowed()` | `` |
 | `cheffing_subrecipe_items` | `cheffing_subrecipe_items_update` | UPDATE | public | `cheffing_is_allowed()` | `cheffing_is_allowed()` |
+| `cheffing_subrecipe_tags` | `cheffing_subrecipe_tags_select` | SELECT | authenticated | `cheffing_is_allowed()` | `` |
+| `cheffing_subrecipe_tags` | `cheffing_subrecipe_tags_write` | ALL | authenticated | `cheffing_is_admin()` | `cheffing_is_admin()` |
 | `cheffing_subrecipes` | `cheffing_subrecipes_delete` | DELETE | public | `cheffing_is_allowed()` | `` |
 | `cheffing_subrecipes` | `cheffing_subrecipes_insert` | INSERT | public | `` | `cheffing_is_allowed()` |
 | `cheffing_subrecipes` | `cheffing_subrecipes_select` | SELECT | public | `cheffing_is_allowed()` | `` |
@@ -918,6 +928,8 @@ RLS: deshabilitado
 | `cheffing_supplier_product_refs` | `cheffing_supplier_product_refs_write` | ALL | public | `cheffing_is_admin()` | `cheffing_is_admin()` |
 | `cheffing_suppliers` | `cheffing_suppliers_select` | SELECT | public | `cheffing_is_allowed()` | `` |
 | `cheffing_suppliers` | `cheffing_suppliers_write` | ALL | public | `cheffing_is_admin()` | `cheffing_is_admin()` |
+| `cheffing_tags` | `cheffing_tags_select` | SELECT | authenticated | `cheffing_is_allowed()` | `` |
+| `cheffing_tags` | `cheffing_tags_write` | ALL | authenticated | `cheffing_is_admin()` | `cheffing_is_admin()` |
 | `cheffing_units` | `cheffing_units_delete` | DELETE | public | `cheffing_is_admin()` | `` |
 | `cheffing_units` | `cheffing_units_insert` | INSERT | public | `` | `cheffing_is_admin()` |
 | `cheffing_units` | `cheffing_units_select` | SELECT | public | `cheffing_is_allowed()` | `` |
