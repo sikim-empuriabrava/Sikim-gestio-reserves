@@ -44,8 +44,8 @@ export default async function CheffingVentaDetallePage({ params }: { params: { p
         <p>Estado: {order.status ?? '—'}</p>
       </div>
 
-      <div className="overflow-hidden rounded-xl border border-slate-800">
-        <table className="min-w-full text-left text-sm text-slate-200">
+      <div className="overflow-x-auto rounded-xl border border-slate-800">
+        <table className="min-w-[720px] text-left text-sm text-slate-200">
           <thead className="bg-slate-950/70 text-xs uppercase text-slate-400">
             <tr>
               <th className="px-3 py-2">Producto</th>

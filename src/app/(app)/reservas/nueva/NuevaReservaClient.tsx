@@ -846,7 +846,7 @@ export default function NuevaReservaClient() {
   };
 
   return (
-    <div className="reservas-new-pilot min-h-[calc(100dvh-4.5rem)] space-y-7 bg-[#12110f] px-4 py-5 text-[#efe8dc] md:px-6 lg:px-8">
+    <div className="reservas-new-pilot min-h-[calc(100dvh-4.5rem)] space-y-7 bg-[#12110f] px-4 py-5 pb-[calc(1.25rem+env(safe-area-inset-bottom))] text-[#efe8dc] md:px-6 lg:px-8">
       <ReservasNewPilotStyles />
       <div className="flex flex-col gap-5 xl:flex-row xl:items-end xl:justify-between">
         <div>
@@ -854,10 +854,10 @@ export default function NuevaReservaClient() {
           <h1 className="mt-2 text-[2rem] font-semibold leading-tight tracking-normal text-[#f6f0e8]">Crear reserva</h1>
         <p className="text-sm text-slate-400">Introduce los datos básicos y asigna menús para cocina.</p>
         </div>
-        <div className="flex flex-wrap gap-3">
+        <div className="flex w-full flex-col gap-3 sm:w-auto sm:flex-row sm:flex-wrap">
           <Link
             href="/reservas?view=week"
-            className="inline-flex items-center justify-center rounded-xl border border-[#4a3f32]/75 bg-[#151412]/90 px-5 py-3 text-sm font-semibold text-[#efe8dc] transition-colors hover:border-[#8b6a43]/70 hover:bg-[#211f1b] active:translate-y-px"
+            className="inline-flex w-full items-center justify-center rounded-xl border border-[#4a3f32]/75 bg-[#151412]/90 px-5 py-3 text-sm font-semibold text-[#efe8dc] transition-colors hover:border-[#8b6a43]/70 hover:bg-[#211f1b] active:translate-y-px sm:w-auto"
           >
             Cancelar
           </Link>
@@ -866,7 +866,7 @@ export default function NuevaReservaClient() {
             form="nueva-reserva-form"
             name="reservationStatus"
             value="draft"
-            className="button-secondary min-w-[10rem]"
+            className="button-secondary w-full min-w-[10rem] sm:w-auto"
             disabled={isSubmitting}
           >
             {isSubmitting && submittingStatus === 'draft' ? 'Guardando...' : 'Guardar borrador'}
@@ -876,7 +876,7 @@ export default function NuevaReservaClient() {
             form="nueva-reserva-form"
             name="reservationStatus"
             value="confirmed"
-            className="button-primary min-w-[12rem]"
+            className="button-primary w-full min-w-[12rem] sm:w-auto"
             disabled={isSubmitting}
           >
             {isSubmitting && submittingStatus === 'confirmed' ? 'Creando...' : 'Crear reserva confirmada'}
@@ -1229,8 +1229,8 @@ export default function NuevaReservaClient() {
               )}
 
               {isCustomMenuModalOpen && (
-                <div className="reservation-modal-overlay fixed inset-0 z-50 flex items-center justify-center px-4">
-                  <div className="reservation-modal-panel w-full max-w-lg space-y-4 rounded-2xl border p-6">
+                <div className="reservation-modal-overlay fixed inset-0 z-50 flex items-end justify-center px-3 py-4 pb-[calc(1rem+env(safe-area-inset-bottom))] sm:items-center sm:px-4">
+                  <div className="reservation-modal-panel max-h-[calc(100dvh-2rem)] w-full max-w-lg space-y-4 overflow-y-auto rounded-2xl border p-5 pb-[calc(1rem+env(safe-area-inset-bottom))] sm:p-6 sm:pb-[calc(1.5rem+env(safe-area-inset-bottom))]">
                     <div>
                       <p className="text-lg font-semibold text-white">Crear menú personalizado</p>
                       <p className="text-sm text-slate-400">Añade un nombre y cantidad para este menú.</p>
@@ -1271,7 +1271,7 @@ export default function NuevaReservaClient() {
                           placeholder="Indicaciones específicas"
                         />
                       </label>
-                      <div className="flex justify-end gap-2">
+                      <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
                         <button type="button" className="button-secondary" onClick={handleCloseCustomMenuModal}>
                           Cancelar
                         </button>
@@ -1285,8 +1285,8 @@ export default function NuevaReservaClient() {
               )}
 
               {isKidsMenuModalOpen && (
-                <div className="reservation-modal-overlay fixed inset-0 z-50 flex items-center justify-center px-4">
-                  <div className="reservation-modal-panel w-full max-w-lg space-y-4 rounded-2xl border p-6">
+                <div className="reservation-modal-overlay fixed inset-0 z-50 flex items-end justify-center px-3 py-4 pb-[calc(1rem+env(safe-area-inset-bottom))] sm:items-center sm:px-4">
+                  <div className="reservation-modal-panel max-h-[calc(100dvh-2rem)] w-full max-w-lg space-y-4 overflow-y-auto rounded-2xl border p-5 pb-[calc(1rem+env(safe-area-inset-bottom))] sm:p-6 sm:pb-[calc(1.5rem+env(safe-area-inset-bottom))]">
                     <div>
                       <p className="text-lg font-semibold text-white">Crear menú infantil</p>
                       <p className="text-sm text-slate-400">Indica cantidad y notas para este menú.</p>
@@ -1326,7 +1326,7 @@ export default function NuevaReservaClient() {
                           placeholder="Indicaciones específicas"
                         />
                       </label>
-                      <div className="flex justify-end gap-2">
+                      <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
                         <button type="button" className="button-secondary" onClick={handleCloseKidsMenuModal}>
                           Cancelar
                         </button>

@@ -27,7 +27,10 @@ export function CheffingNav() {
   const query = searchParams.toString();
 
   return (
-    <nav className="cheffing-nav flex flex-wrap gap-1.5 text-sm font-semibold lg:justify-end">
+    <nav
+      aria-label="Navegacion Cheffing"
+      className="cheffing-nav flex w-full max-w-full flex-nowrap gap-1.5 overflow-x-auto overscroll-x-contain pb-1 text-sm font-semibold whitespace-nowrap [-webkit-overflow-scrolling:touch] lg:flex-wrap lg:justify-end lg:overflow-visible lg:pb-0"
+    >
       {NAV_ITEMS.map((item) => {
         const isActive = item.href === '/cheffing' ? pathname === item.href : pathname.startsWith(item.href);
 
@@ -37,7 +40,7 @@ export function CheffingNav() {
             href={mergeQueryString(item.href, query)}
             aria-current={isActive ? 'page' : undefined}
             className={cn(
-              'rounded-full border px-3.5 py-1.5 shadow-sm transition duration-150 hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 active:translate-y-px',
+              'shrink-0 rounded-full border px-3.5 py-1.5 shadow-sm transition duration-150 hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 active:translate-y-px',
               isActive ? 'is-active' : 'is-idle',
             )}
           >
