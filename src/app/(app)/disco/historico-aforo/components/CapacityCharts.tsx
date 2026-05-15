@@ -123,12 +123,12 @@ export function CapacityAnalyticsCharts({
         {lineChart(averageEvolution)}
       </ChartFrame>
 
-      <ChartFrame title="Entradas registradas por sesion" description="Suma de movimientos de entrada. No equivale necesariamente a clientes unicos.">
+      <ChartFrame title="Entradas registradas por sesion" description="Suma de movimientos de entrada. Una reentrada puede contar de nuevo.">
         {barChart(entriesBySession, 'Entradas')}
       </ChartFrame>
 
-      <ChartFrame title="Pico maximo por sesion" description="Peak count guardado en cada sesion cerrada.">
-        {barChart(peakBySession, 'Pico maximo', GOLD)}
+      <ChartFrame title="Pico máximo por sesion" description="Peak count guardado en cada sesion cerrada.">
+        {barChart(peakBySession, 'Pico máximo', GOLD)}
       </ChartFrame>
 
       <ChartFrame title="Comparativa por dia de semana" description="Entradas totales y pico medio por dia de apertura.">

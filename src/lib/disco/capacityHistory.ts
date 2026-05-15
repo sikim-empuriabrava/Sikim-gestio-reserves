@@ -82,9 +82,21 @@ export type WeekdayChartPoint = {
   sessions: number;
 };
 
+export type OperationalDayTraffic = {
+  date: string;
+  label: string;
+  entries: number;
+};
+
+export type AverageCapacitySlot = {
+  label: string;
+  averageCount: number;
+};
+
 export type CapacityHistoryInsights = {
   closedSessions: number;
   totalEntries: number;
+  averageEntriesPerSession: number;
   totalExits: number;
   totalMovements: number;
   rangePeak: number;
@@ -93,8 +105,10 @@ export type CapacityHistoryInsights = {
   averageDurationMinutes: number;
   bestByPeak: CapacitySessionHistoryItem | null;
   bestByEntries: CapacitySessionHistoryItem | null;
+  bestOperationalDay: OperationalDayTraffic | null;
   weekdayWithMostTraffic: string | null;
   approximatePeakHour: string | null;
+  strongestAverageCapacitySlot: AverageCapacitySlot | null;
   averageEvolution: ChartPoint[];
   entriesBySession: SessionBarPoint[];
   peakBySession: SessionBarPoint[];
@@ -400,6 +414,11 @@ function formatShortSessionLabel(openedAt: string): string {
   return discoShortDateFormatter.format(new Date(openedAt));
 }
 
+function formatOperationalDayKey(openedAt: string): string {
+  const parts = getLocalDateTimeParts(new Date(openedAt));
+  return formatDateInput(parts);
+}
+
 export function formatDiscoDate(value: string | null | undefined): string {
   if (!value) return '-';
   return discoDateFormatter.format(new Date(value));
@@ -417,6 +436,17 @@ export function formatDiscoTime(value: string | null | undefined): string {
 
 function formatTimeLabel(value: Date): string {
   return new Intl.DateTimeFormat('es-ES', { timeZone: DISCO_TIME_ZONE, hour: '2-digit', minute: '2-digit', hour12: false }).format(value);
+}
+
+function formatSlotTimeLabel(minutes: number): string {
+  const normalizedMinutes = ((minutes % (24 * 60)) + 24 * 60) % (24 * 60);
+  const hours = Math.floor(normalizedMinutes / 60);
+  const mins = normalizedMinutes % 60;
+  return `${hours.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')}`;
+}
+
+function formatSlotRangeLabel(slotStartMinutes: number, intervalMinutes: number): string {
+  return `${formatSlotTimeLabel(slotStartMinutes)}-${formatSlotTimeLabel(slotStartMinutes + intervalMinutes)}`;
 }
 
 function minutesSinceMidnight(value: Date): number {
@@ -526,10 +556,95 @@ function buildAverageEvolution(itemsWithEvents: Array<CapacitySessionHistoryItem
     .map(([label, bucket]) => ({ label, value: Math.round(bucket.sum / bucket.count) }));
 }
 
+function addWeightedIntervalToCapacitySlots(
+  bins: Map<number, { weightedCountMs: number; durationMs: number }>,
+  from: Date,
+  to: Date,
+  count: number,
+  intervalMinutes: number,
+) {
+  let cursor = new Date(from.getTime());
+
+  while (cursor < to) {
+    const local = getLocalDateTimeParts(cursor);
+    const order = minutesSinceMidnight(cursor);
+    const slotStart = Math.floor(order / intervalMinutes) * intervalMinutes;
+    const elapsedMsInSlot =
+      ((local.minute % intervalMinutes) * 60 + local.second) * 1000 + cursor.getMilliseconds();
+    const msUntilNextSlot = Math.max(1, intervalMinutes * 60000 - elapsedMsInSlot);
+    const segmentEnd = new Date(Math.min(to.getTime(), cursor.getTime() + msUntilNextSlot));
+    const durationMs = segmentEnd.getTime() - cursor.getTime();
+
+    if (durationMs > 0) {
+      const bucket = bins.get(slotStart) ?? { weightedCountMs: 0, durationMs: 0 };
+      bucket.weightedCountMs += count * durationMs;
+      bucket.durationMs += durationMs;
+      bins.set(slotStart, bucket);
+    }
+
+    cursor = segmentEnd;
+  }
+}
+
+function buildStrongestAverageCapacitySlot(itemsWithEvents: Array<CapacitySessionHistoryItem & { events: EventRow[] }>): AverageCapacitySlot | null {
+  const intervalMinutes = 30;
+  const bins = new Map<number, { weightedCountMs: number; durationMs: number }>();
+  let hasEvents = false;
+
+  for (const item of itemsWithEvents) {
+    if (!item.session.closed_at || item.events.length === 0) continue;
+
+    const openedAt = new Date(item.session.opened_at);
+    const closedAt = new Date(item.session.closed_at);
+    if (!Number.isFinite(openedAt.getTime()) || !Number.isFinite(closedAt.getTime()) || closedAt <= openedAt) continue;
+
+    const events = [...item.events].sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
+    let previousAt = openedAt;
+    let currentCount = 0;
+
+    for (const event of events) {
+      const eventAt = new Date(event.created_at);
+      if (!Number.isFinite(eventAt.getTime())) continue;
+
+      if (eventAt < openedAt) {
+        currentCount = event.resulting_count;
+        continue;
+      }
+
+      if (eventAt > closedAt) break;
+
+      addWeightedIntervalToCapacitySlots(bins, previousAt, eventAt, currentCount, intervalMinutes);
+      currentCount = event.resulting_count;
+      previousAt = eventAt;
+      hasEvents = true;
+    }
+
+    addWeightedIntervalToCapacitySlots(bins, previousAt, closedAt, currentCount, intervalMinutes);
+  }
+
+  if (!hasEvents || bins.size === 0) return null;
+
+  const strongest = Array.from(bins.entries()).reduce<{ slotStart: number; averageCount: number } | null>((best, [slotStart, bucket]) => {
+    if (bucket.durationMs <= 0) return best;
+
+    const averageCount = Math.round(bucket.weightedCountMs / bucket.durationMs);
+    if (!best || averageCount > best.averageCount) return { slotStart, averageCount };
+    return best;
+  }, null);
+
+  if (!strongest) return null;
+
+  return {
+    label: formatSlotRangeLabel(strongest.slotStart, intervalMinutes),
+    averageCount: strongest.averageCount,
+  };
+}
+
 function buildInsights(itemsWithEvents: Array<CapacitySessionHistoryItem & { events: EventRow[] }>): CapacityHistoryInsights {
   const items = itemsWithEvents.map((item) => ({ session: item.session, metrics: item.metrics }));
   const closedSessions = items.length;
   const totalEntries = items.reduce((sum, item) => sum + item.metrics.total_entries, 0);
+  const averageEntriesPerSession = closedSessions ? Math.round(totalEntries / closedSessions) : 0;
   const totalExits = items.reduce((sum, item) => sum + item.metrics.total_exits, 0);
   const totalMovements = items.reduce((sum, item) => sum + item.metrics.event_count, 0);
   const rangePeak = items.reduce((max, item) => Math.max(max, item.session.peak_count), 0);
@@ -540,11 +655,14 @@ function buildInsights(itemsWithEvents: Array<CapacitySessionHistoryItem & { eve
   const bestByEntries = items.reduce<CapacitySessionHistoryItem | null>((best, item) => (!best || item.metrics.total_entries > best.metrics.total_entries ? item : best), null);
   const averageEvolution = buildAverageEvolution(itemsWithEvents);
   const peakEvolutionPoint = averageEvolution.reduce<ChartPoint | null>((best, point) => (!best || point.value > best.value ? point : best), null);
+  const strongestAverageCapacitySlot = buildStrongestAverageCapacitySlot(itemsWithEvents);
 
   const weekdayBuckets = new Map<WeekdayFilter, { entries: number; peakSum: number; sessions: number }>();
   for (const weekday of ['1', '2', '3', '4', '5', '6', '7'] as const) {
     weekdayBuckets.set(weekday, { entries: 0, peakSum: 0, sessions: 0 });
   }
+
+  const operationalDayBuckets = new Map<string, OperationalDayTraffic>();
 
   for (const item of items) {
     const weekday = getSessionWeekdayFilterValue(item.session.opened_at);
@@ -553,6 +671,15 @@ function buildInsights(itemsWithEvents: Array<CapacitySessionHistoryItem & { eve
     bucket.entries += item.metrics.total_entries;
     bucket.peakSum += item.session.peak_count;
     bucket.sessions += 1;
+
+    const operationalDayKey = formatOperationalDayKey(item.session.opened_at);
+    const operationalDayBucket = operationalDayBuckets.get(operationalDayKey) ?? {
+      date: operationalDayKey,
+      label: formatDiscoDate(item.session.opened_at),
+      entries: 0,
+    };
+    operationalDayBucket.entries += item.metrics.total_entries;
+    operationalDayBuckets.set(operationalDayKey, operationalDayBucket);
   }
 
   const weekdayComparison = Array.from(weekdayBuckets.entries()).map(([weekday, bucket]) => ({
@@ -566,12 +693,17 @@ function buildInsights(itemsWithEvents: Array<CapacitySessionHistoryItem & { eve
     (best, point) => (!best || point.entries > best.entries ? point : best),
     null,
   );
+  const bestOperationalDay = Array.from(operationalDayBuckets.values()).reduce<OperationalDayTraffic | null>(
+    (best, day) => (!best || day.entries > best.entries ? day : best),
+    null,
+  );
 
   const chartSource = [...items].reverse().slice(-CHART_SESSION_LIMIT);
 
   return {
     closedSessions,
     totalEntries,
+    averageEntriesPerSession,
     totalExits,
     totalMovements,
     rangePeak,
@@ -580,8 +712,10 @@ function buildInsights(itemsWithEvents: Array<CapacitySessionHistoryItem & { eve
     averageDurationMinutes,
     bestByPeak,
     bestByEntries,
+    bestOperationalDay: bestOperationalDay && bestOperationalDay.entries > 0 ? bestOperationalDay : null,
     weekdayWithMostTraffic: weekdayWithMostTraffic && weekdayWithMostTraffic.entries > 0 ? weekdayWithMostTraffic.weekday : null,
     approximatePeakHour: peakEvolutionPoint ? peakEvolutionPoint.label : null,
+    strongestAverageCapacitySlot,
     averageEvolution,
     entriesBySession: chartSource.map((item) => ({
       sessionId: item.session.id,
