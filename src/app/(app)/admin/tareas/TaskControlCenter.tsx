@@ -229,7 +229,7 @@ export function TaskControlCenter() {
 
   return (
     <div className="space-y-6">
-      <div className="grid gap-4 lg:grid-cols-3">
+      <div className="grid gap-4 md:grid-cols-3">
         {(['kitchen', 'maintenance'] as TaskArea[]).map((area) => (
           <div key={area} className="rounded-xl border border-slate-800 bg-slate-900/70 p-4 space-y-2">
             <div className="flex items-center justify-between text-sm text-slate-400">
@@ -262,13 +262,13 @@ export function TaskControlCenter() {
               Filtros rápidos para revisar tareas por área, estado y fecha de vencimiento.
             </p>
           </div>
-          <div className="flex flex-wrap gap-2 text-sm text-slate-200">
-            <label className="flex items-center gap-2">
+          <div className="grid gap-2 text-sm text-slate-200 sm:grid-cols-2 lg:flex lg:flex-wrap">
+            <label className="flex min-w-0 flex-col gap-1 sm:flex-row sm:items-center sm:gap-2">
               <span className="text-xs uppercase tracking-wide text-slate-400">Área</span>
               <select
                 value={filters.area}
                 onChange={(event) => setFilters((prev) => ({ ...prev, area: event.target.value as Filters['area'] }))}
-                className="rounded-lg border border-slate-700 bg-slate-950/60 px-3 py-1.5"
+                className="min-h-11 w-full rounded-lg border border-slate-700 bg-slate-950/60 px-3 py-2 sm:min-h-0 sm:w-auto sm:py-1.5"
               >
                 <option value="all">Todas</option>
                 <option value="kitchen">Cocina</option>
@@ -276,12 +276,12 @@ export function TaskControlCenter() {
               </select>
             </label>
 
-            <label className="flex items-center gap-2">
+            <label className="flex min-w-0 flex-col gap-1 sm:flex-row sm:items-center sm:gap-2">
               <span className="text-xs uppercase tracking-wide text-slate-400">Estado</span>
               <select
                 value={filters.status}
                 onChange={(event) => setFilters((prev) => ({ ...prev, status: event.target.value as Filters['status'] }))}
-                className="rounded-lg border border-slate-700 bg-slate-950/60 px-3 py-1.5"
+                className="min-h-11 w-full rounded-lg border border-slate-700 bg-slate-950/60 px-3 py-2 sm:min-h-0 sm:w-auto sm:py-1.5"
               >
                 <option value="all">Todos</option>
                 <option value="open">Abiertas</option>
@@ -289,12 +289,12 @@ export function TaskControlCenter() {
               </select>
             </label>
 
-            <label className="flex items-center gap-2">
+            <label className="flex min-w-0 flex-col gap-1 sm:flex-row sm:items-center sm:gap-2">
               <span className="text-xs uppercase tracking-wide text-slate-400">Fecha</span>
               <select
                 value={filters.dueDate}
                 onChange={(event) => setFilters((prev) => ({ ...prev, dueDate: event.target.value as Filters['dueDate'] }))}
-                className="rounded-lg border border-slate-700 bg-slate-950/60 px-3 py-1.5"
+                className="min-h-11 w-full rounded-lg border border-slate-700 bg-slate-950/60 px-3 py-2 sm:min-h-0 sm:w-auto sm:py-1.5"
               >
                 <option value="any">Cualquiera</option>
                 <option value="today">Hoy</option>
@@ -305,7 +305,7 @@ export function TaskControlCenter() {
             <button
               type="button"
               onClick={() => loadTasks()}
-              className="rounded-lg border border-slate-700 bg-slate-950/60 px-3 py-1.5 font-semibold hover:border-slate-500"
+              className="min-h-11 rounded-lg border border-slate-700 bg-slate-950/60 px-3 py-2 font-semibold hover:border-slate-500 sm:min-h-0 sm:py-1.5"
             >
               Refrescar
             </button>
@@ -323,7 +323,93 @@ export function TaskControlCenter() {
         )}
 
         {!isLoading && filteredTasks.length > 0 && (
-          <div className="overflow-x-auto">
+          <div className="space-y-3 md:hidden">
+            {filteredTasks.map((task) => (
+              <article
+                key={task.id}
+                className="space-y-4 rounded-xl border border-slate-800 bg-slate-950/50 p-4 text-slate-100"
+              >
+                <div className="space-y-2">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="rounded-full bg-slate-800 px-2 py-1 text-xs font-semibold text-slate-200">
+                      {areaLabels[task.area]}
+                    </span>
+                    <span
+                      className={`rounded-full border px-2 py-1 text-xs font-semibold ${statusBadges[toUiStatus(task.status)]}`}
+                    >
+                      {statusLabels[toUiStatus(task.status)]}
+                    </span>
+                    <span
+                      className={`rounded-full border px-2 py-1 text-xs font-semibold ${priorityBadges[task.priority]}`}
+                    >
+                      {priorityLabels[task.priority]}
+                    </span>
+                  </div>
+                  <div>
+                    <p className="text-base font-semibold leading-6">{task.title}</p>
+                    {task.description && (
+                      <p className="mt-1 text-sm leading-6 text-slate-400">{task.description}</p>
+                    )}
+                  </div>
+                </div>
+
+                <div className="grid gap-3 text-xs text-slate-300 sm:grid-cols-2">
+                  <div className="rounded-lg border border-slate-800 bg-slate-900/60 px-3 py-2">
+                    <p className="uppercase tracking-wide text-slate-500">Ventana</p>
+                    <p className="mt-1 font-semibold text-slate-200">
+                      {task.window_start_date && task.due_date
+                        ? `${formatShortDay(task.window_start_date)} -> ${formatShortDay(task.due_date)}`
+                        : formatDate(task.due_date ?? null)}
+                    </p>
+                    {task.due_date && task.due_date < getTodayISO() && task.status !== 'done' && (
+                      <p className="mt-1 font-semibold text-amber-200">Vencida</p>
+                    )}
+                  </div>
+                  <div className="rounded-lg border border-slate-800 bg-slate-900/60 px-3 py-2">
+                    <p className="uppercase tracking-wide text-slate-500">Creada</p>
+                    <p className="mt-1 font-semibold text-slate-200">{formatDate(task.created_at)}</p>
+                  </div>
+                </div>
+
+                <div className="grid gap-3 text-sm text-slate-200 sm:grid-cols-2">
+                  <label className="space-y-1">
+                    <span className="block text-xs font-semibold uppercase tracking-wide text-slate-400">
+                      Estado
+                    </span>
+                    <select
+                      value={toUiStatus(task.status)}
+                      disabled={updatingId === task.id}
+                      onChange={(event) => handleUpdate(task.id, { status: event.target.value as UiStatus })}
+                      className="min-h-11 w-full rounded-lg border border-slate-700 bg-slate-950/60 px-3 py-2"
+                    >
+                      <option value="open">Abierta</option>
+                      <option value="done">Hecha</option>
+                    </select>
+                  </label>
+
+                  <label className="space-y-1">
+                    <span className="block text-xs font-semibold uppercase tracking-wide text-slate-400">
+                      Prioridad
+                    </span>
+                    <select
+                      value={task.priority}
+                      disabled={updatingId === task.id}
+                      onChange={(event) => handleUpdate(task.id, { priority: event.target.value as TaskPriority })}
+                      className="min-h-11 w-full rounded-lg border border-slate-700 bg-slate-950/60 px-3 py-2"
+                    >
+                      <option value="low">Baja</option>
+                      <option value="normal">Normal</option>
+                      <option value="high">Alta</option>
+                    </select>
+                  </label>
+                </div>
+              </article>
+            ))}
+          </div>
+        )}
+
+        {!isLoading && filteredTasks.length > 0 && (
+          <div className="hidden overflow-x-auto md:block">
             <table className="min-w-full divide-y divide-slate-800 text-sm">
               <thead>
                 <tr className="text-left text-xs uppercase tracking-wide text-slate-400">
@@ -412,7 +498,7 @@ export function TaskControlCenter() {
           </div>
         )}
 
-        <div className="flex items-center justify-between text-xs text-slate-500">
+        <div className="flex flex-col gap-2 text-xs text-slate-500 sm:flex-row sm:items-center sm:justify-between">
           <span>
             {lastUpdated
               ? `Actualizado ${lastUpdated.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })}`
