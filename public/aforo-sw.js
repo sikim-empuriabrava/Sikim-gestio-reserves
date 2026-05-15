@@ -1,8 +1,6 @@
 const CACHE_PREFIX = 'sikim-aforo-sw-';
-const CACHE_VERSION = 'v2';
+const CACHE_VERSION = 'v3';
 const STATIC_CACHE = `${CACHE_PREFIX}${CACHE_VERSION}-static`;
-const AFORO_SCOPE = '/disco/aforo-en-directo';
-const STATIC_ASSET_DESTINATIONS = new Set(['style', 'script', 'font', 'image']);
 
 self.addEventListener('install', () => {
   self.skipWaiting();
@@ -37,14 +35,11 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  const isAforoNavigation = request.mode === 'navigate' && url.pathname.startsWith(AFORO_SCOPE);
-  const isStaticAsset = STATIC_ASSET_DESTINATIONS.has(request.destination);
-
-  if (isAforoNavigation) {
+  if (request.mode === 'navigate') {
     return;
   }
 
-  if (isStaticAsset) {
+  if (isSafeStaticAsset(url, request)) {
     event.respondWith(
       caches.match(request).then((cached) => {
         if (cached) {
@@ -62,3 +57,21 @@ self.addEventListener('fetch', (event) => {
     );
   }
 });
+
+function isSafeStaticAsset(url, request) {
+  const pathname = url.pathname;
+
+  if (pathname.startsWith('/_next/static/')) {
+    return ['script', 'style', 'font'].includes(request.destination);
+  }
+
+  if (pathname.startsWith('/branding/') || pathname.startsWith('/disco/aforo-en-directo/branding/')) {
+    return request.destination === 'image';
+  }
+
+  if (pathname === '/favicon.ico') {
+    return true;
+  }
+
+  return false;
+}

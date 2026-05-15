@@ -1,9 +1,12 @@
 import type { Metadata } from 'next';
+import { PwaBootstrap } from '@/components/PwaBootstrap';
 import './globals.css';
 
 export const metadata: Metadata = {
   title: 'Gestor de Reservas | Sikim',
   description: 'Dashboard interno para gestionar reservas de restaurante y discoteca.',
+  manifest: '/manifest.webmanifest',
+  themeColor: '#020617',
   icons: {
     icon: [
       {
@@ -29,6 +32,21 @@ export const metadata: Metadata = {
         type: 'image/svg+xml',
       },
     ],
+    apple: [
+      {
+        url: '/branding/sikim-app-apple-180.png',
+        sizes: '180x180',
+        type: 'image/png',
+      },
+    ],
+  },
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: 'black-translucent',
+    title: 'Sikim',
+  },
+  formatDetection: {
+    telephone: false,
   },
 };
 
@@ -71,6 +89,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         <script dangerouslySetInnerHTML={{ __html: themeInitScript }} />
       </head>
       <body className="font-sans">
+        <PwaBootstrap />
         <div className="sikim-app-background" aria-hidden="true" />
         <div className="relative min-h-screen">{children}</div>
       </body>

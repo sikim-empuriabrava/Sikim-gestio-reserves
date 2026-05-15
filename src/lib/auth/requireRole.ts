@@ -85,6 +85,18 @@ export function getDefaultModulePath(allowedUser: AllowedUser | null): string {
   return '/';
 }
 
+export function getDefaultLandingPath(allowedUser: AllowedUser | null): string {
+  if (allowedUser?.role === 'admin') return '/reservas?view=week';
+  if (allowedUser?.can_reservas) return '/reservas?view=week';
+  if (allowedUser?.view_live_capacity || allowedUser?.manage_live_capacity) {
+    return '/disco/aforo-en-directo';
+  }
+  if (allowedUser?.can_mantenimiento) return '/mantenimiento';
+  if (allowedUser?.can_cocina) return '/cocina';
+  if (allowedUser?.can_cheffing) return '/cheffing';
+  return '/';
+}
+
 export function canViewLiveCapacity(role: string | null, allowedUser: AllowedUser | null): boolean {
   return isAdmin(role) || Boolean(allowedUser?.view_live_capacity || allowedUser?.manage_live_capacity);
 }
