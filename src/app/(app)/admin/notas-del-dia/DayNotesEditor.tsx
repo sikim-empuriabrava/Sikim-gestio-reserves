@@ -103,7 +103,7 @@ export function DayNotesEditor() {
             type="date"
             value={selectedDate}
             onChange={(e) => setSelectedDate(e.target.value)}
-            className="w-56 rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-100 focus:outline-none focus:ring-2 focus:ring-emerald-500/60"
+            className="min-h-11 w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-100 focus:outline-none focus:ring-2 focus:ring-emerald-500/60 sm:min-h-0 sm:w-56"
           />
         </div>
         {fetchState === 'loading' && <p className="text-sm text-slate-400">Cargando notas…</p>}
@@ -145,7 +145,7 @@ export function DayNotesEditor() {
           type="button"
           onClick={handleSave}
           disabled={disabled}
-          className="inline-flex items-center rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-500 disabled:opacity-60"
+          className="inline-flex min-h-11 w-full items-center justify-center rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-500 disabled:opacity-60 sm:min-h-0 sm:w-auto"
         >
           {saving ? 'Guardando…' : 'Guardar'}
         </button>

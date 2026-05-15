@@ -60,6 +60,28 @@ const defaultForm: FormState = {
   cheffing_images_manage: false,
 };
 
+const permissionFields: Array<{
+  key: keyof Pick<
+    AllowedUser,
+    | 'can_reservas'
+    | 'can_mantenimiento'
+    | 'can_cocina'
+    | 'can_cheffing'
+    | 'view_live_capacity'
+    | 'manage_live_capacity'
+    | 'cheffing_images_manage'
+  >;
+  label: string;
+}> = [
+  { key: 'can_reservas', label: 'Reservas' },
+  { key: 'can_mantenimiento', label: 'Mantenimiento' },
+  { key: 'can_cocina', label: 'Cocina' },
+  { key: 'can_cheffing', label: 'Cheffing' },
+  { key: 'view_live_capacity', label: 'Disco ver' },
+  { key: 'manage_live_capacity', label: 'Disco operar' },
+  { key: 'cheffing_images_manage', label: 'Cheffing imÃ¡genes' },
+];
+
 type Props = {
   initialUsers: AllowedUser[];
   initialLoadError?: string | null;
@@ -178,19 +200,19 @@ export function AllowedUsersManager({
         title="Usuarios y permisos"
         description="Activa usuarios y controla el acceso a Reservas, Disco, Mantenimiento, Cocina y Cheffing."
         actions={
-          <>
+          <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto sm:gap-3">
           <OperationalPill tone="success">{counts.active} activos</OperationalPill>
           <OperationalPill tone="muted">{counts.total} en total</OperationalPill>
           <button
             type="button"
             onClick={loadUsers}
             disabled={loading}
-            className={operationalSecondaryButtonClass}
+            className={`${operationalSecondaryButtonClass} w-full sm:w-auto`}
           >
             <ArrowPathIcon className="h-4 w-4" aria-hidden="true" />
             {loading ? 'Actualizando...' : 'Refrescar'}
           </button>
-          </>
+          </div>
         }
       />
 
@@ -223,7 +245,7 @@ export function AllowedUsersManager({
         onSubmit={handleCreate}
         className="space-y-4 rounded-2xl border border-slate-800 bg-slate-900/70 p-5"
       >
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
           <p className="text-lg font-semibold text-white">Nuevo usuario allowlisted</p>
           <span className="text-xs uppercase tracking-wide text-slate-400">Admin</span>
         </div>
@@ -253,7 +275,7 @@ export function AllowedUsersManager({
           </label>
         </div>
 
-        <div className="grid gap-4 md:grid-cols-3">
+        <div className="grid gap-4 sm:grid-cols-2 md:grid-cols-3">
           <label className="space-y-2 text-sm text-slate-200">
             <span className="block font-semibold">Rol</span>
             <select
@@ -269,7 +291,7 @@ export function AllowedUsersManager({
             </select>
           </label>
 
-          <label className="flex items-center gap-3 rounded-lg border border-slate-800 bg-slate-950/40 px-3 py-2 text-sm text-slate-200">
+          <label className="flex min-h-11 items-center gap-3 rounded-lg border border-slate-800 bg-slate-950/40 px-3 py-2 text-sm text-slate-200">
             <input
               type="checkbox"
               checked={form.is_active}
@@ -282,8 +304,8 @@ export function AllowedUsersManager({
 
         <div className="space-y-2">
           <p className="text-sm font-semibold text-slate-200">Permisos por módulo</p>
-          <div className="grid gap-3 md:grid-cols-7">
-            <label className="flex items-center gap-3 rounded-lg border border-slate-800 bg-slate-950/40 px-3 py-2 text-sm text-slate-200">
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7">
+            <label className="flex min-h-11 items-center gap-3 rounded-lg border border-slate-800 bg-slate-950/40 px-3 py-2 text-sm text-slate-200">
               <input
                 type="checkbox"
                 checked={form.can_reservas}
@@ -292,7 +314,7 @@ export function AllowedUsersManager({
               />
               <span>Reservas</span>
             </label>
-            <label className="flex items-center gap-3 rounded-lg border border-slate-800 bg-slate-950/40 px-3 py-2 text-sm text-slate-200">
+            <label className="flex min-h-11 items-center gap-3 rounded-lg border border-slate-800 bg-slate-950/40 px-3 py-2 text-sm text-slate-200">
               <input
                 type="checkbox"
                 checked={form.can_mantenimiento}
@@ -301,7 +323,7 @@ export function AllowedUsersManager({
               />
               <span>Mantenimiento</span>
             </label>
-            <label className="flex items-center gap-3 rounded-lg border border-slate-800 bg-slate-950/40 px-3 py-2 text-sm text-slate-200">
+            <label className="flex min-h-11 items-center gap-3 rounded-lg border border-slate-800 bg-slate-950/40 px-3 py-2 text-sm text-slate-200">
               <input
                 type="checkbox"
                 checked={form.can_cocina}
@@ -310,7 +332,7 @@ export function AllowedUsersManager({
               />
               <span>Cocina</span>
             </label>
-            <label className="flex items-center gap-3 rounded-lg border border-slate-800 bg-slate-950/40 px-3 py-2 text-sm text-slate-200">
+            <label className="flex min-h-11 items-center gap-3 rounded-lg border border-slate-800 bg-slate-950/40 px-3 py-2 text-sm text-slate-200">
               <input
                 type="checkbox"
                 checked={form.can_cheffing}
@@ -319,7 +341,7 @@ export function AllowedUsersManager({
               />
               <span>Cheffing</span>
             </label>
-            <label className="flex items-center gap-3 rounded-lg border border-slate-800 bg-slate-950/40 px-3 py-2 text-sm text-slate-200">
+            <label className="flex min-h-11 items-center gap-3 rounded-lg border border-slate-800 bg-slate-950/40 px-3 py-2 text-sm text-slate-200">
               <input
                 type="checkbox"
                 checked={form.view_live_capacity}
@@ -330,7 +352,7 @@ export function AllowedUsersManager({
               />
               <span>Disco ver</span>
             </label>
-            <label className="flex items-center gap-3 rounded-lg border border-slate-800 bg-slate-950/40 px-3 py-2 text-sm text-slate-200">
+            <label className="flex min-h-11 items-center gap-3 rounded-lg border border-slate-800 bg-slate-950/40 px-3 py-2 text-sm text-slate-200">
               <input
                 type="checkbox"
                 checked={form.manage_live_capacity}
@@ -341,7 +363,7 @@ export function AllowedUsersManager({
               />
               <span>Disco operar</span>
             </label>
-            <label className="flex items-center gap-3 rounded-lg border border-slate-800 bg-slate-950/40 px-3 py-2 text-sm text-slate-200">
+            <label className="flex min-h-11 items-center gap-3 rounded-lg border border-slate-800 bg-slate-950/40 px-3 py-2 text-sm text-slate-200">
               <input
                 type="checkbox"
                 checked={form.cheffing_images_manage}
@@ -355,18 +377,18 @@ export function AllowedUsersManager({
           </div>
         </div>
 
-        <div className="flex flex-wrap items-center gap-3">
+        <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
           <button
             type="submit"
             disabled={creating || !form.email.trim()}
-            className="rounded-md bg-emerald-500 px-4 py-2 text-sm font-semibold text-slate-900 transition hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-60"
+            className="min-h-11 rounded-md bg-emerald-500 px-4 py-2 text-sm font-semibold text-slate-900 transition hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-60 sm:min-h-0"
           >
             {creating ? 'Guardando...' : 'Crear usuario'}
           </button>
           <button
             type="button"
             onClick={() => setForm(defaultForm)}
-            className="rounded-md border border-slate-700 px-4 py-2 text-sm font-semibold text-slate-200 transition hover:border-slate-500"
+            className="min-h-11 rounded-md border border-slate-700 px-4 py-2 text-sm font-semibold text-slate-200 transition hover:border-slate-500 sm:min-h-0"
           >
             Limpiar
           </button>
@@ -376,7 +398,7 @@ export function AllowedUsersManager({
       </form>
 
       <div className="overflow-hidden rounded-2xl border border-slate-800 bg-slate-900/70">
-        <div className="flex items-center justify-between border-b border-slate-800 px-4 py-3">
+        <div className="flex flex-col gap-1 border-b border-slate-800 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
           <p className="text-sm font-semibold text-slate-200">Usuarios allowlisted</p>
           {savingId && <span className="text-xs text-slate-400">Guardando cambios...</span>}
         </div>
@@ -385,7 +407,128 @@ export function AllowedUsersManager({
             {error}
           </div>
         )}
-        <div className="overflow-x-auto">
+        <div className="space-y-3 p-3 md:hidden">
+          {users.map((user) => (
+            <article
+              key={user.id}
+              className="space-y-4 rounded-xl border border-slate-800 bg-slate-950/50 p-4 text-slate-100"
+            >
+              <div className="flex flex-col gap-3">
+                <div className="space-y-2">
+                  <label className="space-y-1 text-sm text-slate-200">
+                    <span className="block text-xs font-semibold uppercase tracking-wide text-slate-400">
+                      Email
+                    </span>
+                    <input
+                      value={user.email}
+                      onChange={(event) =>
+                        setUsers((prev) =>
+                          prev.map((item) =>
+                            item.id === user.id ? { ...item, email: event.target.value } : item
+                          )
+                        )
+                      }
+                      onBlur={(event) => handleUpdate(user.id, { email: event.target.value })}
+                      className="w-full rounded-md border border-slate-700 bg-slate-950/60 px-3 py-2 text-sm text-white focus:border-slate-500 focus:outline-none"
+                      placeholder="email@empresa.com"
+                      disabled={savingId === user.id}
+                    />
+                  </label>
+
+                  <label className="space-y-1 text-sm text-slate-200">
+                    <span className="block text-xs font-semibold uppercase tracking-wide text-slate-400">
+                      Nombre
+                    </span>
+                    <input
+                      value={user.display_name ?? ''}
+                      onChange={(event) =>
+                        setUsers((prev) =>
+                          prev.map((item) =>
+                            item.id === user.id ? { ...item, display_name: event.target.value } : item
+                          )
+                        )
+                      }
+                      onBlur={(event) => handleUpdate(user.id, { display_name: event.target.value })}
+                      className="w-full rounded-md border border-slate-700 bg-slate-950/60 px-3 py-2 text-sm text-white focus:border-slate-500 focus:outline-none"
+                      placeholder="Sin nombre visible"
+                      disabled={savingId === user.id}
+                    />
+                  </label>
+                </div>
+
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <label className="space-y-1 text-sm text-slate-200">
+                    <span className="block text-xs font-semibold uppercase tracking-wide text-slate-400">
+                      Rol
+                    </span>
+                    <select
+                      value={user.role}
+                      onChange={(event) => handleUpdate(user.id, { role: event.target.value as Role })}
+                      className="w-full rounded-md border border-slate-700 bg-slate-950/60 px-3 py-2 text-sm text-white"
+                      disabled={savingId === user.id}
+                    >
+                      {VALID_APP_ROLES.map((role) => (
+                        <option key={role} value={role}>
+                          {roleLabels[role]}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+
+                  <label className="flex min-h-11 items-center justify-between gap-3 rounded-lg border border-slate-800 bg-slate-900/60 px-3 py-2 text-sm font-semibold text-slate-200">
+                    <span>{user.is_active ? 'Activo' : 'Inactivo'}</span>
+                    <input
+                      type="checkbox"
+                      checked={user.is_active}
+                      onChange={(event) => handleUpdate(user.id, { is_active: event.target.checked })}
+                      className="h-5 w-5 accent-emerald-500"
+                      disabled={savingId === user.id}
+                    />
+                  </label>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
+                  Permisos principales
+                </p>
+                <div className="grid gap-2 sm:grid-cols-2">
+                  {permissionFields.map((permission) => (
+                    <label
+                      key={permission.key}
+                      className="flex min-h-11 items-center justify-between gap-3 rounded-lg border border-slate-800 bg-slate-900/60 px-3 py-2 text-sm text-slate-200"
+                    >
+                      <span>{permission.label}</span>
+                      <input
+                        type="checkbox"
+                        checked={Boolean(user[permission.key])}
+                        onChange={(event) =>
+                          handleUpdate(user.id, {
+                            [permission.key]: event.target.checked,
+                          } as Partial<AllowedUser>)
+                        }
+                        className="h-5 w-5 accent-emerald-500"
+                        disabled={savingId === user.id}
+                      />
+                    </label>
+                  ))}
+                </div>
+              </div>
+            </article>
+          ))}
+          {users.length === 0 && loading && (
+            <div className="rounded-lg border border-dashed border-slate-800 bg-slate-950/50 p-6 text-center text-sm text-slate-400">
+              Cargando usuarios...
+            </div>
+          )}
+          {users.length === 0 && !loading && (
+            <div className="rounded-lg border border-dashed border-slate-800 bg-slate-950/50 p-6 text-center text-sm text-slate-400">
+              No hay usuarios allowlisted todavÃ­a.
+            </div>
+          )}
+        </div>
+
+        <div className="hidden overflow-x-auto md:block">
           <table className="min-w-full divide-y divide-slate-800 text-sm">
             <thead className="text-left text-xs uppercase tracking-wide text-slate-400">
               <tr>

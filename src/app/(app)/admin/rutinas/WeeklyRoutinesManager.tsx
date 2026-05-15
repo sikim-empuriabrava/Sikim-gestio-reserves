@@ -632,9 +632,9 @@ export function WeeklyRoutinesManager() {
 
   return (
     <div className="space-y-4">
-      <div className="grid gap-4 lg:grid-cols-[320px,1fr]">
+      <div className="grid gap-4 xl:grid-cols-[320px,1fr]">
         <div className="space-y-4 rounded-xl border border-slate-800 bg-slate-900/70 p-4">
-          <div className="flex items-start justify-between gap-3">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
             <div className="space-y-1">
               <p className="text-lg font-semibold text-white">Packs de rutinas</p>
               <p className="text-sm text-slate-400">
@@ -644,7 +644,7 @@ export function WeeklyRoutinesManager() {
             <button
               type="button"
               onClick={openCreatePackModal}
-              className="rounded-lg bg-emerald-600 px-3 py-2 text-xs font-semibold text-white shadow-sm hover:bg-emerald-500"
+              className="min-h-11 rounded-lg bg-emerald-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-emerald-500 sm:min-h-0 sm:text-xs"
             >
               + Nuevo pack
             </button>
@@ -700,8 +700,8 @@ export function WeeklyRoutinesManager() {
                       : 'border-slate-800 bg-slate-950/60 text-slate-200 hover:border-slate-700'
                   }`}
                 >
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="space-y-1">
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                    <div className="min-w-0 space-y-1">
                       <p className="font-semibold">{pack.name}</p>
                       {pack.description && <p className="text-xs text-slate-400">{pack.description}</p>}
                       <div className="flex flex-wrap gap-2 text-[11px] text-slate-300">
@@ -720,14 +720,14 @@ export function WeeklyRoutinesManager() {
                         )}
                       </div>
                     </div>
-                    <div className="flex flex-col gap-2">
+                    <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-col">
                       <button
                         type="button"
                         onClick={(event) => {
                           event.stopPropagation();
                           openEditPackModal(pack);
                         }}
-                        className="rounded-lg border border-slate-700 bg-slate-950/60 px-3 py-1 text-xs font-semibold text-slate-100 hover:border-slate-500"
+                        className="min-h-10 rounded-lg border border-slate-700 bg-slate-950/60 px-3 py-2 text-xs font-semibold text-slate-100 hover:border-slate-500 sm:min-h-0 sm:py-1"
                       >
                         Editar
                       </button>
@@ -738,7 +738,7 @@ export function WeeklyRoutinesManager() {
                           event.stopPropagation();
                           openDeletePackModal(pack);
                         }}
-                        className="rounded-lg border border-rose-500/70 bg-rose-950/40 px-3 py-1 text-xs font-semibold text-rose-100 hover:border-rose-400 disabled:opacity-60"
+                        className="min-h-10 rounded-lg border border-rose-500/70 bg-rose-950/40 px-3 py-2 text-xs font-semibold text-rose-100 hover:border-rose-400 disabled:opacity-60 sm:min-h-0 sm:py-1"
                       >
                         Eliminar pack
                       </button>
@@ -809,19 +809,19 @@ export function WeeklyRoutinesManager() {
               <button
                 type="button"
                 onClick={openCreateModal}
-                className="self-start rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-emerald-500"
+                className="min-h-11 rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-emerald-500 sm:min-h-0 lg:self-start"
               >
                 + Nueva rutina
               </button>
             </div>
 
-            <div className="flex flex-wrap gap-2 text-sm text-slate-200">
-              <label className="flex items-center gap-2">
+            <div className="grid gap-2 text-sm text-slate-200 sm:grid-cols-3 lg:flex lg:flex-wrap">
+              <label className="flex min-w-0 flex-col gap-1 sm:flex-row sm:items-center sm:gap-2">
                 <span className="text-xs uppercase tracking-wide text-slate-400">Área</span>
                 <select
                   value={filters.area}
                   onChange={(event) => setFilters((prev) => ({ ...prev, area: event.target.value as Filters['area'] }))}
-                  className="rounded-lg border border-slate-700 bg-slate-950/60 px-3 py-1.5"
+                  className="min-h-11 w-full rounded-lg border border-slate-700 bg-slate-950/60 px-3 py-2 sm:min-h-0 sm:w-auto sm:py-1.5"
                 >
                   <option value="all">Todas</option>
                   <option value="kitchen">Cocina</option>
@@ -829,14 +829,14 @@ export function WeeklyRoutinesManager() {
                 </select>
               </label>
 
-              <label className="flex items-center gap-2">
+              <label className="flex min-w-0 flex-col gap-1 sm:flex-row sm:items-center sm:gap-2">
                 <span className="text-xs uppercase tracking-wide text-slate-400">Estado</span>
                 <select
                   value={filters.status}
                   onChange={(event) =>
                     setFilters((prev) => ({ ...prev, status: event.target.value as Filters['status'] }))
                   }
-                  className="rounded-lg border border-slate-700 bg-slate-950/60 px-3 py-1.5"
+                  className="min-h-11 w-full rounded-lg border border-slate-700 bg-slate-950/60 px-3 py-2 sm:min-h-0 sm:w-auto sm:py-1.5"
                 >
                   <option value="active">Activas</option>
                   <option value="inactive">Inactivas</option>
@@ -850,7 +850,7 @@ export function WeeklyRoutinesManager() {
                   setFilters({ area: 'all', status: 'active' });
                   loadRoutines(selectedPackId);
                 }}
-                className="rounded-lg border border-slate-700 bg-slate-950/60 px-3 py-1.5 font-semibold hover:border-slate-500"
+                className="min-h-11 rounded-lg border border-slate-700 bg-slate-950/60 px-3 py-2 font-semibold hover:border-slate-500 sm:min-h-0 sm:py-1.5"
               >
                 Reset filtros
               </button>
@@ -868,7 +868,78 @@ export function WeeklyRoutinesManager() {
             )}
 
             {!isLoading && filteredRoutines.length > 0 && (
-              <div className="overflow-x-auto">
+              <div className="space-y-3 md:hidden">
+                {filteredRoutines.map((routine) => {
+                  const startDay = getRoutineStartDay(routine);
+                  const endDay = getRoutineEndDay(routine);
+                  const windowLabel =
+                    startDay === endDay
+                      ? getDayLabel(endDay)
+                      : `${getDayLabel(startDay)} -> ${getDayLabel(endDay)}`;
+
+                  return (
+                    <article
+                      key={routine.id}
+                      className="space-y-4 rounded-xl border border-slate-800 bg-slate-950/50 p-4 text-slate-100"
+                    >
+                      <div className="space-y-2">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="rounded-full bg-slate-800 px-2 py-1 text-xs font-semibold text-slate-200">
+                            Ventana: {windowLabel}
+                          </span>
+                          <span className="rounded-full bg-slate-800 px-2 py-1 text-xs font-semibold text-slate-200">
+                            {areaLabels[routine.area]}
+                          </span>
+                          <span
+                            className={`rounded-full border px-2 py-1 text-xs font-semibold ${priorityBadges[routine.priority]}`}
+                          >
+                            {priorityLabels[routine.priority]}
+                          </span>
+                        </div>
+                        <div>
+                          <p className="text-base font-semibold leading-6">{routine.title}</p>
+                          {routine.description && (
+                            <p className="mt-1 text-sm leading-6 text-slate-400">{routine.description}</p>
+                          )}
+                        </div>
+                      </div>
+
+                      <label className="flex min-h-11 items-center justify-between gap-3 rounded-lg border border-slate-800 bg-slate-900/60 px-3 py-2 text-sm font-semibold text-slate-200">
+                        <span>{routine.is_active ? 'Activa' : 'Inactiva'}</span>
+                        <input
+                          type="checkbox"
+                          checked={routine.is_active}
+                          disabled={updatingId === routine.id}
+                          onChange={() => handleToggleActive(routine)}
+                          className="h-5 w-5 rounded border-slate-600 bg-slate-900 text-emerald-500 focus:ring-emerald-500"
+                        />
+                      </label>
+
+                      <div className="grid grid-cols-2 gap-2">
+                        <button
+                          type="button"
+                          onClick={() => openEditModal(routine)}
+                          className="min-h-11 rounded-lg border border-slate-700 bg-slate-950/60 px-3 py-2 text-sm font-semibold text-slate-100 hover:border-slate-500"
+                        >
+                          Editar
+                        </button>
+                        <button
+                          type="button"
+                          disabled={updatingId === routine.id}
+                          onClick={() => openDeleteRoutineModal(routine)}
+                          className="min-h-11 rounded-lg border border-rose-500/70 bg-rose-950/40 px-3 py-2 text-sm font-semibold text-rose-100 hover:border-rose-400 disabled:opacity-60"
+                        >
+                          Eliminar
+                        </button>
+                      </div>
+                    </article>
+                  );
+                })}
+              </div>
+            )}
+
+            {!isLoading && filteredRoutines.length > 0 && (
+              <div className="hidden overflow-x-auto md:block">
                 <table className="min-w-full divide-y divide-slate-800 text-sm">
                   <thead>
                     <tr className="text-left text-xs uppercase tracking-wide text-slate-400">
@@ -953,7 +1024,7 @@ export function WeeklyRoutinesManager() {
               </div>
             )}
 
-            <div className="flex items-center justify-between text-xs text-slate-500">
+            <div className="flex flex-col gap-2 text-xs text-slate-500 sm:flex-row sm:items-center sm:justify-between">
               <span>
                 {lastUpdated
                   ? `Actualizado ${lastUpdated.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })}`
@@ -1132,11 +1203,11 @@ export function WeeklyRoutinesManager() {
               {deleteError && <p className="text-sm text-amber-200">{deleteError}</p>}
             </div>
 
-            <div className="flex flex-wrap items-center justify-between gap-3 text-sm">
+            <div className="flex flex-col gap-3 text-sm sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
               <button
                 type="button"
                 onClick={closeDeleteModal}
-                className="rounded-lg border border-slate-700 bg-slate-900 px-4 py-2 font-semibold text-slate-100 hover:border-slate-500"
+                className="min-h-11 rounded-lg border border-slate-700 bg-slate-900 px-4 py-2 font-semibold text-slate-100 hover:border-slate-500 sm:min-h-0"
               >
                 Cancelar
               </button>
@@ -1144,7 +1215,7 @@ export function WeeklyRoutinesManager() {
                 type="button"
                 onClick={handleConfirmDelete}
                 disabled={deleteSubmitting || (deleteMode === 'delete_from_week' && !isDeleteCutoffValid)}
-                className="rounded-lg bg-rose-600 px-4 py-2 font-semibold text-white shadow-sm hover:bg-rose-500 disabled:opacity-60"
+                className="min-h-11 rounded-lg bg-rose-600 px-4 py-2 font-semibold text-white shadow-sm hover:bg-rose-500 disabled:opacity-60 sm:min-h-0"
               >
                 {deleteSubmitting ? 'Eliminando…' : 'Confirmar eliminación'}
               </button>
@@ -1273,20 +1344,20 @@ export function WeeklyRoutinesManager() {
                 <span>Rutina activa</span>
               </label>
 
-              <div className="flex flex-wrap items-center justify-between gap-3 text-sm">
+              <div className="flex flex-col gap-3 text-sm sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
                 {actionError && <p className="text-amber-200">{actionError}</p>}
-                <div className="flex gap-2">
+                <div className="grid grid-cols-2 gap-2 sm:flex">
                   <button
                     type="button"
                     onClick={closeModal}
-                    className="rounded-lg border border-slate-700 bg-slate-900 px-4 py-2 font-semibold text-slate-100 hover:border-slate-500"
+                    className="min-h-11 rounded-lg border border-slate-700 bg-slate-900 px-4 py-2 font-semibold text-slate-100 hover:border-slate-500 sm:min-h-0"
                   >
                     Cancelar
                   </button>
                   <button
                     type="submit"
                     disabled={isSubmitting}
-                    className="rounded-lg bg-emerald-600 px-4 py-2 font-semibold text-white shadow-sm hover:bg-emerald-500 disabled:opacity-60"
+                    className="min-h-11 rounded-lg bg-emerald-600 px-4 py-2 font-semibold text-white shadow-sm hover:bg-emerald-500 disabled:opacity-60 sm:min-h-0"
                   >
                     {isSubmitting ? 'Guardando…' : 'Guardar'}
                   </button>
@@ -1387,20 +1458,20 @@ export function WeeklyRoutinesManager() {
                 </div>
               </div>
 
-              <div className="flex flex-wrap items-center justify-between gap-3 text-sm">
+              <div className="flex flex-col gap-3 text-sm sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
                 {packActionError && <p className="text-amber-200">{packActionError}</p>}
-                <div className="flex gap-2">
+                <div className="grid grid-cols-2 gap-2 sm:flex">
                   <button
                     type="button"
                     onClick={closePackModal}
-                    className="rounded-lg border border-slate-700 bg-slate-900 px-4 py-2 font-semibold text-slate-100 hover:border-slate-500"
+                    className="min-h-11 rounded-lg border border-slate-700 bg-slate-900 px-4 py-2 font-semibold text-slate-100 hover:border-slate-500 sm:min-h-0"
                   >
                     Cancelar
                   </button>
                   <button
                     type="submit"
                     disabled={packSubmitting}
-                    className="rounded-lg bg-emerald-600 px-4 py-2 font-semibold text-white shadow-sm hover:bg-emerald-500 disabled:opacity-60"
+                    className="min-h-11 rounded-lg bg-emerald-600 px-4 py-2 font-semibold text-white shadow-sm hover:bg-emerald-500 disabled:opacity-60 sm:min-h-0"
                   >
                     {packSubmitting ? 'Guardando…' : 'Guardar'}
                   </button>
