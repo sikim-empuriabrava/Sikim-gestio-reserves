@@ -14,7 +14,11 @@ import { normalizeMenuEngineeringVatRate } from '@/lib/cheffing/menuEngineeringV
 import {
   CheffingEmptyState,
   CheffingLinkButton,
+  CheffingMobileMeta,
   CheffingTableActionLink,
+  cheffingMobileCardClassName,
+  cheffingMobileListClassName,
+  cheffingMobileMetaGridClassName,
   cheffingNumericClassName,
   cheffingRowClassName,
   cheffingTableClassName,
@@ -98,7 +102,54 @@ export default async function CheffingMenusPage() {
         description="Coste, precio por persona y margen calculado con criterio conservador."
         footer={`${entries.length} menús`}
       >
-        <table className={cn(cheffingTableClassName, 'min-w-[980px]')}>
+        <div className={cheffingMobileListClassName}>
+          {entries.length === 0 ? (
+            <div className={cheffingMobileCardClassName}>
+              <p className="text-sm font-semibold text-white">No hay menus.</p>
+              <p className="mt-1 text-sm text-slate-400">Crea un menu para calcular coste por persona.</p>
+            </div>
+          ) : (
+            entries.map((entry) => (
+              <article key={entry.id} className={cheffingMobileCardClassName}>
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <Link
+                      href={`/cheffing/menus/${entry.id}`}
+                      className="block truncate font-semibold text-white underline-offset-4 transition hover:text-primary-100 hover:underline"
+                    >
+                      {entry.name}
+                    </Link>
+                    {entry.notes ? <p className="mt-1 line-clamp-2 text-sm text-slate-400">{entry.notes}</p> : null}
+                  </div>
+                  <StatusBadge tone={entry.is_active ? 'success' : 'muted'}>
+                    {entry.is_active ? 'Activo' : 'Inactivo'}
+                  </StatusBadge>
+                </div>
+
+                <div className={cheffingMobileMetaGridClassName}>
+                  <CheffingMobileMeta label="Precio persona" value={formatCurrency(entry.price_per_person)} />
+                  <CheffingMobileMeta label="Coste total" value={formatCurrency(entry.total_cost)} />
+                  <CheffingMobileMeta label="Margen persona" value={formatCurrency(entry.total_margin)} />
+                  {entry.calculation_issue ? (
+                    <CheffingMobileMeta
+                      label="Aviso"
+                      value={<span className="text-amber-300">{entry.calculation_issue}</span>}
+                    />
+                  ) : null}
+                </div>
+
+                <div className="mt-3 flex">
+                  <CheffingTableActionLink href={`/cheffing/menus/${entry.id}`} className="min-h-10 flex-1">
+                    <EyeIcon className="h-4 w-4" aria-hidden="true" />
+                    Ver detalle
+                  </CheffingTableActionLink>
+                </div>
+              </article>
+            ))
+          )}
+        </div>
+
+        <table className={cn(cheffingTableClassName, 'hidden min-w-[980px] md:table')}>
           <thead className={cheffingTheadClassName}>
             <tr className="border-b border-slate-800/80">
               <th className="w-[30%] px-4 py-3 font-semibold text-slate-300">Menú</th>

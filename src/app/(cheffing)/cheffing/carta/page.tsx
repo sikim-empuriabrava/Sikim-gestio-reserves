@@ -7,7 +7,11 @@ import { requireCheffingAccess } from '@/lib/cheffing/requireCheffing';
 import {
   CheffingEmptyState,
   CheffingLinkButton,
+  CheffingMobileMeta,
   CheffingTableActionLink,
+  cheffingMobileCardClassName,
+  cheffingMobileListClassName,
+  cheffingMobileMetaGridClassName,
   cheffingNumericClassName,
   cheffingRowClassName,
   cheffingTableClassName,
@@ -54,7 +58,46 @@ export default async function CheffingCartaPage() {
         description="Estado e items asociados a cada carta comercial."
         footer={`${(cards ?? []).length} cartas`}
       >
-        <table className={cn(cheffingTableClassName, 'min-w-[760px]')}>
+        <div className={cheffingMobileListClassName}>
+          {(cards ?? []).length === 0 ? (
+            <div className={cheffingMobileCardClassName}>
+              <p className="text-sm font-semibold text-white">No hay cartas.</p>
+              <p className="mt-1 text-sm text-slate-400">Crea una carta para agrupar platos y bebidas.</p>
+            </div>
+          ) : (
+            (cards ?? []).map((card) => (
+              <article key={card.id} className={cheffingMobileCardClassName}>
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <Link
+                      href={`/cheffing/carta/${card.id}`}
+                      className="block truncate font-semibold text-white underline-offset-4 transition hover:text-primary-100 hover:underline"
+                    >
+                      {card.name}
+                    </Link>
+                    {card.notes ? <p className="mt-1 line-clamp-2 text-sm text-slate-400">{card.notes}</p> : null}
+                  </div>
+                  <StatusBadge tone={card.is_active ? 'success' : 'muted'}>
+                    {card.is_active ? 'Activa' : 'Inactiva'}
+                  </StatusBadge>
+                </div>
+
+                <div className={cheffingMobileMetaGridClassName}>
+                  <CheffingMobileMeta label="Items asociados" value={countByCardId.get(card.id) ?? 0} />
+                </div>
+
+                <div className="mt-3 flex">
+                  <CheffingTableActionLink href={`/cheffing/carta/${card.id}`} className="min-h-10 flex-1">
+                    <EyeIcon className="h-4 w-4" aria-hidden="true" />
+                    Ver detalle
+                  </CheffingTableActionLink>
+                </div>
+              </article>
+            ))
+          )}
+        </div>
+
+        <table className={cn(cheffingTableClassName, 'hidden min-w-[760px] md:table')}>
           <thead className={cheffingTheadClassName}>
             <tr className="border-b border-slate-800/80">
               <th className="w-[40%] px-4 py-3 font-semibold text-slate-300">Carta</th>
