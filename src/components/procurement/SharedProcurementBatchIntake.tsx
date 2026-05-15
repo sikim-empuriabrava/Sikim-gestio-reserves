@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useMemo, useState } from 'react';
+import { type DragEvent, useMemo, useRef, useState } from 'react';
 
 import {
   runProcurementIntakeFlow,
@@ -11,6 +11,7 @@ import {
 import {
   documentKindLabel,
   PROCUREMENT_SOURCE_FILE_ACCEPT_ATTRIBUTE,
+  PROCUREMENT_SOURCE_IMAGE_FILE_ACCEPT_ATTRIBUTE,
   type ProcurementDocumentKind,
 } from '@/lib/cheffing/procurement';
 
@@ -49,9 +50,12 @@ export function SharedProcurementBatchIntake({
   variant = 'default',
 }: SharedProcurementBatchIntakeProps) {
   const router = useRouter();
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const cameraInputRef = useRef<HTMLInputElement | null>(null);
   const [batchDocumentKind, setBatchDocumentKind] = useState<ProcurementDocumentKind>(initialDocumentKind);
   const [batchQueue, setBatchQueue] = useState<BatchQueueItem[]>([]);
   const [isBatchRunning, setIsBatchRunning] = useState(false);
+  const [isDraggingOver, setIsDraggingOver] = useState(false);
   const isWarm = variant === 'warm';
 
   const batchSummary = useMemo(() => {
@@ -90,6 +94,12 @@ export function SharedProcurementBatchIntake({
     }));
 
     setBatchQueue((current) => [...current, ...queueItems]);
+  }
+
+  function handleDrop(event: DragEvent<HTMLDivElement>) {
+    event.preventDefault();
+    setIsDraggingOver(false);
+    addBatchFiles(event.dataTransfer.files);
   }
 
   function clearFinishedBatchQueue() {
@@ -178,12 +188,23 @@ export function SharedProcurementBatchIntake({
   const selectClassName = isWarm
     ? 'rounded-xl border border-[#4a3f32]/80 bg-[#12110f]/90 px-3.5 py-2.5 text-[#f4ede3] shadow-[inset_0_1px_0_rgba(255,255,255,0.03)] focus:border-[#d6a76e]/80 focus:outline-none focus:ring-2 focus:ring-[#d6a76e]/15 disabled:cursor-not-allowed disabled:text-[#7f766b]'
     : 'rounded-md border border-slate-700 bg-slate-950/70 px-3 py-2 text-white disabled:cursor-not-allowed disabled:text-slate-500';
-  const addFilesClassName = isWarm
-    ? 'inline-flex cursor-pointer items-center justify-center rounded-xl border border-[#4a3f32]/80 bg-[#151412]/90 px-4 py-2.5 text-sm font-semibold text-[#efe8dc] transition duration-200 hover:-translate-y-0.5 hover:border-[#8b6a43]/75 hover:bg-[#211f1b]'
-    : 'inline-flex cursor-pointer items-center justify-center rounded-full border border-slate-600 px-4 py-2 text-sm font-semibold text-slate-200 hover:border-slate-500';
   const processClassName = isWarm
-    ? 'rounded-xl border border-[#d6a76e]/60 bg-[#2a1e16]/90 px-4 py-2.5 text-sm font-semibold text-[#f3c98d] transition duration-200 hover:-translate-y-0.5 hover:border-[#bd8145]/80 hover:bg-[#3a2618] disabled:cursor-not-allowed disabled:border-[#4a3f32]/70 disabled:text-[#7f766b]'
-    : 'rounded-full border border-emerald-400/60 px-4 py-2 text-sm font-semibold text-emerald-200 disabled:cursor-not-allowed disabled:border-slate-700 disabled:text-slate-500';
+    ? 'min-h-11 rounded-xl border border-[#d6a76e]/60 bg-[#2a1e16]/90 px-4 py-2.5 text-sm font-semibold text-[#f3c98d] transition duration-200 hover:-translate-y-0.5 hover:border-[#bd8145]/80 hover:bg-[#3a2618] disabled:cursor-not-allowed disabled:border-[#4a3f32]/70 disabled:text-[#7f766b]'
+    : 'min-h-11 rounded-full border border-emerald-400/60 px-4 py-2 text-sm font-semibold text-emerald-200 disabled:cursor-not-allowed disabled:border-slate-700 disabled:text-slate-500';
+  const secondaryActionClassName = isWarm
+    ? 'inline-flex min-h-11 items-center justify-center rounded-xl border border-[#4a3f32]/80 bg-[#151412]/90 px-4 py-2.5 text-sm font-semibold text-[#efe8dc] transition duration-200 hover:-translate-y-0.5 hover:border-[#8b6a43]/75 hover:bg-[#211f1b] disabled:cursor-not-allowed disabled:border-[#4a3f32]/70 disabled:text-[#7f766b]'
+    : 'inline-flex min-h-11 items-center justify-center rounded-full border border-slate-600 px-4 py-2 text-sm font-semibold text-slate-200 hover:border-slate-500 disabled:cursor-not-allowed disabled:border-slate-700 disabled:text-slate-500';
+  const dropzoneClassName = isWarm
+    ? `group cursor-pointer rounded-2xl border border-dashed p-5 text-left transition duration-200 ${
+        isDraggingOver
+          ? 'border-[#d6a76e]/80 bg-[#2a1e16]/80'
+          : 'border-[#6f4d2a]/75 bg-[#151412]/70 hover:border-[#d6a76e]/60 hover:bg-[#1f1b16]/90'
+      }`
+    : `group cursor-pointer rounded-2xl border border-dashed p-5 text-left transition duration-200 ${
+        isDraggingOver
+          ? 'border-sky-400/80 bg-sky-500/10'
+          : 'border-slate-700 bg-slate-950/35 hover:border-slate-500 hover:bg-slate-900/45'
+      }`;
 
   return (
     <div className={containerClassName}>
@@ -203,20 +224,24 @@ export function SharedProcurementBatchIntake({
           <option value="invoice">Factura</option>
         </select>
 
-        <label className={addFilesClassName}>
-          Añadir archivos
-          <input
-            type="file"
-            multiple
-            accept={PROCUREMENT_SOURCE_FILE_ACCEPT_ATTRIBUTE}
+        <div className="flex flex-col gap-2 sm:flex-row">
+          <button
+            type="button"
+            onClick={() => cameraInputRef.current?.click()}
             disabled={isBatchRunning}
-            className="hidden"
-            onChange={(event) => {
-              addBatchFiles(event.target.files);
-              event.currentTarget.value = '';
-            }}
-          />
-        </label>
+            className={secondaryActionClassName}
+          >
+            Hacer foto
+          </button>
+          <button
+            type="button"
+            onClick={() => fileInputRef.current?.click()}
+            disabled={isBatchRunning}
+            className={secondaryActionClassName}
+          >
+            Galería / archivo
+          </button>
+        </div>
 
         <button
           type="button"
@@ -227,6 +252,68 @@ export function SharedProcurementBatchIntake({
           {isBatchRunning ? 'Procesando lote...' : 'Procesar lote'}
         </button>
       </div>
+
+      <div
+        role="button"
+        tabIndex={0}
+        aria-disabled={isBatchRunning}
+        onClick={() => {
+          if (!isBatchRunning) fileInputRef.current?.click();
+        }}
+        onKeyDown={(event) => {
+          if (isBatchRunning) return;
+          if (event.key === 'Enter' || event.key === ' ') {
+            event.preventDefault();
+            fileInputRef.current?.click();
+          }
+        }}
+        onDragOver={(event) => {
+          event.preventDefault();
+          if (!isBatchRunning) setIsDraggingOver(true);
+        }}
+        onDragLeave={() => setIsDraggingOver(false)}
+        onDrop={handleDrop}
+        className={dropzoneClassName}
+      >
+        <div className="space-y-2">
+          <p className={isWarm ? 'text-base font-semibold text-[#f6f0e8]' : 'text-base font-semibold text-white'}>
+            Haz una foto o sube una factura/albarán/ticket
+          </p>
+          <p className={isWarm ? 'text-sm leading-6 text-[#b9aea1]' : 'text-sm leading-6 text-slate-400'}>
+            PDF, JPG, PNG o WEBP. En móvil, toca aquí para abrir cámara, galería o archivos según el navegador.
+          </p>
+          <p className={isWarm ? 'text-xs text-[#8f8578]' : 'text-xs text-slate-500'}>
+            {hasBatchItems
+              ? `${batchSummary.total} archivo${batchSummary.total === 1 ? '' : 's'} en cola. Revisa abajo el estado antes de procesar.`
+              : 'Aún no has seleccionado ningún archivo.'}
+          </p>
+        </div>
+      </div>
+
+      <input
+        ref={fileInputRef}
+        type="file"
+        multiple
+        accept={PROCUREMENT_SOURCE_FILE_ACCEPT_ATTRIBUTE}
+        disabled={isBatchRunning}
+        className="hidden"
+        onChange={(event) => {
+          addBatchFiles(event.target.files);
+          event.currentTarget.value = '';
+        }}
+      />
+      <input
+        ref={cameraInputRef}
+        type="file"
+        accept={PROCUREMENT_SOURCE_IMAGE_FILE_ACCEPT_ATTRIBUTE}
+        capture="environment"
+        disabled={isBatchRunning}
+        className="hidden"
+        onChange={(event) => {
+          addBatchFiles(event.target.files);
+          event.currentTarget.value = '';
+        }}
+      />
 
       <p className={isWarm ? 'text-xs leading-5 text-[#8f8578]' : 'text-xs text-slate-500'}>
         Formatos permitidos: PDF, JPG, PNG o WEBP. Cada archivo conserva su estado y errores parciales.
@@ -250,7 +337,49 @@ export function SharedProcurementBatchIntake({
 
       {isBatchFinished ? <p className={isWarm ? 'text-xs text-[#a99d90]' : 'text-xs text-slate-400'}>{completionMessage}</p> : null}
 
-      <div className={isWarm ? 'overflow-x-auto rounded-xl border border-[#3c342a]/80' : 'overflow-x-auto rounded-xl border border-slate-800/80'}>
+      <div className="grid gap-2 md:hidden">
+        {batchQueue.length === 0 ? (
+          <div className={isWarm ? 'rounded-xl border border-[#3c342a]/80 p-4 text-sm text-[#a99d90]' : 'rounded-xl border border-slate-800/80 p-4 text-sm text-slate-400'}>
+            Sin archivos en cola. Añade uno o varios para lanzar el lote OCR.
+          </div>
+        ) : null}
+        {batchQueue.map((item) => (
+          <article key={item.id} className={isWarm ? 'space-y-3 rounded-xl border border-[#3c342a]/80 p-4' : 'space-y-3 rounded-xl border border-slate-800/80 p-4'}>
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <p className={isWarm ? 'break-words text-sm font-semibold text-[#f6f0e8]' : 'break-words text-sm font-semibold text-white'}>{item.fileName}</p>
+                <p className={isWarm ? 'mt-1 text-xs text-[#a99d90]' : 'mt-1 text-xs text-slate-400'}>{documentKindLabel(item.documentKind)}</p>
+              </div>
+              <span className={isWarm ? 'shrink-0 rounded-full border border-[#4a3f32]/70 bg-[#151412]/70 px-2 py-1 text-xs text-[#f6f0e8]' : 'shrink-0 rounded-full border border-slate-700 bg-slate-900/60 px-2 py-1 text-xs text-slate-100'}>
+                {item.status === 'pending'
+                  ? 'Pendiente'
+                  : item.status === 'creating_draft'
+                    ? 'Creando draft'
+                    : item.status === 'uploading_file'
+                      ? 'Subiendo'
+                      : item.status === 'running_ocr'
+                        ? 'OCR'
+                        : item.status === 'completed'
+                          ? 'Completado'
+                          : 'Fallido'}
+              </span>
+            </div>
+            {item.documentId ? (
+              <Link href={`/cheffing/compras/${item.documentId}`} className={isWarm ? 'inline-flex min-h-10 items-center rounded-xl border border-[#6f4d2a]/70 px-3 text-sm font-semibold text-[#f3c98d]' : 'inline-flex min-h-10 items-center rounded-xl border border-slate-700 px-3 text-sm font-semibold text-sky-300'}>
+                Abrir documento
+              </Link>
+            ) : null}
+            {item.documentId && item.status === 'completed' && possibleDuplicateByDocumentId?.get(item.documentId) ? (
+              <span className="inline-flex rounded-full border border-amber-400/50 bg-amber-500/10 px-2 py-1 text-[11px] font-medium text-amber-100">
+                Posible duplicado
+              </span>
+            ) : null}
+            {item.error ? <p className="text-xs text-rose-300">{item.error}</p> : null}
+          </article>
+        ))}
+      </div>
+
+      <div className={isWarm ? 'hidden overflow-x-auto rounded-xl border border-[#3c342a]/80 md:block' : 'hidden overflow-x-auto rounded-xl border border-slate-800/80 md:block'}>
         <table className={isWarm ? 'w-full min-w-[900px] text-left text-sm text-[#d8cfc2]' : 'w-full min-w-[900px] text-left text-sm text-slate-200'}>
           <thead className={isWarm ? 'bg-[#12110f]/80 text-xs uppercase text-[#a99d90]' : 'bg-slate-950/70 text-xs uppercase text-slate-400'}>
             <tr>

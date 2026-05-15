@@ -360,7 +360,68 @@ export function ProcurementDocumentsManager({
           })}
         </div>
 
-        <div className="overflow-x-auto rounded-xl border border-slate-800/80 bg-slate-950/20">
+        <div className="grid gap-3 md:hidden">
+          {visibleDocuments.length === 0 ? (
+            <div className="rounded-xl border border-slate-800/80 bg-slate-950/20 p-4 text-sm text-slate-400">
+              No hay documentos en esta bandeja.
+            </div>
+          ) : null}
+          {visibleDocuments.map((document) => {
+            const supplierName = resolveSupplierName(document);
+            const operationalStatus = resolveOperationalStatus(document, supplierName);
+            const declaredTotal = resolveDetectedTotal(document);
+            const possibleDuplicateSignal = resolvePossibleDuplicateSignal(document);
+            const primaryActionLabel = document.status === 'draft' ? 'Revisar' : 'Abrir';
+
+            return (
+              <article key={document.id} className="space-y-3 rounded-xl border border-slate-800/80 bg-slate-950/20 p-4">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="break-words text-base font-semibold text-white">{supplierName ?? 'Sin proveedor'}</p>
+                    <p className="mt-1 text-xs text-slate-400">
+                      {documentKindLabel(document.document_kind)} · {formatDate(document.document_date)}
+                    </p>
+                  </div>
+                  <span className={`shrink-0 rounded-full border px-2 py-1 text-xs font-medium ${statusBadgeClasses(document.status)}`}>
+                    {documentStatusLabel(document.status)}
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2 text-sm">
+                  <div className="rounded-lg border border-slate-800/70 bg-slate-950/40 p-2">
+                    <p className="text-[11px] uppercase tracking-wide text-slate-500">Número</p>
+                    <p className="mt-1 break-words text-slate-200">{document.document_number ?? '—'}</p>
+                  </div>
+                  <div className="rounded-lg border border-slate-800/70 bg-slate-950/40 p-2">
+                    <p className="text-[11px] uppercase tracking-wide text-slate-500">Total</p>
+                    <p className="mt-1 text-slate-200">{formatCurrency(declaredTotal)}</p>
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <span className={`inline-flex rounded-full border px-2 py-1 text-xs font-medium ${operationalBadgeClasses(operationalStatus.tone)}`}>
+                    {operationalStatus.label}
+                  </span>
+                  <p className="text-xs leading-5 text-slate-400">{operationalStatus.description}</p>
+                  {document.status === 'draft' && possibleDuplicateSignal.isPossibleDuplicate ? (
+                    <p className="inline-flex rounded-full border border-amber-400/50 bg-amber-500/10 px-2 py-1 text-xs font-medium text-amber-100">
+                      Posible duplicado · revisar antes de aplicar
+                    </p>
+                  ) : null}
+                </div>
+
+                <Link
+                  href={`/cheffing/compras/${document.id}`}
+                  className="inline-flex min-h-11 w-full items-center justify-center rounded-xl border border-slate-700/80 bg-slate-950/50 px-4 text-sm font-semibold text-slate-200 transition hover:border-slate-500 hover:bg-slate-900/70 hover:text-white active:translate-y-px"
+                >
+                  {primaryActionLabel}
+                </Link>
+              </article>
+            );
+          })}
+        </div>
+
+        <div className="hidden overflow-x-auto rounded-xl border border-slate-800/80 bg-slate-950/20 md:block">
           <table className="w-full min-w-[1280px] text-left text-sm text-slate-200">
             <thead className="bg-slate-950/80 text-[11px] uppercase tracking-wide text-slate-400">
               <tr>
