@@ -453,7 +453,7 @@ export default async function ReservationReportsPage({ searchParams }: { searchP
   const reportActionsDisabled = !validation.valid || Boolean(loadError) || reservations.length === 0;
 
   return (
-    <div className="reservation-report-page min-h-screen bg-[#f4efe6] px-4 py-6 text-[#2d2419] md:px-8">
+    <div className="reservation-report-page min-h-screen bg-[#f4efe6] px-3 py-5 text-[#2d2419] sm:px-4 sm:py-6 md:px-8">
       <ReportChromeStyles />
 
       <main className="mx-auto max-w-6xl space-y-5">
@@ -496,7 +496,7 @@ export default async function ReservationReportsPage({ searchParams }: { searchP
               </label>
               <button
                 type="submit"
-                className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#8a5b2b] px-4 py-2.5 text-sm font-bold text-white shadow-[0_18px_45px_-34px_rgba(95,62,26,0.85)] transition hover:bg-[#70451d]"
+                className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-[#8a5b2b] px-4 py-2.5 text-sm font-bold text-white shadow-[0_18px_45px_-34px_rgba(95,62,26,0.85)] transition hover:bg-[#70451d] sm:w-auto"
               >
                 <CalendarDaysIcon className="h-4 w-4" aria-hidden="true" />
                 Generar informe
@@ -504,7 +504,7 @@ export default async function ReservationReportsPage({ searchParams }: { searchP
               {reportActionsDisabled ? (
                 <span
                   aria-disabled="true"
-                  className="inline-flex cursor-not-allowed items-center justify-center gap-2 rounded-xl bg-[#2d2419] px-4 py-2.5 text-sm font-bold text-[#fff1d8] opacity-45 shadow-[0_18px_45px_-34px_rgba(95,62,26,0.85)]"
+                  className="inline-flex w-full cursor-not-allowed items-center justify-center gap-2 rounded-xl bg-[#2d2419] px-4 py-2.5 text-sm font-bold text-[#fff1d8] opacity-45 shadow-[0_18px_45px_-34px_rgba(95,62,26,0.85)] sm:w-auto"
                 >
                   <ArrowDownTrayIcon className="h-4 w-4" aria-hidden="true" />
                   Descargar PDF
@@ -512,7 +512,7 @@ export default async function ReservationReportsPage({ searchParams }: { searchP
               ) : (
                 <a
                   href={pdfHref}
-                  className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#2d2419] px-4 py-2.5 text-sm font-bold text-[#fff1d8] shadow-[0_18px_45px_-34px_rgba(95,62,26,0.85)] transition hover:bg-[#3a2b1b]"
+                  className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-[#2d2419] px-4 py-2.5 text-sm font-bold text-[#fff1d8] shadow-[0_18px_45px_-34px_rgba(95,62,26,0.85)] transition hover:bg-[#3a2b1b] sm:w-auto"
                 >
                   <ArrowDownTrayIcon className="h-4 w-4" aria-hidden="true" />
                   Descargar PDF
@@ -536,12 +536,12 @@ export default async function ReservationReportsPage({ searchParams }: { searchP
           </div>
         ) : null}
 
-        <article className="reservation-report-paper rounded-[1.35rem] border border-[#d8c6ae] p-5 shadow-[0_30px_110px_-68px_rgba(80,49,20,0.62)] md:p-8">
+        <article className="reservation-report-paper overflow-hidden rounded-[1.35rem] border border-[#d8c6ae] p-4 shadow-[0_30px_110px_-68px_rgba(80,49,20,0.62)] sm:p-5 md:p-8">
           <header className="border-b border-[#dfcdb7] pb-6">
             <div className="flex flex-col gap-5 md:flex-row md:items-start md:justify-between">
               <div>
                 <p className="text-xs font-bold uppercase tracking-[0.22em] text-[#9a7447]">Sikim Empuriabrava</p>
-                <h2 className="mt-2 text-4xl font-bold tracking-normal text-[#221911]">Informe de reservas</h2>
+                <h2 className="mt-2 text-3xl font-bold tracking-normal text-[#221911] sm:text-4xl">Informe de reservas</h2>
                 <p className="mt-2 text-base text-[#746457]">Rango seleccionado: <strong>{rangeLabel}</strong></p>
                 <p className="mt-1 text-sm text-[#8a7b70]">Generado el {formatDateTime(generatedAt)}</p>
               </div>
