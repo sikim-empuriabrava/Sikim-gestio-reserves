@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { type DragEvent, useMemo, useRef, useState } from 'react';
+import { type DragEvent, useEffect, useMemo, useRef, useState } from 'react';
 
 import {
   runProcurementIntakeFlow,
@@ -21,6 +21,9 @@ type BatchQueueItem = {
   id: string;
   file: File;
   fileName: string;
+  fileSize: number;
+  previewUrl: string | null;
+  isImage: boolean;
   documentKind: ProcurementDocumentKind;
   status: BatchQueueStatus;
   error: string | null;
@@ -38,6 +41,18 @@ type SharedProcurementBatchIntakeProps = {
   variant?: 'default' | 'warm';
 };
 
+function formatFileSize(size: number): string {
+  if (size < 1024) return `${size} B`;
+  const kb = size / 1024;
+  if (kb < 1024) return `${kb.toFixed(kb >= 10 ? 0 : 1)} KB`;
+  const mb = kb / 1024;
+  return `${mb.toFixed(mb >= 10 ? 1 : 2)} MB`;
+}
+
+function revokePreviewUrl(url: string | null) {
+  if (url) URL.revokeObjectURL(url);
+}
+
 export function SharedProcurementBatchIntake({
   title = 'Intake documental OCR (1 o varios archivos)',
   description =
@@ -52,6 +67,7 @@ export function SharedProcurementBatchIntake({
   const router = useRouter();
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const cameraInputRef = useRef<HTMLInputElement | null>(null);
+  const batchQueueRef = useRef<BatchQueueItem[]>([]);
   const [batchDocumentKind, setBatchDocumentKind] = useState<ProcurementDocumentKind>(initialDocumentKind);
   const [batchQueue, setBatchQueue] = useState<BatchQueueItem[]>([]);
   const [isBatchRunning, setIsBatchRunning] = useState(false);
@@ -80,18 +96,35 @@ export function SharedProcurementBatchIntake({
   const hasBatchItems = batchQueue.length > 0;
   const isBatchFinished = hasBatchItems && !isBatchRunning && batchSummary.pending === 0 && batchSummary.inProgress === 0;
 
+  useEffect(() => {
+    batchQueueRef.current = batchQueue;
+  }, [batchQueue]);
+
+  useEffect(() => {
+    return () => {
+      batchQueueRef.current.forEach((item) => revokePreviewUrl(item.previewUrl));
+    };
+  }, []);
+
   function addBatchFiles(files: FileList | null) {
     if (!files?.length || isBatchRunning) return;
 
-    const queueItems: BatchQueueItem[] = Array.from(files).map((file) => ({
-      id: `${file.name}-${file.size}-${file.lastModified}-${Math.random().toString(36).slice(2, 8)}`,
-      file,
-      fileName: file.name,
-      documentKind: batchDocumentKind,
-      status: 'pending',
-      error: null,
-      documentId: null,
-    }));
+    const queueItems: BatchQueueItem[] = Array.from(files).map((file) => {
+      const isImage = file.type.startsWith('image/');
+
+      return {
+        id: `${file.name}-${file.size}-${file.lastModified}-${Math.random().toString(36).slice(2, 8)}`,
+        file,
+        fileName: file.name,
+        fileSize: file.size,
+        previewUrl: isImage ? URL.createObjectURL(file) : null,
+        isImage,
+        documentKind: batchDocumentKind,
+        status: 'pending',
+        error: null,
+        documentId: null,
+      };
+    });
 
     setBatchQueue((current) => [...current, ...queueItems]);
   }
@@ -104,7 +137,16 @@ export function SharedProcurementBatchIntake({
 
   function clearFinishedBatchQueue() {
     if (isBatchRunning) return;
+    const removedItems = batchQueue.filter((item) => item.status === 'completed' || item.status === 'failed');
+    removedItems.forEach((item) => revokePreviewUrl(item.previewUrl));
     setBatchQueue((current) => current.filter((item) => item.status !== 'completed' && item.status !== 'failed'));
+  }
+
+  function removeBatchItem(itemId: string) {
+    if (isBatchRunning) return;
+    const removedItem = batchQueue.find((item) => item.id === itemId);
+    revokePreviewUrl(removedItem?.previewUrl ?? null);
+    setBatchQueue((current) => current.filter((item) => item.id !== itemId));
   }
 
   async function runBatchUpload() {
@@ -345,10 +387,22 @@ export function SharedProcurementBatchIntake({
         ) : null}
         {batchQueue.map((item) => (
           <article key={item.id} className={isWarm ? 'space-y-3 rounded-xl border border-[#3c342a]/80 p-4' : 'space-y-3 rounded-xl border border-slate-800/80 p-4'}>
+            <div className={isWarm ? 'overflow-hidden rounded-xl border border-[#3c342a]/80 bg-[#12110f]/70' : 'overflow-hidden rounded-xl border border-slate-800 bg-slate-950/40'}>
+              {item.isImage && item.previewUrl ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={item.previewUrl} alt={`Vista previa de ${item.fileName}`} className="h-44 w-full object-contain" />
+              ) : (
+                <div className={isWarm ? 'flex h-24 items-center justify-center text-xs font-semibold uppercase tracking-[0.18em] text-[#a99d90]' : 'flex h-24 items-center justify-center text-xs font-semibold uppercase tracking-[0.18em] text-slate-500'}>
+                  PDF
+                </div>
+              )}
+            </div>
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">
                 <p className={isWarm ? 'break-words text-sm font-semibold text-[#f6f0e8]' : 'break-words text-sm font-semibold text-white'}>{item.fileName}</p>
-                <p className={isWarm ? 'mt-1 text-xs text-[#a99d90]' : 'mt-1 text-xs text-slate-400'}>{documentKindLabel(item.documentKind)}</p>
+                <p className={isWarm ? 'mt-1 text-xs text-[#a99d90]' : 'mt-1 text-xs text-slate-400'}>
+                  {documentKindLabel(item.documentKind)} · {formatFileSize(item.fileSize)}
+                </p>
               </div>
               <span className={isWarm ? 'shrink-0 rounded-full border border-[#4a3f32]/70 bg-[#151412]/70 px-2 py-1 text-xs text-[#f6f0e8]' : 'shrink-0 rounded-full border border-slate-700 bg-slate-900/60 px-2 py-1 text-xs text-slate-100'}>
                 {item.status === 'pending'
@@ -364,6 +418,18 @@ export function SharedProcurementBatchIntake({
                           : 'Fallido'}
               </span>
             </div>
+            {item.status === 'pending' ? (
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={() => removeBatchItem(item.id)}
+                  disabled={isBatchRunning}
+                  className={isWarm ? 'inline-flex min-h-10 items-center rounded-xl border border-rose-500/35 bg-rose-500/10 px-3 text-sm font-semibold text-rose-200 disabled:cursor-not-allowed disabled:border-[#4a3f32]/70 disabled:text-[#7f766b]' : 'inline-flex min-h-10 items-center rounded-xl border border-rose-500/50 bg-rose-500/10 px-3 text-sm font-semibold text-rose-200 disabled:cursor-not-allowed disabled:border-slate-700 disabled:text-slate-500'}
+                >
+                  Quitar
+                </button>
+              </div>
+            ) : null}
             {item.documentId ? (
               <Link href={`/cheffing/compras/${item.documentId}`} className={isWarm ? 'inline-flex min-h-10 items-center rounded-xl border border-[#6f4d2a]/70 px-3 text-sm font-semibold text-[#f3c98d]' : 'inline-flex min-h-10 items-center rounded-xl border border-slate-700 px-3 text-sm font-semibold text-sky-300'}>
                 Abrir documento
@@ -400,7 +466,22 @@ export function SharedProcurementBatchIntake({
             ) : null}
             {batchQueue.map((item) => (
               <tr key={item.id} className={isWarm ? 'border-t border-[#3c342a]/70 align-top' : 'border-t border-slate-800/60 align-top'}>
-                <td className="px-4 py-3">{item.fileName}</td>
+                <td className="px-4 py-3">
+                  <div className="flex items-center gap-3">
+                    <div className={isWarm ? 'flex h-14 w-14 shrink-0 overflow-hidden rounded-lg border border-[#3c342a]/80 bg-[#12110f]/70' : 'flex h-14 w-14 shrink-0 overflow-hidden rounded-lg border border-slate-800 bg-slate-950/50'}>
+                      {item.isImage && item.previewUrl ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img src={item.previewUrl} alt={`Vista previa de ${item.fileName}`} className="h-full w-full object-cover" />
+                      ) : (
+                        <span className={isWarm ? 'm-auto text-[10px] font-semibold uppercase tracking-[0.14em] text-[#a99d90]' : 'm-auto text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-500'}>PDF</span>
+                      )}
+                    </div>
+                    <div className="min-w-0">
+                      <p className="break-words font-medium">{item.fileName}</p>
+                      <p className={isWarm ? 'mt-1 text-xs text-[#8f8578]' : 'mt-1 text-xs text-slate-500'}>{formatFileSize(item.fileSize)}</p>
+                    </div>
+                  </div>
+                </td>
                 <td className="px-4 py-3">{documentKindLabel(item.documentKind)}</td>
                 <td className="px-4 py-3">
                   <span className={isWarm ? 'rounded-full border border-[#4a3f32]/70 bg-[#151412]/70 px-2 py-1 text-xs text-[#f6f0e8]' : 'rounded-full border border-slate-700 bg-slate-900/60 px-2 py-1 text-xs text-slate-100'}>
@@ -433,7 +514,21 @@ export function SharedProcurementBatchIntake({
                     ) : null}
                   </div>
                 </td>
-                <td className="px-4 py-3 text-xs text-rose-300">{item.error ?? '-'}</td>
+                <td className="px-4 py-3 text-xs text-rose-300">
+                  <div className="space-y-2">
+                    <p>{item.error ?? '-'}</p>
+                    {item.status === 'pending' ? (
+                      <button
+                        type="button"
+                        onClick={() => removeBatchItem(item.id)}
+                        disabled={isBatchRunning}
+                        className={isWarm ? 'inline-flex h-8 items-center rounded-lg border border-rose-500/35 bg-rose-500/10 px-2.5 text-xs font-semibold text-rose-200 disabled:cursor-not-allowed disabled:border-[#4a3f32]/70 disabled:text-[#7f766b]' : 'inline-flex h-8 items-center rounded-lg border border-rose-500/50 bg-rose-500/10 px-2.5 text-xs font-semibold text-rose-200 disabled:cursor-not-allowed disabled:border-slate-700 disabled:text-slate-500'}
+                      >
+                        Quitar
+                      </button>
+                    ) : null}
+                  </div>
+                </td>
               </tr>
             ))}
           </tbody>

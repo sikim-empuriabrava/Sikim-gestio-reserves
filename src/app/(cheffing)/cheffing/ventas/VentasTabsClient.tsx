@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useEffect, useMemo, useState, type FormEvent } from 'react';
+import { useEffect, useMemo, useRef, useState, type DragEvent, type FormEvent } from 'react';
 
 type ImportResult = {
   mode?: string;
@@ -34,6 +34,142 @@ type ProductSalesRow = {
 };
 
 type Dish = { id: string; name: string };
+
+const CSV_ACCEPT_ATTRIBUTE = '.csv,text/csv';
+
+function formatFileSize(size: number): string {
+  if (size < 1024) return `${size} B`;
+  const kb = size / 1024;
+  if (kb < 1024) return `${kb.toFixed(kb >= 10 ? 0 : 1)} KB`;
+  const mb = kb / 1024;
+  return `${mb.toFixed(mb >= 10 ? 1 : 2)} MB`;
+}
+
+function isCsvFile(file: File): boolean {
+  return file.type === 'text/csv' || file.name.toLowerCase().endsWith('.csv');
+}
+
+type CsvFileDropzoneProps = {
+  id: string;
+  name: string;
+  label: string;
+  helper: string;
+  file: File | null;
+  disabled?: boolean;
+  onFileChange: (file: File | null) => void;
+};
+
+function CsvFileDropzone({ id, name, label, helper, file, disabled = false, onFileChange }: CsvFileDropzoneProps) {
+  const inputRef = useRef<HTMLInputElement | null>(null);
+  const [isDraggingOver, setIsDraggingOver] = useState(false);
+  const [dropError, setDropError] = useState<string | null>(null);
+
+  function selectFile(nextFile: File | null) {
+    if (!nextFile) return;
+    if (!isCsvFile(nextFile)) {
+      setDropError('Selecciona un archivo CSV.');
+      if (inputRef.current) inputRef.current.value = '';
+      return;
+    }
+    setDropError(null);
+    onFileChange(nextFile);
+  }
+
+  function clearFile() {
+    setDropError(null);
+    onFileChange(null);
+    if (inputRef.current) inputRef.current.value = '';
+  }
+
+  function handleDrop(event: DragEvent<HTMLDivElement>) {
+    event.preventDefault();
+    setIsDraggingOver(false);
+    if (disabled) return;
+    selectFile(event.dataTransfer.files?.[0] ?? null);
+  }
+
+  return (
+    <div className="space-y-2">
+      <input
+        ref={inputRef}
+        id={id}
+        type="file"
+        name={name}
+        accept={CSV_ACCEPT_ATTRIBUTE}
+        disabled={disabled}
+        className="hidden"
+        onChange={(event) => selectFile(event.target.files?.[0] ?? null)}
+      />
+      <div
+        role="button"
+        tabIndex={disabled ? -1 : 0}
+        aria-disabled={disabled}
+        aria-label={file ? `${label}: ${file.name}` : label}
+        onClick={() => {
+          if (!disabled) inputRef.current?.click();
+        }}
+        onKeyDown={(event) => {
+          if (disabled) return;
+          if (event.key === 'Enter' || event.key === ' ') {
+            event.preventDefault();
+            inputRef.current?.click();
+          }
+        }}
+        onDragOver={(event) => {
+          event.preventDefault();
+          if (!disabled) setIsDraggingOver(true);
+        }}
+        onDragLeave={() => setIsDraggingOver(false)}
+        onDrop={handleDrop}
+        className={`min-h-40 cursor-pointer rounded-xl border border-dashed p-4 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400/30 ${
+          disabled
+            ? 'cursor-not-allowed border-slate-800 bg-slate-950/30 opacity-70'
+            : isDraggingOver
+              ? 'border-emerald-400/80 bg-emerald-500/10'
+              : 'border-slate-700 bg-slate-950/45 hover:border-slate-500 hover:bg-slate-900/55'
+        }`}
+      >
+        <div className="flex h-full flex-col justify-between gap-4">
+          <div className="space-y-1">
+            <p className="text-sm font-semibold text-white">{label}</p>
+            <p className="text-xs leading-5 text-slate-400">{helper}</p>
+          </div>
+
+          {file ? (
+            <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 p-3">
+              <p className="break-words text-sm font-semibold text-emerald-100">{file.name}</p>
+              <p className="mt-1 text-xs text-emerald-200/80">{formatFileSize(file.size)}</p>
+            </div>
+          ) : (
+            <p className="text-xs font-medium text-slate-500">Toca o arrastra un CSV aqui.</p>
+          )}
+        </div>
+      </div>
+
+      <div className="flex flex-wrap items-center gap-2">
+        <button
+          type="button"
+          onClick={() => inputRef.current?.click()}
+          disabled={disabled}
+          className="inline-flex min-h-9 items-center rounded-lg border border-slate-700 px-3 text-xs font-semibold text-slate-200 transition hover:border-slate-500 disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          {file ? 'Cambiar archivo' : 'Elegir archivo'}
+        </button>
+        {file ? (
+          <button
+            type="button"
+            onClick={clearFile}
+            disabled={disabled}
+            className="inline-flex min-h-9 items-center rounded-lg border border-rose-500/50 bg-rose-500/10 px-3 text-xs font-semibold text-rose-200 transition hover:border-rose-400 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            Quitar
+          </button>
+        ) : null}
+      </div>
+      {dropError ? <p className="text-xs text-rose-300">{dropError}</p> : null}
+    </div>
+  );
+}
 
 
 
@@ -84,6 +220,8 @@ export function VentasTabsClient({
   const [selectedDishByProduct, setSelectedDishByProduct] = useState<Record<string, string>>({});
   const [importStatus, setImportStatus] = useState<ImportStatus | null>(null);
   const [importStatusLoading, setImportStatusLoading] = useState(true);
+  const [ordersCsvFile, setOrdersCsvFile] = useState<File | null>(null);
+  const [itemsCsvFile, setItemsCsvFile] = useState<File | null>(null);
 
   const filteredOrders = useMemo(() => {
     const text = query.toLowerCase().trim();
@@ -145,6 +283,8 @@ export function VentasTabsClient({
     setError(null);
 
     const formData = new FormData(event.currentTarget);
+    if (ordersCsvFile) formData.set('orders_csv', ordersCsvFile);
+    if (itemsCsvFile) formData.set('items_csv', itemsCsvFile);
 
     try {
       const response = await fetch('/api/cheffing/pos/import-csv', {
@@ -269,14 +409,24 @@ export function VentasTabsClient({
             )}
           </div>
           <form onSubmit={handleImport} className="grid gap-4 rounded-xl border border-slate-800 p-4 md:grid-cols-2">
-            <label className="space-y-2 text-sm text-slate-300">
-              CSV pedidos totales (orders_csv)
-              <input type="file" name="orders_csv" accept=".csv,text/csv" className="block w-full text-sm" />
-            </label>
-            <label className="space-y-2 text-sm text-slate-300">
-              CSV pedidos por producto (items_csv)
-              <input type="file" name="items_csv" accept=".csv,text/csv" className="block w-full text-sm" />
-            </label>
+            <CsvFileDropzone
+              id="orders_csv"
+              name="orders_csv"
+              label="CSV pedidos totales"
+              helper="Archivo orders_csv del TPV con pedidos totales."
+              file={ordersCsvFile}
+              disabled={importing}
+              onFileChange={setOrdersCsvFile}
+            />
+            <CsvFileDropzone
+              id="items_csv"
+              name="items_csv"
+              label="CSV pedidos por producto"
+              helper="Archivo items_csv del TPV con lÃ­neas o productos vendidos."
+              file={itemsCsvFile}
+              disabled={importing}
+              onFileChange={setItemsCsvFile}
+            />
             <button
               type="submit"
               disabled={importing}
