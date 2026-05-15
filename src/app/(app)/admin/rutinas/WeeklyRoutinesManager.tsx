@@ -1023,8 +1023,8 @@ export function WeeklyRoutinesManager() {
       </div>
 
       {deleteTarget && (
-        <div className="fixed inset-0 z-50 flex items-start justify-center bg-black/60 px-4 py-10">
-          <div className="w-full max-w-2xl space-y-6 rounded-2xl border border-slate-800 bg-slate-950 p-6 shadow-2xl shadow-black/60">
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 px-3 py-4 pb-[calc(1rem+env(safe-area-inset-bottom))] sm:items-start sm:px-4 sm:pt-10 sm:pb-[calc(2.5rem+env(safe-area-inset-bottom))]">
+          <div className="max-h-[calc(100dvh-2rem)] w-full max-w-2xl space-y-6 overflow-y-auto rounded-2xl border border-slate-800 bg-slate-950 p-4 pb-[calc(1rem+env(safe-area-inset-bottom))] shadow-2xl shadow-black/60 sm:p-6 sm:pb-[calc(1.5rem+env(safe-area-inset-bottom))]">
             <div className="flex items-start justify-between gap-4">
               <div className="space-y-1">
                 <p className="text-xs uppercase tracking-wide text-slate-400">
@@ -1154,8 +1154,8 @@ export function WeeklyRoutinesManager() {
       )}
 
       {modalMode && (
-        <div className="fixed inset-0 z-50 flex items-start justify-center bg-black/60 px-4 py-10">
-          <div className="w-full max-w-3xl space-y-6 rounded-2xl border border-slate-800 bg-slate-950 p-6 shadow-2xl shadow-black/60">
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 px-3 py-4 pb-[calc(1rem+env(safe-area-inset-bottom))] sm:items-start sm:px-4 sm:pt-10 sm:pb-[calc(2.5rem+env(safe-area-inset-bottom))]">
+          <div className="max-h-[calc(100dvh-2rem)] w-full max-w-3xl space-y-6 overflow-y-auto rounded-2xl border border-slate-800 bg-slate-950 p-4 pb-[calc(1rem+env(safe-area-inset-bottom))] shadow-2xl shadow-black/60 sm:p-6 sm:pb-[calc(1.5rem+env(safe-area-inset-bottom))]">
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-xs uppercase tracking-wide text-slate-400">
@@ -1298,8 +1298,8 @@ export function WeeklyRoutinesManager() {
       )}
 
       {packModalMode && (
-        <div className="fixed inset-0 z-50 flex items-start justify-center bg-black/60 px-4 py-10">
-          <div className="w-full max-w-2xl space-y-6 rounded-2xl border border-slate-800 bg-slate-950 p-6 shadow-2xl shadow-black/60">
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 px-3 py-4 pb-[calc(1rem+env(safe-area-inset-bottom))] sm:items-start sm:px-4 sm:pt-10 sm:pb-[calc(2.5rem+env(safe-area-inset-bottom))]">
+          <div className="max-h-[calc(100dvh-2rem)] w-full max-w-2xl space-y-6 overflow-y-auto rounded-2xl border border-slate-800 bg-slate-950 p-4 pb-[calc(1rem+env(safe-area-inset-bottom))] shadow-2xl shadow-black/60 sm:p-6 sm:pb-[calc(1.5rem+env(safe-area-inset-bottom))]">
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-xs uppercase tracking-wide text-slate-400">

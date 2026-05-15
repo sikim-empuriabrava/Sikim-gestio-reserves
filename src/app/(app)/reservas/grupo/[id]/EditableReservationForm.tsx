@@ -784,7 +784,7 @@ export function EditableReservationForm({
   }, [selectableOfferingCatalog, selectedOfferingId]);
 
   return (
-    <div className="reserva-detail-pilot space-y-5">
+    <div className="reserva-detail-pilot space-y-5 pb-[calc(1rem+env(safe-area-inset-bottom))]">
       <ReservaDetailPilotStyles />
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="space-y-1">
@@ -1252,8 +1252,8 @@ export function EditableReservationForm({
           {deleteError && <p className="text-sm text-red-300">{deleteError}</p>}
         </section>
 
-        <div className="sticky bottom-4 z-10 flex flex-wrap items-center gap-3 rounded-2xl border border-[#4a3f32]/70 bg-[#181715]/90 p-3 shadow-[0_24px_80px_-48px_rgba(0,0,0,0.95)] backdrop-blur">
-          <button type="button" onClick={handleSubmit} disabled={isPending} className="inline-flex items-center rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-500 disabled:opacity-60">
+        <div className="sticky bottom-[calc(1rem+env(safe-area-inset-bottom))] z-10 flex flex-col items-stretch gap-3 rounded-2xl border border-[#4a3f32]/70 bg-[#181715]/90 p-3 shadow-[0_24px_80px_-48px_rgba(0,0,0,0.95)] backdrop-blur sm:flex-row sm:flex-wrap sm:items-center">
+          <button type="button" onClick={handleSubmit} disabled={isPending} className="inline-flex items-center justify-center rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-500 disabled:opacity-60">
             {isPending ? 'Guardando…' : 'Guardar cambios'}
           </button>
           {message && <span className="text-sm text-emerald-300">{message}</span>}
@@ -1264,14 +1264,14 @@ export function EditableReservationForm({
 
       {isDeleteModalOpen && (
         <div
-          className="fixed inset-0 z-50 flex items-end justify-center bg-[#080705]/75 px-4 py-6 backdrop-blur-sm sm:items-center"
+          className="fixed inset-0 z-50 flex items-end justify-center bg-[#080705]/75 px-3 py-4 pb-[calc(1rem+env(safe-area-inset-bottom))] backdrop-blur-sm sm:items-center sm:px-4 sm:pt-6 sm:pb-[calc(1.5rem+env(safe-area-inset-bottom))]"
           role="presentation"
         >
           <div
             role="dialog"
             aria-modal="true"
             aria-labelledby="delete-reservation-title"
-            className="w-full max-w-lg space-y-5 rounded-2xl border border-[#5b4934]/75 bg-[#181715] p-5 text-[#efe8dc] shadow-[0_28px_90px_-48px_rgba(0,0,0,0.98),inset_0_1px_0_rgba(255,255,255,0.04)]"
+            className="max-h-[calc(100dvh-2rem)] w-full max-w-lg space-y-5 overflow-y-auto rounded-2xl border border-[#5b4934]/75 bg-[#181715] p-5 pb-[calc(1rem+env(safe-area-inset-bottom))] text-[#efe8dc] shadow-[0_28px_90px_-48px_rgba(0,0,0,0.98),inset_0_1px_0_rgba(255,255,255,0.04)] sm:pb-[calc(1.25rem+env(safe-area-inset-bottom))]"
           >
             <div className="space-y-2">
               <p className="text-xs font-semibold uppercase tracking-[0.16em] text-red-300">Confirmar eliminación</p>

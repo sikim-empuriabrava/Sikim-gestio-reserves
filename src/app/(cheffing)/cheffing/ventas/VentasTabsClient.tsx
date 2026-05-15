@@ -328,8 +328,8 @@ export function VentasTabsClient({
             placeholder="Filtrar por pedido, local o estado"
             className="w-full rounded-lg border border-slate-700 bg-slate-950/50 px-3 py-2 text-sm"
           />
-          <div className="overflow-hidden rounded-xl border border-slate-800">
-            <table className="min-w-full text-left text-sm text-slate-200">
+          <div className="overflow-x-auto rounded-xl border border-slate-800">
+            <table className="min-w-[860px] text-left text-sm text-slate-200">
               <thead className="bg-slate-950/70 text-xs uppercase text-slate-400">
                 <tr>
                   <th className="px-3 py-2">Fecha apertura</th>
@@ -377,8 +377,8 @@ export function VentasTabsClient({
           <button onClick={handleAutoMatch} className="rounded-lg border border-emerald-500/70 px-3 py-2 text-sm">
             Auto-match por nombre exacto
           </button>
-          <div className="overflow-hidden rounded-xl border border-slate-800">
-            <table className="min-w-full text-left text-sm">
+          <div className="overflow-x-auto rounded-xl border border-slate-800">
+            <table className="min-w-[920px] text-left text-sm">
               <thead className="bg-slate-950/70 text-xs uppercase text-slate-400">
                 <tr>
                   <th className="px-3 py-2">Outlet</th>
