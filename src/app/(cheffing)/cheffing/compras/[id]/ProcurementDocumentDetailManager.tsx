@@ -1457,8 +1457,8 @@ export function ProcurementDocumentDetailManager({
   }
 
   return (
-    <div className="space-y-6">
-      <header className="rounded-2xl border border-slate-800 bg-slate-950/40 p-5">
+    <div className="min-w-0 space-y-6">
+      <header className="min-w-0 overflow-hidden rounded-2xl border border-slate-800 bg-slate-950/40 p-4 sm:p-5">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div className="space-y-2">
             <p className="text-xs uppercase tracking-wide text-slate-400">Ficha operativa</p>
@@ -1483,7 +1483,7 @@ export function ProcurementDocumentDetailManager({
           </div>
         ) : null}
 
-        <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+        <div className="mt-4 grid min-w-0 gap-3 md:grid-cols-2 xl:grid-cols-4">
           <div className="rounded-xl border border-slate-800 bg-slate-900/60 p-3 xl:col-span-2">
             <p className="text-xs uppercase tracking-wide text-slate-400">Proveedor confirmado</p>
             <p className="mt-1 text-base font-semibold text-white">{persistedSupplierLabel ?? 'Sin proveedor asignado en DB'}</p>
@@ -1540,10 +1540,10 @@ export function ProcurementDocumentDetailManager({
         </div>
       </header>
 
-      <div className="grid gap-6 xl:grid-cols-[1.7fr_1fr]">
-        <div className="space-y-6">
-          <section className="space-y-4 rounded-xl border border-slate-800 bg-slate-950/40 p-4">
-            <div className="flex items-center justify-between gap-3">
+      <div className="grid min-w-0 gap-6 xl:grid-cols-[minmax(0,1.7fr)_minmax(20rem,1fr)]">
+        <div className="min-w-0 space-y-6">
+          <section className="min-w-0 space-y-4 overflow-hidden rounded-xl border border-slate-800 bg-slate-950/40 p-4">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <h3 className="text-sm font-semibold text-white">Cabecera del documento</h3>
               <div className="flex flex-wrap items-center gap-2">
                 {isDraft ? (
@@ -1552,11 +1552,11 @@ export function ProcurementDocumentDetailManager({
                       disabled={isSubmitting || headerSuggestionsAcceptableCount === 0}
                       type="button"
                       onClick={applyAllHeaderSuggestions}
-                      className="rounded-full border border-sky-400/60 px-4 py-2 text-sm font-semibold text-sky-100 disabled:cursor-not-allowed disabled:border-slate-700 disabled:text-slate-500"
+                      className="min-h-11 rounded-full border border-sky-400/60 px-4 py-2 text-sm font-semibold text-sky-100 disabled:cursor-not-allowed disabled:border-slate-700 disabled:text-slate-500"
                     >
                       Aceptar todas las sugerencias de cabecera
                     </button>
-                    <button disabled={isSubmitting} type="button" onClick={saveHeader} className="rounded-full border border-emerald-400/60 px-4 py-2 text-sm font-semibold text-emerald-200">
+                    <button disabled={isSubmitting} type="button" onClick={saveHeader} className="min-h-11 rounded-full border border-emerald-400/60 px-4 py-2 text-sm font-semibold text-emerald-200">
                       Guardar cabecera
                     </button>
                   </>
@@ -1811,10 +1811,10 @@ export function ProcurementDocumentDetailManager({
           </section>
 
           {isDraft ? (
-            <section className="space-y-3 rounded-xl border border-slate-800 bg-slate-950/40 p-4">
-              <div className="flex items-center justify-between gap-3">
+            <section className="min-w-0 space-y-3 overflow-hidden rounded-xl border border-slate-800 bg-slate-950/40 p-4">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <h3 className="text-sm font-semibold text-white">Líneas del documento</h3>
-                <button type="button" onClick={addLine} disabled={isSubmitting} className="rounded-full border border-emerald-400/60 px-4 py-2 text-sm font-semibold text-emerald-200">
+                <button type="button" onClick={addLine} disabled={isSubmitting} className="min-h-11 rounded-full border border-emerald-400/60 px-4 py-2 text-sm font-semibold text-emerald-200">
                   Añadir línea
                 </button>
               </div>
@@ -1822,7 +1822,7 @@ export function ProcurementDocumentDetailManager({
             </section>
           ) : null}
 
-          <section className="overflow-x-auto rounded-2xl border border-slate-800/70">
+          <section className="max-w-full overflow-x-auto rounded-2xl border border-slate-800/70">
             <table className="w-full min-w-[1200px] text-left text-sm text-slate-200">
               <thead className="bg-slate-950/70 text-xs uppercase text-slate-400">
                 <tr>
@@ -1880,8 +1880,8 @@ export function ProcurementDocumentDetailManager({
           </section>
         </div>
 
-        <aside className="space-y-4">
-          <section className="space-y-3 rounded-xl border border-slate-800 bg-slate-950/40 p-4">
+        <aside className="min-w-0 space-y-4">
+          <section className="min-w-0 space-y-3 overflow-hidden rounded-xl border border-slate-800 bg-slate-950/40 p-4">
             <h3 className="text-sm font-semibold text-white">Documento original</h3>
             <p className="text-xs text-slate-400">Sube imagen o PDF para revisión lado a lado con cabecera y líneas.</p>
 
@@ -1893,18 +1893,26 @@ export function ProcurementDocumentDetailManager({
 
             {isDraft ? (
               <div className="space-y-2">
-                <input
-                  type="file"
-                  accept="application/pdf,image/jpeg,image/png,image/webp"
-                  onChange={(event) => setFileToUpload(event.target.files?.[0] ?? null)}
-                  className="block w-full text-xs text-slate-300 file:mr-4 file:rounded-full file:border file:border-slate-700 file:bg-slate-900 file:px-3 file:py-1 file:text-slate-200"
-                />
+                <label className="flex min-h-28 cursor-pointer flex-col justify-center rounded-2xl border border-dashed border-slate-700 bg-slate-950/35 p-4 text-sm text-slate-300 transition hover:border-slate-500 hover:bg-slate-900/45">
+                  <span className="font-semibold text-slate-100">
+                    {fileToUpload ? fileToUpload.name : 'Seleccionar imagen o PDF'}
+                  </span>
+                  <span className="mt-1 text-xs leading-5 text-slate-500">
+                    Toca para cambiar el archivo original. La subida no empieza hasta pulsar el botón.
+                  </span>
+                  <input
+                    type="file"
+                    accept="application/pdf,image/jpeg,image/png,image/webp"
+                    onChange={(event) => setFileToUpload(event.target.files?.[0] ?? null)}
+                    className="hidden"
+                  />
+                </label>
                 <p className="text-[11px] text-slate-500">Tipos permitidos: {PROCUREMENT_SOURCE_FILE_ACCEPTED_MIME_TYPES.join(', ')}.</p>
                 <button
                   type="button"
                   disabled={!fileToUpload || isSubmitting || isProcessingOcr}
                   onClick={uploadSourceFile}
-                  className="w-full rounded-full border border-emerald-400/60 px-4 py-2 text-sm font-semibold text-emerald-200 disabled:cursor-not-allowed disabled:border-slate-700 disabled:text-slate-500"
+                  className="min-h-11 w-full rounded-full border border-emerald-400/60 px-4 py-2 text-sm font-semibold text-emerald-200 disabled:cursor-not-allowed disabled:border-slate-700 disabled:text-slate-500"
                 >
                   {document.storage_path ? 'Reemplazar archivo original' : 'Subir archivo original'}
                 </button>
@@ -1918,7 +1926,7 @@ export function ProcurementDocumentDetailManager({
                 type="button"
                 onClick={processOcr}
                 disabled={isSubmitting || isProcessingOcr || linesCount > 0}
-                className="w-full rounded-full border border-sky-400/60 px-4 py-2 text-sm font-semibold text-sky-200 disabled:cursor-not-allowed disabled:border-slate-700 disabled:text-slate-500"
+                className="min-h-11 w-full rounded-full border border-sky-400/60 px-4 py-2 text-sm font-semibold text-sky-200 disabled:cursor-not-allowed disabled:border-slate-700 disabled:text-slate-500"
                 title={linesCount > 0 ? 'Bloqueado: el documento ya tiene líneas y no se permite re-ejecutar OCR en esta fase.' : undefined}
               >
                 {isProcessingOcr ? 'Procesando OCR…' : 'Procesar OCR Azure + cleanup OpenAI'}
@@ -2009,30 +2017,30 @@ export function ProcurementDocumentDetailManager({
                 type="button"
                 onClick={applyDocument}
                 disabled={!canApply || isSubmitting || isProcessingOcr}
-                className="w-full rounded-full border border-emerald-400/60 px-4 py-2 text-sm font-semibold text-emerald-200 disabled:cursor-not-allowed disabled:border-slate-700 disabled:text-slate-500"
+                className="min-h-11 w-full rounded-full border border-emerald-400/60 px-4 py-2 text-sm font-semibold text-emerald-200 disabled:cursor-not-allowed disabled:border-slate-700 disabled:text-slate-500"
               >
                 Aplicar documento
               </button>
             ) : null}
 
             {document.status === 'draft' ? (
-              <button type="button" onClick={discardDocument} disabled={isSubmitting || isProcessingOcr} className="w-full rounded-full border border-amber-500/60 px-4 py-2 text-sm text-amber-200">
+              <button type="button" onClick={discardDocument} disabled={isSubmitting || isProcessingOcr} className="min-h-11 w-full rounded-full border border-amber-500/60 px-4 py-2 text-sm text-amber-200">
                 Descartar documento
               </button>
             ) : null}
 
             {document.status === 'draft' ? (
-              <button type="button" onClick={deleteDocumentPermanently} disabled={isSubmitting || isProcessingOcr} className="w-full rounded-full border border-rose-500/60 px-4 py-2 text-sm text-rose-200">
+              <button type="button" onClick={deleteDocumentPermanently} disabled={isSubmitting || isProcessingOcr} className="min-h-11 w-full rounded-full border border-rose-500/60 px-4 py-2 text-sm text-rose-200">
                 Eliminar definitivo
               </button>
             ) : null}
 
             {document.status === 'discarded' ? (
               <>
-                <button type="button" onClick={recoverDocument} disabled={isSubmitting} className="w-full rounded-full border border-emerald-500/50 px-4 py-2 text-sm text-emerald-200">
+                <button type="button" onClick={recoverDocument} disabled={isSubmitting} className="min-h-11 w-full rounded-full border border-emerald-500/50 px-4 py-2 text-sm text-emerald-200">
                   Recuperar a borrador
                 </button>
-                <button type="button" onClick={deleteDocumentPermanently} disabled={isSubmitting} className="w-full rounded-full border border-rose-500/60 px-4 py-2 text-sm text-rose-200">
+                <button type="button" onClick={deleteDocumentPermanently} disabled={isSubmitting} className="min-h-11 w-full rounded-full border border-rose-500/60 px-4 py-2 text-sm text-rose-200">
                   Eliminar definitivo
                 </button>
               </>
@@ -2071,18 +2079,18 @@ export function ProcurementDocumentDetailManager({
 
 function HeaderDatum({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-xl border border-slate-800 bg-slate-900/60 p-3">
+    <div className="min-w-0 rounded-xl border border-slate-800 bg-slate-900/60 p-3">
       <p className="text-xs uppercase tracking-wide text-slate-400">{label}</p>
-      <p className="mt-1 text-sm font-medium text-slate-100">{value}</p>
+      <p className="mt-1 break-words text-sm font-medium text-slate-100">{value}</p>
     </div>
   );
 }
 
 function SummaryRow({ label, value }: { label: string; value: string }) {
   return (
-    <div className="flex items-center justify-between gap-3 border-b border-slate-800/80 pb-2 last:border-none last:pb-0">
-      <dt className="text-slate-400">{label}</dt>
-      <dd className="font-medium text-white">{value}</dd>
+    <div className="flex items-start justify-between gap-3 border-b border-slate-800/80 pb-2 last:border-none last:pb-0">
+      <dt className="min-w-0 text-slate-400">{label}</dt>
+      <dd className="shrink-0 font-medium text-white">{value}</dd>
     </div>
   );
 }

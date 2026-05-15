@@ -36,7 +36,7 @@ export default async function CheffingCompraDetailPage({ params }: { params: { i
   }
 
   return (
-    <section className="space-y-6 rounded-2xl border border-slate-800/80 bg-slate-900/70 p-6">
+    <section className="min-w-0 space-y-6 overflow-hidden rounded-2xl border border-slate-800/80 bg-slate-900/70 p-4 sm:p-6">
       <div className="text-sm text-slate-400">
         <Link href="/cheffing" className="underline-offset-2 hover:text-slate-200 hover:underline">Cheffing</Link>
         <span className="mx-2">/</span>

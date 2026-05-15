@@ -128,6 +128,7 @@ export function SharedProcurementDocumentIntake({
   const [documentKind, setDocumentKind] = useState<ProcurementDocumentKind>(initialDocumentKind);
   const [pendingCameraFile, setPendingCameraFile] = useState<File | null>(null);
   const [cameraPreviewUrl, setCameraPreviewUrl] = useState<string | null>(null);
+  const [selectedFileName, setSelectedFileName] = useState<string | null>(null);
   const isWarm = variant === 'warm';
 
   useEffect(() => {
@@ -140,6 +141,7 @@ export function SharedProcurementDocumentIntake({
     if (cameraPreviewUrl) URL.revokeObjectURL(cameraPreviewUrl);
     setCameraPreviewUrl(null);
     setPendingCameraFile(null);
+    setSelectedFileName(null);
     if (cameraInputRef.current) cameraInputRef.current.value = '';
   }
 
@@ -147,6 +149,7 @@ export function SharedProcurementDocumentIntake({
     if (!file) return;
 
     setError(null);
+    setSelectedFileName(file.name);
     setCreatedDocumentId(null);
     setIsUploadCompleted(false);
     setIsOcrCompleted(false);
@@ -187,6 +190,7 @@ export function SharedProcurementDocumentIntake({
     if (!file || isSubmitting) return;
     if (cameraPreviewUrl) URL.revokeObjectURL(cameraPreviewUrl);
     setError(null);
+    setSelectedFileName(file.name);
     setCreatedDocumentId(null);
     setIsUploadCompleted(false);
     setIsOcrCompleted(false);
@@ -216,6 +220,9 @@ export function SharedProcurementDocumentIntake({
   const fileButtonClassName = isWarm
     ? warmSecondaryClassName
     : 'rounded-full border border-slate-600 px-4 py-2 text-sm font-semibold text-slate-200 disabled:cursor-not-allowed disabled:border-slate-700 disabled:text-slate-500';
+  const dropzoneClassName = isWarm
+    ? 'cursor-pointer rounded-2xl border border-dashed border-[#6f4d2a]/75 bg-[#151412]/70 p-5 text-left transition duration-200 hover:border-[#d6a76e]/60 hover:bg-[#1f1b16]/90'
+    : 'cursor-pointer rounded-2xl border border-dashed border-slate-700 bg-slate-950/35 p-5 text-left transition duration-200 hover:border-slate-500 hover:bg-slate-900/45';
 
   return (
     <section className={sectionClassName}>
@@ -253,6 +260,35 @@ export function SharedProcurementDocumentIntake({
           >
             Galería / archivo
           </button>
+        </div>
+      </div>
+
+      <div
+        role="button"
+        tabIndex={0}
+        aria-disabled={isSubmitting}
+        onClick={() => {
+          if (!isSubmitting) fileInputRef.current?.click();
+        }}
+        onKeyDown={(event) => {
+          if (isSubmitting) return;
+          if (event.key === 'Enter' || event.key === ' ') {
+            event.preventDefault();
+            fileInputRef.current?.click();
+          }
+        }}
+        className={dropzoneClassName}
+      >
+        <div className="space-y-2">
+          <p className={isWarm ? 'text-base font-semibold text-[#f6f0e8]' : 'text-base font-semibold text-white'}>
+            Haz una foto o sube una factura/albarán/ticket
+          </p>
+          <p className={isWarm ? 'text-sm leading-6 text-[#b9aea1]' : 'text-sm leading-6 text-slate-400'}>
+            PDF, JPG, PNG o WEBP. Toca para elegir desde cámara, galería o archivos según tu navegador.
+          </p>
+          <p className={isWarm ? 'text-xs text-[#8f8578]' : 'text-xs text-slate-500'}>
+            {selectedFileName ? `Archivo seleccionado: ${selectedFileName}` : 'Aún no has seleccionado ningún archivo.'}
+          </p>
         </div>
       </div>
 
