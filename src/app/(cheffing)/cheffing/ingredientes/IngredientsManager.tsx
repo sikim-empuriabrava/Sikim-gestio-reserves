@@ -4,8 +4,20 @@ import { useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 
+import { cn } from '@/components/ui';
 import type { IngredientCost, Unit, UnitDimension } from '@/lib/cheffing/types';
 import { formatEditableMoney, parseEditableMoney } from '@/lib/cheffing/money';
+import {
+  CheffingButton,
+  CheffingMobileMeta,
+  CheffingTableActionButton,
+  cheffingInputClassName,
+  cheffingMobileCardClassName,
+  cheffingMobileCardEditingClassName,
+  cheffingMobileListClassName,
+  cheffingMobileMetaGridClassName,
+  cheffingSelectClassName,
+} from '@/app/(cheffing)/cheffing/components/CheffingUi';
 
 const baseUnitLabelByDimension: Record<UnitDimension, string> = {
   mass: 'g',
@@ -155,7 +167,178 @@ export function IngredientsManager({ initialIngredients, units }: IngredientsMan
       </div>
 
       <div className="overflow-x-auto rounded-2xl border border-slate-800/70">
-        <table className="w-full min-w-[960px] text-left text-sm text-slate-200">
+        <div className={cheffingMobileListClassName}>
+          {initialIngredients.length === 0 ? (
+            <div className={cheffingMobileCardClassName}>
+              <p className="text-sm font-semibold text-white">No hay ingredientes todavia.</p>
+            </div>
+          ) : (
+            initialIngredients.map((ingredient) => {
+              const isEditing = editingId === ingredient.id;
+              const editingValues = isEditing ? editingState : null;
+              const baseUnit = baseUnitLabel(ingredient.purchase_unit_dimension);
+
+              return (
+                <article
+                  key={ingredient.id}
+                  className={cn(cheffingMobileCardClassName, isEditing && cheffingMobileCardEditingClassName)}
+                >
+                  {isEditing ? (
+                    <input
+                      className={cheffingInputClassName}
+                      value={editingValues?.name ?? ''}
+                      onChange={(event) =>
+                        setEditingState((prev) => (prev ? { ...prev, name: event.target.value } : prev))
+                      }
+                      aria-label="Nombre del ingrediente"
+                    />
+                  ) : (
+                    <p className="truncate font-semibold text-white">{ingredient.name}</p>
+                  )}
+
+                  <div className={cheffingMobileMetaGridClassName}>
+                    <CheffingMobileMeta
+                      label="Compra"
+                      value={
+                        isEditing ? (
+                          <div className="flex gap-2">
+                            <input
+                              type="number"
+                              min="0"
+                              step="0.01"
+                              className={cn(cheffingInputClassName, 'h-9 min-w-0 flex-1')}
+                              value={editingValues?.purchase_pack_qty ?? ''}
+                              onChange={(event) =>
+                                setEditingState((prev) =>
+                                  prev ? { ...prev, purchase_pack_qty: event.target.value } : prev,
+                                )
+                              }
+                              aria-label="Cantidad de compra"
+                            />
+                            <select
+                              className={cn(cheffingSelectClassName, 'h-9 w-20')}
+                              value={editingValues?.purchase_unit_code ?? ''}
+                              onChange={(event) =>
+                                setEditingState((prev) =>
+                                  prev ? { ...prev, purchase_unit_code: event.target.value } : prev,
+                                )
+                              }
+                              aria-label="Unidad de compra"
+                            >
+                              {sortedUnits.map((unit) => (
+                                <option key={unit.code} value={unit.code}>
+                                  {unit.code}
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+                        ) : (
+                          `${ingredient.purchase_pack_qty} ${ingredient.purchase_unit_code}`
+                        )
+                      }
+                      className="col-span-2"
+                    />
+                    <CheffingMobileMeta
+                      label="Precio pack"
+                      value={
+                        isEditing ? (
+                          <input
+                            type="number"
+                            min="0"
+                            step="0.01"
+                            className={cn(cheffingInputClassName, 'h-9')}
+                            value={editingValues?.purchase_price ?? ''}
+                            onChange={(event) =>
+                              setEditingState((prev) =>
+                                prev ? { ...prev, purchase_price: event.target.value } : prev,
+                              )
+                            }
+                            aria-label="Precio del pack"
+                          />
+                        ) : (
+                          `${ingredient.purchase_price.toFixed(2)} \u20ac`
+                        )
+                      }
+                    />
+                    <CheffingMobileMeta
+                      label="Merma"
+                      value={
+                        isEditing ? (
+                          <input
+                            type="number"
+                            min="0"
+                            max="99.99"
+                            step="0.01"
+                            className={cn(cheffingInputClassName, 'h-9')}
+                            value={editingValues?.waste_pct ?? ''}
+                            onChange={(event) =>
+                              setEditingState((prev) => (prev ? { ...prev, waste_pct: event.target.value } : prev))
+                            }
+                            aria-label="Merma"
+                          />
+                        ) : (
+                          `${(ingredient.waste_pct * 100).toFixed(1)}%`
+                        )
+                      }
+                    />
+                    <CheffingMobileMeta
+                      label="Coste bruto"
+                      value={`${formatCurrency(ingredient.cost_gross_per_base)} \u20ac/${baseUnit}`}
+                    />
+                    <CheffingMobileMeta
+                      label="Coste neto"
+                      value={`${formatCurrency(ingredient.cost_net_per_base)} \u20ac/${baseUnit}`}
+                    />
+                  </div>
+
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {isEditing ? (
+                      <>
+                        <CheffingButton
+                          type="button"
+                          tone="success"
+                          className="min-h-10 flex-1"
+                          onClick={() => saveEditing(ingredient.id)}
+                          disabled={isSubmitting}
+                        >
+                          Guardar
+                        </CheffingButton>
+                        <CheffingTableActionButton
+                          type="button"
+                          className="min-h-10 flex-1"
+                          onClick={cancelEditing}
+                        >
+                          Cancelar
+                        </CheffingTableActionButton>
+                      </>
+                    ) : (
+                      <>
+                        <CheffingTableActionButton
+                          type="button"
+                          className="min-h-10 flex-1"
+                          onClick={() => startEditing(ingredient)}
+                        >
+                          Editar
+                        </CheffingTableActionButton>
+                        <CheffingTableActionButton
+                          type="button"
+                          tone="danger"
+                          className="min-h-10 flex-1"
+                          onClick={() => deleteIngredient(ingredient.id)}
+                          disabled={isSubmitting}
+                        >
+                          Eliminar
+                        </CheffingTableActionButton>
+                      </>
+                    )}
+                  </div>
+                </article>
+              );
+            })
+          )}
+        </div>
+
+        <table className="hidden w-full min-w-[960px] text-left text-sm text-slate-200 md:table">
           <thead className="bg-slate-950/70 text-xs uppercase text-slate-400">
             <tr>
               <th className="px-4 py-3">Ingrediente</th>

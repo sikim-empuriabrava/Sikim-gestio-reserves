@@ -8,10 +8,15 @@ import { DataTableShell, StatusBadge, Surface, Toolbar, cn } from '@/components/
 import {
   CheffingButton,
   CheffingEmptyState,
+  CheffingMobileMeta,
   CheffingSearchInput,
   CheffingTableActionButton,
   cheffingEditingRowClassName,
   cheffingInputClassName,
+  cheffingMobileCardClassName,
+  cheffingMobileCardEditingClassName,
+  cheffingMobileListClassName,
+  cheffingMobileMetaGridClassName,
   cheffingRowClassName,
   cheffingTableClassName,
   cheffingTheadClassName,
@@ -206,7 +211,169 @@ export function ProcurementSuppliersManager({ initialSuppliers }: { initialSuppl
         }
         footer={`Mostrando ${filteredSuppliers.length} de ${initialSuppliers.length} proveedores`}
       >
-        <table className={cn(cheffingTableClassName, 'min-w-[980px]')}>
+        <div className={cheffingMobileListClassName}>
+          {filteredSuppliers.length === 0 ? (
+            <div className={cheffingMobileCardClassName}>
+              <p className="text-sm font-semibold text-white">No hay proveedores para esta busqueda.</p>
+              <p className="mt-1 text-sm text-slate-400">Limpia el filtro o crea un proveedor nuevo.</p>
+            </div>
+          ) : (
+            filteredSuppliers.map((supplier) => {
+              const isEditing = editingId === supplier.id;
+              return (
+                <article
+                  key={supplier.id}
+                  className={cn(cheffingMobileCardClassName, isEditing && cheffingMobileCardEditingClassName)}
+                >
+                  {isEditing ? (
+                    <div className="space-y-2">
+                      <input
+                        className={cheffingInputClassName}
+                        value={editingForm.trade_name}
+                        onChange={(event) => setEditingForm({ ...editingForm, trade_name: event.target.value })}
+                        aria-label="Nombre comercial"
+                      />
+                      <input
+                        className={cheffingInputClassName}
+                        value={editingForm.legal_name}
+                        onChange={(event) => setEditingForm({ ...editingForm, legal_name: event.target.value })}
+                        placeholder="Razon social"
+                        aria-label="Razon social"
+                      />
+                    </div>
+                  ) : (
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="truncate font-semibold text-white">{supplier.trade_name}</p>
+                        {supplier.legal_name ? (
+                          <p className="mt-1 truncate text-sm text-slate-400">{supplier.legal_name}</p>
+                        ) : null}
+                      </div>
+                      <StatusBadge tone={supplier.is_active ? 'success' : 'muted'}>
+                        {supplier.is_active ? 'Activo' : 'Inactivo'}
+                      </StatusBadge>
+                    </div>
+                  )}
+
+                  <div className={cheffingMobileMetaGridClassName}>
+                    <CheffingMobileMeta
+                      label="NIF/CIF"
+                      value={
+                        isEditing ? (
+                          <input
+                            className={cn(cheffingInputClassName, 'h-9')}
+                            value={editingForm.tax_id}
+                            onChange={(event) => setEditingForm({ ...editingForm, tax_id: event.target.value })}
+                            aria-label="NIF/CIF"
+                          />
+                        ) : (
+                          supplier.tax_id ?? '-'
+                        )
+                      }
+                    />
+                    <CheffingMobileMeta
+                      label="Estado"
+                      value={
+                        isEditing ? (
+                          <label className="inline-flex items-center gap-2 text-sm text-slate-200">
+                            <input
+                              type="checkbox"
+                              checked={editingForm.is_active}
+                              onChange={(event) =>
+                                setEditingForm({ ...editingForm, is_active: event.target.checked })
+                              }
+                              className="h-4 w-4 rounded border-slate-600 bg-slate-950 text-primary-500 focus:ring-primary-500/30"
+                            />
+                            Activo
+                          </label>
+                        ) : (
+                          supplier.is_active ? 'Activo' : 'Inactivo'
+                        )
+                      }
+                    />
+                    <CheffingMobileMeta
+                      label="Telefono"
+                      value={
+                        isEditing ? (
+                          <input
+                            className={cn(cheffingInputClassName, 'h-9')}
+                            value={editingForm.phone}
+                            onChange={(event) => setEditingForm({ ...editingForm, phone: event.target.value })}
+                            aria-label="Telefono"
+                          />
+                        ) : (
+                          supplier.phone ?? '-'
+                        )
+                      }
+                    />
+                    <CheffingMobileMeta
+                      label="Email"
+                      value={
+                        isEditing ? (
+                          <input
+                            className={cn(cheffingInputClassName, 'h-9')}
+                            value={editingForm.email}
+                            onChange={(event) => setEditingForm({ ...editingForm, email: event.target.value })}
+                            aria-label="Email"
+                          />
+                        ) : (
+                          supplier.email ?? '-'
+                        )
+                      }
+                    />
+                  </div>
+
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {isEditing ? (
+                      <>
+                        <CheffingButton
+                          type="button"
+                          tone="success"
+                          className="min-h-10 flex-1"
+                          onClick={() => updateSupplier(supplier.id)}
+                          disabled={isSubmitting}
+                        >
+                          Guardar
+                        </CheffingButton>
+                        <CheffingTableActionButton
+                          type="button"
+                          className="min-h-10 flex-1"
+                          onClick={() => setEditingId(null)}
+                          aria-label="Cancelar edicion"
+                          title="Cancelar"
+                        >
+                          <XMarkIcon className="h-4 w-4" aria-hidden="true" />
+                          Cancelar
+                        </CheffingTableActionButton>
+                      </>
+                    ) : (
+                      <CheffingTableActionButton
+                        type="button"
+                        className="min-h-10 flex-1"
+                        onClick={() => {
+                          setEditingId(supplier.id);
+                          setEditingForm({
+                            trade_name: supplier.trade_name,
+                            legal_name: supplier.legal_name ?? '',
+                            tax_id: supplier.tax_id ?? '',
+                            phone: supplier.phone ?? '',
+                            email: supplier.email ?? '',
+                            is_active: supplier.is_active,
+                          });
+                        }}
+                      >
+                        <PencilSquareIcon className="h-4 w-4" aria-hidden="true" />
+                        Editar
+                      </CheffingTableActionButton>
+                    )}
+                  </div>
+                </article>
+              );
+            })
+          )}
+        </div>
+
+        <table className={cn(cheffingTableClassName, 'hidden min-w-[980px] md:table')}>
           <thead className={cheffingTheadClassName}>
             <tr className="border-b border-slate-800/80">
               <th className="px-4 py-3 font-semibold text-slate-300">Nombre comercial</th>

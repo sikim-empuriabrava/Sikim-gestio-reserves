@@ -29,11 +29,16 @@ import {
   cheffingEditingRowClassName,
   cheffingHeaderButtonClassName,
   cheffingInputClassName,
+  cheffingMobileCardClassName,
+  cheffingMobileCardEditingClassName,
+  cheffingMobileListClassName,
+  cheffingMobileMetaGridClassName,
   cheffingNumericClassName,
   cheffingRowClassName,
   cheffingSelectClassName,
   cheffingTableClassName,
   cheffingTheadClassName,
+  CheffingMobileMeta,
 } from '@/app/(cheffing)/cheffing/components/CheffingUi';
 
 export type DishCost = Dish & {
@@ -340,7 +345,198 @@ export function DishesManager({
           </div>
         }
       >
-        <table className={cn(cheffingTableClassName, 'min-w-[1210px]')}>
+        <div className={cheffingMobileListClassName}>
+          {initialDishes.length === 0 ? (
+            <div className={cheffingMobileCardClassName}>
+              <p className="text-sm font-semibold text-white">No hay {entityLabelPlural} todavia.</p>
+              <p className="mt-1 text-sm text-slate-400">
+                Crea un {entityLabelSingular} para calcular coste y uso.
+              </p>
+            </div>
+          ) : filteredAndSortedDishes.length === 0 ? (
+            <div className={cheffingMobileCardClassName}>
+              <p className="text-sm font-semibold text-white">No hay {entityLabelPlural} para el filtro actual.</p>
+              <p className="mt-1 text-sm text-slate-400">
+                Ajusta busqueda, familia o uso para ampliar resultados.
+              </p>
+            </div>
+          ) : (
+            filteredAndSortedDishes.map((dish) => {
+              const isEditing = editingId === dish.id;
+              const editingValues = isEditing ? editingState : null;
+              const imageUrl = resolveImageUrl(dish);
+
+              return (
+                <article
+                  key={dish.id}
+                  className={cn(cheffingMobileCardClassName, isEditing && cheffingMobileCardEditingClassName)}
+                >
+                  <div className="flex items-start gap-3">
+                    {imageUrl ? (
+                      <img
+                        src={imageUrl}
+                        alt={`Imagen de ${dish.name}`}
+                        className="h-14 w-14 shrink-0 rounded-lg border border-slate-700/80 object-cover"
+                      />
+                    ) : (
+                      <span className="inline-flex h-14 w-14 shrink-0 items-center justify-center rounded-lg border border-slate-800 bg-slate-950/70 text-slate-600">
+                        <PhotoIcon className="h-5 w-5" aria-hidden="true" />
+                        <span className="sr-only">Sin imagen</span>
+                      </span>
+                    )}
+                    <div className="min-w-0 flex-1">
+                      {isEditing ? (
+                        <input
+                          aria-label={`Nombre de ${entityLabelSingular}`}
+                          className={cheffingInputClassName}
+                          value={editingValues?.name ?? ''}
+                          onChange={(event) =>
+                            setEditingState((prev) => (prev ? { ...prev, name: event.target.value } : prev))
+                          }
+                        />
+                      ) : (
+                        <Link
+                          href={`${basePath}/${dish.id}`}
+                          className="block truncate font-semibold text-white underline-offset-4 transition hover:text-primary-100 hover:underline"
+                        >
+                          {dish.name}
+                        </Link>
+                      )}
+                      <div className="mt-2 flex flex-wrap items-center gap-2">
+                        {isEditing ? (
+                          <select
+                            aria-label="Familia"
+                            className={cn(cheffingSelectClassName, 'h-9')}
+                            value={editingValues?.family_id ?? ''}
+                            onChange={(event) =>
+                              setEditingState((prev) => (prev ? { ...prev, family_id: event.target.value } : prev))
+                            }
+                          >
+                            <option value="">{SIN_FAMILIA_LABEL}</option>
+                            {families.map((family) => (
+                              <option key={family.id} value={family.id}>
+                                {family.name}
+                              </option>
+                            ))}
+                          </select>
+                        ) : (
+                          <>
+                            <span className="rounded-full border border-slate-700/80 px-2.5 py-1 text-xs font-semibold text-slate-300">
+                              {dish.family_name ?? SIN_FAMILIA_LABEL}
+                            </span>
+                            <StatusBadge tone={dish.usage_has_any ? (dish.usage_has_active ? 'success' : 'info') : 'muted'}>
+                              {dish.usage_has_any ? 'En uso' : 'Sin uso'}
+                            </StatusBadge>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className={cheffingMobileMetaGridClassName}>
+                    <CheffingMobileMeta
+                      label="PVP"
+                      value={
+                        isEditing ? (
+                          <input
+                            type="number"
+                            min="0"
+                            step="0.01"
+                            aria-label="PVP"
+                            className={cn(cheffingInputClassName, 'h-9')}
+                            value={editingValues?.selling_price ?? ''}
+                            onChange={(event) =>
+                              setEditingState((prev) =>
+                                prev ? { ...prev, selling_price: event.target.value } : prev,
+                              )
+                            }
+                          />
+                        ) : (
+                          formatCurrency(dish.selling_price)
+                        )
+                      }
+                    />
+                    <CheffingMobileMeta
+                      label="Raciones"
+                      value={
+                        isEditing ? (
+                          <input
+                            type="number"
+                            min="1"
+                            step="1"
+                            aria-label="Raciones base"
+                            className={cn(cheffingInputClassName, 'h-9')}
+                            value={editingValues?.servings ?? ''}
+                            onChange={(event) =>
+                              setEditingState((prev) => (prev ? { ...prev, servings: event.target.value } : prev))
+                            }
+                          />
+                        ) : (
+                          dish.servings
+                        )
+                      }
+                    />
+                    <CheffingMobileMeta label="Coste total" value={formatCurrency(dish.items_cost_total)} />
+                    <CheffingMobileMeta label="Coste racion" value={formatCurrency(dish.cost_per_serving ?? null)} />
+                  </div>
+
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {isEditing ? (
+                      <>
+                        <CheffingButton
+                          type="button"
+                          tone="success"
+                          className="min-h-10 flex-1"
+                          onClick={() => saveEditing(dish.id)}
+                          disabled={isSubmitting}
+                        >
+                          Guardar
+                        </CheffingButton>
+                        <CheffingTableActionButton
+                          type="button"
+                          className="min-h-10 flex-1"
+                          onClick={cancelEditing}
+                          aria-label="Cancelar edicion"
+                          title="Cancelar"
+                        >
+                          <XMarkIcon className="h-4 w-4" aria-hidden="true" />
+                          Cancelar
+                        </CheffingTableActionButton>
+                      </>
+                    ) : (
+                      <>
+                        <CheffingTableActionLink href={`${basePath}/${dish.id}`} className="min-h-10 flex-1">
+                          <EyeIcon className="h-4 w-4" aria-hidden="true" />
+                          Ver
+                        </CheffingTableActionLink>
+                        <CheffingTableActionButton
+                          type="button"
+                          className="min-h-10 flex-1"
+                          onClick={() => startEditing(dish)}
+                        >
+                          <PencilSquareIcon className="h-4 w-4" aria-hidden="true" />
+                          Editar
+                        </CheffingTableActionButton>
+                        <CheffingTableActionButton
+                          type="button"
+                          tone="danger"
+                          className="min-h-10 flex-1"
+                          onClick={() => deleteDish(dish.id)}
+                          disabled={isSubmitting}
+                        >
+                          <TrashIcon className="h-4 w-4" aria-hidden="true" />
+                          Eliminar
+                        </CheffingTableActionButton>
+                      </>
+                    )}
+                  </div>
+                </article>
+              );
+            })
+          )}
+        </div>
+
+        <table className={cn(cheffingTableClassName, 'hidden min-w-[1210px] md:table')}>
           <thead className={cheffingTheadClassName}>
             <tr className="border-b border-slate-800/80">
               <th className="w-[22%] px-4 py-3">

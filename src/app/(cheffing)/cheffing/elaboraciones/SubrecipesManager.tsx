@@ -24,11 +24,16 @@ import {
   cheffingEditingRowClassName,
   cheffingHeaderButtonClassName,
   cheffingInputClassName,
+  cheffingMobileCardClassName,
+  cheffingMobileCardEditingClassName,
+  cheffingMobileListClassName,
+  cheffingMobileMetaGridClassName,
   cheffingNumericClassName,
   cheffingRowClassName,
   cheffingSelectClassName,
   cheffingTableClassName,
   cheffingTheadClassName,
+  CheffingMobileMeta,
 } from '@/app/(cheffing)/cheffing/components/CheffingUi';
 
 const displayUnitByDimension: Record<UnitDimension, 'kg' | 'l' | 'u'> = {
@@ -324,7 +329,199 @@ export function SubrecipesManager({ initialSubrecipes, units }: SubrecipesManage
           </div>
         }
       >
-        <table className={cn(cheffingTableClassName, 'min-w-[1000px]')}>
+        <div className={cheffingMobileListClassName}>
+          {initialSubrecipes.length === 0 ? (
+            <div className={cheffingMobileCardClassName}>
+              <p className="text-sm font-semibold text-white">No hay elaboraciones todavia.</p>
+              <p className="mt-1 text-sm text-slate-400">
+                Crea una elaboracion para reutilizarla en platos.
+              </p>
+            </div>
+          ) : filteredAndSortedSubrecipes.length === 0 ? (
+            <div className={cheffingMobileCardClassName}>
+              <p className="text-sm font-semibold text-white">No hay elaboraciones para esta busqueda.</p>
+              <p className="mt-1 text-sm text-slate-400">Prueba con otro nombre o limpia el filtro.</p>
+            </div>
+          ) : (
+            filteredAndSortedSubrecipes.map((subrecipe) => {
+              const isEditing = editingId === subrecipe.id;
+              const editingValues = isEditing ? editingState : null;
+              const imageUrl = resolveImageUrl(subrecipe);
+              const netDisplayCost = resolveDisplayCost(
+                subrecipe.cost_net_per_base,
+                subrecipe.output_unit_dimension,
+              );
+
+              return (
+                <article
+                  key={subrecipe.id}
+                  className={cn(cheffingMobileCardClassName, isEditing && cheffingMobileCardEditingClassName)}
+                >
+                  <div className="flex items-start gap-3">
+                    {imageUrl ? (
+                      <img
+                        src={imageUrl}
+                        alt={`Imagen de ${subrecipe.name}`}
+                        className="h-14 w-14 shrink-0 rounded-lg border border-slate-700/80 object-cover"
+                      />
+                    ) : (
+                      <span className="inline-flex h-14 w-14 shrink-0 items-center justify-center rounded-lg border border-slate-800 bg-slate-950/70 text-slate-600">
+                        <PhotoIcon className="h-5 w-5" aria-hidden="true" />
+                        <span className="sr-only">Sin imagen</span>
+                      </span>
+                    )}
+                    <div className="min-w-0 flex-1">
+                      {isEditing ? (
+                        <input
+                          aria-label="Nombre de la elaboracion"
+                          className={cheffingInputClassName}
+                          value={editingValues?.name ?? ''}
+                          onChange={(event) =>
+                            setEditingState((prev) => (prev ? { ...prev, name: event.target.value } : prev))
+                          }
+                        />
+                      ) : (
+                        <Link
+                          href={`/cheffing/elaboraciones/${subrecipe.id}`}
+                          className="block truncate font-semibold text-white underline-offset-4 transition hover:text-primary-100 hover:underline"
+                        >
+                          {subrecipe.name}
+                        </Link>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className={cheffingMobileMetaGridClassName}>
+                    <CheffingMobileMeta
+                      label="Produccion"
+                      value={
+                        isEditing ? (
+                          <div className="flex gap-2">
+                            <input
+                              type="number"
+                              min="0"
+                              step="0.01"
+                              aria-label="Cantidad producida"
+                              className={cn(cheffingInputClassName, 'h-9 min-w-0 flex-1')}
+                              value={editingValues?.output_qty ?? ''}
+                              onChange={(event) =>
+                                setEditingState((prev) =>
+                                  prev ? { ...prev, output_qty: event.target.value } : prev,
+                                )
+                              }
+                            />
+                            <select
+                              aria-label="Unidad de produccion"
+                              className={cn(cheffingSelectClassName, 'h-9 w-20')}
+                              value={editingValues?.output_unit_code ?? ''}
+                              onChange={(event) =>
+                                setEditingState((prev) =>
+                                  prev ? { ...prev, output_unit_code: event.target.value } : prev,
+                                )
+                              }
+                            >
+                              {sortedUnits.map((unit) => (
+                                <option key={unit.code} value={unit.code}>
+                                  {unit.code}
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+                        ) : (
+                          `${subrecipe.output_qty} ${subrecipe.output_unit_code}`
+                        )
+                      }
+                      className="col-span-2"
+                    />
+                    <CheffingMobileMeta
+                      label="Merma"
+                      value={
+                        isEditing ? (
+                          <input
+                            type="number"
+                            min="0"
+                            max="99.99"
+                            step="0.01"
+                            aria-label="Merma"
+                            className={cn(cheffingInputClassName, 'h-9')}
+                            value={editingValues?.waste_pct ?? ''}
+                            onChange={(event) =>
+                              setEditingState((prev) => (prev ? { ...prev, waste_pct: event.target.value } : prev))
+                            }
+                          />
+                        ) : (
+                          `${(subrecipe.waste_pct * 100).toFixed(1)}%`
+                        )
+                      }
+                    />
+                    <CheffingMobileMeta label="Coste total" value={`${formatDisplayCost(subrecipe.items_cost_total)} \u20ac`} />
+                    <CheffingMobileMeta
+                      label="Coste unitario"
+                      value={`${formatDisplayCost(netDisplayCost.value)} \u20ac/${netDisplayCost.unit}`}
+                      className="col-span-2"
+                    />
+                  </div>
+
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {isEditing ? (
+                      <>
+                        <CheffingButton
+                          type="button"
+                          tone="success"
+                          className="min-h-10 flex-1"
+                          onClick={() => saveEditing(subrecipe.id)}
+                          disabled={isSubmitting}
+                        >
+                          Guardar
+                        </CheffingButton>
+                        <CheffingTableActionButton
+                          type="button"
+                          className="min-h-10 flex-1"
+                          onClick={cancelEditing}
+                          aria-label="Cancelar edicion"
+                          title="Cancelar"
+                        >
+                          <XMarkIcon className="h-4 w-4" aria-hidden="true" />
+                          Cancelar
+                        </CheffingTableActionButton>
+                      </>
+                    ) : (
+                      <>
+                        <CheffingTableActionLink
+                          href={`/cheffing/elaboraciones/${subrecipe.id}`}
+                          className="min-h-10 flex-1"
+                        >
+                          <EyeIcon className="h-4 w-4" aria-hidden="true" />
+                          Ver
+                        </CheffingTableActionLink>
+                        <CheffingTableActionButton
+                          type="button"
+                          className="min-h-10 flex-1"
+                          onClick={() => startEditing(subrecipe)}
+                        >
+                          <PencilSquareIcon className="h-4 w-4" aria-hidden="true" />
+                          Editar
+                        </CheffingTableActionButton>
+                        <CheffingTableActionButton
+                          type="button"
+                          tone="danger"
+                          className="min-h-10 flex-1"
+                          onClick={() => deleteSubrecipe(subrecipe.id)}
+                          disabled={isSubmitting}
+                        >
+                          <TrashIcon className="h-4 w-4" aria-hidden="true" />
+                          Eliminar
+                        </CheffingTableActionButton>
+                      </>
+                    )}
+                  </div>
+                </article>
+              );
+            })
+          )}
+        </div>
+
+        <table className={cn(cheffingTableClassName, 'hidden min-w-[1000px] md:table')}>
           <thead className={cheffingTheadClassName}>
             <tr className="border-b border-slate-800/80">
               <th className="w-[32%] px-4 py-3">

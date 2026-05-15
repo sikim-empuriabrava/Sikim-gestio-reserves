@@ -40,6 +40,33 @@ export const cheffingEditingRowClassName = 'bg-[#3a2a1b]/45 hover:bg-[#3a2a1b]/5
 
 export const cheffingNumericClassName = 'tabular-nums text-[#f6f0e8]';
 
+export const cheffingMobileListClassName = 'space-y-3 p-3 md:hidden';
+
+export const cheffingMobileCardClassName =
+  'rounded-xl border border-[#3c342a]/80 bg-[#12110f]/72 p-3.5 shadow-[0_16px_36px_-30px_rgba(0,0,0,0.9)] ring-1 ring-white/[0.025]';
+
+export const cheffingMobileCardEditingClassName =
+  'border-[#d6a76e]/55 bg-[#2a2016]/70 shadow-[inset_3px_0_0_rgba(214,167,110,0.55)]';
+
+export const cheffingMobileMetaGridClassName = 'mt-3 grid grid-cols-2 gap-2';
+
+export function CheffingMobileMeta({
+  label,
+  value,
+  className,
+}: {
+  label: ReactNode;
+  value: ReactNode;
+  className?: string;
+}) {
+  return (
+    <div className={cn('min-w-0 rounded-lg border border-[#3c342a]/65 bg-[#171512]/80 px-3 py-2', className)}>
+      <p className="text-[10px] font-semibold uppercase tracking-[0.13em] text-[#8f8173]">{label}</p>
+      <div className="mt-1 min-w-0 break-words text-sm font-semibold text-[#f6f0e8]">{value}</div>
+    </div>
+  );
+}
+
 export function CheffingButton({
   tone = 'neutral',
   className,
