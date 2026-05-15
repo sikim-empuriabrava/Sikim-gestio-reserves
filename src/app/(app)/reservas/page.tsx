@@ -107,6 +107,20 @@ function endOfMonth(date: Date) {
   return d;
 }
 
+function getMonthDays(date: Date) {
+  const monthStart = startOfMonth(date);
+  const monthEnd = endOfMonth(date);
+  const days: string[] = [];
+  const cursor = new Date(monthStart);
+
+  while (cursor <= monthEnd) {
+    days.push(toISODate(cursor));
+    cursor.setDate(cursor.getDate() + 1);
+  }
+
+  return days;
+}
+
 function formatWeekRange(startDate: string, endDate: string) {
   const formatter = new Intl.DateTimeFormat('es-ES', { day: 'numeric', month: 'numeric', year: 'numeric' });
   return `Semana del ${formatter.format(new Date(startDate))} al ${formatter.format(new Date(endDate))}`;
@@ -132,6 +146,18 @@ function formatDayHeader(dateString: string) {
   return {
     label: `${weekday.charAt(0).toUpperCase() + weekday.slice(1)}, ${dayMonth}`,
     iso: new Intl.DateTimeFormat('es-ES').format(date),
+  };
+}
+
+function formatMonthAgendaDay(dateString: string) {
+  const date = new Date(dateString);
+  const weekday = new Intl.DateTimeFormat('es-ES', { weekday: 'long' }).format(date);
+  const day = new Intl.DateTimeFormat('es-ES', { day: 'numeric' }).format(date);
+  const month = new Intl.DateTimeFormat('es-ES', { month: 'long' }).format(date);
+
+  return {
+    weekday: weekday.charAt(0).toUpperCase() + weekday.slice(1),
+    compact: `${day} ${month}`,
   };
 }
 
@@ -349,14 +375,14 @@ function ViewSelector({
   ];
 
   return (
-    <div className="inline-flex items-center rounded-xl border border-[#4a3f32]/80 bg-[#151412]/90 p-1 text-sm shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
+    <div className="inline-flex w-full items-center rounded-xl border border-[#4a3f32]/80 bg-[#151412]/90 p-1 text-sm shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] sm:w-auto">
       {views.map((view) => {
         const active = currentView === view.value;
         return (
           <Link
             key={view.value}
             href={`/reservas?view=${view.value}&date=${dateParam}`}
-            className={`rounded-lg px-4 py-2 font-semibold transition-colors ${
+            className={`flex-1 rounded-lg px-3 py-2 text-center font-semibold transition-colors sm:flex-none sm:px-4 ${
               active
                 ? 'bg-[#7d5932]/70 text-[#ffe2b6] shadow-[inset_0_0_0_1px_rgba(231,181,118,0.34)]'
                 : 'text-[#b9aea1] hover:bg-[#24211d] hover:text-[#f2eadf]'
@@ -404,22 +430,22 @@ function DateNavigator({
   const todayForView = toISODate(baseForView(new Date()));
 
   return (
-    <div className="flex flex-wrap items-center gap-2 text-sm">
+    <div className="grid w-full grid-cols-3 gap-2 text-sm sm:flex sm:w-auto sm:flex-wrap sm:items-center">
       <Link
         href={`/reservas?view=${view}&date=${prevDate}`}
-        className="rounded-xl border border-[#4a3f32]/75 bg-[#151412]/90 px-4 py-2 font-medium text-[#efe8dc] transition-colors hover:border-[#8b6a43]/70 hover:bg-[#211f1b] active:translate-y-px"
+        className="inline-flex items-center justify-center rounded-xl border border-[#4a3f32]/75 bg-[#151412]/90 px-3 py-2 font-medium text-[#efe8dc] transition-colors hover:border-[#8b6a43]/70 hover:bg-[#211f1b] active:translate-y-px sm:px-4"
       >
         Anterior
       </Link>
       <Link
         href={`/reservas?view=${view}&date=${todayForView}`}
-        className="rounded-xl border border-[#4a3f32]/75 bg-[#151412]/90 px-4 py-2 font-medium text-[#efe8dc] transition-colors hover:border-[#8b6a43]/70 hover:bg-[#211f1b] active:translate-y-px"
+        className="inline-flex items-center justify-center rounded-xl border border-[#4a3f32]/75 bg-[#151412]/90 px-3 py-2 font-medium text-[#efe8dc] transition-colors hover:border-[#8b6a43]/70 hover:bg-[#211f1b] active:translate-y-px sm:px-4"
       >
         Hoy
       </Link>
       <Link
         href={`/reservas?view=${view}&date=${nextDate}`}
-        className="rounded-xl border border-[#4a3f32]/75 bg-[#151412]/90 px-4 py-2 font-medium text-[#efe8dc] transition-colors hover:border-[#8b6a43]/70 hover:bg-[#211f1b] active:translate-y-px"
+        className="inline-flex items-center justify-center rounded-xl border border-[#4a3f32]/75 bg-[#151412]/90 px-3 py-2 font-medium text-[#efe8dc] transition-colors hover:border-[#8b6a43]/70 hover:bg-[#211f1b] active:translate-y-px sm:px-4"
       >
         Siguiente
       </Link>
@@ -442,7 +468,7 @@ function HeaderBar({
         <h1 className="text-[2rem] font-semibold leading-tight tracking-normal text-[#f6f0e8]">Calendario</h1>
         <p className="mt-1 text-base text-[#b9aea1]">{rangeLabel}</p>
       </div>
-      <div className="flex flex-wrap items-center gap-3">
+      <div className="flex w-full flex-col gap-3 sm:w-auto sm:flex-row sm:flex-wrap sm:items-center">
         <DateNavigator view={view} dateParam={dateParam} />
         <ViewSelector currentView={view} dateParam={dateParam} />
       </div>
@@ -798,6 +824,93 @@ function DayView({
   );
 }
 
+function MobileMonthAgenda({
+  days,
+  eventsByDate,
+}: {
+  days: string[];
+  eventsByDate: Map<string, GroupEventDailyDetail[]>;
+}) {
+  const activeDays = days
+    .map((day) => {
+      const events = eventsByDate.get(day) ?? [];
+      const totalPax = events.reduce((sum, event) => sum + (event.total_pax ?? 0), 0);
+      return { day, events, totalPax };
+    })
+    .filter(({ events }) => events.length > 0);
+
+  if (activeDays.length === 0) {
+    return (
+      <section className="rounded-2xl border border-[#4a3f32]/70 bg-[#181715]/95 p-5 text-sm text-[#b9aea1] shadow-[0_24px_80px_-56px_rgba(0,0,0,0.95)] md:hidden">
+        <div className="flex items-center gap-3">
+          <CalendarDaysIcon className="h-5 w-5 text-[#8f8578]" aria-hidden="true" />
+          No hay reservas en este mes.
+        </div>
+      </section>
+    );
+  }
+
+  return (
+    <section className="space-y-4 md:hidden" aria-label="Agenda mensual">
+      {activeDays.map(({ day, events, totalPax }) => {
+        const label = formatMonthAgendaDay(day);
+        return (
+          <article key={day} className="overflow-hidden rounded-2xl border border-[#4a3f32]/70 bg-[#181715]/95 shadow-[0_24px_80px_-56px_rgba(0,0,0,0.95)]">
+            <Link
+              href={`/reservas?view=day&date=${day}`}
+              className="flex items-start justify-between gap-3 border-b border-[#3c342a]/70 px-4 py-3 transition-colors hover:bg-[#211f1b] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#c99555]/45"
+            >
+              <div className="min-w-0">
+                <p className="text-[0.95rem] font-semibold leading-tight text-[#f6f0e8]">{label.weekday}</p>
+                <p className="mt-0.5 text-sm text-[#b9aea1]">{label.compact}</p>
+              </div>
+              <div className="shrink-0 text-right">
+                <p className="text-sm font-semibold tabular-nums text-[#ffe2b6]">
+                  {events.length} {events.length === 1 ? 'reserva' : 'reservas'}
+                </p>
+                <p className="mt-0.5 text-xs text-[#9d9285]">{totalPax} pax</p>
+              </div>
+            </Link>
+
+            <div className="space-y-2.5 p-3">
+              {events.map((event) => {
+                const status = statusBadge(event.status);
+                return (
+                  <Link
+                    key={event.group_event_id}
+                    href={`/reservas/grupo/${event.group_event_id}?date=${event.event_date}`}
+                    className={`block rounded-xl border p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] transition duration-200 hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#c99555]/45 ${reservationCardClassName(event.status)}`}
+                  >
+                    <div className="flex items-start gap-3">
+                      <div className="w-12 shrink-0 rounded-lg border border-[#5b4934]/70 bg-[#151412]/80 px-2 py-1.5 text-center text-xs font-semibold tabular-nums text-[#d6a76e]">
+                        {event.entry_time ? event.entry_time.slice(0, 5) : '--:--'}
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-start gap-2">
+                          <h3 className="min-w-0 flex-1 break-words text-[0.95rem] font-semibold leading-tight text-[#f5eee4]">
+                            {event.group_name}
+                          </h3>
+                          <span className={`w-fit shrink-0 rounded-full border px-2 py-1 text-[0.66rem] font-semibold leading-none ${status.className}`}>
+                            {status.label}
+                          </span>
+                        </div>
+                        <p className="mt-2 text-sm text-[#b9aea1]">{event.total_pax ?? '-'} pax</p>
+                        <p className="mt-1 line-clamp-2 text-xs leading-relaxed text-[#8f8578]">
+                          {event.room_name ?? 'Sin sala asignada'}
+                        </p>
+                      </div>
+                    </div>
+                  </Link>
+                );
+              })}
+            </div>
+          </article>
+        );
+      })}
+    </section>
+  );
+}
+
 function MonthView({
   calendarStart,
   calendarEnd,
@@ -819,12 +932,15 @@ function MonthView({
 
   const refMonth = referenceMonth.getMonth();
   const metrics = getPeriodMetrics(eventsByDate);
+  const monthDays = getMonthDays(referenceMonth);
 
   return (
     <div className="space-y-5">
-      <section className="overflow-hidden rounded-2xl border border-[#4a3f32]/70 bg-[#181715]/95 shadow-[0_24px_80px_-56px_rgba(0,0,0,0.95)]">
-        <div className="overflow-x-auto">
-          <div className="min-w-[760px]">
+      <MobileMonthAgenda days={monthDays} eventsByDate={eventsByDate} />
+
+      <section className="hidden overflow-hidden rounded-2xl border border-[#4a3f32]/70 bg-[#181715]/95 shadow-[0_24px_80px_-56px_rgba(0,0,0,0.95)] md:block">
+        <div className="overflow-x-auto md:overflow-x-visible">
+          <div className="min-w-[760px] md:min-w-0">
             <div className="grid grid-cols-7 border-b border-[#3c342a]/70 bg-[#1b1916] text-center text-xs font-semibold uppercase tracking-[0.18em] text-[#bda37f]">
               {['LUN', 'MAR', 'MIÉ', 'JUE', 'VIE', 'SÁB', 'DOM'].map((d) => (
                 <span key={d} className="px-3 py-4">
