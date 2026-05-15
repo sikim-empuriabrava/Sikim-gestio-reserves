@@ -77,6 +77,10 @@ function formatDuration(totalMinutes: number) {
   return `${hours} h ${minutes.toString().padStart(2, '0')} min`;
 }
 
+function formatClients(value: number) {
+  return `${integerFormatter.format(value)} clientes`;
+}
+
 function buildHref(filters: HistoryFilters, overrides: Partial<Pick<HistoryFilters, 'range' | 'tab' | 'from' | 'to' | 'weekdays'>>) {
   const next = { ...filters, ...overrides };
   const params = new URLSearchParams();
@@ -246,7 +250,7 @@ export default async function HistoricoAforoPage({ searchParams }: PageProps) {
           </div>
           <div className="rounded-xl border border-slate-800/70 bg-slate-950/35 px-4 py-3 text-sm text-slate-300">
             <p className="font-semibold text-slate-100">Entradas registradas</p>
-            <p className="mt-1 text-xs text-slate-500">No equivale necesariamente a clientes unicos.</p>
+            <p className="mt-1 text-xs text-slate-500">Basado en entradas registradas. Una reentrada puede contar de nuevo.</p>
           </div>
         </div>
       </header>
@@ -351,9 +355,42 @@ export default async function HistoricoAforoPage({ searchParams }: PageProps) {
 
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <MetricTile label="Sesiones cerradas" value={integerFormatter.format(insights.closedSessions)} description={`Filtro: ${getWeekdayFilterLabel(filters.weekdays)}`} icon={CalendarDaysIcon} />
-        <MetricTile label="Entradas registradas" value={integerFormatter.format(insights.totalEntries)} description="No equivale necesariamente a clientes unicos." icon={UsersIcon} />
-        <MetricTile label="Pico maximo" value={integerFormatter.format(insights.rangePeak)} description={`Pico medio: ${integerFormatter.format(insights.averagePeak)}`} icon={ArrowTrendingUpIcon} />
-        <MetricTile label="Movimientos" value={integerFormatter.format(insights.totalMovements)} description={`Salidas: ${integerFormatter.format(insights.totalExits)}`} icon={QueueListIcon} />
+        <MetricTile
+          label="Clientes totales"
+          value={integerFormatter.format(insights.totalEntries)}
+          description="Basado en entradas registradas. Una reentrada puede contar de nuevo."
+          icon={UsersIcon}
+        />
+        <MetricTile
+          label="Media por sesión"
+          value={formatClients(insights.averageEntriesPerSession)}
+          description={`${integerFormatter.format(insights.closedSessions)} sesiones cerradas`}
+          icon={ChartBarIcon}
+        />
+        <MetricTile
+          label="Sesión con más clientes"
+          value={insights.bestByEntries ? formatClients(insights.bestByEntries.metrics.total_entries) : '-'}
+          description={insights.bestByEntries ? `${formatDate(insights.bestByEntries.session.opened_at)} · Apertura ${formatTime(insights.bestByEntries.session.opened_at)}` : 'Sin sesiones'}
+          icon={CalendarDaysIcon}
+        />
+        <MetricTile
+          label="Día con más clientes"
+          value={insights.bestOperationalDay ? formatClients(insights.bestOperationalDay.entries) : '-'}
+          description={insights.bestOperationalDay?.label ?? 'Sin sesiones'}
+          icon={QueueListIcon}
+        />
+        <MetricTile
+          label="Pico máximo"
+          value={integerFormatter.format(insights.rangePeak)}
+          description={insights.bestByPeak ? `personas dentro · ${formatDate(insights.bestByPeak.session.opened_at)}` : 'Sin sesiones'}
+          icon={ArrowTrendingUpIcon}
+        />
+        <MetricTile
+          label="Franja de mayor aforo medio"
+          value={insights.strongestAverageCapacitySlot?.label ?? '-'}
+          description={insights.strongestAverageCapacitySlot ? `${integerFormatter.format(insights.strongestAverageCapacitySlot.averageCount)} personas de media` : 'Sin datos suficientes'}
+          icon={ClockIcon}
+        />
       </div>
 
       {filters.tab === 'sessions' ? (

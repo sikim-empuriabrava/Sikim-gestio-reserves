@@ -112,7 +112,7 @@ export default async function CapacitySessionDetailPage({ params, searchParams }
           </div>
           <div className="rounded-xl border border-slate-800/70 bg-slate-950/35 px-4 py-3 text-sm text-slate-300">
             <p className="font-semibold text-slate-100">Entradas registradas</p>
-            <p className="mt-1 text-xs text-slate-500">No equivale necesariamente a clientes unicos.</p>
+            <p className="mt-1 text-xs text-slate-500">Basado en entradas registradas. Una reentrada puede contar de nuevo.</p>
           </div>
         </div>
       </header>
