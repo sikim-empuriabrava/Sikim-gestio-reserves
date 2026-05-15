@@ -1,12 +1,10 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useSearchParams } from 'next/navigation';
 import { createSupabaseBrowserClient } from '@/lib/supabase/browser';
 
-const DEFAULT_NEXT = '/reservas?view=week';
-const AFORO_NEXT = '/disco/aforo-en-directo';
-const AFORO_PWA_COOKIE = 'sikim_aforo_pwa=1';
+const DEFAULT_NEXT = '/';
 const OPERATIONS_EMAIL_DOMAIN = 'sikimempuriabrava.com';
 const USERNAME_PATTERN = /^[a-z0-9._-]+$/;
 
@@ -44,8 +42,19 @@ function normalizeOperationalUsername(rawValue: string): NormalizedOperationalUs
   };
 }
 
+function normalizeNextPath(value: string | null) {
+  if (!value || !value.startsWith('/') || value.startsWith('//')) {
+    return DEFAULT_NEXT;
+  }
+
+  if (value.startsWith('/auth/callback') || value.startsWith('/login')) {
+    return DEFAULT_NEXT;
+  }
+
+  return value;
+}
+
 export default function LoginPage() {
-  const router = useRouter();
   const searchParams = useSearchParams();
   const [isLoadingGoogle, setIsLoadingGoogle] = useState(false);
   const [isLoadingPassword, setIsLoadingPassword] = useState(false);
@@ -69,9 +78,7 @@ export default function LoginPage() {
   );
   const error = searchParams.get('error');
   const nextRaw = searchParams.get('next');
-  const [fallbackNext, setFallbackNext] = useState<string | null>(null);
-  const nextPath = nextRaw ?? fallbackNext;
-  const isPreparing = !nextRaw && !fallbackNext;
+  const nextPath = normalizeNextPath(nextRaw);
   const missingEnv = useMemo(() => {
     const missingRaw = searchParams.get('missing');
     const queryMissing = missingRaw
@@ -85,23 +92,8 @@ export default function LoginPage() {
   }, [searchParams, browserMissingEnv]);
 
   useEffect(() => {
-    const isStandalone =
-      window.matchMedia('(display-mode: standalone)').matches ||
-      ('standalone' in navigator && Boolean((navigator as Navigator & { standalone?: boolean }).standalone));
-    const hasAforoCookie = document.cookie.includes(AFORO_PWA_COOKIE);
-    setFallbackNext(isStandalone || hasAforoCookie ? AFORO_NEXT : DEFAULT_NEXT);
-  }, []);
-
-  useEffect(() => {
-    if (!nextRaw && fallbackNext) {
-      router.replace(`/login?next=${encodeURIComponent(fallbackNext)}`);
-    }
-  }, [nextRaw, router, fallbackNext]);
-
-  useEffect(() => {
     if (error === 'not_allowed') return;
     if (!supabase) return;
-    if (isPreparing || !nextPath) return;
 
     let cancelled = false;
 
@@ -124,13 +116,13 @@ export default function LoginPage() {
       cancelled = true;
       listener.subscription.unsubscribe();
     };
-  }, [supabase, nextPath, error, isPreparing]);
+  }, [supabase, nextPath, error]);
 
   const handleLogin = async () => {
-    if (isPreparing || !supabase) return;
+    if (!supabase) return;
 
     setIsLoadingGoogle(true);
-    const redirectTo = `${window.location.origin}/auth/callback?next=${encodeURIComponent(nextPath ?? DEFAULT_NEXT)}`;
+    const redirectTo = `${window.location.origin}/auth/callback?next=${encodeURIComponent(nextPath)}`;
 
     try {
       await supabase.auth.signInWithOAuth({
@@ -147,10 +139,10 @@ export default function LoginPage() {
   };
 
   const handleLoginSelectAccount = async () => {
-    if (isPreparing || !supabase) return;
+    if (!supabase) return;
 
     setIsLoadingGoogle(true);
-    const redirectTo = `${window.location.origin}/auth/callback?next=${encodeURIComponent(nextPath ?? DEFAULT_NEXT)}`;
+    const redirectTo = `${window.location.origin}/auth/callback?next=${encodeURIComponent(nextPath)}`;
 
     try {
       await supabase.auth.signInWithOAuth({
@@ -169,7 +161,7 @@ export default function LoginPage() {
 
   const handleOperationalLogin = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (isPreparing || !supabase) return;
+    if (!supabase) return;
 
     setPasswordLoginError(null);
     const usernameInfo = normalizeOperationalUsername(operationalUsername);
@@ -234,7 +226,7 @@ export default function LoginPage() {
       <button
         type="button"
         onClick={handleLogin}
-        disabled={isAnyLoading || isPreparing || !supabase}
+        disabled={isAnyLoading || !supabase}
         className="inline-flex items-center gap-2 rounded-xl bg-white px-4 py-3 text-sm font-semibold text-slate-900 shadow-lg transition hover:bg-slate-100 disabled:cursor-not-allowed"
       >
         <svg
@@ -249,13 +241,13 @@ export default function LoginPage() {
           <path fill="#FBBC05" d="M56.281 156.383c-2.756-8.123-4.351-16.827-4.351-25.829 0-8.994 1.595-17.698 4.206-25.82l-.073-1.73-40.663-31.58-1.334.635C4.9 88.152 0 108.62 0 130.554c0 21.935 4.9 42.402 13.929 58.495z" />
           <path fill="#EB4335" d="M130.55 50.479c24.55 0 41.05 10.61 50.479 19.468l36.844-35.97C195.259 12.91 165.798 0 130.55 0 79.49 0 35.393 29.3 13.929 72.06l40.208 31.75c10.59-31.477 39.891-54.33 76.413-54.33" />
         </svg>
-        {isPreparing ? 'Preparando…' : isLoadingGoogle ? 'Redirigiendo…' : 'Continuar con Google'}
+        {isLoadingGoogle ? 'Redirigiendo…' : 'Continuar con Google'}
       </button>
 
       <button
         type="button"
         onClick={handleLoginSelectAccount}
-        disabled={isAnyLoading || isPreparing || !supabase}
+        disabled={isAnyLoading || !supabase}
         className="inline-flex items-center gap-2 rounded-xl bg-slate-100 px-4 py-3 text-sm font-semibold text-slate-900 shadow-lg transition hover:bg-slate-200 disabled:cursor-not-allowed"
       >
         Elegir otra cuenta de Google
@@ -264,7 +256,7 @@ export default function LoginPage() {
       <button
         type="button"
         onClick={() => setShowPasswordLogin((prev) => !prev)}
-        disabled={isAnyLoading || isPreparing || !supabase}
+        disabled={isAnyLoading || !supabase}
         className="inline-flex items-center gap-2 rounded-xl border border-slate-700 bg-slate-900/80 px-4 py-3 text-sm font-semibold text-slate-100 shadow-lg transition hover:bg-slate-800 disabled:cursor-not-allowed"
       >
         {showPasswordLogin ? 'Ocultar usuario + contraseña' : 'Entrar con usuario y contraseña'}
@@ -281,7 +273,7 @@ export default function LoginPage() {
               onChange={(event) => setOperationalUsername(event.target.value)}
               placeholder="usuario.puerta"
               className="w-full rounded-lg border border-slate-700 bg-slate-950/80 px-3 py-2 text-sm text-white focus:border-slate-500 focus:outline-none"
-              disabled={isAnyLoading || isPreparing || !supabase}
+              disabled={isAnyLoading || !supabase}
             />
           </label>
           <label className="block space-y-1 text-left text-sm text-slate-300">
@@ -292,12 +284,12 @@ export default function LoginPage() {
               value={operationalPassword}
               onChange={(event) => setOperationalPassword(event.target.value)}
               className="w-full rounded-lg border border-slate-700 bg-slate-950/80 px-3 py-2 text-sm text-white focus:border-slate-500 focus:outline-none"
-              disabled={isAnyLoading || isPreparing || !supabase}
+              disabled={isAnyLoading || !supabase}
             />
           </label>
           <button
             type="submit"
-            disabled={isAnyLoading || isPreparing || !supabase}
+            disabled={isAnyLoading || !supabase}
             className="w-full rounded-lg bg-primary-500 px-4 py-2 text-sm font-semibold text-white transition hover:bg-primary-400 disabled:cursor-not-allowed disabled:opacity-60"
           >
             {isLoadingPassword ? 'Entrando…' : 'Entrar'}

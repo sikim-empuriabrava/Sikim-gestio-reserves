@@ -1,104 +1,71 @@
-# PWA limitada a Disco - Aforo en directo
+# PWA global segura
 
 ## Estado actual
 
-La experiencia PWA esta acotada exclusivamente a la ruta:
+Sikim se publica como PWA global de la app interna, no como una PWA limitada al modulo de Aforo.
+
+- Manifest principal: `/manifest.webmanifest`.
+- `start_url`: `/`.
+- `scope`: `/`.
+- Modo: `standalone`.
+- Iconos: assets estaticos de `public/branding/`.
+- Service Worker: `/aforo-sw.js`, registrado con scope `/`.
+
+El nombre del Service Worker conserva el nombre historico de Aforo por compatibilidad con instalaciones anteriores, pero su comportamiento es global y conservador.
+
+## Auth y permisos
+
+La PWA no habilita acceso anonimo. Cualquier pantalla interna sigue requiriendo:
+
+- sesion activa de Supabase;
+- usuario presente en `app_allowed_users`;
+- `is_active = true`;
+- permisos del modulo correspondiente.
+
+Sin sesion, las rutas internas redirigen a `/login`. Esto aplica tanto en navegador normal como en standalone/PWA.
+
+Si un usuario inicia sesion pero no esta allowlisted o esta inactivo, se devuelve a `/login?error=not_allowed` y el flujo de callback cierra la sesion para no mantenerlo dentro de una sesion sin permisos.
+
+La ruta raiz `/` es permission-aware:
+
+- admin y usuarios con Reservas: `/reservas?view=week`;
+- usuarios con Aforo segun la prioridad operativa actual: `/disco/aforo-en-directo`;
+- usuarios con Mantenimiento: `/mantenimiento`;
+- usuarios con Cocina: `/cocina`;
+- usuarios con Cheffing: `/cheffing`.
+
+Los usuarios con solo permisos de aforo (`view_live_capacity` o `manage_live_capacity`, sin permisos de Reservas, Cocina, Mantenimiento ni Cheffing, y sin rol admin) se envian tras login a:
 
 - `/disco/aforo-en-directo`
 
-Esto significa que Sikim no se convierte en una PWA global; la instalacion permanece parcial y limitada al modulo de Aforo.
+Admin y usuarios con permisos mixtos mantienen el flujo general existente.
 
-La PWA tampoco habilita acceso anonimo. Si se abre instalada sin sesion activa, el usuario debe iniciar sesion y volver a `/disco/aforo-en-directo`.
+## Cache
 
-## Acceso operativo restringido
+La PWA es online-first para datos privados.
 
-El uso operativo de puerta/aforo puede hacerse con un usuario/contrasena compartible y permisos limitados. Ese usuario sigue siendo una cuenta autenticada:
+El Service Worker no cachea:
 
-- debe iniciar sesion;
-- debe existir en `app_allowed_users`;
-- debe estar activo;
-- debe tener permisos adecuados;
-- `view_live_capacity` permite ver aforo en directo;
-- `manage_live_capacity` permite operar acciones (abrir/cerrar sesion y sumar/restar aforo).
+- navegaciones HTML;
+- respuestas de `/api/*`;
+- contenido de negocio;
+- imagenes servidas por optimizadores o rutas no estaticas.
 
-Evitar documentar este flujo como acceso publico o anonimo. La formulacion correcta es: acceso operativo restringido mediante usuario compartible con permisos limitados.
+Solo cachea assets estaticos seguros:
 
-El historico de aforo no forma parte de la PWA operativa y sigue restringido a admin en el codigo actual.
+- scripts, estilos y fuentes bajo `/_next/static/`;
+- imagenes de branding bajo `/branding/` y la ruta legacy de branding de Aforo;
+- `favicon.ico`.
 
-## Que incluye
+Las respuestas protegidas pasan por middleware con cabeceras `no-store` para reducir el riesgo de ver pantallas internas antiguas al cerrar sesion o reabrir la PWA. El middleware no fuerza `no-store` sobre assets publicos seguros como manifest, iconos, favicon, Service Worker o `/_next/static/`.
 
-- Manifest especifico de Aforo (`Sikim Aforo`) servido como recurso real estatico en:
-  - `/disco/aforo-en-directo/manifest.webmanifest`
-  - origen de archivo: `public/disco/aforo-en-directo/manifest.webmanifest`
-- `start_url` limitado a `/disco/aforo-en-directo`.
-- `scope` del manifest configurado como `/` para permitir el flujo instalado por `/login` y `/auth/callback`.
-- Modo de visualizacion `standalone`.
-- Iconos de instalacion PWA servidos desde assets estaticos reales en `public/branding/`:
-  - `/branding/sikim-app-icon-192.png` (192x192)
-  - `/branding/sikim-app-icon-512.png` (512x512)
-  - `/branding/sikim-app-icon-maskable-512.png` (512x512, `purpose: maskable`)
-  - Apple touch icon: `/branding/sikim-app-apple-180.png` (180x180) en metadata de la pagina de Aforo.
-- Service Worker minimo (`/aforo-sw.js`) con cache prudente de assets estaticos (`style`, `script`, `font`, `image`).
-- Registro del Service Worker solo al renderizar `/disco/aforo-en-directo`.
-- CTA propio de instalacion en la pantalla de Aforo (`Instalar app`), encapsulado en cliente y mostrado solo en `/disco/aforo-en-directo`.
-- En la UI operativa, las acciones de sesion (`Abrir sesion` / `Cerrar sesion`) quedan en una franja superior separada para no competir visualmente con los botones de conteo rapido.
-- En Android/Chrome, el CTA usa `beforeinstallprompt` (capturado con `preventDefault`) para disparar `prompt()` manualmente cuando el navegador lo permite.
-- En iPhone/Safari se mantiene el flujo manual nativo (`Compartir -> Anadir a pantalla de inicio`) con ayuda textual breve, sin forzar instalacion programatica.
-- Modo temporal de troubleshooting PWA: panel debug visible en desarrollo o activando `?pwaDebug=1` para diagnosticar `beforeinstallprompt`/estado de instalacion.
-- El icono de pestana (favicon global) usa branding real de Sikim desde rutas publicas:
-  - `/branding/sikim-app-logo.png`
-  - `/branding/sikim-app-logo.svg`
-- `/branding/` esta exento de middleware/auth para que el favicon global cargue tambien en `/login` y paginas publicas.
-- La PWA se mantiene parcial y limitada operativamente a Aforo: `start_url`, middleware, cookie/allowed paths, comportamiento de ruta, Service Worker y CTA de instalacion estan acotados a este flujo.
+## Aforo en PWA
 
-## Aislamiento visual de standalone
+La pantalla `/disco/aforo-en-directo` conserva:
 
-- El cliente de Aforo activa la clase `aforo-pwa-active` en `<html>` mientras la pantalla esta montada.
-- Los ajustes visuales de modo instalado se aplican unicamente cuando se cumplen ambas condiciones:
-  1. `display-mode: standalone`
-  2. `html.aforo-pwa-active`
-- Con esto se evita afectar futuras PWAs parciales o un standalone global de toda la app.
+- CTA de instalacion;
+- ajustes visuales propios de standalone;
+- permisos `view_live_capacity` y `manage_live_capacity`;
+- datos live online, sin modo offline privado.
 
-## Seguridad y cache del Service Worker
-
-- La PWA de Aforo no cachea HTML protegido de `/disco/aforo-en-directo`.
-- Las navegaciones HTML de Aforo no tienen fallback offline desde cache.
-- En offline la pantalla operativa puede no renderizarse, por decision deliberada de seguridad.
-- La limpieza de caches en `activate` se limita a claves propias del SW (`sikim-aforo-sw-*`) para no interferir con otras caches del mismo origen.
-- Las llamadas live (`GET/POST /api/disco/live-capacity`) siguen pasando por autenticacion y no se cachean.
-- El Service Worker evita interceptar `POST` y llamadas `/api/*` para no afectar autenticacion ni flujo de datos live.
-- El panel usa polling ligero solo mientras la app esta visible.
-
-## Que NO incluye (fuera de alcance)
-
-- No hay PWA global en todo Sikim.
-- No hay acceso anonimo/publico al aforo.
-- No hay PWA para `/disco/historico-aforo` ni para `/disco/historico-aforo/[sessionId]`.
-- No hay sincronizacion offline de negocio ni cola offline compleja.
-- No hay cache agresivo de APIs de datos live.
-- No hay push notifications.
-
-## Detalles tecnicos de scope
-
-1. El manifest de Aforo define:
-   - `start_url: /disco/aforo-en-directo`
-   - `scope: /`
-   - El `scope` amplio permite que una PWA instalada pueda completar `/login` y `/auth/callback` sin salirse del contexto instalado.
-2. El Service Worker se registra con:
-   - `scope: /disco/aforo-en-directo`
-3. Middleware y cookie PWA restringen las rutas permitidas del contexto instalado a `/login`, `/auth/callback`, `/disco/aforo-en-directo` y APIs minimas necesarias.
-4. El SW evita interceptar `POST` y llamadas `/api/*` para no afectar autenticacion ni flujo de datos live.
-
-## Limitacion real a tener en cuenta
-
-Algunas plataformas, especialmente iOS Safari, aplican variaciones en cuando muestran la opcion de instalacion y en como cachean recursos. El enfoque actual minimiza impacto global y mantiene el comportamiento operativo actual, pero la UX exacta de instalacion puede variar segun version de SO/navegador.
-
-## Evolucion futura sugerida (PWA general)
-
-Cuando se quiera una PWA global, habra que definir explicitamente:
-
-- manifest raiz unico para toda la app;
-- estrategia de cache por modulo;
-- politicas de actualizacion de SW;
-- soporte offline por caso de uso;
-- consideraciones de push y seguridad operativa.
+El historico de aforo sigue fuera del uso operativo de puerta y se mantiene restringido a admin.

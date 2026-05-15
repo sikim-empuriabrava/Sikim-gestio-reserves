@@ -15,7 +15,7 @@ export const dynamic = 'force-dynamic';
 export const metadata: Metadata = {
   title: 'Sikim Aforo',
   description: 'Control operativo de puerta para aforo en directo.',
-  manifest: '/disco/aforo-en-directo/manifest.webmanifest',
+  manifest: '/manifest.webmanifest',
   themeColor: '#020617',
   icons: {
     apple: [

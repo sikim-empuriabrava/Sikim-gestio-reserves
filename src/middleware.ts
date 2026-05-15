@@ -7,32 +7,20 @@ const PUBLIC_PATHS = [
   /^\/auth\/callback/,
   /^\/_next\//,
   /^\/branding\//,
+  /^\/manifest\.webmanifest$/,
+  /^\/disco\/aforo-en-directo\/manifest\.webmanifest$/,
+  /^\/aforo-sw\.js$/,
   /^\/api\/version$/,
   /^\/api\/_health\/env$/,
   /^\/favicon\.ico$/,
 ];
-const AFORO_PWA_COOKIE = 'sikim_aforo_pwa';
-const AFORO_PWA_ALLOWED_PATHS = [/^\/login$/, /^\/auth\/callback/, /^\/disco\/aforo-en-directo\/?$/];
-const AFORO_PWA_ALLOWED_API_PATHS = [/^\/api\/disco\/live-capacity$/, /^\/api\/version$/];
 
 export async function middleware(req: NextRequest) {
   const { pathname, search } = req.nextUrl;
   const isApiRoute = pathname.startsWith('/api/');
-  const isAforoPwaRequest = req.cookies.get(AFORO_PWA_COOKIE)?.value === '1';
-  const secFetchDest = req.headers.get('sec-fetch-dest');
-  const isDocumentNavigation = secFetchDest === 'document';
-  const isAforoPwaContextPath =
-    AFORO_PWA_ALLOWED_PATHS.some((pattern) => pattern.test(pathname)) ||
-    AFORO_PWA_ALLOWED_API_PATHS.some((pattern) => pattern.test(pathname));
-  const shouldClearAforoPwaCookie =
-    isAforoPwaRequest && !isAforoPwaContextPath && isDocumentNavigation;
 
   if (PUBLIC_PATHS.some((pattern) => pattern.test(pathname))) {
-    const response = setDebugHeader(NextResponse.next());
-    if (shouldClearAforoPwaCookie) {
-      clearAforoPwaCookie(response);
-    }
-    return response;
+    return setDebugHeader(NextResponse.next());
   }
 
   const redirectUrl = new URL('/login', req.url);
@@ -40,7 +28,9 @@ export async function middleware(req: NextRequest) {
     redirectUrl.searchParams.set('next', `${pathname}${search}`);
   }
 
-  const supabaseResponse = setDebugHeader(NextResponse.next({ request: { headers: req.headers } }));
+  const supabaseResponse = setDebugHeader(
+    NextResponse.next({ request: { headers: req.headers }, headers: createNoStoreHeaders() }),
+  );
   const missingSupabaseEnv = getMissingSupabaseEnv();
 
   if (missingSupabaseEnv.length > 0) {
@@ -62,17 +52,13 @@ export async function middleware(req: NextRequest) {
     if (isApiRoute) {
       const unauthorized = NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
       mergeCookies(supabaseResponse, unauthorized);
-      if (shouldClearAforoPwaCookie) {
-        clearAforoPwaCookie(unauthorized);
-      }
+      applyNoStoreHeaders(unauthorized);
       return setDebugHeader(unauthorized);
     }
 
     const response = NextResponse.redirect(redirectUrl);
     mergeCookies(supabaseResponse, response);
-    if (shouldClearAforoPwaCookie) {
-      clearAforoPwaCookie(response);
-    }
+    applyNoStoreHeaders(response);
 
     return setDebugHeader(response);
   };
@@ -82,6 +68,7 @@ export async function middleware(req: NextRequest) {
       const notAllowed = NextResponse.json({ error: 'Not allowed' }, { status: 403 });
       mergeCookies(supabaseResponse, notAllowed);
       clearAuthCookies(req, notAllowed);
+      applyNoStoreHeaders(notAllowed);
       return setDebugHeader(notAllowed);
     }
 
@@ -90,19 +77,8 @@ export async function middleware(req: NextRequest) {
     const response = NextResponse.redirect(url);
     mergeCookies(supabaseResponse, response);
     clearAuthCookies(req, response);
+    applyNoStoreHeaders(response);
 
-    return setDebugHeader(response);
-  };
-
-  const handlePwaForbidden = () => {
-    if (isApiRoute) {
-      const forbidden = NextResponse.json({ error: 'forbidden_pwa_scope' }, { status: 403 });
-      mergeCookies(supabaseResponse, forbidden);
-      return setDebugHeader(forbidden);
-    }
-
-    const response = NextResponse.redirect(new URL('/disco/aforo-en-directo', req.url));
-    mergeCookies(supabaseResponse, response);
     return setDebugHeader(response);
   };
 
@@ -118,18 +94,11 @@ export async function middleware(req: NextRequest) {
     pathname.startsWith('/api/menus');
   const isMantenimientoPath = pathname.startsWith('/mantenimiento');
   const isCocinaPath = pathname.startsWith('/cocina');
+  const isCheffingPath = pathname.startsWith('/cheffing') || pathname.startsWith('/api/cheffing');
   const isDiscoPath = pathname.startsWith('/disco') || pathname.startsWith('/api/disco');
 
   if (!user) {
     return handleUnauthorized();
-  }
-
-  const isAllowedAforoPwaPath = isApiRoute
-    ? AFORO_PWA_ALLOWED_API_PATHS.some((pattern) => pattern.test(pathname))
-    : AFORO_PWA_ALLOWED_PATHS.some((pattern) => pattern.test(pathname));
-
-  if (isAforoPwaRequest && !isAllowedAforoPwaPath) {
-    return handlePwaForbidden();
   }
 
   const requesterEmail =
@@ -165,12 +134,14 @@ export async function middleware(req: NextRequest) {
     if (isApiRoute) {
       const forbidden = NextResponse.json({ error: 'forbidden' }, { status: 403 });
       mergeCookies(supabaseResponse, forbidden);
+      applyNoStoreHeaders(forbidden);
       return setDebugHeader(forbidden);
     }
 
     const redirectTarget = getDefaultModulePath(allowedUser);
     const response = NextResponse.redirect(new URL(redirectTarget, req.url));
     mergeCookies(supabaseResponse, response);
+    applyNoStoreHeaders(response);
     return setDebugHeader(response);
   };
 
@@ -190,13 +161,13 @@ export async function middleware(req: NextRequest) {
     return handleForbidden();
   }
 
-  const canViewLiveCapacity = Boolean(allowedUser.view_live_capacity || allowedUser.manage_live_capacity);
-  if (isDiscoPath && !isAdminUser && !canViewLiveCapacity) {
+  if (isCheffingPath && !isAdminUser && !allowedUser.can_cheffing) {
     return handleForbidden();
   }
 
-  if (shouldClearAforoPwaCookie) {
-    clearAforoPwaCookie(supabaseResponse);
+  const canViewLiveCapacity = Boolean(allowedUser.view_live_capacity || allowedUser.manage_live_capacity);
+  if (isDiscoPath && !isAdminUser && !canViewLiveCapacity) {
+    return handleForbidden();
   }
 
   return supabaseResponse;
@@ -256,18 +227,6 @@ function mergeCookies(from: NextResponse, to: NextResponse) {
   });
 }
 
-function clearAforoPwaCookie(res: NextResponse) {
-  res.cookies.set({
-    name: AFORO_PWA_COOKIE,
-    value: '',
-    path: '/',
-    expires: new Date(0),
-    maxAge: 0,
-    sameSite: 'lax',
-    secure: process.env.NODE_ENV === 'production',
-  });
-}
-
 function getDefaultModulePath(allowedUser: {
   can_reservas?: boolean | null;
   can_mantenimiento?: boolean | null;
@@ -282,6 +241,21 @@ function getDefaultModulePath(allowedUser: {
   if (allowedUser?.can_cocina) return '/cocina';
   if (allowedUser?.can_cheffing) return '/cheffing';
   return '/';
+}
+
+function createNoStoreHeaders() {
+  return {
+    'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
+    Pragma: 'no-cache',
+    Expires: '0',
+  };
+}
+
+function applyNoStoreHeaders(response: NextResponse) {
+  const headers = createNoStoreHeaders();
+  Object.entries(headers).forEach(([key, value]) => {
+    response.headers.set(key, value);
+  });
 }
 
 function setDebugHeader(response: NextResponse) {
@@ -300,6 +274,7 @@ function handleConfigErrorResponse(
     const misconfigured = NextResponse.json({ error: 'config', missing: missingEnv }, { status: 500 });
     mergeCookies(supabaseResponse, misconfigured);
     clearAuthCookies(req, misconfigured);
+    applyNoStoreHeaders(misconfigured);
     return setDebugHeader(misconfigured);
   }
 
@@ -311,6 +286,7 @@ function handleConfigErrorResponse(
   const response = NextResponse.redirect(url);
   mergeCookies(supabaseResponse, response);
   clearAuthCookies(req, response);
+  applyNoStoreHeaders(response);
 
   return setDebugHeader(response);
 }
