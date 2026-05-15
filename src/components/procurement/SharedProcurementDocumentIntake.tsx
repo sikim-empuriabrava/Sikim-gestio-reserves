@@ -105,6 +105,14 @@ type SharedProcurementDocumentIntakeProps = {
   variant?: 'default' | 'warm';
 };
 
+function formatFileSize(size: number): string {
+  if (size < 1024) return `${size} B`;
+  const kb = size / 1024;
+  if (kb < 1024) return `${kb.toFixed(kb >= 10 ? 0 : 1)} KB`;
+  const mb = kb / 1024;
+  return `${mb.toFixed(mb >= 10 ? 1 : 2)} MB`;
+}
+
 export function SharedProcurementDocumentIntake({
   title = 'Entrada documental móvil',
   description = 'Sube una factura o albarán (foto, imagen o PDF) para crear un borrador revisable en Compras.',
@@ -317,6 +325,10 @@ export function SharedProcurementDocumentIntake({
           <p className="text-xs text-amber-200">
             Vista previa de cámara: esta imagen aún no se ha subido. Confirma para iniciar el intake real.
           </p>
+          <div className={isWarm ? 'rounded-xl border border-[#3c342a]/80 bg-[#151412]/70 p-3 text-sm text-[#d8cfc2]' : 'rounded-lg border border-slate-800 bg-slate-950/40 p-3 text-sm text-slate-200'}>
+            <p className="break-words font-semibold">{pendingCameraFile.name}</p>
+            <p className={isWarm ? 'mt-1 text-xs text-[#a99d90]' : 'mt-1 text-xs text-slate-400'}>{formatFileSize(pendingCameraFile.size)}</p>
+          </div>
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src={cameraPreviewUrl}
