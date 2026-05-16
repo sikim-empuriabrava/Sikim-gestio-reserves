@@ -148,7 +148,10 @@ export function SubrecipeDetailManager({
 
   const formatLineCost = (value: number | null) => {
     if (value === null || Number.isNaN(value)) return '—';
-    return value.toFixed(4);
+    return `${value.toLocaleString('es-ES', {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    })} €`;
   };
 
   const resolveDisplayCost = (costPerBase: number | null, dimension: UnitDimension | null) => {
@@ -861,7 +864,7 @@ export function SubrecipeDetailManager({
                         )}
                       </td>
                       <td className="px-4 py-3 text-slate-100">
-                        {lineCost === null || Number.isNaN(lineCost) ? '—' : `${formatLineCost(lineCost)} €`}
+                        {formatLineCost(lineCost)}
                       </td>
                       <td className="px-4 py-3">
                         <div className="flex gap-2">

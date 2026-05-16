@@ -799,12 +799,13 @@
   :root[data-theme="light"] .cheffing-dark-shell .table-wrapper,
   :root[data-theme="light"] .cheffing-dark-shell header[class*="rounded-2xl"],
   :root[data-theme="light"] .cheffing-dark-shell section[class*="rounded-2xl"],
+  :root[data-theme="light"] .cheffing-dark-shell form[class*="rounded-2xl"],
   :root[data-theme="light"] .cheffing-dark-shell article[class*="rounded-2xl"],
   :root[data-theme="light"] .cheffing-dark-shell div[class*="rounded-2xl"][class*="border"] {
-    border-color: rgb(210 190 161 / 0.90) !important;
+    border-color: rgb(214 191 158 / 0.92) !important;
     background:
-      radial-gradient(circle at 0% 0%, rgb(184 115 46 / 0.10), transparent 18rem),
-      linear-gradient(135deg, rgb(255 250 242 / 0.98), rgb(249 240 226 / 0.98) 54%, rgb(239 227 210 / 0.99)) !important;
+      radial-gradient(circle at 0% 0%, rgb(196 119 42 / 0.10), transparent 18rem),
+      linear-gradient(135deg, rgb(255 251 244 / 0.99), rgb(252 244 232 / 0.99) 58%, rgb(246 233 214 / 0.99)) !important;
     box-shadow:
       0 24px 72px -58px rgb(106 74 38 / 0.48),
       inset 0 1px 0 rgb(255 255 255 / 0.74) !important;
@@ -831,6 +832,12 @@
     background-color: #fff8ec !important;
   }
 
+  :root[data-theme="light"] .cheffing-dark-shell [class*="bg-gradient-to-br"][class*="slate"] {
+    background-image:
+      radial-gradient(circle at 0% 0%, rgb(196 119 42 / 0.10), transparent 18rem),
+      linear-gradient(135deg, rgb(255 251 244 / 0.99), rgb(252 244 232 / 0.99) 58%, rgb(246 233 214 / 0.99)) !important;
+  }
+
   :root[data-theme="light"] .cheffing-dark-shell [class*="bg-[#3a2a1b]"],
   :root[data-theme="light"] .cheffing-dark-shell [class*="bg-[#3a2413]"],
   :root[data-theme="light"] .cheffing-dark-shell [class*="bg-[#7d5932]"] {
@@ -840,9 +847,9 @@
   :root[data-theme="light"] .cheffing-dark-shell [class*="from-slate"],
   :root[data-theme="light"] .cheffing-dark-shell [class*="via-slate"],
   :root[data-theme="light"] .cheffing-dark-shell [class*="to-slate"] {
-    --tw-gradient-from: rgb(255 250 242 / 0.98) var(--tw-gradient-from-position) !important;
-    --tw-gradient-via: rgb(249 240 226 / 0.96) var(--tw-gradient-via-position) !important;
-    --tw-gradient-to: rgb(239 227 210 / 0.98) var(--tw-gradient-to-position) !important;
+    --tw-gradient-from: rgb(255 251 244 / 0.99) var(--tw-gradient-from-position) !important;
+    --tw-gradient-via: rgb(252 244 232 / 0.98) var(--tw-gradient-via-position) !important;
+    --tw-gradient-to: rgb(246 233 214 / 0.99) var(--tw-gradient-to-position) !important;
   }
 
   :root[data-theme="light"] .cheffing-dark-shell [class*="border-slate"],
