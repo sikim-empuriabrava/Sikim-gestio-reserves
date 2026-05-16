@@ -10,6 +10,7 @@ import { sanitizeProductIndicators } from '@/lib/cheffing/allergensHelpers';
 import { normalizeIngredient, normalizeSubrecipe } from '@/lib/cheffing/compat';
 import { addAllergens, addIndicators, type EffectiveAI } from '@/lib/cheffing/allergensIndicatorsOps';
 import { resolveConsumerDishHref } from '@/lib/cheffing/consumers';
+import { withSubrecipeLineCosts } from '@/lib/cheffing/subrecipeLineCosts';
 
 import {
   SubrecipeDetailManager,
@@ -40,12 +41,36 @@ export default async function CheffingElaboracionDetailPage({ params }: { params
   }
 
   const { data: items, error: itemsError } = await supabase
-    .from('v_cheffing_subrecipe_items_cost')
+    .from('cheffing_subrecipe_items')
     .select(
-      'id, subrecipe_id, ingredient_id, subrecipe_component_id, unit_code, quantity, notes, created_at, line_cost_total',
+      'id, subrecipe_id, ingredient_id, subrecipe_component_id, unit_code, quantity, notes, created_at, updated_at',
     )
     .eq('subrecipe_id', params.id)
     .order('created_at', { ascending: true });
+  const ingredientCostIds = Array.from(
+    new Set((items ?? []).map((item) => item.ingredient_id).filter((id): id is string => Boolean(id))),
+  );
+  const subrecipeCostIds = Array.from(
+    new Set(
+      (items ?? [])
+        .map((item) => item.subrecipe_component_id)
+        .filter((id): id is string => Boolean(id)),
+    ),
+  );
+  const { data: ingredientCosts, error: ingredientCostsError } =
+    ingredientCostIds.length === 0
+      ? { data: [], error: null }
+      : await supabase
+          .from('v_cheffing_ingredients_cost')
+          .select('id, purchase_unit_dimension, cost_net_per_base')
+          .in('id', ingredientCostIds);
+  const { data: subrecipeCosts, error: subrecipeCostsError } =
+    subrecipeCostIds.length === 0
+      ? { data: [], error: null }
+      : await supabase
+          .from('v_cheffing_subrecipe_cost')
+          .select('id, output_unit_dimension, cost_net_per_base')
+          .in('id', subrecipeCostIds);
   const { data: ingredients, error: ingredientsError } = await supabase
     .from('cheffing_ingredients')
     .select('*')
@@ -82,6 +107,14 @@ export default async function CheffingElaboracionDetailPage({ params }: { params
       error: itemsError,
     });
     throw new Error('No se pudieron cargar las líneas de la elaboración.');
+  }
+
+  if (ingredientCostsError || subrecipeCostsError) {
+    console.warn('[cheffing/elaboraciones] Failed to calculate some subrecipe line costs', {
+      subrecipeId: params.id,
+      ingredientCostsError,
+      subrecipeCostsError,
+    });
   }
 
   if (
@@ -188,7 +221,14 @@ export default async function CheffingElaboracionDetailPage({ params }: { params
     };
   });
 
-  const normalizedItems = (items ?? []).map((item) => {
+  const itemsWithCosts = withSubrecipeLineCosts({
+    items: items ?? [],
+    units: units ?? [],
+    ingredientCosts: ingredientCostsError ? [] : (ingredientCosts ?? []),
+    subrecipeCosts: subrecipeCostsError ? [] : (subrecipeCosts ?? []),
+  });
+
+  const normalizedItems = itemsWithCosts.map((item) => {
     const ingredient = item.ingredient_id ? ingredientLookup.get(item.ingredient_id) : null;
     const subrecipeComponent = item.subrecipe_component_id
       ? subrecipeLookup.get(item.subrecipe_component_id)
