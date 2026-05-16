@@ -18,9 +18,9 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
 
   const supabase = createSupabaseAdminClient();
   const { data, error } = await supabase
-    .from('cheffing_subrecipe_items')
+    .from('v_cheffing_subrecipe_items_cost')
     .select(
-      'id, subrecipe_id, ingredient_id, subrecipe_component_id, unit_code, quantity, notes, created_at, updated_at',
+      'id, subrecipe_id, ingredient_id, subrecipe_component_id, unit_code, quantity, notes, created_at, updated_at, line_cost_total',
     )
     .eq('subrecipe_id', params.id)
     .order('created_at', { ascending: true });
@@ -35,8 +35,7 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
     return serverError;
   }
 
-  const normalized = (data ?? []).map((item) => ({ ...item, line_cost_total: null }));
-  const response = NextResponse.json({ data: normalized });
+  const response = NextResponse.json({ data: data ?? [] });
   mergeResponseCookies(access.supabaseResponse, response);
   return response;
 }
