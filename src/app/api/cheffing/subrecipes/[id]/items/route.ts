@@ -6,6 +6,7 @@ import { requireCheffingRouteAccess } from '@/lib/cheffing/requireCheffingRoute'
 import { mapCheffingPostgresError } from '@/lib/cheffing/postgresErrors';
 import { subrecipeItemSchema } from '@/lib/cheffing/schemas';
 import { wouldCreateSubrecipeCycle } from '@/lib/cheffing/subrecipeCycles';
+import { withSubrecipeLineCosts } from '@/lib/cheffing/subrecipeLineCosts';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -18,9 +19,9 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
 
   const supabase = createSupabaseAdminClient();
   const { data, error } = await supabase
-    .from('v_cheffing_subrecipe_items_cost')
+    .from('cheffing_subrecipe_items')
     .select(
-      'id, subrecipe_id, ingredient_id, subrecipe_component_id, unit_code, quantity, notes, created_at, updated_at, line_cost_total',
+      'id, subrecipe_id, ingredient_id, subrecipe_component_id, unit_code, quantity, notes, created_at, updated_at',
     )
     .eq('subrecipe_id', params.id)
     .order('created_at', { ascending: true });
@@ -35,7 +36,52 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
     return serverError;
   }
 
-  const response = NextResponse.json({ data: data ?? [] });
+  const ingredientCostIds = Array.from(
+    new Set((data ?? []).map((item) => item.ingredient_id).filter((id): id is string => Boolean(id))),
+  );
+  const subrecipeCostIds = Array.from(
+    new Set(
+      (data ?? [])
+        .map((item) => item.subrecipe_component_id)
+        .filter((id): id is string => Boolean(id)),
+    ),
+  );
+
+  const { data: units, error: unitsError } = await supabase
+    .from('cheffing_units')
+    .select('code, dimension, to_base_factor');
+  const { data: ingredientCosts, error: ingredientCostsError } =
+    ingredientCostIds.length === 0
+      ? { data: [], error: null }
+      : await supabase
+          .from('v_cheffing_ingredients_cost')
+          .select('id, purchase_unit_dimension, cost_net_per_base')
+          .in('id', ingredientCostIds);
+  const { data: subrecipeCosts, error: subrecipeCostsError } =
+    subrecipeCostIds.length === 0
+      ? { data: [], error: null }
+      : await supabase
+          .from('v_cheffing_subrecipe_cost')
+          .select('id, output_unit_dimension, cost_net_per_base')
+          .in('id', subrecipeCostIds);
+
+  if (unitsError || ingredientCostsError || subrecipeCostsError) {
+    console.warn('[api/cheffing/subrecipes/:id/items][GET] Failed to calculate some line costs', {
+      subrecipeId: params.id,
+      unitsError,
+      ingredientCostsError,
+      subrecipeCostsError,
+    });
+  }
+
+  const itemsWithCosts = withSubrecipeLineCosts({
+    items: data ?? [],
+    units: unitsError ? [] : (units ?? []),
+    ingredientCosts: ingredientCostsError ? [] : (ingredientCosts ?? []),
+    subrecipeCosts: subrecipeCostsError ? [] : (subrecipeCosts ?? []),
+  });
+
+  const response = NextResponse.json({ data: itemsWithCosts });
   mergeResponseCookies(access.supabaseResponse, response);
   return response;
 }
