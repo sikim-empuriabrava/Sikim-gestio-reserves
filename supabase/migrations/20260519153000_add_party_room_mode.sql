@@ -552,8 +552,6 @@ with (security_invoker = true) as
     ge.has_private_party,
     r.id as room_id,
     r.name as room_name,
-    pr.id as party_room_id,
-    pr.name as party_room_name,
     gra.total_pax as room_total_pax,
     gra.override_capacity as room_override_capacity,
     gsp.recommended_waiters,
@@ -569,7 +567,9 @@ with (security_invoker = true) as
     ge.invoice_data,
     ge.service_outcome,
     ge.service_outcome_notes,
-    ge.event_mode
+    ge.event_mode,
+    pr.id as party_room_id,
+    pr.name as party_room_name
    from ((((public.group_events ge
      left join public.group_room_allocations gra on ((gra.group_event_id = ge.id)))
      left join public.rooms r on ((r.id = gra.room_id)))
