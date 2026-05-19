@@ -705,6 +705,7 @@ RLS: habilitado
 | `service_outcome_notes` | `text` | Sí |  |
 | `menu_id` | `uuid` | Sí |  |
 | `event_mode` | `text` | No | `'dinner'::text` |
+| `party_room_id` | `uuid` | Sí |  |
 
 ### group_room_allocations
 RLS: habilitado
