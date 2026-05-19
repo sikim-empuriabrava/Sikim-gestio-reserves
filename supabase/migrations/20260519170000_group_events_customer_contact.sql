@@ -3,11 +3,6 @@ alter table public.group_events
   add column if not exists customer_phone text,
   add column if not exists customer_email text;
 
-update public.group_events
-set customer_name = name
-where customer_name is null
-  and name is not null;
-
 create or replace function public.create_group_event_with_cheffing_offerings(
   p_payload jsonb
 )
