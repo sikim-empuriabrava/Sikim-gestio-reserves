@@ -140,7 +140,10 @@ const WEEKDAY_LABELS: Record<WeekdayValue, string> = {
 
 const HISTORY_LIMIT_DEFAULT = 300;
 const CHART_SESSION_LIMIT = 40;
+const CAPACITY_EVENTS_PAGE_SIZE = 1000;
 const LOCAL_DATE_REGEX = /^\d{4}-\d{2}-\d{2}$/;
+
+type SupabaseAdminClient = ReturnType<typeof createSupabaseAdminClient>;
 
 type LocalDateParts = {
   year: number;
@@ -733,6 +736,41 @@ function buildInsights(itemsWithEvents: Array<CapacitySessionHistoryItem & { eve
   };
 }
 
+async function fetchCapacityEventsBySessionIds(
+  supabase: SupabaseAdminClient,
+  sessionIds: string[],
+): Promise<EventRow[]> {
+  if (sessionIds.length === 0) return [];
+
+  const events: EventRow[] = [];
+  let from = 0;
+
+  while (true) {
+    const to = from + CAPACITY_EVENTS_PAGE_SIZE - 1;
+    const { data, error } = await supabase
+      .from('discotheque_capacity_events')
+      .select('*')
+      .in('session_id', sessionIds)
+      .order('created_at', { ascending: true })
+      .range(from, to);
+
+    if (error) {
+      throw new Error(error.message);
+    }
+
+    const batch = (data ?? []) as EventRow[];
+    events.push(...batch);
+
+    if (batch.length < CAPACITY_EVENTS_PAGE_SIZE) {
+      break;
+    }
+
+    from += CAPACITY_EVENTS_PAGE_SIZE;
+  }
+
+  return events;
+}
+
 export async function listClosedCapacitySessionsWithMetrics(params?: {
   range?: HistoryRange;
   limit?: number;
@@ -801,17 +839,7 @@ export async function getCapacityHistoryDataset(params: {
   }
 
   const sessionIds = sessions.map((session) => session.id);
-  const { data: eventsData, error: eventsError } = await supabase
-    .from('discotheque_capacity_events')
-    .select('*')
-    .in('session_id', sessionIds)
-    .order('created_at', { ascending: true });
-
-  if (eventsError) {
-    throw new Error(eventsError.message);
-  }
-
-  const events = (eventsData ?? []) as EventRow[];
+  const events = await fetchCapacityEventsBySessionIds(supabase, sessionIds);
   const eventsBySession = groupEventsBySession(events);
   const itemsWithEvents = sessions.map((session) => {
     const sessionEvents = eventsBySession.get(session.id) ?? [];
@@ -862,17 +890,7 @@ export async function getClosedCapacitySessionDetail(params: {
 
   const session = sessionData as SessionRow;
 
-  const { data: eventsData, error: eventsError } = await supabase
-    .from('discotheque_capacity_events')
-    .select('*')
-    .eq('session_id', session.id)
-    .order('created_at', { ascending: true });
-
-  if (eventsError) {
-    throw new Error(eventsError.message);
-  }
-
-  const events = (eventsData ?? []) as EventRow[];
+  const events = await fetchCapacityEventsBySessionIds(supabase, [session.id]);
 
   return {
     session,
