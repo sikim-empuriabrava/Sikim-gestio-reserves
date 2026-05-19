@@ -18,6 +18,9 @@ export const DONENESS_ORDER = ['crudo', 'poco', 'al_punto', 'hecho', 'muy_hecho'
 export type ReservationRow = {
   id: string;
   name: string;
+  customer_name: string | null;
+  customer_phone: string | null;
+  customer_email: string | null;
   status: 'confirmed' | 'completed' | string;
   event_date: string;
   entry_time: string | null;
@@ -212,7 +215,7 @@ export async function getReportData(from: string, to: string): Promise<ReportDat
   const { data: reservationsData, error } = await supabase
     .from('group_events')
     .select(
-      'id, name, status, event_date, entry_time, adults, children, total_pax, event_mode, party_room_id, party_room:rooms!group_events_party_room_id_fkey(name), has_private_dining_room, has_private_party, second_course_type, menu_text, allergens_and_diets, extras, setup_notes, invoice_data, service_outcome, service_outcome_notes',
+      'id, name, customer_name, customer_phone, customer_email, status, event_date, entry_time, adults, children, total_pax, event_mode, party_room_id, party_room:rooms!group_events_party_room_id_fkey(name), has_private_dining_room, has_private_party, second_course_type, menu_text, allergens_and_diets, extras, setup_notes, invoice_data, service_outcome, service_outcome_notes',
     )
     .in('status', ['confirmed', 'completed'])
     .gte('event_date', from)

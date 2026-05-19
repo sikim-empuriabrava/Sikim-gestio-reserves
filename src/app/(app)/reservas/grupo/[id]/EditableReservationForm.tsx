@@ -60,6 +60,9 @@ type ExistingOfferingSelectionDoneness = {
 type EditableReservation = {
   id: string;
   name: string;
+  customer_name: string | null;
+  customer_phone: string | null;
+  customer_email: string | null;
   event_date: string;
   entry_time: string;
   adults: number | null;
@@ -671,6 +674,11 @@ export function EditableReservationForm({
 
     startTransition(async () => {
       try {
+        if (!form.name.trim()) {
+          setError('Indica el nombre de la reserva.');
+          return;
+        }
+
         if (!isRoomSelectionValid) {
           setError(
             shouldUseDinnerRoom ? 'Selecciona una sala de restaurante para continuar.' : 'La sala de cena no es válida.',
@@ -981,8 +989,11 @@ export function EditableReservationForm({
           </div>
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
             <div className="space-y-2">
-              <label className="text-sm font-medium text-slate-200">Nombre</label>
-              <input type="text" value={form.name} onChange={(e) => handleChange('name', e.target.value)} className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-100 focus:outline-none focus:ring-2 focus:ring-emerald-500/60" />
+              <label className="text-sm font-medium text-slate-200">Nombre de la reserva</label>
+              <input type="text" value={form.name} onChange={(e) => handleChange('name', e.target.value)} required className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-100 focus:outline-none focus:ring-2 focus:ring-emerald-500/60" />
+              <p className="text-xs text-slate-500">
+                Identifica el evento en el calendario interno, Google Calendar e informes.
+              </p>
             </div>
             <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
               <div className="space-y-2">
@@ -992,6 +1003,44 @@ export function EditableReservationForm({
               <div className="space-y-2">
                 <label className="text-sm font-medium text-slate-200">Hora</label>
                 <input type="time" value={form.entry_time} onChange={(e) => handleChange('entry_time', e.target.value)} className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-100 focus:outline-none focus:ring-2 focus:ring-emerald-500/60" />
+              </div>
+            </div>
+          </div>
+
+          <div className="space-y-3 rounded-xl border border-slate-800 bg-slate-950/30 p-4">
+            <div>
+              <h3 className="text-sm font-semibold text-slate-100">Datos del cliente/contacto</h3>
+              <p className="mt-1 text-xs leading-5 text-slate-500">
+                Persona que gestiona la reserva. Estos datos serviran para contacto y futuro CRM.
+              </p>
+            </div>
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-slate-200">Nombre del cliente/contacto</label>
+                <input
+                  type="text"
+                  value={form.customer_name ?? ''}
+                  onChange={(e) => handleChange('customer_name', e.target.value)}
+                  className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-100 focus:outline-none focus:ring-2 focus:ring-emerald-500/60"
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-slate-200">Telefono</label>
+                <input
+                  type="tel"
+                  value={form.customer_phone ?? ''}
+                  onChange={(e) => handleChange('customer_phone', e.target.value)}
+                  className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-100 focus:outline-none focus:ring-2 focus:ring-emerald-500/60"
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-slate-200">Email</label>
+                <input
+                  type="email"
+                  value={form.customer_email ?? ''}
+                  onChange={(e) => handleChange('customer_email', e.target.value)}
+                  className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-100 focus:outline-none focus:ring-2 focus:ring-emerald-500/60"
+                />
               </div>
             </div>
           </div>

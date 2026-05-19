@@ -14,6 +14,19 @@ El endpoint recibe `groupEventId`, lee `v_group_events_calendar_sync` y decide l
 Despues carga datos de `group_events`, sala de cena desde `group_room_allocations`, zona de fiesta desde `group_events.party_room_id`
 y nombres de ofertas desde `group_event_offerings.display_name_snapshot`.
 
+## Nombre de reserva y cliente/contacto
+
+`group_events.name` es el nombre operativo de la reserva. Identifica el evento concreto para el equipo y se usa como
+nombre principal en el calendario interno, Google Calendar e informes. Ejemplos: `Cumpleanos Laura`,
+`Graduacion INS Castello`, `Empresa Garcia`.
+
+Los datos de cliente/contacto viven separados en `group_events.customer_name`, `group_events.customer_phone` y
+`group_events.customer_email`. Representan la persona que gestiona la reserva y quedan preparados como base futura de
+CRM, sin crear todavia una tabla `customers`.
+
+Google Calendar usa el nombre de reserva en el titulo. Los datos de cliente/contacto, cuando existen, se anaden a la
+descripcion y se omiten si estan vacios.
+
 ## Modalidades internas
 
 `group_events.event_mode` admite:
@@ -74,7 +87,7 @@ La descripcion mantiene la informacion operativa, pero omite lineas o secciones 
 - raya larga
 - `n/a`
 
-Se mantienen los datos poblados de grupo, pax, hora de entrada, sala/zona, oferta, menu/carta, segundo plato legacy, alergenos, notas de cocina, montaje, facturacion, deposito, uso privado, estado y `Group ID`.
+Se mantienen los datos poblados de grupo, cliente/contacto, telefono, email, pax, hora de entrada, sala/zona, oferta, menu/carta, segundo plato legacy, alergenos, notas de cocina, montaje, facturacion, deposito, uso privado, estado y `Group ID`.
 
 Los campos booleanos de privado solo aparecen si son `true`; no se muestran bloques de "No" para casos normales.
 

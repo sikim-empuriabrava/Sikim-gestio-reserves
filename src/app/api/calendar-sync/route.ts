@@ -28,6 +28,9 @@ type CalendarSyncRow = {
 
 type GroupEventCalendarDetails = {
   name: string | null;
+  customer_name: string | null;
+  customer_phone: string | null;
+  customer_email: string | null;
   total_pax: number | null;
   adults: number | null;
   children: number | null;
@@ -184,6 +187,10 @@ function formatReservationCalendarDescription({
     `Entrada: ${hhmm}`,
   ];
 
+  appendLineIfValue(lines, 'Cliente/contacto', groupEvent?.customer_name);
+  appendLineIfValue(lines, 'Telefono', groupEvent?.customer_phone);
+  appendLineIfValue(lines, 'Email', groupEvent?.customer_email);
+
   appendLineIfValue(lines, 'Sala cena', salaZona);
   if (isPrivatePartyOnly) {
     appendLineIfValue(lines, 'Modalidad', 'Solo fiesta privada');
@@ -313,7 +320,7 @@ export async function POST(req: NextRequest) {
     const { data: groupEvent, error: groupEventError } = await supabase
       .from('group_events')
       .select(
-        'name, total_pax, adults, children, event_mode, party_room_id, event_date, entry_time, menu_text, second_course_type, allergens_and_diets, setup_notes, extras, invoice_data, deposit_amount, deposit_status, has_private_dining_room, has_private_party, status'
+        'name, customer_name, customer_phone, customer_email, total_pax, adults, children, event_mode, party_room_id, event_date, entry_time, menu_text, second_course_type, allergens_and_diets, setup_notes, extras, invoice_data, deposit_amount, deposit_status, has_private_dining_room, has_private_party, status'
       )
       .eq('id', row.group_event_id)
       .single();
