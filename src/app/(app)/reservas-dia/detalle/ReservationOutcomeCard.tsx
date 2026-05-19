@@ -28,6 +28,7 @@ type ReservationOutcomeCardProps = {
   groupName: string;
   entryTime: string | null;
   totalPax: number | null;
+  eventMode?: 'dinner' | 'private_party_only' | null;
   adults?: number | null;
   childrenCount?: number | null;
   roomName: string | null;
@@ -50,6 +51,7 @@ export function ReservationOutcomeCard({
   groupName,
   entryTime,
   totalPax,
+  eventMode,
   adults,
   childrenCount,
   roomName,
@@ -119,6 +121,7 @@ export function ReservationOutcomeCard({
   const paxLabel = paxValue !== null ? `${paxValue} pax` : '— pax';
 
   const showServiceNotes = currentOutcome !== 'normal';
+  const isPrivatePartyOnly = eventMode === 'private_party_only';
 
   return (
     <div className={`space-y-4 rounded-2xl border p-5 shadow-[0_18px_70px_-58px_rgba(0,0,0,0.95)] transition-colors ${cardClass}`}>
@@ -130,6 +133,7 @@ export function ReservationOutcomeCard({
           <div className="flex flex-wrap gap-2 text-xs text-[#b9aea1]">
             {hasPrivateDiningRoom && <span className="rounded-full border border-[#4a3f32]/70 bg-[#24221f]/70 px-2 py-0.5">Sala privada</span>}
             {hasPrivateParty && <span className="rounded-full border border-[#4a3f32]/70 bg-[#24221f]/70 px-2 py-0.5">Fiesta privada</span>}
+            {isPrivatePartyOnly && <span className="rounded-full border border-amber-500/40 bg-amber-500/10 px-2 py-0.5 text-amber-100">Solo fiesta privada</span>}
           </div>
         </div>
         <div className="flex flex-col items-start gap-2 sm:items-end sm:text-right">
@@ -158,19 +162,25 @@ export function ReservationOutcomeCard({
         <div className="mt-4 space-y-4">
           <div className="grid gap-3 text-sm text-[#d8cfc2] md:grid-cols-2">
             <div className="space-y-2">
-              {menuText && (
+              {isPrivatePartyOnly && (
+                <div>
+                  <p className="text-xs uppercase tracking-wide text-[#9d9285]">Modalidad</p>
+                  <div className="mt-1 rounded-xl border border-[#4a3f32]/60 bg-[#12110f]/75 px-3 py-2 text-sm whitespace-pre-line">Solo fiesta privada</div>
+                </div>
+              )}
+              {!isPrivatePartyOnly && menuText && (
                 <div>
                   <p className="text-xs uppercase tracking-wide text-[#9d9285]">Notas de servicio</p>
                   <div className="mt-1 rounded-xl border border-[#4a3f32]/60 bg-[#12110f]/75 px-3 py-2 text-sm whitespace-pre-line">{menuText}</div>
                 </div>
               )}
-              {secondCourseType && (
+              {!isPrivatePartyOnly && secondCourseType && (
                 <div>
                   <p className="text-xs uppercase tracking-wide text-[#9d9285]">Segundo plato</p>
                   <div className="mt-1 rounded-xl border border-[#4a3f32]/60 bg-[#12110f]/75 px-3 py-2 text-sm whitespace-pre-line">{secondCourseType}</div>
                 </div>
               )}
-              {allergensAndDiets && (
+              {!isPrivatePartyOnly && allergensAndDiets && (
                 <div>
                   <p className="text-xs uppercase tracking-wide text-[#9d9285]">Alergias y dietas</p>
                   <div className="mt-1 rounded-xl border border-[#4a3f32]/60 bg-[#12110f]/75 px-3 py-2 text-sm whitespace-pre-line">{allergensAndDiets}</div>
@@ -178,7 +188,7 @@ export function ReservationOutcomeCard({
               )}
             </div>
             <div className="space-y-2">
-              {extras && (
+              {!isPrivatePartyOnly && extras && (
                 <div>
                   <p className="text-xs uppercase tracking-wide text-[#9d9285]">Extras (notas cocina)</p>
                   <div className="mt-1 rounded-xl border border-[#4a3f32]/60 bg-[#12110f]/75 px-3 py-2 text-sm whitespace-pre-line">{extras}</div>

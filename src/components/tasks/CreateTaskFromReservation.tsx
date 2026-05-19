@@ -82,7 +82,11 @@ function buildDescription(reservation: TodayGroupEvent) {
     descriptionParts.push(`Estado: ${reservation.status.trim()}`);
   }
 
-  if (reservation.menu_text?.trim()) {
+  if (reservation.event_mode === 'private_party_only') {
+    descriptionParts.push('Modalidad: Solo fiesta privada');
+  }
+
+  if (reservation.event_mode !== 'private_party_only' && reservation.menu_text?.trim()) {
     descriptionParts.push(`Menú: ${reservation.menu_text.trim()}`);
   }
 

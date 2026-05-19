@@ -33,6 +33,12 @@ Si no hay oferta vinculada, el titulo no anade separadores vacios:
 Garcia · 28 pax · 21:00
 ```
 
+Para reservas internas con `event_mode = private_party_only`, el titulo usa la modalidad como oferta:
+
+```txt
+Garcia · 40 pax · 23:30 · Solo fiesta privada
+```
+
 El titulo empieza directamente por el nombre/grupo guardado en la reserva. No se anade el prefijo `Reserva`.
 
 ### Descripcion
@@ -51,6 +57,9 @@ La descripcion mantiene la informacion operativa, pero omite lineas o secciones 
 Se mantienen los datos poblados de grupo, pax, hora de entrada, sala/zona, oferta, menu/carta, segundo plato legacy, alergenos, notas de cocina, montaje, facturacion, deposito, uso privado, estado y `Group ID`.
 
 Los campos booleanos de privado solo aparecen si son `true`; no se muestran bloques de "No" para casos normales.
+
+En `private_party_only`, Calendar muestra `Modalidad: Solo fiesta privada`, no sincroniza bloques de menu/comida y sigue
+incluyendo sala/zona, montaje, facturacion, deposito, uso privado, estado y `Group ID` cuando existan.
 
 ## Borradores de reservas
 
@@ -100,6 +109,9 @@ Un `pending` sin `calendar_event_id` tampoco se sincroniza con Google Calendar p
 Si una reserva previamente sincronizada se edita a `draft`, `pending` o `cancelled`, la vista devuelve `delete` y `/api/calendar-sync` borra el evento externo y limpia `calendar_event_id`.
 
 Una reserva pasa a ser sincronizable cuando su estado es `confirmed` o `completed`. Si un borrador pasa a `confirmed`, `/api/calendar-sync` crea el evento porque no hay `calendar_event_id`.
+
+Una reserva `private_party_only` se comporta igual que cualquier otra reserva para borradores: no se sincroniza si esta
+en `draft` y si esta `confirmed` o `completed` se crea/actualiza en Google Calendar.
 
 ## Limitaciones actuales
 

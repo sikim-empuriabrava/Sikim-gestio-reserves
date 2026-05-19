@@ -449,6 +449,7 @@ function ReservationCard({
     reservation.children ? `${reservation.children} niños` : null,
   ].filter(Boolean);
   const flags = [
+    reservation.event_mode === 'private_party_only' ? 'Solo fiesta privada' : null,
     reservation.has_private_dining_room ? 'Comedor privado' : null,
     reservation.has_private_party ? 'Fiesta privada' : null,
   ].filter(Boolean);
@@ -483,7 +484,14 @@ function ReservationCard({
           <FieldPill label="Tipo" value={flags.length > 0 ? flags.join(' / ') : null} />
         </View>
 
-        {offerings.length > 0 ? (
+        {reservation.event_mode === 'private_party_only' ? (
+          <View>
+            <Text style={styles.sectionTitle} minPresenceAhead={70}>
+              Modalidad
+            </Text>
+            <TextSection title="Modalidad" value="Solo fiesta privada" />
+          </View>
+        ) : offerings.length > 0 ? (
           <View>
             <Text style={styles.sectionTitle} minPresenceAhead={70}>
               Oferta y selecciones
@@ -508,8 +516,12 @@ function ReservationCard({
         )}
 
         <View style={styles.fieldGrid}>
-          <TextSection title="Intolerancias / alergias" value={reservation.allergens_and_diets} />
-          <TextSection title="Notas cocina" value={reservation.extras} />
+          {reservation.event_mode !== 'private_party_only' ? (
+            <>
+              <TextSection title="Intolerancias / alergias" value={reservation.allergens_and_diets} />
+              <TextSection title="Notas cocina" value={reservation.extras} />
+            </>
+          ) : null}
           <TextSection title="Notas sala / montaje" value={reservation.setup_notes} />
           <TextSection title="Notas de servicio" value={reservation.service_outcome_notes} />
           <TextSection title="Facturación" value={reservation.invoice_data} />

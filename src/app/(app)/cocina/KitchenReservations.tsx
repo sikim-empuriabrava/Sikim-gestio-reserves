@@ -47,6 +47,7 @@ export function KitchenReservations({ reservations }: Props) {
         const statusBadge = getStatusBadge(reservation.status);
         const showAllergens = Boolean(reservation.allergens_and_diets);
         const showExtras = Boolean(reservation.extras);
+        const isPrivatePartyOnly = reservation.event_mode === 'private_party_only';
         const showSecondsAlert = reservation.second_course_type && reservation.seconds_confirmed === false;
         const totalPax = reservation.total_pax ?? (reservation.adults ?? 0) + (reservation.children ?? 0);
 
@@ -74,12 +75,18 @@ export function KitchenReservations({ reservations }: Props) {
                   </OperationalPill>
                 </div>
 
-                <div className="space-y-1.5 text-sm text-[#d8cfc2]">
-                  <p className="font-semibold text-[#f6f0e8]">Menú / resumen</p>
-                  <p className="whitespace-pre-wrap rounded-xl border border-[#3c342a]/70 bg-[#12110f]/60 p-3 leading-6 text-[#efe8dc]">
-                    {reservation.menu_text || 'Sin menú definido.'}
-                  </p>
-                </div>
+                {!isPrivatePartyOnly ? (
+                  <div className="space-y-1.5 text-sm text-[#d8cfc2]">
+                    <p className="font-semibold text-[#f6f0e8]">Menú / resumen</p>
+                    <p className="whitespace-pre-wrap rounded-xl border border-[#3c342a]/70 bg-[#12110f]/60 p-3 leading-6 text-[#efe8dc]">
+                      {reservation.menu_text || 'Sin menú definido.'}
+                    </p>
+                  </div>
+                ) : (
+                  <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-3 text-sm font-semibold text-amber-100">
+                    Modalidad: Solo fiesta privada
+                  </div>
+                )}
 
                 {reservation.setup_notes ? (
                   <div className="space-y-1.5 text-sm text-[#d8cfc2]">
@@ -91,12 +98,12 @@ export function KitchenReservations({ reservations }: Props) {
                 ) : null}
 
                 <div className="flex flex-wrap gap-2">
-                  {showAllergens ? (
+                  {!isPrivatePartyOnly && showAllergens ? (
                     <span className="inline-flex h-7 items-center whitespace-nowrap rounded-full border border-amber-500/40 bg-amber-500/15 px-3 text-xs font-semibold uppercase tracking-wide text-amber-100">
                       Alergias
                     </span>
                   ) : null}
-                  {showSecondsAlert ? (
+                  {!isPrivatePartyOnly && showSecondsAlert ? (
                     <span className="inline-flex h-7 items-center whitespace-nowrap rounded-full border border-rose-500/40 bg-rose-500/15 px-3 text-xs font-semibold uppercase tracking-wide text-rose-100">
                       Segundos no confirmados
                     </span>
@@ -110,7 +117,7 @@ export function KitchenReservations({ reservations }: Props) {
               </div>
 
               <div className="flex flex-col gap-3 text-sm text-[#d8cfc2] xl:w-72">
-                {showAllergens ? (
+                {!isPrivatePartyOnly && showAllergens ? (
                   <div className="space-y-1">
                     <p className="font-semibold text-amber-100">Alergias / dietas</p>
                     <p className="whitespace-pre-wrap rounded-xl border border-amber-500/35 bg-amber-500/10 p-3 leading-6 text-amber-50">
@@ -119,7 +126,7 @@ export function KitchenReservations({ reservations }: Props) {
                   </div>
                 ) : null}
 
-                {showExtras ? (
+                {!isPrivatePartyOnly && showExtras ? (
                   <div className="space-y-1">
                     <p className="font-semibold text-[#f1c98f]">Extras / notas cocina</p>
                     <p className="whitespace-pre-wrap rounded-xl border border-[#8b6a43]/40 bg-[#7d5932]/15 p-3 leading-6 text-[#f6f0e8]">
