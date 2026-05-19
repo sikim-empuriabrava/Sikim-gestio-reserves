@@ -653,6 +653,7 @@ declare
   v_adults integer;
   v_children integer := 0;
   v_event_mode text := 'dinner';
+  v_party_room_id uuid;
   v_allergens_and_diets text;
   v_setup_notes text;
   v_extras text;
@@ -711,7 +712,7 @@ begin
     v_event_mode := 'dinner';
   end if;
 
-  if v_event_mode not in ('dinner', 'private_party_only') then
+  if v_event_mode not in ('dinner', 'dinner_private_party', 'private_party_only') then
     raise exception 'Invalid event_mode';
   end if;
 
@@ -722,22 +723,50 @@ begin
   v_second_course_type := nullif(trim(coalesce(p_payload ->> 'second_course_type', '')), '');
   v_notes := nullif(trim(coalesce(p_payload ->> 'notes', '')), '');
 
+  if v_event_mode in ('dinner_private_party', 'private_party_only') then
+    begin
+      v_party_room_id := (p_payload ->> 'party_room_id')::uuid;
+    exception when others then
+      raise exception 'Invalid or missing party_room_id';
+    end;
+
+    if not exists (
+      select 1
+      from public.rooms
+      where id = v_party_room_id
+        and lower(name) in ('pub', 'disco')
+    ) then
+      raise exception 'party_room_id must be Pub or Disco';
+    end if;
+  else
+    v_party_room_id := null;
+  end if;
+
   if v_event_mode = 'private_party_only' then
     v_menu_text := null;
     v_second_course_type := null;
     v_allergens_and_diets := null;
     v_extras := null;
+  else
+    begin
+      v_room_id := (p_payload ->> 'room_id')::uuid;
+    exception when others then
+      raise exception 'Invalid or missing room_id';
+    end;
+
+    if not exists (
+      select 1
+      from public.rooms
+      where id = v_room_id
+        and lower(name) not in ('pub', 'disco')
+    ) then
+      raise exception 'room_id must be a dinner room';
+    end if;
   end if;
 
   if p_payload ? 'status' and p_payload ->> 'status' is not null and trim(p_payload ->> 'status') <> '' then
     v_status := trim(p_payload ->> 'status');
   end if;
-
-  begin
-    v_room_id := (p_payload ->> 'room_id')::uuid;
-  exception when others then
-    raise exception 'Invalid or missing room_id';
-  end;
 
   if p_payload ? 'override_capacity' and p_payload ->> 'override_capacity' is not null then
     begin
@@ -754,6 +783,7 @@ begin
     adults,
     children,
     event_mode,
+    party_room_id,
     has_private_dining_room,
     has_private_party,
     second_course_type,
@@ -773,8 +803,9 @@ begin
     v_adults,
     coalesce(v_children, 0),
     v_event_mode,
+    v_party_room_id,
     false,
-    v_event_mode = 'private_party_only',
+    v_event_mode in ('dinner_private_party', 'private_party_only'),
     v_second_course_type,
     v_menu_text,
     v_allergens_and_diets,
@@ -787,24 +818,24 @@ begin
   )
   returning id into v_group_event_id;
 
-  insert into public.group_room_allocations (
-    group_event_id,
-    room_id,
-    adults,
-    children,
-    override_capacity,
-    notes
-  )
-  values (
-    v_group_event_id,
-    v_room_id,
-    v_adults,
-    coalesce(v_children, 0),
-    coalesce(v_override_capacity, false),
-    v_notes
-  );
-
   if v_event_mode <> 'private_party_only' then
+    insert into public.group_room_allocations (
+      group_event_id,
+      room_id,
+      adults,
+      children,
+      override_capacity,
+      notes
+    )
+    values (
+      v_group_event_id,
+      v_room_id,
+      v_adults,
+      coalesce(v_children, 0),
+      coalesce(v_override_capacity, false),
+      v_notes
+    );
+
     if p_payload ? 'offeringAssignments' then
       perform public.sync_group_event_offerings(
         v_group_event_id,
@@ -2517,6 +2548,7 @@ declare
   v_adults integer;
   v_children integer;
   v_event_mode text;
+  v_party_room_id uuid;
   v_has_private_dining_room boolean;
   v_has_private_party boolean;
   v_second_course_type text;
@@ -2595,8 +2627,27 @@ begin
     v_event_mode := 'dinner';
   end if;
 
-  if v_event_mode not in ('dinner', 'private_party_only') then
+  if v_event_mode not in ('dinner', 'dinner_private_party', 'private_party_only') then
     raise exception 'Invalid event_mode';
+  end if;
+
+  if v_event_mode in ('dinner_private_party', 'private_party_only') then
+    begin
+      v_party_room_id := (p_payload ->> 'party_room_id')::uuid;
+    exception when others then
+      raise exception 'Invalid or missing party_room_id';
+    end;
+
+    if not exists (
+      select 1
+      from public.rooms
+      where id = v_party_room_id
+        and lower(name) in ('pub', 'disco')
+    ) then
+      raise exception 'party_room_id must be Pub or Disco';
+    end if;
+  else
+    v_party_room_id := null;
   end if;
 
   begin
@@ -2607,13 +2658,11 @@ begin
     raise exception 'Invalid has_private_dining_room';
   end;
 
-  begin
-    v_has_private_party := case when p_payload ? 'has_private_party'
-      then (p_payload ->> 'has_private_party')::boolean
-      else v_current.has_private_party end;
-  exception when others then
-    raise exception 'Invalid has_private_party';
-  end;
+  v_has_private_party := v_event_mode in ('dinner_private_party', 'private_party_only');
+
+  if v_event_mode = 'private_party_only' then
+    v_has_private_dining_room := false;
+  end if;
 
   v_second_course_type := case when p_payload ? 'second_course_type'
     then nullif(trim(coalesce(p_payload ->> 'second_course_type', '')), '')
@@ -2664,7 +2713,6 @@ begin
     v_second_course_type := null;
     v_allergens_and_diets := null;
     v_extras := null;
-    v_has_private_party := true;
   end if;
 
   update public.group_events
@@ -2675,6 +2723,7 @@ begin
     adults = v_adults,
     children = v_children,
     event_mode = v_event_mode,
+    party_room_id = v_party_room_id,
     has_private_dining_room = v_has_private_dining_room,
     has_private_party = v_has_private_party,
     second_course_type = v_second_course_type,
@@ -2690,6 +2739,9 @@ begin
   where id = v_group_event_id;
 
   if v_event_mode = 'private_party_only' then
+    delete from public.group_room_allocations
+    where group_event_id = v_group_event_id;
+
     perform public.sync_group_event_offerings(
       v_group_event_id,
       '[]'::jsonb,
@@ -3516,11 +3568,12 @@ CREATE TABLE public.group_events (
     service_outcome_notes text,
     menu_id uuid,
     event_mode text DEFAULT 'dinner'::text NOT NULL,
+    party_room_id uuid,
     CONSTRAINT group_events_adults_check CHECK ((adults >= 0)),
     CONSTRAINT group_events_children_check CHECK ((children >= 0)),
     CONSTRAINT group_events_deposit_amount_check CHECK ((deposit_amount >= (0)::numeric)),
     CONSTRAINT group_events_deposit_status_check CHECK ((deposit_status = ANY (ARRAY['pending'::text, 'paid'::text, 'refunded'::text, 'not_required'::text]))),
-    CONSTRAINT group_events_event_mode_chk CHECK ((event_mode = ANY (ARRAY['dinner'::text, 'private_party_only'::text]))),
+    CONSTRAINT group_events_event_mode_chk CHECK ((event_mode = ANY (ARRAY['dinner'::text, 'dinner_private_party'::text, 'private_party_only'::text]))),
     CONSTRAINT group_events_status_chk CHECK ((status = ANY (ARRAY['draft'::text, 'pending'::text, 'confirmed'::text, 'completed'::text, 'cancelled'::text, 'no_show'::text])))
 );
 
@@ -3964,30 +4017,33 @@ CREATE VIEW public.v_day_status WITH (security_invoker='true') AS
 --
 
 CREATE VIEW public.v_group_events_calendar_sync WITH (security_invoker='true') AS
- SELECT id AS group_event_id,
-    event_date,
-    entry_time,
-    name AS group_name,
-    total_pax,
-    status,
-    calendar_event_id,
+ SELECT ge.id AS group_event_id,
+    ge.event_date,
+    ge.entry_time,
+    ge.name AS group_name,
+    ge.total_pax,
+    ge.status,
+    ge.calendar_event_id,
         CASE
-            WHEN ((status = ANY (ARRAY['draft'::text, 'pending'::text, 'cancelled'::text])) AND (calendar_event_id IS NOT NULL)) THEN 'delete'::text
-            WHEN calendar_deleted_externally THEN 'noop'::text
-            WHEN ((status = ANY (ARRAY['confirmed'::text, 'completed'::text])) AND (calendar_event_id IS NULL)) THEN 'create'::text
-            WHEN ((status = ANY (ARRAY['confirmed'::text, 'completed'::text])) AND (calendar_event_id IS NOT NULL)) THEN 'update'::text
+            WHEN ((ge.status = ANY (ARRAY['draft'::text, 'pending'::text, 'cancelled'::text])) AND (ge.calendar_event_id IS NOT NULL)) THEN 'delete'::text
+            WHEN ge.calendar_deleted_externally THEN 'noop'::text
+            WHEN ((ge.status = ANY (ARRAY['confirmed'::text, 'completed'::text])) AND (ge.calendar_event_id IS NULL)) THEN 'create'::text
+            WHEN ((ge.status = ANY (ARRAY['confirmed'::text, 'completed'::text])) AND (ge.calendar_event_id IS NOT NULL)) THEN 'update'::text
             ELSE 'noop'::text
         END AS desired_calendar_action,
         CASE
-            WHEN ((status = ANY (ARRAY['draft'::text, 'pending'::text, 'cancelled'::text])) AND (calendar_event_id IS NOT NULL)) THEN true
-            WHEN calendar_deleted_externally THEN false
-            WHEN ((status = ANY (ARRAY['confirmed'::text, 'completed'::text])) AND (calendar_event_id IS NULL)) THEN true
-            WHEN ((status = ANY (ARRAY['confirmed'::text, 'completed'::text])) AND (calendar_event_id IS NOT NULL)) THEN true
+            WHEN ((ge.status = ANY (ARRAY['draft'::text, 'pending'::text, 'cancelled'::text])) AND (ge.calendar_event_id IS NOT NULL)) THEN true
+            WHEN ge.calendar_deleted_externally THEN false
+            WHEN ((ge.status = ANY (ARRAY['confirmed'::text, 'completed'::text])) AND (ge.calendar_event_id IS NULL)) THEN true
+            WHEN ((ge.status = ANY (ARRAY['confirmed'::text, 'completed'::text])) AND (ge.calendar_event_id IS NOT NULL)) THEN true
             ELSE false
         END AS needs_calendar_sync,
-    calendar_deleted_externally,
-    event_mode
-   FROM public.group_events ge;
+    ge.calendar_deleted_externally,
+    ge.event_mode,
+    ge.party_room_id,
+    pr.name AS party_room_name
+   FROM (public.group_events ge
+     LEFT JOIN public.rooms pr ON ((pr.id = ge.party_room_id)));
 
 
 --
@@ -4020,10 +4076,13 @@ CREATE VIEW public.v_group_events_daily_detail WITH (security_invoker='true') AS
     ge.invoice_data,
     ge.service_outcome,
     ge.service_outcome_notes,
-    ge.event_mode
-   FROM (((public.group_events ge
+    ge.event_mode,
+    pr.id AS party_room_id,
+    pr.name AS party_room_name
+   FROM ((((public.group_events ge
      LEFT JOIN public.group_room_allocations gra ON ((gra.group_event_id = ge.id)))
      LEFT JOIN public.rooms r ON ((r.id = gra.room_id)))
+     LEFT JOIN public.rooms pr ON ((pr.id = ge.party_room_id)))
      LEFT JOIN public.group_staffing_plans gsp ON ((gsp.group_event_id = ge.id)))
   WHERE (ge.status <> 'cancelled'::text);
 
@@ -4854,6 +4913,13 @@ CREATE INDEX group_events_event_date_entry_time_idx ON public.group_events USING
 --
 
 CREATE INDEX group_events_event_date_idx ON public.group_events USING btree (event_date);
+
+
+--
+-- Name: group_events_party_room_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX group_events_party_room_id_idx ON public.group_events USING btree (party_room_id);
 
 
 --
@@ -5735,6 +5801,14 @@ ALTER TABLE ONLY public.group_events
 
 
 --
+-- Name: group_events group_events_party_room_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.group_events
+    ADD CONSTRAINT group_events_party_room_id_fkey FOREIGN KEY (party_room_id) REFERENCES public.rooms(id);
+
+
+--
 -- Name: group_room_allocations group_room_allocations_group_event_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -6505,5 +6579,5 @@ ALTER TABLE public.tasks ENABLE ROW LEVEL SECURITY;
 -- PostgreSQL database dump complete
 --
 
-\unrestrict QtwcjyloLtbQsoL7AsOPapvPQOTOOJZx2iuw7sQWcvZFhe18O96MgXLmYcKbM6t
+\unrestrict OSicU6P7MoXiZ5WfKaDdHulP5zHrjrQIX7gHg24TpQ7BnjT11wUhhflwx1LBqUK
 
