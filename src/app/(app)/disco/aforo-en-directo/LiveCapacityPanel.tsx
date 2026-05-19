@@ -45,6 +45,7 @@ type PendingAdjust = {
 
 const RECENT_EVENTS_LIMIT = 12;
 const POLL_INTERVAL_MS = 4000;
+const HIDDEN_POLL_INTERVAL_MS = 30000;
 const LOGIN_PATH = '/login?next=%2Fdisco%2Faforo-en-directo';
 
 function formatDateTime(value: string | null | undefined) {
@@ -70,6 +71,8 @@ export function LiveCapacityPanel({ initialState, canManage }: Props) {
   const isProcessingAdjustmentsRef = useRef(false);
   const pendingAdjustmentsRef = useRef<PendingAdjust[]>([]);
   const loadingActionRef = useRef<typeof loadingAction>(null);
+  const localMutationVersionRef = useRef(0);
+  const authRedirectStartedRef = useRef(false);
   const closeSessionDialogTitleId = useId();
   const closeSessionDialogDescriptionId = useId();
 
@@ -99,38 +102,79 @@ export function LiveCapacityPanel({ initialState, canManage }: Props) {
   useEffect(() => {
     let isMounted = true;
     let controller: AbortController | null = null;
+    let timeoutId: number | null = null;
+    let isPollInFlight = false;
+
+    const clearScheduledPoll = () => {
+      if (timeoutId === null) return;
+      window.clearTimeout(timeoutId);
+      timeoutId = null;
+    };
+
+    const scheduleNextPoll = () => {
+      if (!isMounted) return;
+      if (authRedirectStartedRef.current) return;
+
+      clearScheduledPoll();
+      const delay = document.visibilityState === 'visible' ? POLL_INTERVAL_MS : HIDDEN_POLL_INTERVAL_MS;
+      timeoutId = window.setTimeout(() => {
+        void pollLiveState();
+      }, delay);
+    };
+
+    const hasLocalWorkInProgress = () =>
+      pendingAdjustmentsRef.current.length > 0 ||
+      Boolean(loadingActionRef.current) ||
+      isProcessingAdjustmentsRef.current;
+
+    const redirectToLoginOnce = () => {
+      if (authRedirectStartedRef.current) return;
+      authRedirectStartedRef.current = true;
+      window.location.replace(LOGIN_PATH);
+    };
 
     const pollLiveState = async () => {
-      if (document.visibilityState !== 'visible') return;
-      if (pendingAdjustmentsRef.current.length > 0 || loadingActionRef.current || isProcessingAdjustmentsRef.current) return;
+      clearScheduledPoll();
 
-      controller?.abort();
-      controller = new AbortController();
+      if (document.visibilityState !== 'visible' || hasLocalWorkInProgress() || isPollInFlight) {
+        scheduleNextPoll();
+        return;
+      }
+
+      const mutationVersionAtStart = localMutationVersionRef.current;
+      const pollController = new AbortController();
+      controller = pollController;
+      isPollInFlight = true;
 
       try {
         const response = await fetch('/api/disco/live-capacity', {
           cache: 'no-store',
-          signal: controller.signal,
+          signal: pollController.signal,
         });
 
         if (response.status === 401) {
-          window.location.assign(LOGIN_PATH);
+          redirectToLoginOnce();
           return;
         }
 
         const body = await response.json().catch(() => ({}));
         if (!isMounted || !response.ok || !body?.state) return;
+        if (mutationVersionAtStart !== localMutationVersionRef.current || hasLocalWorkInProgress()) return;
 
         setServerState(body.state);
       } catch (pollError) {
         if (pollError instanceof DOMException && pollError.name === 'AbortError') return;
         console.error('Error actualizando aforo en directo', pollError);
+      } finally {
+        isPollInFlight = false;
+        if (controller === pollController) {
+          controller = null;
+        }
+        scheduleNextPoll();
       }
     };
 
-    const intervalId = window.setInterval(() => {
-      void pollLiveState();
-    }, POLL_INTERVAL_MS);
+    scheduleNextPoll();
 
     const handleVisibilityChange = () => {
       void pollLiveState();
@@ -140,7 +184,7 @@ export function LiveCapacityPanel({ initialState, canManage }: Props) {
 
     return () => {
       isMounted = false;
-      window.clearInterval(intervalId);
+      clearScheduledPoll();
       document.removeEventListener('visibilitychange', handleVisibilityChange);
       controller?.abort();
     };
@@ -255,6 +299,7 @@ export function LiveCapacityPanel({ initialState, canManage }: Props) {
       createdAt: new Date().toISOString(),
     };
 
+    localMutationVersionRef.current += 1;
     setError(null);
     setMessage(null);
     setPendingAdjustments((prev) => [...prev, nextAdjustment]);
@@ -264,6 +309,7 @@ export function LiveCapacityPanel({ initialState, canManage }: Props) {
   };
 
   const submitAction = async (payload: { action: 'open_session' | 'close_session' }) => {
+    localMutationVersionRef.current += 1;
     setLoadingAction(payload.action);
     setError(null);
     setMessage(null);
