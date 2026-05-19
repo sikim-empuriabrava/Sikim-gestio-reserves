@@ -704,6 +704,7 @@ RLS: habilitado
 | `service_outcome` | `group_service_outcome` | No | `'normal'::group_service_outcome` |
 | `service_outcome_notes` | `text` | Sí |  |
 | `menu_id` | `uuid` | Sí |  |
+| `event_mode` | `text` | No | `'dinner'::text` |
 
 ### group_room_allocations
 RLS: habilitado
@@ -1025,8 +1026,8 @@ RLS: habilitado
 | `set_group_event_offerings_updated_at` | `` | `trigger` |
 | `set_override_capacity` | `` | `trigger` |
 | `set_updated_at` | `` | `trigger` |
-| `sync_group_event_cheffing_menu_offerings` | `p_group_event_id uuid, p_menu_assignments jsonb` | `void` |
 | `sync_group_event_cheffing_menu_offerings` | `p_group_event_id uuid, p_menu_assignments jsonb, p_allow_existing_inactive boolean DEFAULT false` | `void` |
+| `sync_group_event_cheffing_menu_offerings` | `p_group_event_id uuid, p_menu_assignments jsonb` | `void` |
 | `sync_group_event_offerings` | `p_group_event_id uuid, p_offering_assignments jsonb, p_allow_existing_inactive boolean DEFAULT false` | `void` |
 | `tg_group_event_offering_doneness_sync_menu_text` | `` | `trigger` |
 | `tg_group_event_offering_selections_sync_menu_text` | `` | `trigger` |
