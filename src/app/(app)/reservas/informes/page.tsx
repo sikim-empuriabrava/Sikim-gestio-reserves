@@ -375,6 +375,9 @@ function ReservationCard({
           <FieldPill label="Mesa / zona" value={reservation.event_mode === 'private_party_only' ? null : roomNotes} />
           <FieldPill label="Personas" value={peopleParts.length > 0 ? peopleParts.join(' / ') : `${reservation.total_pax ?? 0} pax`} />
           <FieldPill label="Tipo" value={flags.length > 0 ? flags.join(' / ') : null} />
+          <FieldPill label="Cliente/contacto" value={reservation.customer_name} />
+          <FieldPill label="Telefono" value={reservation.customer_phone} />
+          <FieldPill label="Email" value={reservation.customer_email} />
         </dl>
 
         {reservation.event_mode === 'private_party_only' ? (

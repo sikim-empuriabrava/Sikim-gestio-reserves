@@ -364,6 +364,7 @@ export default function NuevaReservaClient() {
   const router = useRouter();
   const [fecha, setFecha] = useState(() => new Date().toISOString().slice(0, 16));
   const [turno, setTurno] = useState<Turno>('cena');
+  const [nombreReserva, setNombreReserva] = useState('');
   const [nombreCliente, setNombreCliente] = useState('');
   const [telefono, setTelefono] = useState('');
   const [email, setEmail] = useState('');
@@ -927,7 +928,10 @@ export default function NuevaReservaClient() {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          name: nombreCliente || 'Grupo sin nombre',
+          name: nombreReserva,
+          customer_name: nombreCliente || null,
+          customer_phone: telefono || null,
+          customer_email: email || null,
           event_date: eventDate,
           entry_time: entryTime,
           adults: numeroPersonas,
@@ -1063,8 +1067,32 @@ export default function NuevaReservaClient() {
               </div>
             </label>
             <label className="space-y-2">
-              <span className="label">Nombre del cliente</span>
-              <input value={nombreCliente} onChange={(e) => setNombreCliente(e.target.value)} className="input" required />
+              <span className="label">Nombre de la reserva</span>
+              <input
+                value={nombreReserva}
+                onChange={(e) => setNombreReserva(e.target.value)}
+                className="input"
+                placeholder="Ej: Cumpleanos Laura"
+                required
+              />
+              <span className="block text-xs leading-5 text-slate-500">
+                Nombre que vera el equipo en calendario e informes. Ej.: Cumpleanos Laura, Graduacion INS Castello.
+              </span>
+            </label>
+            <div className="space-y-1 border-t border-slate-800/80 pt-5 md:col-span-2">
+              <h3 className="text-sm font-semibold text-[#f6f0e8]">Datos del cliente/contacto</h3>
+              <p className="text-xs leading-5 text-slate-500">
+                Persona que gestiona la reserva. Estos datos serviran para contacto y futuro CRM.
+              </p>
+            </div>
+            <label className="space-y-2">
+              <span className="label">Nombre del cliente/contacto</span>
+              <input
+                value={nombreCliente}
+                onChange={(e) => setNombreCliente(e.target.value)}
+                className="input"
+                placeholder="Ej: Marta Perez"
+              />
             </label>
             <label className="space-y-2">
               <span className="label">Teléfono</span>

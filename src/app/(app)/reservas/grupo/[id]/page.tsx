@@ -253,6 +253,9 @@ export default async function GroupReservationDetail({
   const preparedReservation = {
     id: reservation.id,
     name: reservation.name ?? '',
+    customer_name: reservation.customer_name ?? null,
+    customer_phone: reservation.customer_phone ?? null,
+    customer_email: reservation.customer_email ?? null,
     event_date: reservation.event_date ?? '',
     entry_time: reservation.entry_time ?? '',
     adults: reservation.adults ?? null,
