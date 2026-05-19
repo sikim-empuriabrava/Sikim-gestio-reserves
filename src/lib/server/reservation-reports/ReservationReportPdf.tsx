@@ -15,6 +15,7 @@ import {
   formatTime,
   getReportTotals,
   groupByDate,
+  partyRoomName,
   roomName,
   type DonenessRow,
   type OfferingRow,
@@ -443,12 +444,14 @@ function ReservationCard({
   donenessBySelection: Map<string, DonenessRow[]>;
 }) {
   const roomLabel = cleanText(roomName(room?.room ?? null));
+  const partyRoomLabel = cleanText(partyRoomName(reservation));
   const roomNotes = cleanText(room?.notes);
   const peopleParts = [
     reservation.adults ? `${reservation.adults} adultos` : null,
     reservation.children ? `${reservation.children} niños` : null,
   ].filter(Boolean);
   const flags = [
+    reservation.event_mode === 'dinner_private_party' ? 'Cena + fiesta privada' : null,
     reservation.event_mode === 'private_party_only' ? 'Solo fiesta privada' : null,
     reservation.has_private_dining_room ? 'Comedor privado' : null,
     reservation.has_private_party ? 'Fiesta privada' : null,
@@ -478,8 +481,9 @@ function ReservationCard({
 
       <View style={styles.cardBody}>
         <View style={styles.fieldGrid} wrap={false}>
-          <FieldPill label="Sala" value={roomLabel ?? 'Sin sala asignada'} />
-          <FieldPill label="Mesa / zona" value={roomNotes} />
+          <FieldPill label="Sala cena" value={reservation.event_mode === 'private_party_only' ? null : roomLabel ?? 'Sin sala asignada'} />
+          <FieldPill label="Zona fiesta" value={partyRoomLabel} />
+          <FieldPill label="Mesa / zona" value={reservation.event_mode === 'private_party_only' ? null : roomNotes} />
           <FieldPill label="Personas" value={peopleParts.length > 0 ? peopleParts.join(' / ') : `${reservation.total_pax ?? 0} pax`} />
           <FieldPill label="Tipo" value={flags.length > 0 ? flags.join(' / ') : null} />
         </View>
@@ -489,7 +493,7 @@ function ReservationCard({
             <Text style={styles.sectionTitle} minPresenceAhead={70}>
               Modalidad
             </Text>
-            <TextSection title="Modalidad" value="Solo fiesta privada" />
+            <TextSection title="Modalidad" value={`Solo fiesta privada${partyRoomLabel ? ` · Zona fiesta: ${partyRoomLabel}` : ''}`} />
           </View>
         ) : offerings.length > 0 ? (
           <View>

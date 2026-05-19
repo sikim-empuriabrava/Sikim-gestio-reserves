@@ -11,7 +11,21 @@ El endpoint recibe `groupEventId`, lee `v_group_events_calendar_sync` y decide l
 - `delete` si la reserva esta en `draft`, `pending` o `cancelled` y tiene `calendar_event_id`.
 - `noop` para el resto de casos. Si `calendar_deleted_externally` esta marcado, tambien devuelve `noop`, salvo cuando un estado interno no sincronizable conserva `calendar_event_id` y necesita limpieza.
 
-Despues carga datos de `group_events`, salas desde `group_room_allocations` y nombres de ofertas desde `group_event_offerings.display_name_snapshot`.
+Despues carga datos de `group_events`, sala de cena desde `group_room_allocations`, zona de fiesta desde `group_events.party_room_id`
+y nombres de ofertas desde `group_event_offerings.display_name_snapshot`.
+
+## Modalidades internas
+
+`group_events.event_mode` admite:
+
+- `dinner`: cena/comida normal. Usa sala de cena/restaurante en `group_room_allocations`. No usa `party_room_id`.
+- `dinner_private_party`: cena/comida con fiesta privada posterior. Conserva sala de cena y comida; usa `party_room_id` para la zona de fiesta (`Pub` o `Disco`).
+- `private_party_only`: solo fiesta privada. No usa sala de cena ni ofertas/comida; usa `party_room_id` para la zona de fiesta (`Pub` o `Disco`).
+
+La sala de cena/restaurante y la zona de fiesta son conceptos distintos:
+
+- Sala de cena: donde come el grupo; se guarda con el sistema actual de `group_room_allocations`.
+- Zona de fiesta: `Pub` o `Disco`; se guarda en `group_events.party_room_id`.
 
 ### Titulo
 
@@ -39,6 +53,12 @@ Para reservas internas con `event_mode = private_party_only`, el titulo usa la m
 Garcia · 40 pax · 23:30 · Solo fiesta privada
 ```
 
+Para `event_mode = dinner_private_party`, el titulo usa la modalidad como sufijo:
+
+```txt
+Garcia · 40 pax · 21:00 · Cena + fiesta privada
+```
+
 El titulo empieza directamente por el nombre/grupo guardado en la reserva. No se anade el prefijo `Reserva`.
 
 ### Descripcion
@@ -58,8 +78,11 @@ Se mantienen los datos poblados de grupo, pax, hora de entrada, sala/zona, ofert
 
 Los campos booleanos de privado solo aparecen si son `true`; no se muestran bloques de "No" para casos normales.
 
-En `private_party_only`, Calendar muestra `Modalidad: Solo fiesta privada`, no sincroniza bloques de menu/comida y sigue
-incluyendo sala/zona, montaje, facturacion, deposito, uso privado, estado y `Group ID` cuando existan.
+En `dinner_private_party`, Calendar muestra `Modalidad: Cena + fiesta privada`, `Sala cena: ...`, `Zona fiesta: Pub/Disco`
+y mantiene oferta, menu/comida, montaje, facturacion, deposito, estado y `Group ID`.
+
+En `private_party_only`, Calendar muestra `Modalidad: Solo fiesta privada`, `Zona fiesta: Pub/Disco`, no sincroniza bloques
+de menu/comida y sigue incluyendo montaje, facturacion, deposito, uso privado, estado y `Group ID` cuando existan.
 
 ## Borradores de reservas
 
@@ -110,8 +133,8 @@ Si una reserva previamente sincronizada se edita a `draft`, `pending` o `cancell
 
 Una reserva pasa a ser sincronizable cuando su estado es `confirmed` o `completed`. Si un borrador pasa a `confirmed`, `/api/calendar-sync` crea el evento porque no hay `calendar_event_id`.
 
-Una reserva `private_party_only` se comporta igual que cualquier otra reserva para borradores: no se sincroniza si esta
-en `draft` y si esta `confirmed` o `completed` se crea/actualiza en Google Calendar.
+Una reserva `dinner_private_party` o `private_party_only` se comporta igual que cualquier otra reserva para borradores:
+no se sincroniza si esta en `draft` y si esta `confirmed` o `completed` se crea/actualiza en Google Calendar.
 
 ## Limitaciones actuales
 

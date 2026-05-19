@@ -25,6 +25,7 @@ import {
   getReportData,
   groupByDate,
   MAX_RANGE_DAYS,
+  partyRoomName,
   roomName,
   todayISO,
   type DonenessRow,
@@ -328,12 +329,14 @@ function ReservationCard({
   donenessBySelection: Map<string, DonenessRow[]>;
 }) {
   const roomLabel = cleanText(roomName(room?.room ?? null));
+  const partyRoomLabel = cleanText(partyRoomName(reservation));
   const roomNotes = cleanText(room?.notes);
   const peopleParts = [
     reservation.adults ? `${reservation.adults} adultos` : null,
     reservation.children ? `${reservation.children} niños` : null,
   ].filter(Boolean);
   const flags = [
+    reservation.event_mode === 'dinner_private_party' ? 'Cena + fiesta privada' : null,
     reservation.event_mode === 'private_party_only' ? 'Solo fiesta privada' : null,
     reservation.has_private_dining_room ? 'Comedor privado' : null,
     reservation.has_private_party ? 'Fiesta privada' : null,
@@ -367,8 +370,9 @@ function ReservationCard({
 
       <div className="space-y-4 p-5">
         <dl className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-4">
-          <FieldPill label="Sala" value={roomLabel ?? 'Sin sala asignada'} />
-          <FieldPill label="Mesa / zona" value={roomNotes} />
+          <FieldPill label="Sala cena" value={reservation.event_mode === 'private_party_only' ? null : roomLabel ?? 'Sin sala asignada'} />
+          <FieldPill label="Zona fiesta" value={partyRoomLabel} />
+          <FieldPill label="Mesa / zona" value={reservation.event_mode === 'private_party_only' ? null : roomNotes} />
           <FieldPill label="Personas" value={peopleParts.length > 0 ? peopleParts.join(' / ') : `${reservation.total_pax ?? 0} pax`} />
           <FieldPill label="Tipo" value={flags.length > 0 ? flags.join(' / ') : null} />
         </dl>
@@ -377,7 +381,7 @@ function ReservationCard({
           <section className="space-y-2">
             <h4 className="text-sm font-bold uppercase tracking-[0.12em] text-[#7f592d]">Modalidad</h4>
             <p className="rounded-xl border border-[#eadcca] bg-[#fffaf2] px-3 py-2 text-sm font-semibold text-[#5b3920]">
-              Solo fiesta privada
+              Solo fiesta privada{partyRoomLabel ? ` · Zona fiesta: ${partyRoomLabel}` : ''}
             </p>
           </section>
         ) : offerings.length > 0 ? (

@@ -21,6 +21,9 @@ type CalendarSyncRow = {
   desired_calendar_action: 'create' | 'update' | 'delete' | 'noop';
   needs_calendar_sync: boolean;
   calendar_deleted_externally: boolean;
+  event_mode: 'dinner' | 'dinner_private_party' | 'private_party_only' | null;
+  party_room_id: string | null;
+  party_room_name: string | null;
 };
 
 type GroupEventCalendarDetails = {
@@ -28,7 +31,8 @@ type GroupEventCalendarDetails = {
   total_pax: number | null;
   adults: number | null;
   children: number | null;
-  event_mode: 'dinner' | 'private_party_only' | null;
+  event_mode: 'dinner' | 'dinner_private_party' | 'private_party_only' | null;
+  party_room_id: string | null;
   event_date: string;
   entry_time: string | null;
   menu_text: string | null;
@@ -159,6 +163,7 @@ function formatReservationCalendarDescription({
   pax,
   hhmm,
   salaZona,
+  partyRoomName,
   offeringNames,
 }: {
   groupEvent: GroupEventCalendarDetails | null | undefined;
@@ -167,21 +172,30 @@ function formatReservationCalendarDescription({
   pax: number;
   hhmm: string;
   salaZona: string | null;
+  partyRoomName: string | null;
   offeringNames: string | null;
 }) {
   const status = groupEvent?.status ?? row.status;
   const isPrivatePartyOnly = groupEvent?.event_mode === 'private_party_only';
+  const isDinnerPrivateParty = groupEvent?.event_mode === 'dinner_private_party';
   const lines: string[] = [
     `Grupo: ${groupName}`,
     `Pax: ${formatPax(groupEvent?.adults, groupEvent?.children, pax)}`,
     `Entrada: ${hhmm}`,
   ];
 
-  appendLineIfValue(lines, 'Sala / zona', salaZona);
+  appendLineIfValue(lines, 'Sala cena', salaZona);
   if (isPrivatePartyOnly) {
     appendLineIfValue(lines, 'Modalidad', 'Solo fiesta privada');
   }
-  appendLineIfValue(lines, 'Oferta', offeringNames);
+  if (isDinnerPrivateParty) {
+    appendLineIfValue(lines, 'Modalidad', 'Cena + fiesta privada');
+  }
+  appendLineIfValue(lines, 'Zona fiesta', partyRoomName);
+
+  if (!isPrivatePartyOnly) {
+    appendLineIfValue(lines, 'Oferta', offeringNames);
+  }
 
   if (!isPrivatePartyOnly) {
     appendSectionIfLines(lines, 'Menú / carta', getMeaningfulLines(groupEvent?.menu_text));
@@ -299,7 +313,7 @@ export async function POST(req: NextRequest) {
     const { data: groupEvent, error: groupEventError } = await supabase
       .from('group_events')
       .select(
-        'name, total_pax, adults, children, event_mode, event_date, entry_time, menu_text, second_course_type, allergens_and_diets, setup_notes, extras, invoice_data, deposit_amount, deposit_status, has_private_dining_room, has_private_party, status'
+        'name, total_pax, adults, children, event_mode, party_room_id, event_date, entry_time, menu_text, second_course_type, allergens_and_diets, setup_notes, extras, invoice_data, deposit_amount, deposit_status, has_private_dining_room, has_private_party, status'
       )
       .eq('id', row.group_event_id)
       .single();
@@ -342,10 +356,13 @@ export async function POST(req: NextRequest) {
     const pax = typedGroupEvent?.total_pax ?? row.total_pax ?? 0;
     const baseTime = typedGroupEvent?.entry_time ?? row.entry_time ?? '20:00:00';
     const hhmm = baseTime.slice(0, 5);
-    const offeringNames =
+    const offeringNames = formatOfferingNames((offeringsData ?? []) as GroupEventOfferingCalendarRow[]);
+    const titleSuffix =
       typedGroupEvent?.event_mode === 'private_party_only'
         ? 'Solo fiesta privada'
-        : formatOfferingNames((offeringsData ?? []) as GroupEventOfferingCalendarRow[]);
+        : typedGroupEvent?.event_mode === 'dinner_private_party'
+          ? 'Cena + fiesta privada'
+          : offeringNames;
 
     const typedAllocations = (roomAllocations ?? []) as {
       room?: { name?: string };
@@ -363,7 +380,7 @@ export async function POST(req: NextRequest) {
           .join(', ')
       : null;
 
-    const summary = formatReservationCalendarTitle({ groupName, pax, hhmm, offeringNames });
+    const summary = formatReservationCalendarTitle({ groupName, pax, hhmm, offeringNames: titleSuffix });
     const description = formatReservationCalendarDescription({
       groupEvent: typedGroupEvent,
       row,
@@ -371,6 +388,7 @@ export async function POST(req: NextRequest) {
       pax,
       hhmm,
       salaZona: getMeaningfulText(salaZona),
+      partyRoomName: getMeaningfulText(row.party_room_name),
       offeringNames,
     });
 

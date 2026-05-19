@@ -26,6 +26,12 @@ function getStatusBadge(status: string) {
   return { label: normalized.replace('_', ' ') || 'estado', className };
 }
 
+function partyRoomName(reservation: TodayGroupEvent) {
+  const room = reservation.party_room;
+  if (Array.isArray(room)) return room[0]?.name ?? null;
+  return room?.name ?? null;
+}
+
 type Props = {
   reservations: TodayGroupEvent[];
 };
@@ -48,6 +54,8 @@ export function KitchenReservations({ reservations }: Props) {
         const showAllergens = Boolean(reservation.allergens_and_diets);
         const showExtras = Boolean(reservation.extras);
         const isPrivatePartyOnly = reservation.event_mode === 'private_party_only';
+        const isDinnerPrivateParty = reservation.event_mode === 'dinner_private_party';
+        const partyRoom = partyRoomName(reservation);
         const showSecondsAlert = reservation.second_course_type && reservation.seconds_confirmed === false;
         const totalPax = reservation.total_pax ?? (reservation.adults ?? 0) + (reservation.children ?? 0);
 
@@ -84,9 +92,15 @@ export function KitchenReservations({ reservations }: Props) {
                   </div>
                 ) : (
                   <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-3 text-sm font-semibold text-amber-100">
-                    Modalidad: Solo fiesta privada
+                    Modalidad: Solo fiesta privada{partyRoom ? ` · Zona fiesta: ${partyRoom}` : ''}
                   </div>
                 )}
+
+                {isDinnerPrivateParty ? (
+                  <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-3 text-sm font-semibold text-amber-100">
+                    Modalidad: Cena + fiesta privada{partyRoom ? ` · Zona fiesta: ${partyRoom}` : ''}
+                  </div>
+                ) : null}
 
                 {reservation.setup_notes ? (
                   <div className="space-y-1.5 text-sm text-[#d8cfc2]">
