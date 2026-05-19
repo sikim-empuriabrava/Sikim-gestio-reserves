@@ -28,6 +28,7 @@ type GroupEventCalendarDetails = {
   total_pax: number | null;
   adults: number | null;
   children: number | null;
+  event_mode: 'dinner' | 'private_party_only' | null;
   event_date: string;
   entry_time: string | null;
   menu_text: string | null;
@@ -169,6 +170,7 @@ function formatReservationCalendarDescription({
   offeringNames: string | null;
 }) {
   const status = groupEvent?.status ?? row.status;
+  const isPrivatePartyOnly = groupEvent?.event_mode === 'private_party_only';
   const lines: string[] = [
     `Grupo: ${groupName}`,
     `Pax: ${formatPax(groupEvent?.adults, groupEvent?.children, pax)}`,
@@ -176,12 +178,17 @@ function formatReservationCalendarDescription({
   ];
 
   appendLineIfValue(lines, 'Sala / zona', salaZona);
+  if (isPrivatePartyOnly) {
+    appendLineIfValue(lines, 'Modalidad', 'Solo fiesta privada');
+  }
   appendLineIfValue(lines, 'Oferta', offeringNames);
 
-  appendSectionIfLines(lines, 'Menú / carta', getMeaningfulLines(groupEvent?.menu_text));
-  appendLineIfValue(lines, 'Segundo plato', groupEvent?.second_course_type);
-  appendSectionIfLines(lines, 'Alérgenos / intolerancias', getMeaningfulLines(groupEvent?.allergens_and_diets));
-  appendSectionIfLines(lines, 'Notas cocina', getMeaningfulLines(groupEvent?.extras));
+  if (!isPrivatePartyOnly) {
+    appendSectionIfLines(lines, 'Menú / carta', getMeaningfulLines(groupEvent?.menu_text));
+    appendLineIfValue(lines, 'Segundo plato', groupEvent?.second_course_type);
+    appendSectionIfLines(lines, 'Alérgenos / intolerancias', getMeaningfulLines(groupEvent?.allergens_and_diets));
+    appendSectionIfLines(lines, 'Notas cocina', getMeaningfulLines(groupEvent?.extras));
+  }
   appendSectionIfLines(lines, 'Montaje', getMeaningfulLines(groupEvent?.setup_notes));
   appendSectionIfLines(lines, 'Facturación', getMeaningfulLines(groupEvent?.invoice_data));
   appendLineIfValue(lines, 'Depósito', formatDeposit(groupEvent?.deposit_amount, groupEvent?.deposit_status));
@@ -292,7 +299,7 @@ export async function POST(req: NextRequest) {
     const { data: groupEvent, error: groupEventError } = await supabase
       .from('group_events')
       .select(
-        'name, total_pax, adults, children, event_date, entry_time, menu_text, second_course_type, allergens_and_diets, setup_notes, extras, invoice_data, deposit_amount, deposit_status, has_private_dining_room, has_private_party, status'
+        'name, total_pax, adults, children, event_mode, event_date, entry_time, menu_text, second_course_type, allergens_and_diets, setup_notes, extras, invoice_data, deposit_amount, deposit_status, has_private_dining_room, has_private_party, status'
       )
       .eq('id', row.group_event_id)
       .single();
@@ -335,7 +342,10 @@ export async function POST(req: NextRequest) {
     const pax = typedGroupEvent?.total_pax ?? row.total_pax ?? 0;
     const baseTime = typedGroupEvent?.entry_time ?? row.entry_time ?? '20:00:00';
     const hhmm = baseTime.slice(0, 5);
-    const offeringNames = formatOfferingNames((offeringsData ?? []) as GroupEventOfferingCalendarRow[]);
+    const offeringNames =
+      typedGroupEvent?.event_mode === 'private_party_only'
+        ? 'Solo fiesta privada'
+        : formatOfferingNames((offeringsData ?? []) as GroupEventOfferingCalendarRow[]);
 
     const typedAllocations = (roomAllocations ?? []) as {
       room?: { name?: string };

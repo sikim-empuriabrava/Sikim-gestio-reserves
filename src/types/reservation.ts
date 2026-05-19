@@ -2,6 +2,8 @@ export type Turno = 'comida' | 'cena';
 
 export type EstadoReserva = 'pendiente' | 'confirmada' | 'cancelada';
 
+export type ReservationEventMode = 'dinner' | 'private_party_only';
+
 export interface MenuOption {
   id: string;
   nombre: string;

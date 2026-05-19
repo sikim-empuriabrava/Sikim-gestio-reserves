@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
+import type { ReservationEventMode } from '@/types/reservation';
 
 type ReservationOfferingKind = 'cheffing_menu' | 'cheffing_card';
 type DonenessPoint = 'crudo' | 'poco' | 'al_punto' | 'hecho' | 'muy_hecho';
@@ -62,6 +63,7 @@ type EditableReservation = {
   adults: number | null;
   children: number | null;
   total_pax: number | null;
+  event_mode: ReservationEventMode;
   has_private_dining_room: boolean;
   has_private_party: boolean;
   second_course_type: string | null;
@@ -369,6 +371,7 @@ export function EditableReservationForm({
   );
 
   const isSelectedOfferingMenu = selectedOffering?.kind === 'cheffing_menu';
+  const isPrivatePartyOnly = form.event_mode === 'private_party_only';
   const isSelectedOfferingInactive = useMemo(
     () => Boolean(selectedOffering && !offeringCatalog.some((offering) => offering.id === selectedOffering.id)),
     [offeringCatalog, selectedOffering],
@@ -383,6 +386,26 @@ export function EditableReservationForm({
 
   const handleChange = (key: keyof EditableReservation, value: unknown) => {
     setForm((prev) => ({ ...prev, [key]: value } as EditableReservation));
+  };
+
+  const handleEventModeChange = (eventMode: ReservationEventMode) => {
+    setForm((prev) => ({
+      ...prev,
+      event_mode: eventMode,
+      ...(eventMode === 'private_party_only'
+        ? {
+            menu_text: null,
+            second_course_type: null,
+            allergens_and_diets: null,
+            extras: null,
+          }
+        : {}),
+    }));
+
+    if (eventMode === 'private_party_only') {
+      resetMenuDependentState();
+      setStructuredEditorTouched(false);
+    }
   };
 
   const resetMenuDependentState = useCallback(() => {
@@ -518,7 +541,7 @@ export function EditableReservationForm({
     setCustomSeconds((prev) => prev.filter((custom) => custom.id !== id));
   };
 
-  const includeOfferingAssignments = hasStructuredData || structuredEditorTouched;
+  const includeOfferingAssignments = !isPrivatePartyOnly && (hasStructuredData || structuredEditorTouched);
   const totalAssignedMenus = useMemo(
     () =>
       segundosSeleccionados.filter((selection) => selection.cantidad > 0).reduce((sum, selection) => sum + selection.cantidad, 0) +
@@ -526,11 +549,11 @@ export function EditableReservationForm({
     [customSeconds, segundosSeleccionados],
   );
   const paxMismatchWarning =
-    canEditStructuredOffering && isSelectedOfferingMenu && totalAssignedMenus !== assignedPax
+    !isPrivatePartyOnly && canEditStructuredOffering && isSelectedOfferingMenu && totalAssignedMenus !== assignedPax
       ? `Hay ${assignedPax} pax asignados a la oferta, pero ${totalAssignedMenus} menús/platos repartidos (segundos + personalizados + infantiles).`
       : null;
   const donenessMismatchWarnings = useMemo(() => {
-    if (!canEditStructuredOffering || !isSelectedOfferingMenu) return [];
+    if (isPrivatePartyOnly || !canEditStructuredOffering || !isSelectedOfferingMenu) return [];
 
     return segundosSeleccionados
       .filter((selection) => selection.cantidad > 0 && selection.needsDonenessPoints)
@@ -547,7 +570,7 @@ export function EditableReservationForm({
         return `${selection.nombre}: ${selection.cantidad} uds, puntos de cocción ${totalPoints}.`;
       })
       .filter((warning): warning is string => warning !== null);
-  }, [canEditStructuredOffering, donenessByDishId, isSelectedOfferingMenu, segundosSeleccionados]);
+  }, [canEditStructuredOffering, donenessByDishId, isPrivatePartyOnly, isSelectedOfferingMenu, segundosSeleccionados]);
   const hasStructuredWarnings = Boolean(paxMismatchWarning) || donenessMismatchWarnings.length > 0;
 
   const handleSubmit = async () => {
@@ -562,6 +585,17 @@ export function EditableReservationForm({
           room_id: roomId || null,
           room_notes: roomNotes.trim() || null,
         };
+
+        if (isPrivatePartyOnly) {
+          payload = {
+            ...payload,
+            menu_text: null,
+            second_course_type: null,
+            allergens_and_diets: null,
+            extras: null,
+            offeringAssignments: [],
+          };
+        }
 
         if (includeOfferingAssignments && selectedOffering && canEditStructuredOffering) {
           if (hasStructuredWarnings && isSelectedOfferingMenu) {
@@ -850,8 +884,45 @@ export function EditableReservationForm({
               Fiesta privada
             </label>
           </div>
+
+          <div className="rounded-xl border border-slate-800 bg-slate-950/30 p-3">
+            <p className="text-sm font-medium text-slate-200">Modalidad</p>
+            <div className="mt-3 grid gap-2 sm:grid-cols-2">
+              <button
+                type="button"
+                onClick={() => handleEventModeChange('dinner')}
+                className={`rounded-lg border px-3 py-2 text-left text-sm ${
+                  !isPrivatePartyOnly
+                    ? 'border-emerald-600/60 bg-emerald-950/30 text-emerald-100'
+                    : 'border-slate-800 bg-slate-900/50 text-slate-200'
+                }`}
+              >
+                Cena / comida
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  if (!isPrivatePartyOnly && hasStructuredData) {
+                    const proceed = window.confirm(
+                      'Cambiar a Solo fiesta privada eliminará ofertas y selecciones de comida al guardar. ¿Quieres continuar?',
+                    );
+                    if (!proceed) return;
+                  }
+                  handleEventModeChange('private_party_only');
+                }}
+                className={`rounded-lg border px-3 py-2 text-left text-sm ${
+                  isPrivatePartyOnly
+                    ? 'border-amber-500/70 bg-amber-950/30 text-amber-100'
+                    : 'border-slate-800 bg-slate-900/50 text-slate-200'
+                }`}
+              >
+                Solo fiesta privada
+              </button>
+            </div>
+          </div>
         </section>
 
+        {!isPrivatePartyOnly ? (
         <section className="rounded-2xl border border-slate-800 bg-slate-900/60 p-5 space-y-4">
           <h2 className="text-lg font-semibold text-slate-100">Menú y cocina</h2>
 
@@ -1159,6 +1230,21 @@ export function EditableReservationForm({
             </div>
           </div>
         </section>
+        ) : (
+        <section className="rounded-2xl border border-amber-700/45 bg-amber-950/20 p-5 space-y-2">
+          <h2 className="text-lg font-semibold text-slate-100">Solo fiesta privada</h2>
+          <p className="text-sm text-slate-300">
+            Esta reserva se guardará sin ofertas ni selecciones de comida. Sala, pax, montaje, facturación, estado y
+            sincronización de Calendar siguen funcionando como en una reserva normal.
+          </p>
+          {hasStructuredData ? (
+            <p className="text-xs text-amber-200">
+              Al guardar se eliminarán las ofertas de comida que tenía esta reserva para evitar que aparezcan en cocina,
+              informes o Calendar.
+            </p>
+          ) : null}
+        </section>
+        )}
 
         <section className="rounded-2xl border border-slate-800 bg-slate-900/60 p-5 space-y-4">
           <h2 className="text-lg font-semibold text-slate-100">Montaje y sala</h2>

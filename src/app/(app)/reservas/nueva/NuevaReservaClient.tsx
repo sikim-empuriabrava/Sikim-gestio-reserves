@@ -3,7 +3,7 @@
 import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { Turno } from '@/types/reservation';
+import { ReservationEventMode, Turno } from '@/types/reservation';
 import { CalendarDaysIcon, CheckIcon, ChevronDownIcon } from '@heroicons/react/24/outline';
 
 type ReservationOfferingKind = 'cheffing_menu' | 'cheffing_card';
@@ -283,6 +283,7 @@ export default function NuevaReservaClient() {
   const [email, setEmail] = useState('');
   const [numeroPersonas, setNumeroPersonas] = useState(2);
   const [numeroPersonasInput, setNumeroPersonasInput] = useState('2');
+  const [eventMode, setEventMode] = useState<ReservationEventMode>('dinner');
   const [selectedOfferingId, setSelectedOfferingId] = useState('');
   const [intolerancias, setIntolerancias] = useState('');
   const [notasSala, setNotasSala] = useState('');
@@ -326,6 +327,7 @@ export default function NuevaReservaClient() {
     [offerings, selectedOfferingId],
   );
   const isSelectedOfferingMenu = selectedOffering?.kind === 'cheffing_menu';
+  const isPrivatePartyOnly = eventMode === 'private_party_only';
   const customMenusCount = useMemo(
     () => customSeconds.reduce((sum, custom) => sum + custom.cantidad, 0),
     [customSeconds],
@@ -464,6 +466,12 @@ export default function NuevaReservaClient() {
   }, []);
 
   const validateMenus = useCallback(() => {
+    if (isPrivatePartyOnly) {
+      setWarningMenus(null);
+      setWarningEntrecot(null);
+      return true;
+    }
+
     if (!isSelectedOfferingMenu || !selectedOffering) {
       setWarningMenus(null);
       setWarningEntrecot(null);
@@ -505,7 +513,15 @@ export default function NuevaReservaClient() {
       totalMenusAsignados === numeroPersonas &&
       (totalDonenessPeople === 0 || totalPuntosEntrecot === totalDonenessPeople)
     );
-  }, [customSeconds, entrecotPoints, isSelectedOfferingMenu, numeroPersonas, segundosSeleccionados, selectedOffering]);
+  }, [
+    customSeconds,
+    entrecotPoints,
+    isPrivatePartyOnly,
+    isSelectedOfferingMenu,
+    numeroPersonas,
+    segundosSeleccionados,
+    selectedOffering,
+  ]);
 
   useEffect(() => {
     const loadOfferings = async () => {
@@ -617,7 +633,7 @@ export default function NuevaReservaClient() {
     const eventDate = datePart;
     const entryTime = timePart ? `${timePart}:00` : null;
 
-    const selectedOfferingSnapshot = selectedOffering;
+    const selectedOfferingSnapshot = isPrivatePartyOnly ? null : selectedOffering;
 
     const isValid = validateMenus();
 
@@ -779,6 +795,7 @@ export default function NuevaReservaClient() {
           entry_time: entryTime,
           adults: numeroPersonas,
           children: 0,
+          event_mode: eventMode,
           menu_text: menuText,
           offeringAssignments,
           allergens_and_diets: intolerancias || null,
@@ -954,6 +971,47 @@ export default function NuevaReservaClient() {
               <span className="label">Mesa / zona</span>
               <input value={mesa} onChange={(e) => setMesa(e.target.value)} className="input" placeholder="Terraza 1, Interior 3..." />
             </label>
+            <div className="space-y-2 md:col-span-2">
+              <span className="label">Modalidad</span>
+              <button
+                type="button"
+                onClick={() => {
+                  const nextMode: ReservationEventMode =
+                    eventMode === 'private_party_only' ? 'dinner' : 'private_party_only';
+                  setEventMode(nextMode);
+                  if (nextMode === 'private_party_only') {
+                    resetMenuDependentState();
+                  }
+                }}
+                className={`flex w-full items-center justify-between gap-4 rounded-xl border px-4 py-3 text-left transition-colors ${
+                  isPrivatePartyOnly
+                    ? 'border-[#d6a76e]/70 bg-[#3a2d20]/70 text-[#fff1d8]'
+                    : 'border-[#4a3f32]/80 bg-[#151412]/80 text-[#efe8dc] hover:border-[#8b6a43]/70'
+                }`}
+                aria-pressed={isPrivatePartyOnly}
+              >
+                <span>
+                  <span className="block text-sm font-semibold">Solo fiesta privada</span>
+                  <span className="mt-1 block text-xs text-slate-400">
+                    Sin cena ni selección de comida; conserva sala, pax, notas y sincronización interna.
+                  </span>
+                </span>
+                <span
+                  className={`relative h-6 w-11 shrink-0 rounded-full border transition-colors ${
+                    isPrivatePartyOnly
+                      ? 'border-[#f0c58b]/60 bg-[#d6a76e]'
+                      : 'border-[#5b4934]/80 bg-[#11100e]'
+                  }`}
+                  aria-hidden="true"
+                >
+                  <span
+                    className={`absolute top-0.5 h-5 w-5 rounded-full bg-[#f6f0e8] transition-transform ${
+                      isPrivatePartyOnly ? 'translate-x-5' : 'translate-x-0.5'
+                    }`}
+                  />
+                </span>
+              </button>
+            </div>
           </div>
 
           <div className="grid gap-4 md:grid-cols-2">
@@ -983,7 +1041,7 @@ export default function NuevaReservaClient() {
         </div>
 
         <aside className="card max-h-none space-y-5 overflow-y-auto rounded-2xl p-5 xl:sticky xl:top-6 xl:max-h-[calc(100dvh-7.5rem)]">
-          <div className="space-y-2">
+          {!isPrivatePartyOnly && <div className="space-y-2">
             <p className="label">Oferta asignada</p>
             <div className="relative">
               <select
@@ -1004,11 +1062,51 @@ export default function NuevaReservaClient() {
               <ChevronDownIcon className="pointer-events-none absolute right-3 top-3.5 h-5 w-5 text-slate-500" />
             </div>
             {offeringsError && <p className="text-xs text-red-400">{offeringsError}</p>}
-          </div>
+          </div>}
 
-          {offeringsLoading && <p className="text-sm text-slate-300">Cargando catálogo...</p>}
+          {!isPrivatePartyOnly && offeringsLoading && <p className="text-sm text-slate-300">Cargando catálogo...</p>}
 
-          {selectedOffering && !offeringsLoading && !offeringsError && (
+          {isPrivatePartyOnly && (
+            <div className="space-y-4">
+              <div className="rounded-lg border border-[#d6a76e]/35 bg-[#3a2d20]/35 p-4 text-sm text-[#fff1d8]">
+                <div className="flex items-center gap-2 font-semibold">
+                  <CheckIcon className="h-5 w-5" />
+                  Solo fiesta privada
+                </div>
+                <p className="mt-2 text-[#d8cfc2]">
+                  Se guardará sin ofertas, menús ni selecciones de cocina. La reserva seguirá apareciendo en calendario
+                  interno y se sincronizará con Google Calendar si queda confirmada.
+                </p>
+              </div>
+
+              {submitError && <p className="text-sm text-red-400">{submitError}</p>}
+              {submitSuccess && <p className="text-sm text-green-400">{submitSuccess}</p>}
+              {calendarWarning && <p className="text-sm text-amber-300">{calendarWarning}</p>}
+
+              <div className="grid gap-2 sm:grid-cols-[1fr_auto]">
+                <button
+                  type="submit"
+                  name="reservationStatus"
+                  value="confirmed"
+                  className="button-primary justify-center"
+                  disabled={isSubmitting}
+                >
+                  {isSubmitting && submittingStatus === 'confirmed' ? 'Creando...' : 'Crear reserva confirmada'}
+                </button>
+                <button
+                  type="submit"
+                  name="reservationStatus"
+                  value="draft"
+                  className="button-secondary justify-center"
+                  disabled={isSubmitting}
+                >
+                  {isSubmitting && submittingStatus === 'draft' ? 'Guardando...' : 'Guardar borrador'}
+                </button>
+              </div>
+            </div>
+          )}
+
+          {!isPrivatePartyOnly && selectedOffering && !offeringsLoading && !offeringsError && (
             <div className="space-y-4">
               {isSelectedOfferingMenu && (
                 <div>

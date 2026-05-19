@@ -334,6 +334,7 @@ function ReservationCard({
     reservation.children ? `${reservation.children} niños` : null,
   ].filter(Boolean);
   const flags = [
+    reservation.event_mode === 'private_party_only' ? 'Solo fiesta privada' : null,
     reservation.has_private_dining_room ? 'Comedor privado' : null,
     reservation.has_private_party ? 'Fiesta privada' : null,
   ].filter(Boolean);
@@ -372,7 +373,14 @@ function ReservationCard({
           <FieldPill label="Tipo" value={flags.length > 0 ? flags.join(' / ') : null} />
         </dl>
 
-        {offerings.length > 0 ? (
+        {reservation.event_mode === 'private_party_only' ? (
+          <section className="space-y-2">
+            <h4 className="text-sm font-bold uppercase tracking-[0.12em] text-[#7f592d]">Modalidad</h4>
+            <p className="rounded-xl border border-[#eadcca] bg-[#fffaf2] px-3 py-2 text-sm font-semibold text-[#5b3920]">
+              Solo fiesta privada
+            </p>
+          </section>
+        ) : offerings.length > 0 ? (
           <section className="space-y-2">
             <h4 className="text-sm font-bold uppercase tracking-[0.12em] text-[#7f592d]">Oferta y selecciones</h4>
             {offerings.map((offering) => (
@@ -392,8 +400,12 @@ function ReservationCard({
         )}
 
         <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-          <TextSection title="Intolerancias / alergias" value={reservation.allergens_and_diets} />
-          <TextSection title="Notas cocina" value={reservation.extras} />
+          {reservation.event_mode !== 'private_party_only' ? (
+            <>
+              <TextSection title="Intolerancias / alergias" value={reservation.allergens_and_diets} />
+              <TextSection title="Notas cocina" value={reservation.extras} />
+            </>
+          ) : null}
           <TextSection title="Notas sala / montaje" value={reservation.setup_notes} />
           <TextSection title="Notas de servicio" value={reservation.service_outcome_notes} />
           <TextSection title="Facturación" value={reservation.invoice_data} />

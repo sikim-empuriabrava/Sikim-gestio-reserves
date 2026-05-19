@@ -54,7 +54,7 @@ export async function GET() {
     const { data, error } = await supabase
       .from('group_events')
       .select(
-        `id, name, event_date, entry_time, adults, children, total_pax, status, menu_text, second_course_type, seconds_confirmed, allergens_and_diets, extras, setup_notes, has_private_dining_room, has_private_party`
+        `id, name, event_date, entry_time, adults, children, total_pax, event_mode, status, menu_text, second_course_type, seconds_confirmed, allergens_and_diets, extras, setup_notes, has_private_dining_room, has_private_party`
       )
       .eq('event_date', today)
       .order('entry_time', { ascending: true, nullsFirst: false })

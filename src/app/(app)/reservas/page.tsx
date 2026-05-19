@@ -43,6 +43,7 @@ type GroupEventDailyDetail = {
   group_name: string;
   status: string;
   total_pax: number | null;
+  event_mode?: 'dinner' | 'private_party_only' | null;
   adults?: number | null;
   children?: number | null;
   has_private_dining_room?: boolean | null;
@@ -244,6 +245,10 @@ const validationBadgeClass =
   'inline-flex w-fit shrink-0 items-center justify-center whitespace-nowrap rounded-full border px-2.5 py-1 text-[0.68rem] font-semibold leading-none';
 
 function getReservationMeta(event: GroupEventDailyDetail) {
+  if (event.event_mode === 'private_party_only') {
+    return [event.room_name, 'Solo fiesta privada'].filter(Boolean).join(' · ') || 'Solo fiesta privada';
+  }
+
   const menu = event.second_course_type ?? event.menu_text;
   const parts = [event.room_name, menu].filter(Boolean);
   return parts.length > 0 ? parts.join(' · ') : 'Sin sala asignada';
@@ -800,6 +805,7 @@ function DayView({
                 groupName={reservation.group_name}
                 entryTime={reservation.entry_time}
                 totalPax={reservation.total_pax}
+                eventMode={reservation.event_mode}
                 adults={reservation.adults}
                 childrenCount={reservation.children}
                 roomName={reservation.room_name ?? null}
@@ -896,7 +902,7 @@ function MobileMonthAgenda({
                         </div>
                         <p className="mt-2 text-sm text-[#b9aea1]">{event.total_pax ?? '-'} pax</p>
                         <p className="mt-1 line-clamp-2 text-xs leading-relaxed text-[#8f8578]">
-                          {event.room_name ?? 'Sin sala asignada'}
+                          {getReservationMeta(event)}
                         </p>
                       </div>
                     </div>
@@ -994,6 +1000,7 @@ function MonthView({
                           </div>
                           <p className="mt-0.5 truncate text-[0.68rem] text-[#9d9285]">
                             {evt.entry_time ? evt.entry_time.slice(0, 5) : 'Sin hora'} · {evt.total_pax ?? '-'} pax
+                            {evt.event_mode === 'private_party_only' ? ' · Solo fiesta privada' : ''}
                           </p>
                         </Link>
                       ))}
