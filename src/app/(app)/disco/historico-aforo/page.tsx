@@ -5,7 +5,6 @@ import {
   CalendarDaysIcon,
   ChartBarIcon,
   ClockIcon,
-  QueueListIcon,
   UsersIcon,
 } from '@heroicons/react/24/outline';
 
@@ -374,12 +373,6 @@ export default async function HistoricoAforoPage({ searchParams }: PageProps) {
           icon={CalendarDaysIcon}
         />
         <MetricTile
-          label="Día con más clientes"
-          value={insights.bestOperationalDay ? formatClients(insights.bestOperationalDay.entries) : '-'}
-          description={insights.bestOperationalDay?.label ?? 'Sin sesiones'}
-          icon={QueueListIcon}
-        />
-        <MetricTile
           label="Pico máximo"
           value={integerFormatter.format(insights.rangePeak)}
           description={insights.bestByPeak ? `personas dentro · ${formatDate(insights.bestByPeak.session.opened_at)}` : 'Sin sesiones'}
@@ -391,29 +384,13 @@ export default async function HistoricoAforoPage({ searchParams }: PageProps) {
           description={insights.strongestAverageCapacitySlot ? `${integerFormatter.format(insights.strongestAverageCapacitySlot.averageCount)} personas de media` : 'Sin datos suficientes'}
           icon={ClockIcon}
         />
+        <MetricTile label="Duración media" value={formatDuration(insights.averageDurationMinutes)} icon={ClockIcon} />
       </div>
 
       {filters.tab === 'sessions' ? (
         <SessionTable sessions={dataset.sessions} filters={filters} />
       ) : (
         <div className="space-y-4">
-          <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-            <MetricTile label="Aforo final medio" value={integerFormatter.format(insights.averageFinal)} icon={ChartBarIcon} />
-            <MetricTile label="Duracion media" value={formatDuration(insights.averageDurationMinutes)} icon={ClockIcon} />
-            <MetricTile
-              label="Mejor pico"
-              value={insights.bestByPeak ? integerFormatter.format(insights.bestByPeak.session.peak_count) : '-'}
-              description={insights.bestByPeak ? formatDate(insights.bestByPeak.session.opened_at) : 'Sin sesiones'}
-              icon={ArrowTrendingUpIcon}
-            />
-            <MetricTile
-              label="Mejor por entradas"
-              value={insights.bestByEntries ? integerFormatter.format(insights.bestByEntries.metrics.total_entries) : '-'}
-              description={insights.bestByEntries ? formatDate(insights.bestByEntries.session.opened_at) : 'Sin sesiones'}
-              icon={UsersIcon}
-            />
-          </section>
-
           <section className="grid gap-3 md:grid-cols-2">
             <div className="rounded-2xl border border-slate-800/75 bg-slate-900/65 p-4">
               <h2 className="text-base font-semibold text-white">Dia con mayor afluencia</h2>
