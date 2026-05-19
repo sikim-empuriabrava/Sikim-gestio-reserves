@@ -643,7 +643,7 @@ $$;
 
 CREATE FUNCTION public.create_group_event_with_cheffing_offerings(p_payload jsonb) RETURNS uuid
     LANGUAGE plpgsql SECURITY DEFINER
-    SET search_path TO 'public'
+    SET search_path TO 'public', 'pg_temp'
     AS $$
 declare
   v_group_event_id uuid;
@@ -652,6 +652,7 @@ declare
   v_entry_time time;
   v_adults integer;
   v_children integer := 0;
+  v_event_mode text := 'dinner';
   v_allergens_and_diets text;
   v_setup_notes text;
   v_extras text;
@@ -705,12 +706,28 @@ begin
     v_entry_time := null;
   end if;
 
+  v_event_mode := nullif(trim(coalesce(p_payload ->> 'event_mode', 'dinner')), '');
+  if v_event_mode is null then
+    v_event_mode := 'dinner';
+  end if;
+
+  if v_event_mode not in ('dinner', 'private_party_only') then
+    raise exception 'Invalid event_mode';
+  end if;
+
   v_allergens_and_diets := nullif(trim(coalesce(p_payload ->> 'allergens_and_diets', '')), '');
   v_setup_notes := nullif(trim(coalesce(p_payload ->> 'setup_notes', '')), '');
   v_extras := nullif(trim(coalesce(p_payload ->> 'extras', '')), '');
   v_menu_text := nullif(trim(coalesce(p_payload ->> 'menu_text', '')), '');
   v_second_course_type := nullif(trim(coalesce(p_payload ->> 'second_course_type', '')), '');
   v_notes := nullif(trim(coalesce(p_payload ->> 'notes', '')), '');
+
+  if v_event_mode = 'private_party_only' then
+    v_menu_text := null;
+    v_second_course_type := null;
+    v_allergens_and_diets := null;
+    v_extras := null;
+  end if;
 
   if p_payload ? 'status' and p_payload ->> 'status' is not null and trim(p_payload ->> 'status') <> '' then
     v_status := trim(p_payload ->> 'status');
@@ -736,6 +753,7 @@ begin
     entry_time,
     adults,
     children,
+    event_mode,
     has_private_dining_room,
     has_private_party,
     second_course_type,
@@ -754,8 +772,9 @@ begin
     v_entry_time,
     v_adults,
     coalesce(v_children, 0),
+    v_event_mode,
     false,
-    false,
+    v_event_mode = 'private_party_only',
     v_second_course_type,
     v_menu_text,
     v_allergens_and_diets,
@@ -785,18 +804,20 @@ begin
     v_notes
   );
 
-  if p_payload ? 'offeringAssignments' then
-    perform public.sync_group_event_offerings(
-      v_group_event_id,
-      p_payload -> 'offeringAssignments',
-      false
-    );
-  elsif p_payload ? 'menuAssignments' then
-    perform public.sync_group_event_cheffing_menu_offerings(
-      v_group_event_id,
-      p_payload -> 'menuAssignments',
-      false
-    );
+  if v_event_mode <> 'private_party_only' then
+    if p_payload ? 'offeringAssignments' then
+      perform public.sync_group_event_offerings(
+        v_group_event_id,
+        p_payload -> 'offeringAssignments',
+        false
+      );
+    elsif p_payload ? 'menuAssignments' then
+      perform public.sync_group_event_cheffing_menu_offerings(
+        v_group_event_id,
+        p_payload -> 'menuAssignments',
+        false
+      );
+    end if;
   end if;
 
   return v_group_event_id;
@@ -2485,7 +2506,7 @@ $$;
 
 CREATE FUNCTION public.update_group_event_with_cheffing_offerings(p_payload jsonb) RETURNS jsonb
     LANGUAGE plpgsql SECURITY DEFINER
-    SET search_path TO 'public'
+    SET search_path TO 'public', 'pg_temp'
     AS $$
 declare
   v_group_event_id uuid;
@@ -2495,6 +2516,7 @@ declare
   v_entry_time time;
   v_adults integer;
   v_children integer;
+  v_event_mode text;
   v_has_private_dining_room boolean;
   v_has_private_party boolean;
   v_second_course_type text;
@@ -2565,6 +2587,18 @@ begin
     raise exception 'Invalid children';
   end;
 
+  v_event_mode := case when p_payload ? 'event_mode'
+    then nullif(trim(coalesce(p_payload ->> 'event_mode', '')), '')
+    else coalesce(v_current.event_mode, 'dinner') end;
+
+  if v_event_mode is null then
+    v_event_mode := 'dinner';
+  end if;
+
+  if v_event_mode not in ('dinner', 'private_party_only') then
+    raise exception 'Invalid event_mode';
+  end if;
+
   begin
     v_has_private_dining_room := case when p_payload ? 'has_private_dining_room'
       then (p_payload ->> 'has_private_dining_room')::boolean
@@ -2625,6 +2659,14 @@ begin
     v_status := v_current.status;
   end if;
 
+  if v_event_mode = 'private_party_only' then
+    v_menu_text := null;
+    v_second_course_type := null;
+    v_allergens_and_diets := null;
+    v_extras := null;
+    v_has_private_party := true;
+  end if;
+
   update public.group_events
   set
     name = v_name,
@@ -2632,6 +2674,7 @@ begin
     entry_time = v_entry_time,
     adults = v_adults,
     children = v_children,
+    event_mode = v_event_mode,
     has_private_dining_room = v_has_private_dining_room,
     has_private_party = v_has_private_party,
     second_course_type = v_second_course_type,
@@ -2646,7 +2689,13 @@ begin
     updated_at = timezone('utc', now())
   where id = v_group_event_id;
 
-  if p_payload ? 'offeringAssignments' then
+  if v_event_mode = 'private_party_only' then
+    perform public.sync_group_event_offerings(
+      v_group_event_id,
+      '[]'::jsonb,
+      true
+    );
+  elsif p_payload ? 'offeringAssignments' then
     perform public.sync_group_event_offerings(
       v_group_event_id,
       p_payload -> 'offeringAssignments',
@@ -3466,10 +3515,12 @@ CREATE TABLE public.group_events (
     service_outcome public.group_service_outcome DEFAULT 'normal'::public.group_service_outcome NOT NULL,
     service_outcome_notes text,
     menu_id uuid,
+    event_mode text DEFAULT 'dinner'::text NOT NULL,
     CONSTRAINT group_events_adults_check CHECK ((adults >= 0)),
     CONSTRAINT group_events_children_check CHECK ((children >= 0)),
     CONSTRAINT group_events_deposit_amount_check CHECK ((deposit_amount >= (0)::numeric)),
     CONSTRAINT group_events_deposit_status_check CHECK ((deposit_status = ANY (ARRAY['pending'::text, 'paid'::text, 'refunded'::text, 'not_required'::text]))),
+    CONSTRAINT group_events_event_mode_chk CHECK ((event_mode = ANY (ARRAY['dinner'::text, 'private_party_only'::text]))),
     CONSTRAINT group_events_status_chk CHECK ((status = ANY (ARRAY['draft'::text, 'pending'::text, 'confirmed'::text, 'completed'::text, 'cancelled'::text, 'no_show'::text])))
 );
 
@@ -3934,7 +3985,8 @@ CREATE VIEW public.v_group_events_calendar_sync WITH (security_invoker='true') A
             WHEN ((status = ANY (ARRAY['confirmed'::text, 'completed'::text])) AND (calendar_event_id IS NOT NULL)) THEN true
             ELSE false
         END AS needs_calendar_sync,
-    calendar_deleted_externally
+    calendar_deleted_externally,
+    event_mode
    FROM public.group_events ge;
 
 
@@ -3967,7 +4019,8 @@ CREATE VIEW public.v_group_events_daily_detail WITH (security_invoker='true') AS
     ge.setup_notes,
     ge.invoice_data,
     ge.service_outcome,
-    ge.service_outcome_notes
+    ge.service_outcome_notes,
+    ge.event_mode
    FROM (((public.group_events ge
      LEFT JOIN public.group_room_allocations gra ON ((gra.group_event_id = ge.id)))
      LEFT JOIN public.rooms r ON ((r.id = gra.room_id)))
@@ -6452,5 +6505,5 @@ ALTER TABLE public.tasks ENABLE ROW LEVEL SECURITY;
 -- PostgreSQL database dump complete
 --
 
-\unrestrict ygoJgdZpAWrJvoZyJmDM4fyzFWyRIhJjTg9oFq9AEC6cMcC7t1TTikWnm3QV2J6
+\unrestrict QtwcjyloLtbQsoL7AsOPapvPQOTOOJZx2iuw7sQWcvZFhe18O96MgXLmYcKbM6t
 
