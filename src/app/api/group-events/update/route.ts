@@ -3,6 +3,7 @@ import { createSupabaseRouteHandlerClient, mergeResponseCookies } from '@/lib/su
 import { createSupabaseAdminClient } from '@/lib/supabaseAdmin';
 import { getAllowlistRoleForUserEmail, isAdmin } from '@/lib/auth/requireRole';
 import { getRpcHttpStatus } from '@/lib/api/rpcError';
+import { isPartyRoomName } from '@/lib/reservations/roomMode';
 
 export const runtime = 'nodejs';
 
@@ -59,6 +60,10 @@ export async function POST(req: NextRequest) {
       typeof sanitizedBody.room_notes === 'string' && sanitizedBody.room_notes.trim()
         ? sanitizedBody.room_notes.trim()
         : null;
+    const requestedPartyRoomId =
+      typeof sanitizedBody.party_room_id === 'string' && sanitizedBody.party_room_id.trim()
+        ? sanitizedBody.party_room_id.trim()
+        : null;
 
     delete sanitizedBody.total_pax;
     delete sanitizedBody.totalPax;
@@ -72,7 +77,7 @@ export async function POST(req: NextRequest) {
     if (shouldUpdateRoom && requestedRoomId) {
       const { data: room, error: roomError } = await supabase
         .from('rooms')
-        .select('id')
+        .select('id, name')
         .eq('id', requestedRoomId)
         .maybeSingle();
 
@@ -81,6 +86,33 @@ export async function POST(req: NextRequest) {
         const serverError = NextResponse.json({ error: message }, { status: roomError ? 500 : 400 });
         mergeResponseCookies(supabaseResponse, serverError);
         return serverError;
+      }
+
+      if (isPartyRoomName(room.name)) {
+        const invalidRoom = NextResponse.json({ error: 'Dinner room must not be Pub or Disco' }, { status: 400 });
+        mergeResponseCookies(supabaseResponse, invalidRoom);
+        return invalidRoom;
+      }
+    }
+
+    if (requestedPartyRoomId) {
+      const { data: partyRoom, error: partyRoomError } = await supabase
+        .from('rooms')
+        .select('id, name')
+        .eq('id', requestedPartyRoomId)
+        .maybeSingle();
+
+      if (partyRoomError || !partyRoom) {
+        const message = partyRoomError?.message ?? 'Selected party room not found';
+        const serverError = NextResponse.json({ error: message }, { status: partyRoomError ? 500 : 400 });
+        mergeResponseCookies(supabaseResponse, serverError);
+        return serverError;
+      }
+
+      if (!isPartyRoomName(partyRoom.name)) {
+        const invalidPartyRoom = NextResponse.json({ error: 'Party room must be Pub or Disco' }, { status: 400 });
+        mergeResponseCookies(supabaseResponse, invalidPartyRoom);
+        return invalidPartyRoom;
       }
     }
 

@@ -3,6 +3,8 @@
 import { useCallback, useEffect, useMemo, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import type { ReservationEventMode } from '@/types/reservation';
+import { usesDinnerRoom, usesFood, usesPartyRoom } from '@/lib/reservations/eventMode';
+import { splitRoomsByReservationMode } from '@/lib/reservations/roomMode';
 
 type ReservationOfferingKind = 'cheffing_menu' | 'cheffing_card';
 type DonenessPoint = 'crudo' | 'poco' | 'al_punto' | 'hecho' | 'muy_hecho';
@@ -64,6 +66,7 @@ type EditableReservation = {
   children: number | null;
   total_pax: number | null;
   event_mode: ReservationEventMode;
+  party_room_id: string | null;
   has_private_dining_room: boolean;
   has_private_party: boolean;
   second_course_type: string | null;
@@ -126,7 +129,6 @@ const DONENESS_LABELS: Record<DonenessPoint, string> = {
 };
 
 const DONENESS_ORDER: DonenessPoint[] = ['crudo', 'poco', 'al_punto', 'hecho', 'muy_hecho'];
-
 const buildOfferingCatalogId = (kind: ReservationOfferingKind, sourceId: string) => `${kind}:${sourceId}`;
 const toNonNegativeInt = (value: number | null | undefined) => Math.max(0, Math.floor(Number(value ?? 0) || 0));
 const toPositiveInt = (value: number | null | undefined) => Math.max(1, toNonNegativeInt(value));
@@ -250,6 +252,83 @@ function ReservaDetailPilotStyles() {
             background: rgba(42, 39, 34, 0.92) !important;
           }
 
+          .reserva-detail-pilot .private-party-mode-card {
+            border-color: rgba(151, 113, 72, 0.72) !important;
+            background: linear-gradient(135deg, rgba(31, 28, 23, 0.98), rgba(20, 18, 15, 0.98)) !important;
+            color: #f5eee4 !important;
+            box-shadow: inset 0 1px 0 rgba(255,255,255,0.045);
+          }
+
+          .reserva-detail-pilot .private-party-mode-card:hover {
+            border-color: rgba(214, 167, 110, 0.82) !important;
+            background: linear-gradient(135deg, rgba(38, 33, 27, 0.98), rgba(24, 22, 18, 0.98)) !important;
+          }
+
+          .reserva-detail-pilot .private-party-mode-card--active {
+            border-color: rgba(232, 177, 107, 0.86) !important;
+            background: linear-gradient(135deg, rgba(83, 45, 18, 0.98), rgba(45, 30, 18, 0.98)) !important;
+            box-shadow: 0 18px 42px -34px rgba(232, 177, 107, 0.82), inset 0 1px 0 rgba(255,255,255,0.06);
+          }
+
+          .reserva-detail-pilot .private-party-mode-title {
+            color: #fff4df !important;
+          }
+
+          .reserva-detail-pilot .private-party-mode-description {
+            color: #d9c7b4 !important;
+          }
+
+          .reserva-detail-pilot .private-party-mode-switch {
+            border-color: rgba(143, 112, 78, 0.86) !important;
+            background: #11100e !important;
+          }
+
+          .reserva-detail-pilot .private-party-mode-switch--active {
+            border-color: rgba(246, 204, 145, 0.76) !important;
+            background: linear-gradient(180deg, #f0bd73, #c47a2e) !important;
+          }
+
+          .reserva-detail-pilot .private-party-mode-knob {
+            background: #fff8ec !important;
+            box-shadow: 0 1px 4px rgba(0,0,0,0.28);
+          }
+
+          :root[data-theme="light"] .reserva-detail-pilot .private-party-mode-card {
+            border-color: #d4b38c !important;
+            background: linear-gradient(135deg, #fffaf1, #fbf0df) !important;
+            color: #302820 !important;
+            box-shadow: 0 16px 36px -30px rgba(121, 78, 34, 0.48), inset 0 1px 0 rgba(255,255,255,0.9);
+          }
+
+          :root[data-theme="light"] .reserva-detail-pilot .private-party-mode-card:hover {
+            border-color: #bd8547 !important;
+            background: linear-gradient(135deg, #fff7ea, #f6dfbf) !important;
+          }
+
+          :root[data-theme="light"] .reserva-detail-pilot .private-party-mode-card--active {
+            border-color: #c97d32 !important;
+            background: linear-gradient(135deg, #ffe6bf, #f7c98e) !important;
+            box-shadow: 0 18px 42px -30px rgba(143, 74, 24, 0.52), inset 0 1px 0 rgba(255,255,255,0.86);
+          }
+
+          :root[data-theme="light"] .reserva-detail-pilot .private-party-mode-title {
+            color: #29231d !important;
+          }
+
+          :root[data-theme="light"] .reserva-detail-pilot .private-party-mode-description {
+            color: #635242 !important;
+          }
+
+          :root[data-theme="light"] .reserva-detail-pilot .private-party-mode-switch {
+            border-color: #c5a37a !important;
+            background: #efe0cc !important;
+          }
+
+          :root[data-theme="light"] .reserva-detail-pilot .private-party-mode-switch--active {
+            border-color: #b96524 !important;
+            background: linear-gradient(180deg, #d98535, #b76522) !important;
+          }
+
           .reserva-detail-pilot .text-emerald-300 {
             color: #86d29a !important;
           }
@@ -289,6 +368,7 @@ export function EditableReservationForm({
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [rooms, setRooms] = useState<RoomOption[]>([]);
   const [roomId, setRoomId] = useState<string>(currentRoomAllocation?.room_id ?? '');
+  const [partyRoomId, setPartyRoomId] = useState<string>(reservation.party_room_id ?? '');
   const [roomNotes, setRoomNotes] = useState<string>(currentRoomAllocation?.notes ?? '');
   const [isLoadingRooms, setIsLoadingRooms] = useState(false);
   const [loadRoomsError, setLoadRoomsError] = useState<string | null>(null);
@@ -372,6 +452,16 @@ export function EditableReservationForm({
 
   const isSelectedOfferingMenu = selectedOffering?.kind === 'cheffing_menu';
   const isPrivatePartyOnly = form.event_mode === 'private_party_only';
+  const shouldUseDinnerRoom = usesDinnerRoom(form.event_mode);
+  const shouldUsePartyRoom = usesPartyRoom(form.event_mode);
+  const shouldUseFood = usesFood(form.event_mode);
+  const { dinnerRooms, privatePartyRooms } = useMemo(
+    () => splitRoomsByReservationMode(selectableRooms),
+    [selectableRooms],
+  );
+  const isRoomSelectionValid = !shouldUseDinnerRoom || Boolean(roomId && dinnerRooms.some((room) => room.id === roomId));
+  const isPartyRoomSelectionValid =
+    !shouldUsePartyRoom || Boolean(partyRoomId && privatePartyRooms.some((room) => room.id === partyRoomId));
   const isSelectedOfferingInactive = useMemo(
     () => Boolean(selectedOffering && !offeringCatalog.some((offering) => offering.id === selectedOffering.id)),
     [offeringCatalog, selectedOffering],
@@ -392,6 +482,7 @@ export function EditableReservationForm({
     setForm((prev) => ({
       ...prev,
       event_mode: eventMode,
+      party_room_id: usesPartyRoom(eventMode) ? prev.party_room_id : null,
       ...(eventMode === 'private_party_only'
         ? {
             menu_text: null,
@@ -541,7 +632,7 @@ export function EditableReservationForm({
     setCustomSeconds((prev) => prev.filter((custom) => custom.id !== id));
   };
 
-  const includeOfferingAssignments = !isPrivatePartyOnly && (hasStructuredData || structuredEditorTouched);
+  const includeOfferingAssignments = shouldUseFood && (hasStructuredData || structuredEditorTouched);
   const totalAssignedMenus = useMemo(
     () =>
       segundosSeleccionados.filter((selection) => selection.cantidad > 0).reduce((sum, selection) => sum + selection.cantidad, 0) +
@@ -580,9 +671,24 @@ export function EditableReservationForm({
 
     startTransition(async () => {
       try {
+        if (!isRoomSelectionValid) {
+          setError(
+            shouldUseDinnerRoom ? 'Selecciona una sala de restaurante para continuar.' : 'La sala de cena no es válida.',
+          );
+          return;
+        }
+
+        if (!isPartyRoomSelectionValid) {
+          setError(
+            shouldUsePartyRoom ? 'Selecciona Pub o Disco como zona de fiesta.' : 'La zona de fiesta no es válida.',
+          );
+          return;
+        }
+
         let payload: Record<string, unknown> = {
           ...form,
-          room_id: roomId || null,
+          room_id: shouldUseDinnerRoom ? roomId || null : null,
+          party_room_id: shouldUsePartyRoom ? partyRoomId || null : null,
           room_notes: roomNotes.trim() || null,
         };
 
@@ -817,6 +923,37 @@ export function EditableReservationForm({
     setSelectedOfferingId(selectableOfferingCatalog[0].id);
   }, [selectableOfferingCatalog, selectedOfferingId]);
 
+  useEffect(() => {
+    if (selectableRooms.length === 0) return;
+
+    setRoomId((prev) => {
+      if (!shouldUseDinnerRoom) {
+        return '';
+      }
+
+      const currentSelectionIsValid = Boolean(prev && dinnerRooms.some((room) => room.id === prev));
+
+      if (currentSelectionIsValid) {
+        return prev;
+      }
+
+      return prev ? '' : prev;
+    });
+  }, [dinnerRooms, selectableRooms.length, shouldUseDinnerRoom]);
+
+  useEffect(() => {
+    if (selectableRooms.length === 0) return;
+
+    setPartyRoomId((prev) => {
+      if (!shouldUsePartyRoom) {
+        return '';
+      }
+
+      const currentSelectionIsValid = Boolean(prev && privatePartyRooms.some((room) => room.id === prev));
+      return currentSelectionIsValid ? prev : '';
+    });
+  }, [privatePartyRooms, selectableRooms.length, shouldUsePartyRoom]);
+
   return (
     <div className="reserva-detail-pilot space-y-5 pb-[calc(1rem+env(safe-area-inset-bottom))]">
       <ReservaDetailPilotStyles />
@@ -887,17 +1024,30 @@ export function EditableReservationForm({
 
           <div className="rounded-xl border border-slate-800 bg-slate-950/30 p-3">
             <p className="text-sm font-medium text-slate-200">Modalidad</p>
-            <div className="mt-3 grid gap-2 sm:grid-cols-2">
+            <div className="mt-3 grid gap-2 lg:grid-cols-3">
               <button
                 type="button"
                 onClick={() => handleEventModeChange('dinner')}
                 className={`rounded-lg border px-3 py-2 text-left text-sm ${
-                  !isPrivatePartyOnly
+                  form.event_mode === 'dinner'
                     ? 'border-emerald-600/60 bg-emerald-950/30 text-emerald-100'
                     : 'border-slate-800 bg-slate-900/50 text-slate-200'
                 }`}
               >
-                Cena / comida
+                Cena
+              </button>
+              <button
+                type="button"
+                onClick={() => handleEventModeChange('dinner_private_party')}
+                className={`private-party-mode-card rounded-lg border px-3 py-2 text-left text-sm ${
+                  form.event_mode === 'dinner_private_party' ? 'private-party-mode-card--active' : ''
+                }`}
+                aria-pressed={form.event_mode === 'dinner_private_party'}
+              >
+                <span className="private-party-mode-title block font-semibold">Cena + fiesta privada</span>
+                <span className="private-party-mode-description mt-1 block text-xs">
+                  Cena con menús y zona de fiesta Pub/Disco.
+                </span>
               </button>
               <button
                 type="button"
@@ -910,19 +1060,35 @@ export function EditableReservationForm({
                   }
                   handleEventModeChange('private_party_only');
                 }}
-                className={`rounded-lg border px-3 py-2 text-left text-sm ${
-                  isPrivatePartyOnly
-                    ? 'border-amber-500/70 bg-amber-950/30 text-amber-100'
-                    : 'border-slate-800 bg-slate-900/50 text-slate-200'
+                className={`private-party-mode-card flex items-center justify-between gap-3 rounded-lg border px-3 py-2 text-left text-sm ${
+                  isPrivatePartyOnly ? 'private-party-mode-card--active' : ''
                 }`}
+                aria-pressed={isPrivatePartyOnly}
               >
-                Solo fiesta privada
+                <span>
+                  <span className="private-party-mode-title block font-semibold">Solo fiesta privada</span>
+                  <span className="private-party-mode-description mt-1 block text-xs">
+                    Sin cena ni selección de comida. Conserva fecha, hora, pax, ubicación, notas y sincronización.
+                  </span>
+                </span>
+                <span
+                  className={`private-party-mode-switch relative h-6 w-11 shrink-0 rounded-full border transition-colors ${
+                    isPrivatePartyOnly ? 'private-party-mode-switch--active' : ''
+                  }`}
+                  aria-hidden="true"
+                >
+                  <span
+                    className={`private-party-mode-knob absolute top-0.5 h-5 w-5 rounded-full transition-transform ${
+                      isPrivatePartyOnly ? 'translate-x-5' : 'translate-x-0.5'
+                    }`}
+                  />
+                </span>
               </button>
             </div>
           </div>
         </section>
 
-        {!isPrivatePartyOnly ? (
+        {shouldUseFood ? (
         <section className="rounded-2xl border border-slate-800 bg-slate-900/60 p-5 space-y-4">
           <h2 className="text-lg font-semibold text-slate-100">Menú y cocina</h2>
 
@@ -1234,7 +1400,7 @@ export function EditableReservationForm({
         <section className="rounded-2xl border border-amber-700/45 bg-amber-950/20 p-5 space-y-2">
           <h2 className="text-lg font-semibold text-slate-100">Solo fiesta privada</h2>
           <p className="text-sm text-slate-300">
-            Esta reserva se guardará sin ofertas ni selecciones de comida. Sala, pax, montaje, facturación, estado y
+            Esta reserva se guardará sin ofertas ni selecciones de comida. Ubicación, pax, montaje, facturación, estado y
             sincronización de Calendar siguen funcionando como en una reserva normal.
           </p>
           {hasStructuredData ? (
@@ -1247,18 +1413,20 @@ export function EditableReservationForm({
         )}
 
         <section className="rounded-2xl border border-slate-800 bg-slate-900/60 p-5 space-y-4">
-          <h2 className="text-lg font-semibold text-slate-100">Montaje y sala</h2>
+          <h2 className="text-lg font-semibold text-slate-100">Montaje y ubicación</h2>
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+            {shouldUseDinnerRoom && (
+              <>
             <div className="space-y-2">
-              <label className="text-sm font-medium text-slate-200">Sala / zona asignada</label>
+              <label className="text-sm font-medium text-slate-200">Sala de cena</label>
               <select
                 value={roomId}
                 onChange={(e) => setRoomId(e.target.value)}
                 className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-100"
-                disabled={isLoadingRooms}
+                disabled={isLoadingRooms || dinnerRooms.length === 0}
               >
-                <option value="">Sin sala asignada</option>
-                {selectableRooms.map((room) => (
+                <option value="">Selecciona una sala de cena</option>
+                {dinnerRooms.map((room) => (
                   <option key={room.id} value={room.id}>
                     {room.name}
                   </option>
@@ -1267,7 +1435,7 @@ export function EditableReservationForm({
               {loadRoomsError && <p className="text-xs text-red-300">{loadRoomsError}</p>}
             </div>
             <div className="space-y-2">
-              <label className="text-sm font-medium text-slate-200">Mesa / zona dentro de sala</label>
+              <label className="text-sm font-medium text-slate-200">Mesa / zona dentro de sala de cena</label>
               <input
                 type="text"
                 value={roomNotes}
@@ -1276,6 +1444,28 @@ export function EditableReservationForm({
                 className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-100"
               />
             </div>
+              </>
+            )}
+            {shouldUsePartyRoom && (
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-slate-200">Zona de fiesta</label>
+                <select
+                  value={partyRoomId}
+                  onChange={(e) => setPartyRoomId(e.target.value)}
+                  className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-100"
+                  disabled={isLoadingRooms || privatePartyRooms.length === 0}
+                >
+                  <option value="">Selecciona Pub o Disco</option>
+                  {privatePartyRooms.map((room) => (
+                    <option key={room.id} value={room.id}>
+                      {room.name}
+                    </option>
+                  ))}
+                </select>
+                <p className="text-xs text-amber-200">Obligatorio para reservas con fiesta privada.</p>
+                {loadRoomsError && <p className="text-xs text-red-300">{loadRoomsError}</p>}
+              </div>
+            )}
           </div>
           <div className="space-y-2">
             <label className="text-sm font-medium text-slate-200">Montaje / sala</label>

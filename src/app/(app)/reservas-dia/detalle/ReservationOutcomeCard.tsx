@@ -28,10 +28,11 @@ type ReservationOutcomeCardProps = {
   groupName: string;
   entryTime: string | null;
   totalPax: number | null;
-  eventMode?: 'dinner' | 'private_party_only' | null;
+  eventMode?: 'dinner' | 'dinner_private_party' | 'private_party_only' | null;
   adults?: number | null;
   childrenCount?: number | null;
   roomName: string | null;
+  partyRoomName?: string | null;
   status: string;
   hasPrivateDiningRoom?: boolean | null;
   hasPrivateParty?: boolean | null;
@@ -55,6 +56,7 @@ export function ReservationOutcomeCard({
   adults,
   childrenCount,
   roomName,
+  partyRoomName,
   status,
   hasPrivateDiningRoom,
   hasPrivateParty,
@@ -122,6 +124,7 @@ export function ReservationOutcomeCard({
 
   const showServiceNotes = currentOutcome !== 'normal';
   const isPrivatePartyOnly = eventMode === 'private_party_only';
+  const isDinnerPrivateParty = eventMode === 'dinner_private_party';
 
   return (
     <div className={`space-y-4 rounded-2xl border p-5 shadow-[0_18px_70px_-58px_rgba(0,0,0,0.95)] transition-colors ${cardClass}`}>
@@ -133,7 +136,9 @@ export function ReservationOutcomeCard({
           <div className="flex flex-wrap gap-2 text-xs text-[#b9aea1]">
             {hasPrivateDiningRoom && <span className="rounded-full border border-[#4a3f32]/70 bg-[#24221f]/70 px-2 py-0.5">Sala privada</span>}
             {hasPrivateParty && <span className="rounded-full border border-[#4a3f32]/70 bg-[#24221f]/70 px-2 py-0.5">Fiesta privada</span>}
+            {isDinnerPrivateParty && <span className="rounded-full border border-amber-500/40 bg-amber-500/10 px-2 py-0.5 text-amber-100">Cena + fiesta privada</span>}
             {isPrivatePartyOnly && <span className="rounded-full border border-amber-500/40 bg-amber-500/10 px-2 py-0.5 text-amber-100">Solo fiesta privada</span>}
+            {partyRoomName && <span className="rounded-full border border-[#4a3f32]/70 bg-[#24221f]/70 px-2 py-0.5">Zona fiesta: {partyRoomName}</span>}
           </div>
         </div>
         <div className="flex flex-col items-start gap-2 sm:items-end sm:text-right">
@@ -165,7 +170,17 @@ export function ReservationOutcomeCard({
               {isPrivatePartyOnly && (
                 <div>
                   <p className="text-xs uppercase tracking-wide text-[#9d9285]">Modalidad</p>
-                  <div className="mt-1 rounded-xl border border-[#4a3f32]/60 bg-[#12110f]/75 px-3 py-2 text-sm whitespace-pre-line">Solo fiesta privada</div>
+                  <div className="mt-1 rounded-xl border border-[#4a3f32]/60 bg-[#12110f]/75 px-3 py-2 text-sm whitespace-pre-line">
+                    Solo fiesta privada{partyRoomName ? ` · Zona fiesta: ${partyRoomName}` : ''}
+                  </div>
+                </div>
+              )}
+              {isDinnerPrivateParty && (
+                <div>
+                  <p className="text-xs uppercase tracking-wide text-[#9d9285]">Modalidad</p>
+                  <div className="mt-1 rounded-xl border border-[#4a3f32]/60 bg-[#12110f]/75 px-3 py-2 text-sm whitespace-pre-line">
+                    Cena + fiesta privada{partyRoomName ? ` · Zona fiesta: ${partyRoomName}` : ''}
+                  </div>
                 </div>
               )}
               {!isPrivatePartyOnly && menuText && (

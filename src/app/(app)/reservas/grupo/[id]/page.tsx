@@ -242,6 +242,14 @@ export default async function GroupReservationDetail({
 
   const roomAllocation = roomAllocationData as GroupRoomAllocation | null;
 
+  const { data: partyRoomData } = reservation.party_room_id
+    ? await supabaseAdmin
+        .from('rooms')
+        .select('name')
+        .eq('id', reservation.party_room_id)
+        .maybeSingle()
+    : { data: null };
+
   const preparedReservation = {
     id: reservation.id,
     name: reservation.name ?? '',
@@ -251,6 +259,7 @@ export default async function GroupReservationDetail({
     children: reservation.children ?? null,
     total_pax: reservation.total_pax ?? null,
     event_mode: reservation.event_mode ?? 'dinner',
+    party_room_id: reservation.party_room_id ?? null,
     has_private_dining_room: Boolean(reservation.has_private_dining_room),
     has_private_party: Boolean(reservation.has_private_party),
     second_course_type: reservation.second_course_type ?? null,
@@ -273,6 +282,8 @@ export default async function GroupReservationDetail({
     children: reservation.children ?? null,
     total_pax: reservation.total_pax ?? null,
     event_mode: reservation.event_mode ?? 'dinner',
+    party_room_id: reservation.party_room_id ?? null,
+    party_room: partyRoomData ? { name: partyRoomData.name ?? null } : null,
     status: reservation.status ?? 'confirmed',
     menu_text: reservation.menu_text ?? null,
     second_course_type: reservation.second_course_type ?? null,

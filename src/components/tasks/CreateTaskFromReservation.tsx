@@ -49,6 +49,12 @@ function formatTime(time: string | null) {
   return time.slice(0, 5);
 }
 
+function partyRoomName(reservation: TodayGroupEvent) {
+  const room = reservation.party_room;
+  if (Array.isArray(room)) return room[0]?.name ?? null;
+  return room?.name ?? null;
+}
+
 function buildDefaultTitle(reservation: TodayGroupEvent, area: TaskArea) {
   const time = formatTime(reservation.entry_time);
   const areaLabel = area === 'kitchen' ? 'Cocina' : 'Mantenimiento';
@@ -82,8 +88,18 @@ function buildDescription(reservation: TodayGroupEvent) {
     descriptionParts.push(`Estado: ${reservation.status.trim()}`);
   }
 
+  const partyRoom = partyRoomName(reservation);
+
+  if (reservation.event_mode === 'dinner_private_party') {
+    descriptionParts.push('Modalidad: Cena + fiesta privada');
+  }
+
   if (reservation.event_mode === 'private_party_only') {
     descriptionParts.push('Modalidad: Solo fiesta privada');
+  }
+
+  if (partyRoom) {
+    descriptionParts.push(`Zona fiesta: ${partyRoom}`);
   }
 
   if (reservation.event_mode !== 'private_party_only' && reservation.menu_text?.trim()) {

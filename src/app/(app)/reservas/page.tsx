@@ -10,6 +10,7 @@ import {
 } from '@heroicons/react/24/outline';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { createSupabaseAdminClient } from '@/lib/supabaseAdmin';
+import { getReservationEventModeLabel } from '@/lib/reservations/eventMode';
 import { DayNotesPanel } from '../reservas-dia/detalle/DayNotesPanel';
 import { ReservationOutcomeCard } from '../reservas-dia/detalle/ReservationOutcomeCard';
 
@@ -43,13 +44,15 @@ type GroupEventDailyDetail = {
   group_name: string;
   status: string;
   total_pax: number | null;
-  event_mode?: 'dinner' | 'private_party_only' | null;
+  event_mode?: 'dinner' | 'dinner_private_party' | 'private_party_only' | null;
   adults?: number | null;
   children?: number | null;
   has_private_dining_room?: boolean | null;
   has_private_party?: boolean | null;
   room_id?: string | null;
   room_name?: string | null;
+  party_room_id?: string | null;
+  party_room_name?: string | null;
   room_total_pax?: number | null;
   room_override_capacity?: number | null;
   recommended_waiters?: number | null;
@@ -246,7 +249,23 @@ const validationBadgeClass =
 
 function getReservationMeta(event: GroupEventDailyDetail) {
   if (event.event_mode === 'private_party_only') {
-    return [event.room_name, 'Solo fiesta privada'].filter(Boolean).join(' · ') || 'Solo fiesta privada';
+    return [
+      getReservationEventModeLabel(event.event_mode),
+      event.party_room_name ? `Zona fiesta: ${event.party_room_name}` : null,
+    ]
+      .filter(Boolean)
+      .join(' · ');
+  }
+
+  if (event.event_mode === 'dinner_private_party') {
+    const menu = event.second_course_type ?? event.menu_text;
+    const parts = [
+      event.room_name,
+      getReservationEventModeLabel(event.event_mode),
+      event.party_room_name ? `Zona fiesta: ${event.party_room_name}` : null,
+      menu,
+    ].filter(Boolean);
+    return parts.length > 0 ? parts.join(' · ') : 'Sin sala asignada';
   }
 
   const menu = event.second_course_type ?? event.menu_text;
@@ -809,6 +828,7 @@ function DayView({
                 adults={reservation.adults}
                 childrenCount={reservation.children}
                 roomName={reservation.room_name ?? null}
+                partyRoomName={reservation.party_room_name ?? null}
                 status={reservation.status}
                 hasPrivateDiningRoom={reservation.has_private_dining_room}
                 hasPrivateParty={reservation.has_private_party}
@@ -1001,6 +1021,7 @@ function MonthView({
                           <p className="mt-0.5 truncate text-[0.68rem] text-[#9d9285]">
                             {evt.entry_time ? evt.entry_time.slice(0, 5) : 'Sin hora'} · {evt.total_pax ?? '-'} pax
                             {evt.event_mode === 'private_party_only' ? ' · Solo fiesta privada' : ''}
+                            {evt.event_mode === 'dinner_private_party' ? ' · Cena + fiesta privada' : ''}
                           </p>
                         </Link>
                       ))}

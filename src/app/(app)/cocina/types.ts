@@ -6,7 +6,9 @@ export type TodayGroupEvent = {
   adults: number | null;
   children: number | null;
   total_pax: number | null;
-  event_mode?: 'dinner' | 'private_party_only' | null;
+  event_mode?: 'dinner' | 'dinner_private_party' | 'private_party_only' | null;
+  party_room_id?: string | null;
+  party_room?: { name: string | null } | { name: string | null }[] | null;
   status: string;
   menu_text: string | null;
   second_course_type: string | null;

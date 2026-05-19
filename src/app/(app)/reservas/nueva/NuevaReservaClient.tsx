@@ -4,6 +4,13 @@ import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { ReservationEventMode, Turno } from '@/types/reservation';
+import {
+  RESERVATION_EVENT_MODE_LABELS,
+  usesDinnerRoom,
+  usesFood,
+  usesPartyRoom,
+} from '@/lib/reservations/eventMode';
+import { splitRoomsByReservationMode } from '@/lib/reservations/roomMode';
 import { CalendarDaysIcon, CheckIcon, ChevronDownIcon } from '@heroicons/react/24/outline';
 
 type ReservationOfferingKind = 'cheffing_menu' | 'cheffing_card';
@@ -57,6 +64,8 @@ type RoomOption = {
 };
 
 type CreateReservationStatus = 'confirmed' | 'draft';
+
+const EVENT_MODE_OPTIONS: ReservationEventMode[] = ['dinner', 'dinner_private_party', 'private_party_only'];
 
 function ReservasNewPilotStyles() {
   return (
@@ -204,6 +213,83 @@ function ReservasNewPilotStyles() {
             border-color: rgba(214, 167, 110, 0.38);
           }
 
+          .reservas-new-pilot .private-party-mode-card {
+            border-color: rgba(151, 113, 72, 0.72) !important;
+            background: linear-gradient(135deg, rgba(31, 28, 23, 0.98), rgba(20, 18, 15, 0.98)) !important;
+            color: #f5eee4 !important;
+            box-shadow: inset 0 1px 0 rgba(255,255,255,0.045);
+          }
+
+          .reservas-new-pilot .private-party-mode-card:hover {
+            border-color: rgba(214, 167, 110, 0.82) !important;
+            background: linear-gradient(135deg, rgba(38, 33, 27, 0.98), rgba(24, 22, 18, 0.98)) !important;
+          }
+
+          .reservas-new-pilot .private-party-mode-card--active {
+            border-color: rgba(232, 177, 107, 0.86) !important;
+            background: linear-gradient(135deg, rgba(83, 45, 18, 0.98), rgba(45, 30, 18, 0.98)) !important;
+            box-shadow: 0 18px 42px -34px rgba(232, 177, 107, 0.82), inset 0 1px 0 rgba(255,255,255,0.06);
+          }
+
+          .reservas-new-pilot .private-party-mode-title {
+            color: #fff4df !important;
+          }
+
+          .reservas-new-pilot .private-party-mode-description {
+            color: #d9c7b4 !important;
+          }
+
+          .reservas-new-pilot .private-party-mode-switch {
+            border-color: rgba(143, 112, 78, 0.86) !important;
+            background: #11100e !important;
+          }
+
+          .reservas-new-pilot .private-party-mode-switch--active {
+            border-color: rgba(246, 204, 145, 0.76) !important;
+            background: linear-gradient(180deg, #f0bd73, #c47a2e) !important;
+          }
+
+          .reservas-new-pilot .private-party-mode-knob {
+            background: #fff8ec !important;
+            box-shadow: 0 1px 4px rgba(0,0,0,0.28);
+          }
+
+          :root[data-theme="light"] .reservas-new-pilot .private-party-mode-card {
+            border-color: #d4b38c !important;
+            background: linear-gradient(135deg, #fffaf1, #fbf0df) !important;
+            color: #302820 !important;
+            box-shadow: 0 16px 36px -30px rgba(121, 78, 34, 0.48), inset 0 1px 0 rgba(255,255,255,0.9);
+          }
+
+          :root[data-theme="light"] .reservas-new-pilot .private-party-mode-card:hover {
+            border-color: #bd8547 !important;
+            background: linear-gradient(135deg, #fff7ea, #f6dfbf) !important;
+          }
+
+          :root[data-theme="light"] .reservas-new-pilot .private-party-mode-card--active {
+            border-color: #c97d32 !important;
+            background: linear-gradient(135deg, #ffe6bf, #f7c98e) !important;
+            box-shadow: 0 18px 42px -30px rgba(143, 74, 24, 0.52), inset 0 1px 0 rgba(255,255,255,0.86);
+          }
+
+          :root[data-theme="light"] .reservas-new-pilot .private-party-mode-title {
+            color: #29231d !important;
+          }
+
+          :root[data-theme="light"] .reservas-new-pilot .private-party-mode-description {
+            color: #635242 !important;
+          }
+
+          :root[data-theme="light"] .reservas-new-pilot .private-party-mode-switch {
+            border-color: #c5a37a !important;
+            background: #efe0cc !important;
+          }
+
+          :root[data-theme="light"] .reservas-new-pilot .private-party-mode-switch--active {
+            border-color: #b96524 !important;
+            background: linear-gradient(180deg, #d98535, #b76522) !important;
+          }
+
           .reservas-new-pilot .button-primary {
             display: inline-flex;
             align-items: center;
@@ -310,6 +396,7 @@ export default function NuevaReservaClient() {
   const [warningEntrecot, setWarningEntrecot] = useState<string | null>(null);
   const [rooms, setRooms] = useState<RoomOption[]>([]);
   const [roomId, setRoomId] = useState<string>('');
+  const [partyRoomId, setPartyRoomId] = useState<string>('');
   const [isLoadingRooms, setIsLoadingRooms] = useState(false);
   const [loadRoomsError, setLoadRoomsError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -328,6 +415,13 @@ export default function NuevaReservaClient() {
   );
   const isSelectedOfferingMenu = selectedOffering?.kind === 'cheffing_menu';
   const isPrivatePartyOnly = eventMode === 'private_party_only';
+  const shouldUseDinnerRoom = usesDinnerRoom(eventMode);
+  const shouldUsePartyRoom = usesPartyRoom(eventMode);
+  const shouldUseFood = usesFood(eventMode);
+  const { dinnerRooms, partyRooms } = useMemo(() => splitRoomsByReservationMode(rooms), [rooms]);
+  const isRoomSelectionValid = !shouldUseDinnerRoom || Boolean(roomId && dinnerRooms.some((room) => room.id === roomId));
+  const isPartyRoomSelectionValid =
+    !shouldUsePartyRoom || Boolean(partyRoomId && partyRooms.some((room) => room.id === partyRoomId));
   const customMenusCount = useMemo(
     () => customSeconds.reduce((sum, custom) => sum + custom.cantidad, 0),
     [customSeconds],
@@ -582,9 +676,6 @@ export default function NuevaReservaClient() {
         }
 
         setRooms(roomsResponse);
-        if (roomsResponse.length > 0) {
-          setRoomId((prev) => prev || roomsResponse[0].id);
-        }
       } catch (error) {
         console.error('[Nueva reserva] Error cargando rooms', error);
         setLoadRoomsError('No se han podido cargar las salas.');
@@ -595,6 +686,41 @@ export default function NuevaReservaClient() {
 
     loadRooms();
   }, []);
+
+  useEffect(() => {
+    if (rooms.length === 0) return;
+
+    setRoomId((prev) => {
+      if (!shouldUseDinnerRoom) {
+        return '';
+      }
+
+      const currentSelectionIsValid = Boolean(prev && dinnerRooms.some((room) => room.id === prev));
+
+      if (currentSelectionIsValid) {
+        return prev;
+      }
+
+      if (prev) {
+        return '';
+      }
+
+      return dinnerRooms[0]?.id ?? '';
+    });
+  }, [dinnerRooms, rooms.length, shouldUseDinnerRoom]);
+
+  useEffect(() => {
+    if (rooms.length === 0) return;
+
+    setPartyRoomId((prev) => {
+      if (!shouldUsePartyRoom) {
+        return '';
+      }
+
+      const currentSelectionIsValid = Boolean(prev && partyRooms.some((room) => room.id === prev));
+      return currentSelectionIsValid ? prev : '';
+    });
+  }, [partyRooms, rooms.length, shouldUsePartyRoom]);
 
   useEffect(() => {
     validateMenus();
@@ -622,8 +748,19 @@ export default function NuevaReservaClient() {
     setNumeroPersonas(normalizedNumeroPersonas);
     setNumeroPersonasInput(String(normalizedNumeroPersonas));
 
-    if (!roomId) {
-      setSubmitError('Selecciona una sala para continuar.');
+    if (!isRoomSelectionValid) {
+      setSubmitError(
+        shouldUseDinnerRoom ? 'Selecciona una sala de restaurante para continuar.' : 'La sala de cena no es válida.',
+      );
+      setIsSubmitting(false);
+      setSubmittingStatus(null);
+      return;
+    }
+
+    if (!isPartyRoomSelectionValid) {
+      setSubmitError(
+        shouldUsePartyRoom ? 'Selecciona Pub o Disco como zona de fiesta.' : 'La zona de fiesta no es válida.',
+      );
       setIsSubmitting(false);
       setSubmittingStatus(null);
       return;
@@ -633,7 +770,7 @@ export default function NuevaReservaClient() {
     const eventDate = datePart;
     const entryTime = timePart ? `${timePart}:00` : null;
 
-    const selectedOfferingSnapshot = isPrivatePartyOnly ? null : selectedOffering;
+    const selectedOfferingSnapshot = shouldUseFood ? selectedOffering : null;
 
     const isValid = validateMenus();
 
@@ -720,7 +857,7 @@ export default function NuevaReservaClient() {
     }
 
     const setupNotesLines = [
-      mesa ? `Mesa / zona: ${mesa}` : null,
+      shouldUseDinnerRoom && mesa ? `Mesa / zona: ${mesa}` : null,
       notasSala ? `Notas sala: ${notasSala}` : null,
     ].filter(Boolean);
 
@@ -802,7 +939,8 @@ export default function NuevaReservaClient() {
           extras,
           setup_notes: setupNotes,
           second_course_type: null,
-          room_id: roomId,
+          room_id: shouldUseDinnerRoom ? roomId : null,
+          party_room_id: shouldUsePartyRoom ? partyRoomId : null,
           override_capacity: false,
           notes: mesa || null,
           status: requestedStatus,
@@ -947,101 +1085,130 @@ export default function NuevaReservaClient() {
                 className="input"
               />
             </label>
-            <label className="space-y-2">
-              <span className="label">Sala</span>
-              <div className="relative">
-                <select
-                  value={roomId}
-                  onChange={(e) => setRoomId(e.target.value)}
-                  className="input appearance-none pr-10"
-                  disabled={isLoadingRooms || rooms.length === 0}
-                  required
-                >
-                  {rooms.map((room) => (
-                    <option key={room.id} value={room.id}>
-                      {room.name}
-                    </option>
-                  ))}
-                </select>
-                <ChevronDownIcon className="pointer-events-none absolute right-3 top-3.5 h-5 w-5 text-slate-500" />
-              </div>
-              {loadRoomsError && <p className="text-xs text-red-400">{loadRoomsError}</p>}
-            </label>
-            <label className="space-y-2">
-              <span className="label">Mesa / zona</span>
-              <input value={mesa} onChange={(e) => setMesa(e.target.value)} className="input" placeholder="Terraza 1, Interior 3..." />
-            </label>
+            {shouldUseDinnerRoom && (
+              <>
+                <label className="space-y-2">
+                  <span className="label">Sala de cena</span>
+                  <div className="relative">
+                    <select
+                      value={roomId}
+                      onChange={(e) => setRoomId(e.target.value)}
+                      className="input appearance-none pr-10"
+                      disabled={isLoadingRooms || dinnerRooms.length === 0}
+                      required
+                    >
+                      <option value="">Selecciona una sala de cena</option>
+                      {dinnerRooms.map((room) => (
+                        <option key={room.id} value={room.id}>
+                          {room.name}
+                        </option>
+                      ))}
+                    </select>
+                    <ChevronDownIcon className="pointer-events-none absolute right-3 top-3.5 h-5 w-5 text-slate-500" />
+                  </div>
+                  {loadRoomsError && <p className="text-xs text-red-400">{loadRoomsError}</p>}
+                </label>
+                <label className="space-y-2">
+                  <span className="label">Mesa / zona de cena</span>
+                  <input value={mesa} onChange={(e) => setMesa(e.target.value)} className="input" placeholder="Terraza 1, Interior 3..." />
+                </label>
+              </>
+            )}
+            {shouldUsePartyRoom && (
+              <label className="space-y-2">
+                <span className="label">Zona de fiesta</span>
+                <div className="relative">
+                  <select
+                    value={partyRoomId}
+                    onChange={(e) => setPartyRoomId(e.target.value)}
+                    className="input appearance-none pr-10"
+                    disabled={isLoadingRooms || partyRooms.length === 0}
+                    required
+                  >
+                    <option value="">Selecciona Pub o Disco</option>
+                    {partyRooms.map((room) => (
+                      <option key={room.id} value={room.id}>
+                        {room.name}
+                      </option>
+                    ))}
+                  </select>
+                  <ChevronDownIcon className="pointer-events-none absolute right-3 top-3.5 h-5 w-5 text-slate-500" />
+                </div>
+                <p className="text-xs text-[#e8c18c]">Obligatorio para reservas con fiesta privada.</p>
+                {loadRoomsError && <p className="text-xs text-red-400">{loadRoomsError}</p>}
+              </label>
+            )}
             <div className="space-y-2 md:col-span-2">
               <span className="label">Modalidad</span>
-              <button
-                type="button"
-                onClick={() => {
-                  const nextMode: ReservationEventMode =
-                    eventMode === 'private_party_only' ? 'dinner' : 'private_party_only';
-                  setEventMode(nextMode);
-                  if (nextMode === 'private_party_only') {
-                    resetMenuDependentState();
-                  }
-                }}
-                className={`flex w-full items-center justify-between gap-4 rounded-xl border px-4 py-3 text-left transition-colors ${
-                  isPrivatePartyOnly
-                    ? 'border-[#d6a76e]/70 bg-[#3a2d20]/70 text-[#fff1d8]'
-                    : 'border-[#4a3f32]/80 bg-[#151412]/80 text-[#efe8dc] hover:border-[#8b6a43]/70'
-                }`}
-                aria-pressed={isPrivatePartyOnly}
-              >
-                <span>
-                  <span className="block text-sm font-semibold">Solo fiesta privada</span>
-                  <span className="mt-1 block text-xs text-slate-400">
-                    Sin cena ni selección de comida; conserva sala, pax, notas y sincronización interna.
-                  </span>
-                </span>
-                <span
-                  className={`relative h-6 w-11 shrink-0 rounded-full border transition-colors ${
-                    isPrivatePartyOnly
-                      ? 'border-[#f0c58b]/60 bg-[#d6a76e]'
-                      : 'border-[#5b4934]/80 bg-[#11100e]'
-                  }`}
-                  aria-hidden="true"
-                >
-                  <span
-                    className={`absolute top-0.5 h-5 w-5 rounded-full bg-[#f6f0e8] transition-transform ${
-                      isPrivatePartyOnly ? 'translate-x-5' : 'translate-x-0.5'
-                    }`}
-                  />
-                </span>
-              </button>
+              <div className="grid gap-2 md:grid-cols-3">
+                {EVENT_MODE_OPTIONS.map((mode) => {
+                  const active = eventMode === mode;
+                  return (
+                    <button
+                      key={mode}
+                      type="button"
+                      onClick={() => {
+                        setEventMode(mode);
+                        if (!usesFood(mode)) {
+                          resetMenuDependentState();
+                        }
+                      }}
+                      className={`private-party-mode-card flex min-h-[5.5rem] items-start justify-between gap-3 rounded-xl border px-4 py-3 text-left transition-colors ${
+                        active ? 'private-party-mode-card--active' : ''
+                      }`}
+                      aria-pressed={active}
+                    >
+                      <span>
+                        <span className="private-party-mode-title block text-sm font-semibold">
+                          {RESERVATION_EVENT_MODE_LABELS[mode]}
+                        </span>
+                        <span className="private-party-mode-description mt-1 block text-xs">
+                          {mode === 'dinner'
+                            ? 'Sala de cena y comida. Sin zona de fiesta.'
+                            : mode === 'dinner_private_party'
+                              ? 'Cena con menús y zona de fiesta Pub/Disco.'
+                              : 'Sin cena ni selección de comida. Conserva fecha, hora, pax, ubicación, notas y sincronización.'}
+                        </span>
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
             </div>
           </div>
 
           <div className="grid gap-4 md:grid-cols-2">
+            {shouldUseFood && (
+              <label className="space-y-2">
+                <span className="label">Intolerancias / alergias</span>
+                <textarea
+                  value={intolerancias}
+                  onChange={(e) => setIntolerancias(e.target.value)}
+                  className="input min-h-[90px]"
+                  placeholder="Sin gluten, sin lácteos, vegano..."
+                />
+              </label>
+            )}
             <label className="space-y-2">
-              <span className="label">Intolerancias / alergias</span>
-              <textarea
-                value={intolerancias}
-                onChange={(e) => setIntolerancias(e.target.value)}
-                className="input min-h-[90px]"
-                placeholder="Sin gluten, sin lácteos, vegano..."
-              />
-            </label>
-            <label className="space-y-2">
-              <span className="label">Notas sala</span>
+              <span className="label">{isPrivatePartyOnly ? 'Notas' : 'Notas sala'}</span>
               <textarea value={notasSala} onChange={(e) => setNotasSala(e.target.value)} className="input min-h-[90px]" placeholder="Preferencia de mesa, timings..." />
             </label>
-            <label className="space-y-2 md:col-span-2">
-              <span className="label">Notas cocina</span>
-              <textarea
-                value={notasCocina}
-                onChange={(e) => setNotasCocina(e.target.value)}
-                className="input min-h-[90px]"
-                placeholder="Cocciones, salsas aparte, alérgenos específicos..."
-              />
-            </label>
+            {shouldUseFood && (
+              <label className="space-y-2 md:col-span-2">
+                <span className="label">Notas cocina</span>
+                <textarea
+                  value={notasCocina}
+                  onChange={(e) => setNotasCocina(e.target.value)}
+                  className="input min-h-[90px]"
+                  placeholder="Cocciones, salsas aparte, alérgenos específicos..."
+                />
+              </label>
+            )}
           </div>
         </div>
 
         <aside className="card max-h-none space-y-5 overflow-y-auto rounded-2xl p-5 xl:sticky xl:top-6 xl:max-h-[calc(100dvh-7.5rem)]">
-          {!isPrivatePartyOnly && <div className="space-y-2">
+          {shouldUseFood && <div className="space-y-2">
             <p className="label">Oferta asignada</p>
             <div className="relative">
               <select
@@ -1064,14 +1231,14 @@ export default function NuevaReservaClient() {
             {offeringsError && <p className="text-xs text-red-400">{offeringsError}</p>}
           </div>}
 
-          {!isPrivatePartyOnly && offeringsLoading && <p className="text-sm text-slate-300">Cargando catálogo...</p>}
+          {shouldUseFood && offeringsLoading && <p className="text-sm text-slate-300">Cargando catálogo...</p>}
 
-          {isPrivatePartyOnly && (
+          {!shouldUseFood && (
             <div className="space-y-4">
               <div className="rounded-lg border border-[#d6a76e]/35 bg-[#3a2d20]/35 p-4 text-sm text-[#fff1d8]">
                 <div className="flex items-center gap-2 font-semibold">
                   <CheckIcon className="h-5 w-5" />
-                  Solo fiesta privada
+                  {RESERVATION_EVENT_MODE_LABELS[eventMode]}
                 </div>
                 <p className="mt-2 text-[#d8cfc2]">
                   Se guardará sin ofertas, menús ni selecciones de cocina. La reserva seguirá apareciendo en calendario
@@ -1106,7 +1273,7 @@ export default function NuevaReservaClient() {
             </div>
           )}
 
-          {!isPrivatePartyOnly && selectedOffering && !offeringsLoading && !offeringsError && (
+          {shouldUseFood && selectedOffering && !offeringsLoading && !offeringsError && (
             <div className="space-y-4">
               {isSelectedOfferingMenu && (
                 <div>
