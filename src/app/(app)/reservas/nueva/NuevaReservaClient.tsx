@@ -67,6 +67,25 @@ type CreateReservationStatus = 'confirmed' | 'draft';
 
 const EVENT_MODE_OPTIONS: ReservationEventMode[] = ['dinner', 'dinner_private_party', 'private_party_only'];
 
+const parseIntegerDraft = (value: string, min: number) => {
+  if (value === '') {
+    return { draft: '', parsed: null };
+  }
+
+  if (!/^\d+$/.test(value)) {
+    return null;
+  }
+
+  const parsed = Math.max(min, parseInt(value, 10));
+  return { draft: String(parsed), parsed };
+};
+
+const omitRecordKey = (record: Record<string, string>, key: string) => {
+  const next = { ...record };
+  delete next[key];
+  return next;
+};
+
 function ReservasNewPilotStyles() {
   return (
     <style
@@ -377,6 +396,8 @@ export default function NuevaReservaClient() {
   const [notasCocina, setNotasCocina] = useState('');
   const [mesa, setMesa] = useState('');
   const [segundosSeleccionados, setSegundosSeleccionados] = useState<SelectedSecond[]>([]);
+  const [segundoQuantityDrafts, setSegundoQuantityDrafts] = useState<Record<string, string>>({});
+  const [customSecondQuantityDrafts, setCustomSecondQuantityDrafts] = useState<Record<string, string>>({});
   const [entrecotPoints, setEntrecotPoints] = useState<EntrecotPoints>({
     crudo: 0,
     poco: 0,
@@ -389,9 +410,11 @@ export default function NuevaReservaClient() {
   const [isKidsMenuModalOpen, setIsKidsMenuModalOpen] = useState(false);
   const [customMenuName, setCustomMenuName] = useState('');
   const [customMenuCantidad, setCustomMenuCantidad] = useState(1);
+  const [customMenuCantidadDraft, setCustomMenuCantidadDraft] = useState('1');
   const [customMenuNotes, setCustomMenuNotes] = useState('');
   const [kidsMenuName, setKidsMenuName] = useState('Menú infantil');
   const [kidsMenuCantidad, setKidsMenuCantidad] = useState(1);
+  const [kidsMenuCantidadDraft, setKidsMenuCantidadDraft] = useState('1');
   const [kidsMenuNotes, setKidsMenuNotes] = useState('');
   const [warningMenus, setWarningMenus] = useState<string | null>(null);
   const [warningEntrecot, setWarningEntrecot] = useState<string | null>(null);
@@ -487,6 +510,51 @@ export default function NuevaReservaClient() {
     });
   };
 
+  const handleSegundoQuantityChange = (
+    segundo: ReservationOfferingCatalogItem['segundos'][number],
+    value: string,
+  ) => {
+    const parsed = parseIntegerDraft(value, 0);
+    if (!parsed) return;
+
+    setSegundoQuantityDrafts((prev) => ({ ...prev, [segundo.id]: parsed.draft }));
+    if (parsed.parsed !== null) {
+      handleSegundoChange(segundo, parsed.parsed);
+    }
+  };
+
+  const handleSegundoQuantityBlur = (segundo: ReservationOfferingCatalogItem['segundos'][number]) => {
+    const quantity = segundosSeleccionados.find((selection) => selection.dishId === segundo.id)?.cantidad ?? 0;
+    setSegundoQuantityDrafts((prev) => omitRecordKey(prev, segundo.id));
+    handleSegundoChange(segundo, Math.max(0, quantity));
+  };
+
+  const handleCustomSecondQuantityChange = (id: string, value: string) => {
+    const parsed = parseIntegerDraft(value, 1);
+    if (!parsed) return;
+
+    setCustomSecondQuantityDrafts((prev) => ({ ...prev, [id]: parsed.draft }));
+    if (parsed.parsed !== null) {
+      updateCustomSecond(id, { cantidad: parsed.parsed });
+    }
+  };
+
+  const handleCustomSecondQuantityBlur = (custom: CustomSecond) => {
+    const quantity = Math.max(1, custom.cantidad || 1);
+    updateCustomSecond(custom.id, { cantidad: quantity });
+    setCustomSecondQuantityDrafts((prev) => omitRecordKey(prev, custom.id));
+  };
+
+  const handleModalQuantityChange = (value: string, setter: (value: number) => void, draftSetter: (value: string) => void) => {
+    const parsed = parseIntegerDraft(value, 1);
+    if (!parsed) return;
+
+    draftSetter(parsed.draft);
+    if (parsed.parsed !== null) {
+      setter(parsed.parsed);
+    }
+  };
+
   const handleCreateCustomMenu = () => {
     if (!customMenuName.trim()) {
       return;
@@ -503,6 +571,7 @@ export default function NuevaReservaClient() {
     ]);
     setCustomMenuName('');
     setCustomMenuCantidad(1);
+    setCustomMenuCantidadDraft('1');
     setCustomMenuNotes('');
     setIsCustomMenuModalOpen(false);
   };
@@ -510,6 +579,7 @@ export default function NuevaReservaClient() {
   const handleCloseCustomMenuModal = () => {
     setCustomMenuName('');
     setCustomMenuCantidad(1);
+    setCustomMenuCantidadDraft('1');
     setCustomMenuNotes('');
     setIsCustomMenuModalOpen(false);
   };
@@ -528,6 +598,7 @@ export default function NuevaReservaClient() {
     ]);
     setKidsMenuName('Menú infantil');
     setKidsMenuCantidad(1);
+    setKidsMenuCantidadDraft('1');
     setKidsMenuNotes('');
     setIsKidsMenuModalOpen(false);
   };
@@ -535,13 +606,14 @@ export default function NuevaReservaClient() {
   const handleCloseKidsMenuModal = () => {
     setKidsMenuName('Menú infantil');
     setKidsMenuCantidad(1);
+    setKidsMenuCantidadDraft('1');
     setKidsMenuNotes('');
     setIsKidsMenuModalOpen(false);
   };
 
-  const updateCustomSecond = (id: string, updates: Partial<CustomSecond>) => {
+  function updateCustomSecond(id: string, updates: Partial<CustomSecond>) {
     setCustomSeconds((prev) => prev.map((custom) => (custom.id === id ? { ...custom, ...updates } : custom)));
-  };
+  }
 
   const resetMenuDependentState = useCallback(() => {
     setSegundosSeleccionados([]);
@@ -553,6 +625,8 @@ export default function NuevaReservaClient() {
       muyHecho: 0,
     });
     setCustomSeconds([]);
+    setSegundoQuantityDrafts({});
+    setCustomSecondQuantityDrafts({});
     setWarningMenus(null);
     setWarningEntrecot(null);
     setDonenessCollapsed(true);
@@ -1308,7 +1382,11 @@ export default function NuevaReservaClient() {
                   <p className="text-sm font-semibold text-white">Segundos disponibles</p>
                   <p className="text-xs text-slate-400">Indica cantidades para cocina.</p>
                   <div className="mt-3 space-y-2">
-                    {selectedOffering.segundos.map((segundo) => (
+                    {selectedOffering.segundos.map((segundo) => {
+                      const selectedQuantity = segundosSeleccionados.find((s) => s.dishId === segundo.id)?.cantidad ?? 0;
+                      const quantityValue = segundoQuantityDrafts[segundo.id] ?? String(selectedQuantity);
+
+                      return (
                     <div
                       key={segundo.id}
                       className="space-y-3 rounded-lg border border-slate-800 bg-slate-900/50 p-3"
@@ -1322,8 +1400,9 @@ export default function NuevaReservaClient() {
                           type="number"
                           min={0}
                           className="input w-24"
-                          value={segundosSeleccionados.find((s) => s.dishId === segundo.id)?.cantidad ?? 0}
-                          onChange={(e) => handleSegundoChange(segundo, parseInt(e.target.value) || 0)}
+                          value={quantityValue}
+                          onChange={(e) => handleSegundoQuantityChange(segundo, e.target.value)}
+                          onBlur={() => handleSegundoQuantityBlur(segundo)}
                         />
                       </div>
 
@@ -1424,7 +1503,8 @@ export default function NuevaReservaClient() {
                         </div>
                       )}
                     </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 </div>
               )}
@@ -1442,7 +1522,10 @@ export default function NuevaReservaClient() {
                   </div>
 
                   <div className="space-y-3">
-                    {customSeconds.map((custom) => (
+                    {customSeconds.map((custom) => {
+                      const quantityValue = customSecondQuantityDrafts[custom.id] ?? String(custom.cantidad);
+
+                      return (
                     <div
                       key={custom.id}
                       className="space-y-3 rounded-lg border border-slate-800 bg-slate-900/60 p-3"
@@ -1475,9 +1558,12 @@ export default function NuevaReservaClient() {
                               type="button"
                               className="rounded-md border border-slate-700 px-2 py-1 text-sm text-slate-200 hover:bg-slate-800"
                               onClick={() =>
-                                updateCustomSecond(custom.id, {
-                                  cantidad: Math.max(1, custom.cantidad - 1),
-                                })
+                                {
+                                  updateCustomSecond(custom.id, {
+                                    cantidad: Math.max(1, custom.cantidad - 1),
+                                  });
+                                  setCustomSecondQuantityDrafts((prev) => omitRecordKey(prev, custom.id));
+                                }
                               }
                               aria-label="Restar cantidad"
                             >
@@ -1487,17 +1573,17 @@ export default function NuevaReservaClient() {
                               type="number"
                               min={1}
                               className="input w-20 text-center"
-                              value={custom.cantidad}
-                              onChange={(e) =>
-                                updateCustomSecond(custom.id, {
-                                  cantidad: Math.max(1, parseInt(e.target.value) || 1),
-                                })
-                              }
+                              value={quantityValue}
+                              onChange={(e) => handleCustomSecondQuantityChange(custom.id, e.target.value)}
+                              onBlur={() => handleCustomSecondQuantityBlur(custom)}
                             />
                             <button
                               type="button"
                               className="rounded-md border border-slate-700 px-2 py-1 text-sm text-slate-200 hover:bg-slate-800"
-                              onClick={() => updateCustomSecond(custom.id, { cantidad: custom.cantidad + 1 })}
+                              onClick={() => {
+                                updateCustomSecond(custom.id, { cantidad: custom.cantidad + 1 });
+                                setCustomSecondQuantityDrafts((prev) => omitRecordKey(prev, custom.id));
+                              }}
                               aria-label="Sumar cantidad"
                             >
                               +
@@ -1516,7 +1602,8 @@ export default function NuevaReservaClient() {
                         />
                       </label>
                     </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 </div>
               )}
@@ -1551,8 +1638,11 @@ export default function NuevaReservaClient() {
                           type="number"
                           min={1}
                           className="input"
-                          value={customMenuCantidad}
-                          onChange={(e) => setCustomMenuCantidad(parseInt(e.target.value) || 1)}
+                          value={customMenuCantidadDraft}
+                          onChange={(e) =>
+                            handleModalQuantityChange(e.target.value, setCustomMenuCantidad, setCustomMenuCantidadDraft)
+                          }
+                          onBlur={() => setCustomMenuCantidadDraft(String(Math.max(1, customMenuCantidad || 1)))}
                         />
                       </label>
                       <label className="space-y-1 text-sm text-slate-200">
@@ -1606,8 +1696,11 @@ export default function NuevaReservaClient() {
                           type="number"
                           min={1}
                           className="input"
-                          value={kidsMenuCantidad}
-                          onChange={(e) => setKidsMenuCantidad(parseInt(e.target.value) || 1)}
+                          value={kidsMenuCantidadDraft}
+                          onChange={(e) =>
+                            handleModalQuantityChange(e.target.value, setKidsMenuCantidad, setKidsMenuCantidadDraft)
+                          }
+                          onBlur={() => setKidsMenuCantidadDraft(String(Math.max(1, kidsMenuCantidad || 1)))}
                         />
                       </label>
                       <label className="space-y-1 text-sm text-slate-200">
