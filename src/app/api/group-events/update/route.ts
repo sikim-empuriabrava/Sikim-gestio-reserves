@@ -4,6 +4,7 @@ import { createSupabaseAdminClient } from '@/lib/supabaseAdmin';
 import { getAllowlistRoleForUserEmail, isAdmin } from '@/lib/auth/requireRole';
 import { getRpcHttpStatus } from '@/lib/api/rpcError';
 import { isPartyRoomName } from '@/lib/reservations/roomMode';
+import { linkGroupEventCustomerFromSnapshot } from '@/lib/crm/customerLinking';
 
 export const runtime = 'nodejs';
 
@@ -194,6 +195,12 @@ export async function POST(req: NextRequest) {
           return serverError;
         }
       }
+    }
+
+    try {
+      await linkGroupEventCustomerFromSnapshot(String(body.id), undefined, supabase);
+    } catch (crmError) {
+      console.error('[API] group-events/update CRM link failed', crmError);
     }
 
     const success = NextResponse.json({ success: true });
