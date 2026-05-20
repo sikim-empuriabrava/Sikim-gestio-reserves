@@ -135,6 +135,23 @@ const DONENESS_ORDER: DonenessPoint[] = ['crudo', 'poco', 'al_punto', 'hecho', '
 const buildOfferingCatalogId = (kind: ReservationOfferingKind, sourceId: string) => `${kind}:${sourceId}`;
 const toNonNegativeInt = (value: number | null | undefined) => Math.max(0, Math.floor(Number(value ?? 0) || 0));
 const toPositiveInt = (value: number | null | undefined) => Math.max(1, toNonNegativeInt(value));
+const parseIntegerDraft = (value: string, min: number) => {
+  if (value === '') {
+    return { draft: '', parsed: null };
+  }
+
+  if (!/^\d+$/.test(value)) {
+    return null;
+  }
+
+  const parsed = Math.max(min, parseInt(value, 10));
+  return { draft: String(parsed), parsed };
+};
+const omitRecordKey = (record: Record<string, string>, key: string) => {
+  const next = { ...record };
+  delete next[key];
+  return next;
+};
 const getDefaultAssignedPax = (primaryOffering: ExistingOffering | null, reservation: EditableReservation) => {
   if (primaryOffering?.assigned_pax) {
     return toPositiveInt(primaryOffering.assigned_pax);
@@ -395,6 +412,9 @@ export function EditableReservationForm({
   const [segundosSeleccionados, setSegundosSeleccionados] = useState<SelectedSecond[]>([]);
   const [customSeconds, setCustomSeconds] = useState<CustomSecond[]>([]);
   const [donenessByDishId, setDonenessByDishId] = useState<Record<string, Record<DonenessPoint, number>>>({});
+  const [segundoQuantityDrafts, setSegundoQuantityDrafts] = useState<Record<string, string>>({});
+  const [customSecondQuantityDrafts, setCustomSecondQuantityDrafts] = useState<Record<string, string>>({});
+  const [donenessQuantityDrafts, setDonenessQuantityDrafts] = useState<Record<string, string>>({});
   const [structuredEditorTouched, setStructuredEditorTouched] = useState(false);
 
   const hasStructuredData = offerings.length > 0;
@@ -506,6 +526,9 @@ export function EditableReservationForm({
     setSegundosSeleccionados([]);
     setCustomSeconds([]);
     setDonenessByDishId({});
+    setSegundoQuantityDrafts({});
+    setCustomSecondQuantityDrafts({});
+    setDonenessQuantityDrafts({});
   }, []);
 
   const hydrateStateFromExistingStructure = useCallback(() => {
@@ -559,6 +582,9 @@ export function EditableReservationForm({
     setSegundosSeleccionados(existingSeconds);
     setCustomSeconds(existingCustomSeconds);
     setDonenessByDishId(donenessMap);
+    setSegundoQuantityDrafts({});
+    setCustomSecondQuantityDrafts({});
+    setDonenessQuantityDrafts({});
   }, [offeringSelections, primaryOffering, selectionDoneness]);
 
   const handleSegundoChange = (
@@ -597,6 +623,25 @@ export function EditableReservationForm({
     });
   };
 
+  const handleSegundoQuantityChange = (
+    segundo: ReservationOfferingCatalogItem['segundos'][number],
+    value: string,
+  ) => {
+    const parsed = parseIntegerDraft(value, 0);
+    if (!parsed) return;
+
+    setSegundoQuantityDrafts((prev) => ({ ...prev, [segundo.id]: parsed.draft }));
+    if (parsed.parsed !== null) {
+      handleSegundoChange(segundo, parsed.parsed);
+    }
+  };
+
+  const handleSegundoQuantityBlur = (segundo: ReservationOfferingCatalogItem['segundos'][number]) => {
+    const quantity = segundosSeleccionados.find((selection) => selection.dishId === segundo.id)?.cantidad ?? 0;
+    setSegundoQuantityDrafts((prev) => omitRecordKey(prev, segundo.id));
+    handleSegundoChange(segundo, Math.max(0, quantity));
+  };
+
   const updateDonenessPoint = (dishId: string, point: DonenessPoint, value: number) => {
     setStructuredEditorTouched(true);
     setDonenessByDishId((prev) => ({
@@ -610,6 +655,24 @@ export function EditableReservationForm({
         [point]: Math.max(0, value),
       },
     }));
+  };
+
+  const handleDonenessQuantityChange = (dishId: string, point: DonenessPoint, value: string) => {
+    const parsed = parseIntegerDraft(value, 0);
+    if (!parsed) return;
+
+    const draftKey = `${dishId}:${point}`;
+    setDonenessQuantityDrafts((prev) => ({ ...prev, [draftKey]: parsed.draft }));
+    if (parsed.parsed !== null) {
+      updateDonenessPoint(dishId, point, parsed.parsed);
+    }
+  };
+
+  const handleDonenessQuantityBlur = (dishId: string, point: DonenessPoint) => {
+    const draftKey = `${dishId}:${point}`;
+    const quantity = donenessByDishId[dishId]?.[point] ?? 0;
+    setDonenessQuantityDrafts((prev) => omitRecordKey(prev, draftKey));
+    updateDonenessPoint(dishId, point, Math.max(0, quantity));
   };
 
   const addCustomSecond = (kind: CustomSecondKind) => {
@@ -630,12 +693,34 @@ export function EditableReservationForm({
     setCustomSeconds((prev) => prev.map((custom) => (custom.id === id ? { ...custom, ...updates } : custom)));
   };
 
+  const handleCustomSecondQuantityChange = (id: string, value: string) => {
+    const parsed = parseIntegerDraft(value, 1);
+    if (!parsed) return;
+
+    setCustomSecondQuantityDrafts((prev) => ({ ...prev, [id]: parsed.draft }));
+    if (parsed.parsed !== null) {
+      updateCustomSecond(id, { cantidad: parsed.parsed });
+    }
+  };
+
+  const handleCustomSecondQuantityBlur = (custom: CustomSecond) => {
+    const quantity = Math.max(1, custom.cantidad || 1);
+    updateCustomSecond(custom.id, { cantidad: quantity });
+    setCustomSecondQuantityDrafts((prev) => omitRecordKey(prev, custom.id));
+  };
+
   const removeCustomSecond = (id: string) => {
     setStructuredEditorTouched(true);
     setCustomSeconds((prev) => prev.filter((custom) => custom.id !== id));
+    setCustomSecondQuantityDrafts((prev) => omitRecordKey(prev, id));
   };
 
   const includeOfferingAssignments = shouldUseFood && (hasStructuredData || structuredEditorTouched);
+  const hasCustomOrKidsMenuDistribution =
+    customSeconds.length > 0 ||
+    offeringSelections.some(
+      (selection) => selection.selection_kind === 'custom_menu' || selection.selection_kind === 'kids_menu',
+    );
   const totalAssignedMenus = useMemo(
     () =>
       segundosSeleccionados.filter((selection) => selection.cantidad > 0).reduce((sum, selection) => sum + selection.cantidad, 0) +
@@ -962,6 +1047,19 @@ export function EditableReservationForm({
     });
   }, [privatePartyRooms, selectableRooms.length, shouldUsePartyRoom]);
 
+  useEffect(() => {
+    const canAutosyncAssignedPax =
+      shouldUseFood &&
+      !isPrivatePartyOnly &&
+      canEditStructuredOffering &&
+      !hasCustomOrKidsMenuDistribution &&
+      computedTotalPax > 0;
+
+    if (!canAutosyncAssignedPax) return;
+
+    setAssignedPax(toPositiveInt(computedTotalPax));
+  }, [canEditStructuredOffering, computedTotalPax, hasCustomOrKidsMenuDistribution, isPrivatePartyOnly, shouldUseFood]);
+
   return (
     <div className="reserva-detail-pilot space-y-5 pb-[calc(1rem+env(safe-area-inset-bottom))]">
       <ReservaDetailPilotStyles />
@@ -1217,6 +1315,7 @@ export function EditableReservationForm({
                     hecho: 0,
                     muy_hecho: 0,
                   };
+                  const selectedQuantityValue = segundoQuantityDrafts[segundo.id] ?? String(selected?.cantidad ?? 0);
 
                   return (
                     <div key={segundo.id} className="rounded-xl border border-slate-800/60 bg-slate-900/40 p-3 space-y-2">
@@ -1229,8 +1328,9 @@ export function EditableReservationForm({
                           type="number"
                           min={0}
                           step={1}
-                          value={selected?.cantidad ?? 0}
-                          onChange={(e) => handleSegundoChange(segundo, toNonNegativeInt(Number(e.target.value) || 0))}
+                          value={selectedQuantityValue}
+                          onChange={(e) => handleSegundoQuantityChange(segundo, e.target.value)}
+                          onBlur={() => handleSegundoQuantityBlur(segundo)}
                           className="w-24 rounded-lg border border-slate-700 bg-slate-900 px-2 py-1 text-sm text-slate-100"
                         />
                       </div>
@@ -1244,10 +1344,9 @@ export function EditableReservationForm({
                                 type="number"
                                 min={0}
                                 step={1}
-                                value={donenessValues[point]}
-                                onChange={(e) =>
-                                  updateDonenessPoint(segundo.id, point, toNonNegativeInt(Number(e.target.value) || 0))
-                                }
+                                value={donenessQuantityDrafts[`${segundo.id}:${point}`] ?? String(donenessValues[point])}
+                                onChange={(e) => handleDonenessQuantityChange(segundo.id, point, e.target.value)}
+                                onBlur={() => handleDonenessQuantityBlur(segundo.id, point)}
                                 className="w-full rounded border border-slate-700 bg-slate-900 px-2 py-1 text-slate-100"
                               />
                             </label>
@@ -1272,7 +1371,10 @@ export function EditableReservationForm({
                   </div>
                 </div>
 
-                {customSeconds.map((custom) => (
+                {customSeconds.map((custom) => {
+                  const quantityValue = customSecondQuantityDrafts[custom.id] ?? String(custom.cantidad);
+
+                  return (
                   <div key={custom.id} className="grid grid-cols-1 gap-2 rounded-xl border border-slate-800/60 bg-slate-900/40 p-3 lg:grid-cols-12">
                     <input
                       value={custom.name}
@@ -1283,8 +1385,9 @@ export function EditableReservationForm({
                       type="number"
                       min={1}
                       step={1}
-                      value={custom.cantidad}
-                      onChange={(e) => updateCustomSecond(custom.id, { cantidad: toPositiveInt(Number(e.target.value) || 1) })}
+                      value={quantityValue}
+                      onChange={(e) => handleCustomSecondQuantityChange(custom.id, e.target.value)}
+                      onBlur={() => handleCustomSecondQuantityBlur(custom)}
                       className="rounded border border-slate-700 bg-slate-900 px-2 py-1 text-sm text-slate-100 lg:col-span-2"
                     />
                     <input
@@ -1297,7 +1400,8 @@ export function EditableReservationForm({
                       ✕
                     </button>
                   </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
           )}
