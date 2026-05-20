@@ -58,6 +58,11 @@ function buildGroups(allowedUser: AllowedUser | null): NavigationGroup[] {
           href: '/reservas/informes',
           basePath: '/reservas/informes',
         },
+        {
+          label: 'CRM clientes',
+          href: '/crm',
+          basePath: '/crm',
+        },
       ],
     });
   }

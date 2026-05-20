@@ -3,6 +3,7 @@ import { createSupabaseAdminClient } from '@/lib/supabaseAdmin';
 import { createSupabaseRouteHandlerClient, mergeResponseCookies } from '@/lib/supabase/route';
 import { getAllowlistRoleForUserEmail, isAdmin } from '@/lib/auth/requireRole';
 import { getRpcHttpStatus } from '@/lib/api/rpcError';
+import { linkGroupEventCustomerFromSnapshot } from '@/lib/crm/customerLinking';
 
 export const runtime = 'nodejs';
 
@@ -62,7 +63,15 @@ export async function POST(req: NextRequest) {
       return respond({ error: message }, { status, headers: noStoreHeaders });
     }
 
-    return respond({ groupEventId: data }, { headers: noStoreHeaders });
+    const groupEventId = String(data);
+
+    try {
+      await linkGroupEventCustomerFromSnapshot(groupEventId, payload, supabase);
+    } catch (crmError) {
+      console.error('[API] group-events/create CRM link failed', crmError);
+    }
+
+    return respond({ groupEventId }, { headers: noStoreHeaders });
   } catch (error) {
     console.error('[API] group-events/create', error);
     return respond(
