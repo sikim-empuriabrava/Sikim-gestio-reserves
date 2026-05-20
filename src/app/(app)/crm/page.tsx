@@ -3,6 +3,7 @@ import { unstable_noStore as noStore } from 'next/cache';
 import {
   ArrowRightIcon,
   AtSymbolIcon,
+  ChartBarIcon,
   MagnifyingGlassIcon,
   PhoneIcon,
   UserGroupIcon,
@@ -31,6 +32,15 @@ function formatReservationSummary(reservation: CrmReservation | null) {
   if (!reservation) return '-';
   const time = reservation.entry_time ? ` ${reservation.entry_time.slice(0, 5)}` : '';
   return `${formatDate(reservation.event_date)}${time}`;
+}
+
+function formatReservationsPerCustomer(linkedReservations: number, totalCustomers: number) {
+  const ratio = totalCustomers > 0 ? linkedReservations / totalCustomers : 0;
+
+  return new Intl.NumberFormat('es-ES', {
+    minimumFractionDigits: 1,
+    maximumFractionDigits: 1,
+  }).format(ratio);
 }
 
 function ContactValue({
@@ -138,7 +148,7 @@ export default async function CrmPage({ searchParams }: { searchParams?: SearchP
         </form>
       </div>
 
-      <MetricStrip>
+      <MetricStrip className="xl:grid-cols-5">
         <MetricCard
           label="Clientes"
           value={metrics.totalCustomers}
@@ -159,6 +169,13 @@ export default async function CrmPage({ searchParams }: { searchParams?: SearchP
           description="group_events.customer_id"
           icon={<ArrowRightIcon className="h-5 w-5" />}
           tone="violet"
+        />
+        <MetricCard
+          label="Reservas por cliente"
+          value={formatReservationsPerCustomer(metrics.linkedReservations, metrics.totalCustomers)}
+          description="Media histórica"
+          icon={<ChartBarIcon className="h-5 w-5" />}
+          tone="slate"
         />
         <MetricCard
           label="Sin telefono o email"
