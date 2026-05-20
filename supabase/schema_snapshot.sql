@@ -648,6 +648,9 @@ CREATE FUNCTION public.create_group_event_with_cheffing_offerings(p_payload json
 declare
   v_group_event_id uuid;
   v_name text;
+  v_customer_name text;
+  v_customer_phone text;
+  v_customer_email text;
   v_event_date date;
   v_entry_time time;
   v_adults integer;
@@ -672,6 +675,10 @@ begin
   if v_name is null then
     raise exception 'Missing required field: name';
   end if;
+
+  v_customer_name := nullif(trim(coalesce(p_payload ->> 'customer_name', '')), '');
+  v_customer_phone := nullif(trim(coalesce(p_payload ->> 'customer_phone', '')), '');
+  v_customer_email := nullif(trim(coalesce(p_payload ->> 'customer_email', '')), '');
 
   begin
     v_event_date := (p_payload ->> 'event_date')::date;
@@ -778,6 +785,9 @@ begin
 
   insert into public.group_events (
     name,
+    customer_name,
+    customer_phone,
+    customer_email,
     event_date,
     entry_time,
     adults,
@@ -798,6 +808,9 @@ begin
   )
   values (
     v_name,
+    v_customer_name,
+    v_customer_phone,
+    v_customer_email,
     v_event_date,
     v_entry_time,
     v_adults,
@@ -853,6 +866,44 @@ begin
 
   return v_group_event_id;
 end;
+$$;
+
+
+--
+-- Name: crm_normalize_email(text); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.crm_normalize_email(value text) RETURNS text
+    LANGUAGE sql IMMUTABLE
+    SET search_path TO 'public', 'pg_temp'
+    AS $$
+  select nullif(lower(trim(coalesce(value, ''))), '');
+$$;
+
+
+--
+-- Name: crm_normalize_phone(text); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.crm_normalize_phone(value text) RETURNS text
+    LANGUAGE sql IMMUTABLE
+    SET search_path TO 'public', 'pg_temp'
+    AS $$
+  with raw_value as (
+    select trim(coalesce(value, '')) as raw
+  ),
+  cleaned_value as (
+    select
+      case
+        when left(raw, 1) = '+' then
+          '+' || replace(replace(replace(replace(substr(raw, 2), ' ', ''), '-', ''), '(', ''), ')', '')
+        else
+          replace(replace(replace(replace(raw, ' ', ''), '-', ''), '(', ''), ')', '')
+      end as cleaned
+    from raw_value
+  )
+  select case when cleaned in ('', '+') then null else cleaned end
+  from cleaned_value;
 $$;
 
 
@@ -2543,6 +2594,9 @@ declare
   v_group_event_id uuid;
   v_current public.group_events;
   v_name text;
+  v_customer_name text;
+  v_customer_phone text;
+  v_customer_email text;
   v_event_date date;
   v_entry_time time;
   v_adults integer;
@@ -2584,6 +2638,18 @@ begin
   v_name := case when p_payload ? 'name'
     then coalesce(nullif(trim(p_payload ->> 'name'), ''), v_current.name)
     else v_current.name end;
+
+  v_customer_name := case when p_payload ? 'customer_name'
+    then nullif(trim(coalesce(p_payload ->> 'customer_name', '')), '')
+    else v_current.customer_name end;
+
+  v_customer_phone := case when p_payload ? 'customer_phone'
+    then nullif(trim(coalesce(p_payload ->> 'customer_phone', '')), '')
+    else v_current.customer_phone end;
+
+  v_customer_email := case when p_payload ? 'customer_email'
+    then nullif(trim(coalesce(p_payload ->> 'customer_email', '')), '')
+    else v_current.customer_email end;
 
   begin
     v_event_date := case when p_payload ? 'event_date'
@@ -2718,6 +2784,9 @@ begin
   update public.group_events
   set
     name = v_name,
+    customer_name = v_customer_name,
+    customer_phone = v_customer_phone,
+    customer_email = v_customer_email,
     event_date = v_event_date,
     entry_time = v_entry_time,
     adults = v_adults,
@@ -3450,6 +3519,37 @@ CREATE TABLE public.cheffing_units (
 
 
 --
+-- Name: customer_contacts; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.customer_contacts (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    customer_id uuid NOT NULL,
+    contact_type text NOT NULL,
+    contact_value text NOT NULL,
+    normalized_value text NOT NULL,
+    is_primary boolean DEFAULT false NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT customer_contacts_contact_type_check CHECK ((contact_type = ANY (ARRAY['phone'::text, 'email'::text])))
+);
+
+
+--
+-- Name: customers; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.customers (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    display_name text NOT NULL,
+    notes text,
+    source text DEFAULT 'reservation'::text NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+--
 -- Name: day_status; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -3569,6 +3669,10 @@ CREATE TABLE public.group_events (
     menu_id uuid,
     event_mode text DEFAULT 'dinner'::text NOT NULL,
     party_room_id uuid,
+    customer_name text,
+    customer_phone text,
+    customer_email text,
+    customer_id uuid,
     CONSTRAINT group_events_adults_check CHECK ((adults >= 0)),
     CONSTRAINT group_events_children_check CHECK ((children >= 0)),
     CONSTRAINT group_events_deposit_amount_check CHECK ((deposit_amount >= (0)::numeric)),
@@ -4041,7 +4145,10 @@ CREATE VIEW public.v_group_events_calendar_sync WITH (security_invoker='true') A
     ge.calendar_deleted_externally,
     ge.event_mode,
     ge.party_room_id,
-    pr.name AS party_room_name
+    pr.name AS party_room_name,
+    ge.customer_name,
+    ge.customer_phone,
+    ge.customer_email
    FROM (public.group_events ge
      LEFT JOIN public.rooms pr ON ((pr.id = ge.party_room_id)));
 
@@ -4078,7 +4185,10 @@ CREATE VIEW public.v_group_events_daily_detail WITH (security_invoker='true') AS
     ge.service_outcome_notes,
     ge.event_mode,
     pr.id AS party_room_id,
-    pr.name AS party_room_name
+    pr.name AS party_room_name,
+    ge.customer_name,
+    ge.customer_phone,
+    ge.customer_email
    FROM ((((public.group_events ge
      LEFT JOIN public.group_room_allocations gra ON ((gra.group_event_id = ge.id)))
      LEFT JOIN public.rooms r ON ((r.id = gra.room_id)))
@@ -4358,6 +4468,30 @@ ALTER TABLE ONLY public.cheffing_tags
 
 ALTER TABLE ONLY public.cheffing_units
     ADD CONSTRAINT cheffing_units_pkey PRIMARY KEY (code);
+
+
+--
+-- Name: customer_contacts customer_contacts_customer_contact_unique; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.customer_contacts
+    ADD CONSTRAINT customer_contacts_customer_contact_unique UNIQUE (customer_id, contact_type, normalized_value);
+
+
+--
+-- Name: customer_contacts customer_contacts_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.customer_contacts
+    ADD CONSTRAINT customer_contacts_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: customers customers_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.customers
+    ADD CONSTRAINT customers_pkey PRIMARY KEY (id);
 
 
 --
@@ -4832,6 +4966,34 @@ CREATE INDEX cheffing_suppliers_tax_id_idx ON public.cheffing_suppliers USING bt
 
 
 --
+-- Name: customer_contacts_customer_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX customer_contacts_customer_id_idx ON public.customer_contacts USING btree (customer_id);
+
+
+--
+-- Name: customer_contacts_one_primary_per_type_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX customer_contacts_one_primary_per_type_idx ON public.customer_contacts USING btree (customer_id, contact_type) WHERE is_primary;
+
+
+--
+-- Name: customer_contacts_type_normalized_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX customer_contacts_type_normalized_idx ON public.customer_contacts USING btree (contact_type, normalized_value);
+
+
+--
+-- Name: customers_display_name_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX customers_display_name_idx ON public.customers USING btree (display_name);
+
+
+--
 -- Name: day_status_event_date_idx; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -4899,6 +5061,13 @@ CREATE INDEX group_event_offerings_event_sort_created_idx ON public.group_event_
 --
 
 CREATE INDEX group_event_offerings_group_event_idx ON public.group_event_offerings USING btree (group_event_id, sort_order, created_at);
+
+
+--
+-- Name: group_events_customer_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX group_events_customer_id_idx ON public.group_events USING btree (customer_id);
 
 
 --
@@ -5284,6 +5453,20 @@ CREATE TRIGGER set_updated_at_cheffing_suppliers BEFORE UPDATE ON public.cheffin
 --
 
 CREATE TRIGGER set_updated_at_cheffing_units BEFORE UPDATE ON public.cheffing_units FOR EACH ROW EXECUTE FUNCTION public.tg_set_updated_at();
+
+
+--
+-- Name: customer_contacts set_updated_at_customer_contacts; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER set_updated_at_customer_contacts BEFORE UPDATE ON public.customer_contacts FOR EACH ROW EXECUTE FUNCTION public.tg_set_updated_at();
+
+
+--
+-- Name: customers set_updated_at_customers; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER set_updated_at_customers BEFORE UPDATE ON public.customers FOR EACH ROW EXECUTE FUNCTION public.tg_set_updated_at();
 
 
 --
@@ -5729,6 +5912,14 @@ ALTER TABLE ONLY public.cheffing_supplier_product_refs
 
 
 --
+-- Name: customer_contacts customer_contacts_customer_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.customer_contacts
+    ADD CONSTRAINT customer_contacts_customer_id_fkey FOREIGN KEY (customer_id) REFERENCES public.customers(id) ON DELETE CASCADE;
+
+
+--
 -- Name: discotheque_capacity_events discotheque_capacity_events_session_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -5790,6 +5981,14 @@ ALTER TABLE ONLY public.group_event_offerings
 
 ALTER TABLE ONLY public.group_event_offerings
     ADD CONSTRAINT group_event_offerings_group_event_id_fkey FOREIGN KEY (group_event_id) REFERENCES public.group_events(id) ON DELETE CASCADE;
+
+
+--
+-- Name: group_events group_events_customer_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.group_events
+    ADD CONSTRAINT group_events_customer_id_fkey FOREIGN KEY (customer_id) REFERENCES public.customers(id) ON DELETE SET NULL;
 
 
 --
@@ -6473,6 +6672,18 @@ CREATE POLICY cheffing_units_update ON public.cheffing_units FOR UPDATE USING (p
 
 
 --
+-- Name: customer_contacts; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.customer_contacts ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: customers; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.customers ENABLE ROW LEVEL SECURITY;
+
+--
 -- Name: day_status; Type: ROW SECURITY; Schema: public; Owner: -
 --
 
@@ -6579,5 +6790,5 @@ ALTER TABLE public.tasks ENABLE ROW LEVEL SECURITY;
 -- PostgreSQL database dump complete
 --
 
-\unrestrict OSicU6P7MoXiZ5WfKaDdHulP5zHrjrQIX7gHg24TpQ7BnjT11wUhhflwx1LBqUK
+\unrestrict qa6KUgVz2P5dNVg68luujNRNylSXxnZznhnHlw55tSDyzQnmskSowa7m56mXlxX
 

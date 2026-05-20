@@ -572,6 +572,32 @@ RLS: habilitado
 | `created_at` | `timestamp with time zone` | No | `now()` |
 | `updated_at` | `timestamp with time zone` | No | `now()` |
 
+### customer_contacts
+RLS: habilitado
+
+| Columna | Tipo | Nullable | Default |
+| --- | --- | --- | --- |
+| `id` | `uuid` | No | `gen_random_uuid()` |
+| `customer_id` | `uuid` | No |  |
+| `contact_type` | `text` | No |  |
+| `contact_value` | `text` | No |  |
+| `normalized_value` | `text` | No |  |
+| `is_primary` | `boolean` | No | `false` |
+| `created_at` | `timestamp with time zone` | No | `now()` |
+| `updated_at` | `timestamp with time zone` | No | `now()` |
+
+### customers
+RLS: habilitado
+
+| Columna | Tipo | Nullable | Default |
+| --- | --- | --- | --- |
+| `id` | `uuid` | No | `gen_random_uuid()` |
+| `display_name` | `text` | No |  |
+| `notes` | `text` | Sí |  |
+| `source` | `text` | No | `'reservation'::text` |
+| `created_at` | `timestamp with time zone` | No | `now()` |
+| `updated_at` | `timestamp with time zone` | No | `now()` |
+
 ### day_status
 RLS: habilitado
 
@@ -706,6 +732,10 @@ RLS: habilitado
 | `menu_id` | `uuid` | Sí |  |
 | `event_mode` | `text` | No | `'dinner'::text` |
 | `party_room_id` | `uuid` | Sí |  |
+| `customer_name` | `text` | Sí |  |
+| `customer_phone` | `text` | Sí |  |
+| `customer_email` | `text` | Sí |  |
+| `customer_id` | `uuid` | Sí |  |
 
 ### group_room_allocations
 RLS: habilitado
@@ -971,6 +1001,8 @@ RLS: habilitado
 | `cheffing_suppliers` | `set_updated_at_cheffing_suppliers` | BEFORE | UPDATE |
 | `cheffing_units` | `set_updated_at_cheffing_units` | BEFORE | UPDATE |
 | `cheffing_units` | `trg_cheffing_units_updated_at` | BEFORE | UPDATE |
+| `customer_contacts` | `set_updated_at_customer_contacts` | BEFORE | UPDATE |
+| `customers` | `set_updated_at_customers` | BEFORE | UPDATE |
 | `day_status` | `trg_day_status_sync_legacy_columns` | BEFORE | INSERT, UPDATE |
 | `discotheque_capacity_sessions` | `set_updated_at_discotheque_capacity_sessions` | BEFORE | UPDATE |
 | `group_event_offering_selection_doneness` | `sync_group_event_menu_text_from_doneness` | AFTER | INSERT, DELETE, UPDATE |
@@ -1009,6 +1041,8 @@ RLS: habilitado
 | `cheffing_sync_purchase_lines_effective_at` | `` | `trigger` |
 | `close_discotheque_capacity_session` | `p_actor_email text, p_venue_slug text DEFAULT 'sikim-discoteca'::text` | `discotheque_capacity_sessions` |
 | `create_group_event_with_cheffing_offerings` | `p_payload jsonb` | `uuid` |
+| `crm_normalize_email` | `value text` | `text` |
+| `crm_normalize_phone` | `value text` | `text` |
 | `day_status_sync_legacy_columns` | `` | `trigger` |
 | `delete_routine_pack` | `p_pack_id uuid, p_mode text DEFAULT 'keep_all'::text, p_cutoff_week_start date DEFAULT NULL::date` | `TABLE(deleted_pack boolean, deleted_routines integer, deleted_tasks integer, unlinked_tasks integer)` |
 | `delete_routine_template` | `p_routine_id uuid, p_mode text DEFAULT 'keep_all'::text, p_cutoff_week_start date DEFAULT NULL::date` | `TABLE(deleted boolean, deleted_tasks integer, unlinked_tasks integer)` |
