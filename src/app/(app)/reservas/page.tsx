@@ -111,20 +111,6 @@ function endOfMonth(date: Date) {
   return d;
 }
 
-function getMonthDays(date: Date) {
-  const monthStart = startOfMonth(date);
-  const monthEnd = endOfMonth(date);
-  const days: string[] = [];
-  const cursor = new Date(monthStart);
-
-  while (cursor <= monthEnd) {
-    days.push(toISODate(cursor));
-    cursor.setDate(cursor.getDate() + 1);
-  }
-
-  return days;
-}
-
 function formatWeekRange(startDate: string, endDate: string) {
   const formatter = new Intl.DateTimeFormat('es-ES', { day: 'numeric', month: 'numeric', year: 'numeric' });
   return `Semana del ${formatter.format(new Date(startDate))} al ${formatter.format(new Date(endDate))}`;
@@ -853,24 +839,29 @@ function DayView({
 function MobileMonthAgenda({
   days,
   eventsByDate,
+  referenceMonth,
 }: {
   days: string[];
   eventsByDate: Map<string, GroupEventDailyDetail[]>;
+  referenceMonth: Date;
 }) {
-  const activeDays = days
+  const referenceMonthKey = `${referenceMonth.getFullYear()}-${referenceMonth.getMonth()}`;
+  const agendaDays = days
     .map((day) => {
+      const dateObj = new Date(day);
       const events = eventsByDate.get(day) ?? [];
       const totalPax = events.reduce((sum, event) => sum + (event.total_pax ?? 0), 0);
-      return { day, events, totalPax };
+      const isCurrentMonth = `${dateObj.getFullYear()}-${dateObj.getMonth()}` === referenceMonthKey;
+      return { day, events, totalPax, isCurrentMonth };
     })
-    .filter(({ events }) => events.length > 0);
+    .filter(({ events, isCurrentMonth }) => isCurrentMonth || events.length > 0);
 
-  if (activeDays.length === 0) {
+  if (agendaDays.length === 0) {
     return (
       <section className="rounded-2xl border border-[#4a3f32]/70 bg-[#181715]/95 p-5 text-sm text-[#b9aea1] shadow-[0_24px_80px_-56px_rgba(0,0,0,0.95)] md:hidden">
         <div className="flex items-center gap-3">
           <CalendarDaysIcon className="h-5 w-5 text-[#8f8578]" aria-hidden="true" />
-          No hay reservas en este mes.
+          No hay días disponibles para este mes.
         </div>
       </section>
     );
@@ -878,17 +869,44 @@ function MobileMonthAgenda({
 
   return (
     <section className="space-y-4 md:hidden" aria-label="Agenda mensual">
-      {activeDays.map(({ day, events, totalPax }) => {
+      {agendaDays.map(({ day, events, totalPax, isCurrentMonth }) => {
         const label = formatMonthAgendaDay(day);
+
+        if (events.length === 0) {
+          return (
+            <Link
+              key={day}
+              href={`/reservas?view=day&date=${day}`}
+              className="flex items-center justify-between gap-3 rounded-xl border border-[#3f362c]/70 bg-[#171512]/90 px-4 py-3 text-sm shadow-[0_16px_48px_-42px_rgba(0,0,0,0.95)] transition-colors hover:bg-[#211f1b] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#c99555]/45"
+            >
+              <div className="min-w-0">
+                <p className="text-[0.95rem] font-semibold leading-tight text-[#efe8dc]">{label.weekday}</p>
+                <p className="mt-0.5 text-xs text-[#8f8578]">{label.compact}</p>
+              </div>
+              <div className="shrink-0 text-right">
+                <p className="text-xs font-semibold uppercase tracking-[0.12em] text-[#8f8578]">Sin reservas</p>
+                <p className="mt-1 text-sm font-semibold text-[#d6a76e]">Abrir día</p>
+              </div>
+            </Link>
+          );
+        }
+
         return (
-          <article key={day} className="overflow-hidden rounded-2xl border border-[#4a3f32]/70 bg-[#181715]/95 shadow-[0_24px_80px_-56px_rgba(0,0,0,0.95)]">
+          <article
+            key={day}
+            className={`overflow-hidden rounded-2xl border shadow-[0_24px_80px_-56px_rgba(0,0,0,0.95)] ${
+              isCurrentMonth ? 'border-[#4a3f32]/70 bg-[#181715]/95' : 'border-[#3f362c]/70 bg-[#151411]/95'
+            }`}
+          >
             <Link
               href={`/reservas?view=day&date=${day}`}
               className="flex items-start justify-between gap-3 border-b border-[#3c342a]/70 px-4 py-3 transition-colors hover:bg-[#211f1b] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#c99555]/45"
             >
               <div className="min-w-0">
-                <p className="text-[0.95rem] font-semibold leading-tight text-[#f6f0e8]">{label.weekday}</p>
-                <p className="mt-0.5 text-sm text-[#b9aea1]">{label.compact}</p>
+                <p className={`text-[0.95rem] font-semibold leading-tight ${isCurrentMonth ? 'text-[#f6f0e8]' : 'text-[#b9aea1]'}`}>
+                  {label.weekday}
+                </p>
+                <p className={`mt-0.5 text-sm ${isCurrentMonth ? 'text-[#b9aea1]' : 'text-[#7f766b]'}`}>{label.compact}</p>
               </div>
               <div className="shrink-0 text-right">
                 <p className="text-sm font-semibold tabular-nums text-[#ffe2b6]">
@@ -958,11 +976,10 @@ function MonthView({
 
   const refMonth = referenceMonth.getMonth();
   const metrics = getPeriodMetrics(eventsByDate);
-  const monthDays = getMonthDays(referenceMonth);
 
   return (
     <div className="space-y-5">
-      <MobileMonthAgenda days={monthDays} eventsByDate={eventsByDate} />
+      <MobileMonthAgenda days={days} eventsByDate={eventsByDate} referenceMonth={referenceMonth} />
 
       <section className="hidden overflow-hidden rounded-2xl border border-[#4a3f32]/70 bg-[#181715]/95 shadow-[0_24px_80px_-56px_rgba(0,0,0,0.95)] md:block">
         <div className="overflow-x-auto md:overflow-x-visible">
