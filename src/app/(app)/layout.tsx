@@ -31,14 +31,14 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   const allowedUser = allowlistInfo.allowedUser;
 
   return (
-    <div className="aforo-standalone-shell mx-auto flex min-h-screen max-w-7xl gap-6 px-4 py-6 lg:px-0 lg:py-8">
-      <aside className="aforo-standalone-chrome hidden w-64 shrink-0 lg:block">
+    <div className="aforo-standalone-shell mx-auto flex min-h-screen max-w-7xl gap-6 px-4 py-6 lg:px-6 lg:py-8 xl:px-0">
+      <aside className="aforo-standalone-chrome hidden w-64 shrink-0 xl:block">
         <div className="sticky top-8">
           <AppSidebar allowedUser={allowedUser} />
         </div>
       </aside>
 
-      <div className="flex w-full flex-col gap-6">
+      <div className="flex min-w-0 w-full flex-col gap-6">
         <header className="aforo-standalone-chrome flex flex-col gap-3 rounded-2xl border border-slate-800/80 bg-slate-950/70 px-4 py-4 shadow-lg shadow-slate-950/25 md:px-5">
           <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
             <div>
@@ -48,7 +48,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
             </div>
 
             <div className="flex w-full min-w-0 items-center gap-3 self-start md:w-auto md:self-auto">
-              <div className="lg:hidden">
+              <div className="xl:hidden">
                 <details className="group rounded-xl border border-slate-800 bg-slate-900/80 px-3 py-2 shadow-lg shadow-slate-950/40">
                   <summary className="flex cursor-pointer items-center gap-2 text-sm font-semibold text-slate-100">
                     Menú
@@ -66,7 +66,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           </div>
         </header>
 
-        <main className="flex-1 space-y-6">{children}</main>
+        <main className="min-w-0 flex-1 space-y-6">{children}</main>
 
         <footer className="aforo-standalone-chrome aforo-live-capacity-hide-footer border-t border-slate-800/80 pt-6 text-xs font-medium uppercase tracking-wide text-slate-600">
           Sikim · Gestión interna

@@ -1051,7 +1051,7 @@ export default function NuevaReservaClient() {
             </div>
             <h2 className="text-lg font-semibold text-[#f6f0e8]">Detalles de la reserva</h2>
           </div>
-          <div className="grid gap-4 md:grid-cols-2">
+          <div className="grid gap-4 lg:grid-cols-2">
             <label className="space-y-2">
               <span className="label">Fecha y hora</span>
               <input type="datetime-local" value={fecha} onChange={(e) => setFecha(e.target.value)} className="input" required />
@@ -1079,7 +1079,7 @@ export default function NuevaReservaClient() {
                 Nombre que vera el equipo en calendario e informes. Ej.: Cumpleanos Laura, Graduacion INS Castello.
               </span>
             </label>
-            <div className="space-y-1 border-t border-slate-800/80 pt-5 md:col-span-2">
+            <div className="space-y-1 border-t border-slate-800/80 pt-5 lg:col-span-2">
               <h3 className="text-sm font-semibold text-[#f6f0e8]">Datos del cliente/contacto</h3>
               <p className="text-xs leading-5 text-slate-500">
                 Persona que gestiona la reserva. Estos datos serviran para contacto y futuro CRM.
@@ -1166,9 +1166,9 @@ export default function NuevaReservaClient() {
                 {loadRoomsError && <p className="text-xs text-red-400">{loadRoomsError}</p>}
               </label>
             )}
-            <div className="space-y-2 md:col-span-2">
+            <div className="space-y-2 lg:col-span-2">
               <span className="label">Modalidad</span>
-              <div className="grid gap-2 md:grid-cols-3">
+              <div className="grid gap-2 lg:grid-cols-3">
                 {EVENT_MODE_OPTIONS.map((mode) => {
                   const active = eventMode === mode;
                   return (
@@ -1205,7 +1205,7 @@ export default function NuevaReservaClient() {
             </div>
           </div>
 
-          <div className="grid gap-4 md:grid-cols-2">
+          <div className="grid gap-4 lg:grid-cols-2">
             {shouldUseFood && (
               <label className="space-y-2">
                 <span className="label">Intolerancias / alergias</span>
@@ -1222,7 +1222,7 @@ export default function NuevaReservaClient() {
               <textarea value={notasSala} onChange={(e) => setNotasSala(e.target.value)} className="input min-h-[90px]" placeholder="Preferencia de mesa, timings..." />
             </label>
             {shouldUseFood && (
-              <label className="space-y-2 md:col-span-2">
+              <label className="space-y-2 lg:col-span-2">
                 <span className="label">Notas cocina</span>
                 <textarea
                   value={notasCocina}

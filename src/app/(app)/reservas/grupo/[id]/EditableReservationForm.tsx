@@ -987,7 +987,7 @@ export function EditableReservationForm({
           <div className="flex items-center justify-between">
             <h2 className="text-lg font-semibold text-slate-100">Datos generales</h2>
           </div>
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
             <div className="space-y-2">
               <label className="text-sm font-medium text-slate-200">Nombre de la reserva</label>
               <input type="text" value={form.name} onChange={(e) => handleChange('name', e.target.value)} required className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-100 focus:outline-none focus:ring-2 focus:ring-emerald-500/60" />
@@ -1014,7 +1014,7 @@ export function EditableReservationForm({
                 Persona que gestiona la reserva. Estos datos serviran para contacto y futuro CRM.
               </p>
             </div>
-            <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+            <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
               <div className="space-y-2">
                 <label className="text-sm font-medium text-slate-200">Nombre del cliente/contacto</label>
                 <input
@@ -1045,7 +1045,7 @@ export function EditableReservationForm({
             </div>
           </div>
 
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
             <div className="space-y-2">
               <label className="text-sm font-medium text-slate-200">Adultos</label>
               <input type="number" value={form.adults ?? ''} onChange={(e) => handleChange('adults', parseNumber(e.target.value))} className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-100 focus:outline-none focus:ring-2 focus:ring-emerald-500/60" />
@@ -1141,8 +1141,8 @@ export function EditableReservationForm({
         <section className="rounded-2xl border border-slate-800 bg-slate-900/60 p-5 space-y-4">
           <h2 className="text-lg font-semibold text-slate-100">Menú y cocina</h2>
 
-          <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
-            <label className="space-y-1 text-sm text-slate-200 md:col-span-2">
+          <div className="grid grid-cols-1 gap-3 lg:grid-cols-3">
+            <label className="space-y-1 text-sm text-slate-200 lg:col-span-2">
               <span className="label text-xs">Oferta principal</span>
               <select
                 value={selectedOfferingId}
@@ -1236,7 +1236,7 @@ export function EditableReservationForm({
                       </div>
 
                       {segundo.needsDonenessPoints && (
-                        <div className="grid grid-cols-1 gap-2 md:grid-cols-5">
+                        <div className="grid grid-cols-1 gap-2 lg:grid-cols-5">
                           {DONENESS_ORDER.map((point) => (
                             <label key={point} className="text-xs text-slate-300 space-y-1">
                               <span>{DONENESS_LABELS[point]}</span>
@@ -1273,11 +1273,11 @@ export function EditableReservationForm({
                 </div>
 
                 {customSeconds.map((custom) => (
-                  <div key={custom.id} className="grid grid-cols-1 gap-2 rounded-xl border border-slate-800/60 bg-slate-900/40 p-3 md:grid-cols-12">
+                  <div key={custom.id} className="grid grid-cols-1 gap-2 rounded-xl border border-slate-800/60 bg-slate-900/40 p-3 lg:grid-cols-12">
                     <input
                       value={custom.name}
                       onChange={(e) => updateCustomSecond(custom.id, { name: e.target.value })}
-                      className="rounded border border-slate-700 bg-slate-900 px-2 py-1 text-sm text-slate-100 md:col-span-6"
+                      className="rounded border border-slate-700 bg-slate-900 px-2 py-1 text-sm text-slate-100 lg:col-span-6"
                     />
                     <input
                       type="number"
@@ -1285,15 +1285,15 @@ export function EditableReservationForm({
                       step={1}
                       value={custom.cantidad}
                       onChange={(e) => updateCustomSecond(custom.id, { cantidad: toPositiveInt(Number(e.target.value) || 1) })}
-                      className="rounded border border-slate-700 bg-slate-900 px-2 py-1 text-sm text-slate-100 md:col-span-2"
+                      className="rounded border border-slate-700 bg-slate-900 px-2 py-1 text-sm text-slate-100 lg:col-span-2"
                     />
                     <input
                       value={custom.notes ?? ''}
                       onChange={(e) => updateCustomSecond(custom.id, { notes: e.target.value })}
                       placeholder="Notas"
-                      className="rounded border border-slate-700 bg-slate-900 px-2 py-1 text-sm text-slate-100 md:col-span-3"
+                      className="rounded border border-slate-700 bg-slate-900 px-2 py-1 text-sm text-slate-100 lg:col-span-3"
                     />
-                    <button type="button" onClick={() => removeCustomSecond(custom.id)} className="rounded border border-red-800 px-2 py-1 text-xs text-red-300 hover:bg-red-950 md:col-span-1">
+                    <button type="button" onClick={() => removeCustomSecond(custom.id)} className="rounded border border-red-800 px-2 py-1 text-xs text-red-300 hover:bg-red-950 lg:col-span-1">
                       ✕
                     </button>
                   </div>
@@ -1405,7 +1405,7 @@ export function EditableReservationForm({
             )}
           </div>
 
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
             <div className="space-y-2">
               <label className="text-sm font-medium text-slate-200">
                 {hasStructuredData ? 'Snapshot menú (solo lectura)' : 'Menú'}
@@ -1434,7 +1434,7 @@ export function EditableReservationForm({
             </div>
           </div>
 
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
             <div className="space-y-2">
               <label className="text-sm font-medium text-slate-200">Alergias y dietas</label>
               <textarea value={form.allergens_and_diets ?? ''} onChange={(e) => handleChange('allergens_and_diets', e.target.value)} className="h-24 w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-100" />
@@ -1463,7 +1463,7 @@ export function EditableReservationForm({
 
         <section className="rounded-2xl border border-slate-800 bg-slate-900/60 p-5 space-y-4">
           <h2 className="text-lg font-semibold text-slate-100">Montaje y ubicación</h2>
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
             {shouldUseDinnerRoom && (
               <>
             <div className="space-y-2">
@@ -1524,7 +1524,7 @@ export function EditableReservationForm({
 
         <section className="rounded-2xl border border-slate-800 bg-slate-900/60 p-5 space-y-4">
           <h2 className="text-lg font-semibold text-slate-100">Facturación y depósito</h2>
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
             <div className="space-y-2">
               <label className="text-sm font-medium text-slate-200">Datos de factura</label>
               <textarea value={form.invoice_data ?? ''} onChange={(e) => handleChange('invoice_data', e.target.value)} className="h-24 w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-100" />
@@ -1541,7 +1541,7 @@ export function EditableReservationForm({
             </div>
           </div>
 
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
             <div className="space-y-2">
               <label className="text-sm font-medium text-slate-200">Estado</label>
               <select value={form.status} onChange={(e) => handleChange('status', e.target.value)} className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-100">
