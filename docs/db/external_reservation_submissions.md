@@ -12,6 +12,18 @@
 - `group_events.status` continues to represent the operational reservation phase.
 - `external_reservation_submissions` represents origin, acquisition and submission metadata.
 
+## Internal reservation detail UI
+
+The internal reservation detail screen detects an external reservation by looking up an associated `external_reservation_submissions` row for the same `group_event_id`.
+
+When that row exists, the internal UI now surfaces:
+
+- a visible `Solicitud externa` block;
+- the operational reservation status together with `source_label`, preferred language and `submitted_at`;
+- compact attribution metadata such as `utm_source`, `utm_medium`, `utm_campaign`, referrer and landing page when present;
+- the client comment stored in `group_events.extras` as plain text under `Comentario de la solicitud externa`;
+- a pending card/menu state in the form when there is no real `group_event_offerings` row yet.
+
 ## Captured metadata
 
 The table stores source labels, UTM fields, click identifiers, referrer, landing page, preferred language, privacy acceptance, optional marketing consent metadata, an IP hash and user agent.

@@ -45,6 +45,20 @@ type GroupRoomAllocation = {
   room: { name: string | null } | null;
 };
 
+type ExternalReservationSubmission = {
+  source_label: string;
+  preferred_language: string | null;
+  submitted_at: string;
+  utm_source: string | null;
+  utm_medium: string | null;
+  utm_campaign: string | null;
+  referrer: string | null;
+  landing_page: string | null;
+  fbclid: string | null;
+  gclid: string | null;
+  ttclid: string | null;
+};
+
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 export const fetchCache = 'force-no-store';
@@ -242,6 +256,16 @@ export default async function GroupReservationDetail({
 
   const roomAllocation = roomAllocationData as GroupRoomAllocation | null;
 
+  const { data: externalSubmissionData } = await supabaseAdmin
+    .from('external_reservation_submissions')
+    .select(
+      'source_label, preferred_language, submitted_at, utm_source, utm_medium, utm_campaign, referrer, landing_page, fbclid, gclid, ttclid',
+    )
+    .eq('group_event_id', params.id)
+    .maybeSingle();
+
+  const externalSubmission = externalSubmissionData as ExternalReservationSubmission | null;
+
   const { data: partyRoomData } = reservation.party_room_id
     ? await supabaseAdmin
         .from('rooms')
@@ -315,6 +339,7 @@ export default async function GroupReservationDetail({
         offerings={offerings}
         offeringSelections={offeringSelections}
         selectionDoneness={selectionDoneness}
+        externalSubmission={externalSubmission}
         backDate={dateParam}
       />
 
