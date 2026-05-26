@@ -24,6 +24,20 @@ When that row exists, the internal UI now surfaces:
 - the client comment stored in `group_events.extras` as plain text under `Comentario de la solicitud externa`;
 - a pending card/menu state in the form when there is no real `group_event_offerings` row yet.
 
+## Oferta por defecto para reservas externas
+
+`public.external_reservation_settings` is a singleton configuration table for the default catalog offering that future external reservation ingests may apply.
+
+- This PR only creates the database configuration model and its initial seed.
+- The singleton is enforced with `id boolean primary key default true` plus `check (id = true)`, so only the global `true` row is valid.
+- `POST /api/external-reservation-requests` does not read this table yet in this PR.
+- This PR does not create `group_event_offerings` rows yet for external reservations.
+- The initial seed tries to point the configuration to the active cheffing card whose name is exactly `Carta Plats`.
+- If `Carta Plats` does not exist or is not active, the singleton row is seeded with no default offering and `is_enabled = false`.
+- If a configured default card or menu later loses its valid FK reference, normalization leaves the row without offering and forces `is_enabled = false`.
+- `is_enabled = true` only makes sense when a valid default offering is configured.
+- No cheffing card or menu ID is hardcoded in application code; a follow-up PR should resolve the default offering through this table.
+
 ## Captured metadata
 
 The table stores source labels, UTM fields, click identifiers, referrer, landing page, preferred language, privacy acceptance, optional marketing consent metadata, an IP hash and user agent.
