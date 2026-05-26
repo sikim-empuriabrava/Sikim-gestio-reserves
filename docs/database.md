@@ -649,6 +649,19 @@ RLS: habilitado
 | `created_at` | `timestamp with time zone` | No | `now()` |
 | `updated_at` | `timestamp with time zone` | No | `now()` |
 
+### external_reservation_settings
+RLS: habilitado
+
+| Columna | Tipo | Nullable | Default |
+| --- | --- | --- | --- |
+| `id` | `boolean` | No | `true` |
+| `default_offering_kind` | `text` | Sí |  |
+| `default_cheffing_card_id` | `uuid` | Sí |  |
+| `default_cheffing_menu_id` | `uuid` | Sí |  |
+| `is_enabled` | `boolean` | No | `true` |
+| `created_at` | `timestamp with time zone` | No | `now()` |
+| `updated_at` | `timestamp with time zone` | No | `now()` |
+
 ### external_reservation_submissions
 RLS: habilitado
 
@@ -1034,6 +1047,8 @@ RLS: habilitado
 | `customers` | `set_updated_at_customers` | BEFORE | UPDATE |
 | `day_status` | `trg_day_status_sync_legacy_columns` | BEFORE | INSERT, UPDATE |
 | `discotheque_capacity_sessions` | `set_updated_at_discotheque_capacity_sessions` | BEFORE | UPDATE |
+| `external_reservation_settings` | `normalize_external_reservation_settings_default_offering` | BEFORE | INSERT, UPDATE |
+| `external_reservation_settings` | `set_updated_at_external_reservation_settings` | BEFORE | UPDATE |
 | `external_reservation_submissions` | `set_updated_at_external_reservation_submissions` | BEFORE | UPDATE |
 | `group_event_offering_selection_doneness` | `sync_group_event_menu_text_from_doneness` | AFTER | INSERT, DELETE, UPDATE |
 | `group_event_offering_selections` | `set_updated_at_group_event_offering_selections` | BEFORE | UPDATE |
@@ -1084,6 +1099,7 @@ RLS: habilitado
 | `generate_weekly_tasks_auto` | `p_week_start date, p_created_by_email text DEFAULT 'system'::text` | `TABLE(created integer, skipped integer)` |
 | `generate_weekly_tasks_for_pack` | `p_week_start date, p_pack_id uuid, p_created_by_email text DEFAULT NULL::text` | `TABLE(created integer, skipped integer)` |
 | `mark_past_events_completed` | `` | `void` |
+| `normalize_external_reservation_settings_default_offering` | `` | `trigger` |
 | `open_discotheque_capacity_session` | `p_actor_email text, p_venue_slug text DEFAULT 'sikim-discoteca'::text` | `discotheque_capacity_sessions` |
 | `rebuild_group_event_menu_text` | `p_group_event_id uuid` | `void` |
 | `recalculate_group_staffing_plan` | `p_group_event_id uuid` | `void` |

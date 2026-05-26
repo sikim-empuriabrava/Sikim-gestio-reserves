@@ -1403,6 +1403,32 @@ $$;
 
 
 --
+-- Name: normalize_external_reservation_settings_default_offering(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.normalize_external_reservation_settings_default_offering() RETURNS trigger
+    LANGUAGE plpgsql
+    SET search_path TO 'public', 'pg_temp'
+    AS $$
+begin
+  if new.default_offering_kind in ('cheffing_card', 'cheffing_menu')
+     and new.default_cheffing_card_id is null
+     and new.default_cheffing_menu_id is null then
+    new.default_offering_kind := null;
+  end if;
+
+  if new.default_offering_kind is null
+     and new.default_cheffing_card_id is null
+     and new.default_cheffing_menu_id is null then
+    new.is_enabled := false;
+  end if;
+
+  return new;
+end;
+$$;
+
+
+--
 -- Name: open_discotheque_capacity_session(text, text); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -3573,6 +3599,24 @@ CREATE TABLE public.day_status (
 
 
 --
+-- Name: external_reservation_settings; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.external_reservation_settings (
+    id boolean DEFAULT true NOT NULL,
+    default_offering_kind text,
+    default_cheffing_card_id uuid,
+    default_cheffing_menu_id uuid,
+    is_enabled boolean DEFAULT true NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT external_reservation_settings_default_offering_kind_check CHECK (((default_offering_kind IS NULL) OR (default_offering_kind = ANY (ARRAY['cheffing_card'::text, 'cheffing_menu'::text])))),
+    CONSTRAINT external_reservation_settings_default_offering_reference_consis CHECK ((((default_offering_kind IS NULL) AND (default_cheffing_card_id IS NULL) AND (default_cheffing_menu_id IS NULL)) OR ((default_offering_kind = 'cheffing_card'::text) AND (default_cheffing_card_id IS NOT NULL) AND (default_cheffing_menu_id IS NULL)) OR ((default_offering_kind = 'cheffing_menu'::text) AND (default_cheffing_menu_id IS NOT NULL) AND (default_cheffing_card_id IS NULL)))),
+    CONSTRAINT external_reservation_settings_singleton_chk CHECK ((id = true))
+);
+
+
+--
 -- Name: external_reservation_submissions; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -4544,6 +4588,14 @@ ALTER TABLE ONLY public.discotheque_capacity_sessions
 
 
 --
+-- Name: external_reservation_settings external_reservation_settings_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.external_reservation_settings
+    ADD CONSTRAINT external_reservation_settings_pkey PRIMARY KEY (id);
+
+
+--
 -- Name: external_reservation_submissions external_reservation_submissions_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -5350,6 +5402,13 @@ CREATE TRIGGER normalize_allowed_user_email BEFORE INSERT OR UPDATE ON public.ap
 
 
 --
+-- Name: external_reservation_settings normalize_external_reservation_settings_default_offering; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER normalize_external_reservation_settings_default_offering BEFORE INSERT OR UPDATE ON public.external_reservation_settings FOR EACH ROW EXECUTE FUNCTION public.normalize_external_reservation_settings_default_offering();
+
+
+--
 -- Name: cheffing_purchase_documents set_purchase_document_effective_at; Type: TRIGGER; Schema: public; Owner: -
 --
 
@@ -5550,6 +5609,13 @@ CREATE TRIGGER set_updated_at_customers BEFORE UPDATE ON public.customers FOR EA
 --
 
 CREATE TRIGGER set_updated_at_discotheque_capacity_sessions BEFORE UPDATE ON public.discotheque_capacity_sessions FOR EACH ROW EXECUTE FUNCTION public.tg_set_updated_at();
+
+
+--
+-- Name: external_reservation_settings set_updated_at_external_reservation_settings; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER set_updated_at_external_reservation_settings BEFORE UPDATE ON public.external_reservation_settings FOR EACH ROW EXECUTE FUNCTION public.tg_set_updated_at();
 
 
 --
@@ -6008,6 +6074,22 @@ ALTER TABLE ONLY public.customer_contacts
 
 ALTER TABLE ONLY public.discotheque_capacity_events
     ADD CONSTRAINT discotheque_capacity_events_session_id_fkey FOREIGN KEY (session_id) REFERENCES public.discotheque_capacity_sessions(id) ON DELETE CASCADE;
+
+
+--
+-- Name: external_reservation_settings external_reservation_settings_default_cheffing_card_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.external_reservation_settings
+    ADD CONSTRAINT external_reservation_settings_default_cheffing_card_id_fkey FOREIGN KEY (default_cheffing_card_id) REFERENCES public.cheffing_cards(id) ON DELETE SET NULL;
+
+
+--
+-- Name: external_reservation_settings external_reservation_settings_default_cheffing_menu_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.external_reservation_settings
+    ADD CONSTRAINT external_reservation_settings_default_cheffing_menu_id_fkey FOREIGN KEY (default_cheffing_menu_id) REFERENCES public.cheffing_menus(id) ON DELETE SET NULL;
 
 
 --
@@ -6793,6 +6875,12 @@ ALTER TABLE public.discotheque_capacity_events ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.discotheque_capacity_sessions ENABLE ROW LEVEL SECURITY;
 
 --
+-- Name: external_reservation_settings; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.external_reservation_settings ENABLE ROW LEVEL SECURITY;
+
+--
 -- Name: external_reservation_submissions; Type: ROW SECURITY; Schema: public; Owner: -
 --
 
@@ -6887,5 +6975,5 @@ ALTER TABLE public.tasks ENABLE ROW LEVEL SECURITY;
 -- PostgreSQL database dump complete
 --
 
-\unrestrict GqbGlLjzyHfDmDsEdlRo0dSOHHsRE8csQ6VhGSwBugA6QstAypxN6PmOcAfKKGy
+\unrestrict d67lkdo0k8M9FPKjQDQ0ccKHhAQQ61xmVFO9BoMAWkt4Bie3SvT8nXGYJGgkcWI
 
