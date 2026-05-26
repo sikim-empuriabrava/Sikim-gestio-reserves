@@ -3573,6 +3573,39 @@ CREATE TABLE public.day_status (
 
 
 --
+-- Name: external_reservation_submissions; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.external_reservation_submissions (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    group_event_id uuid NOT NULL,
+    source_label text DEFAULT 'Direct / Unknown'::text NOT NULL,
+    utm_source text,
+    utm_medium text,
+    utm_campaign text,
+    utm_content text,
+    utm_term text,
+    referrer text,
+    landing_page text,
+    fbclid text,
+    gclid text,
+    ttclid text,
+    preferred_language text,
+    privacy_accepted_at timestamp with time zone NOT NULL,
+    marketing_consent boolean DEFAULT false NOT NULL,
+    marketing_consent_at timestamp with time zone,
+    marketing_consent_source text,
+    ip_hash text,
+    user_agent text,
+    submitted_at timestamp with time zone DEFAULT now() NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT external_reservation_submissions_preferred_language_check CHECK (((preferred_language IS NULL) OR (preferred_language = ANY (ARRAY['ca'::text, 'es'::text, 'fr'::text, 'en'::text, 'de'::text, 'nl'::text, 'it'::text])))),
+    CONSTRAINT external_reservation_submissions_source_label_not_empty CHECK ((btrim(source_label) <> ''::text))
+);
+
+
+--
 -- Name: group_event_offering_selection_doneness; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -4511,6 +4544,14 @@ ALTER TABLE ONLY public.discotheque_capacity_sessions
 
 
 --
+-- Name: external_reservation_submissions external_reservation_submissions_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.external_reservation_submissions
+    ADD CONSTRAINT external_reservation_submissions_pkey PRIMARY KEY (id);
+
+
+--
 -- Name: group_event_offering_selection_doneness group_event_offering_selection_doneness_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -5022,6 +5063,41 @@ CREATE INDEX discotheque_capacity_sessions_venue_opened_at_idx ON public.discoth
 
 
 --
+-- Name: external_reservation_submissions_group_event_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX external_reservation_submissions_group_event_id_idx ON public.external_reservation_submissions USING btree (group_event_id);
+
+
+--
+-- Name: external_reservation_submissions_preferred_language_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX external_reservation_submissions_preferred_language_idx ON public.external_reservation_submissions USING btree (preferred_language);
+
+
+--
+-- Name: external_reservation_submissions_source_label_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX external_reservation_submissions_source_label_idx ON public.external_reservation_submissions USING btree (source_label);
+
+
+--
+-- Name: external_reservation_submissions_submitted_at_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX external_reservation_submissions_submitted_at_idx ON public.external_reservation_submissions USING btree (submitted_at);
+
+
+--
+-- Name: external_reservation_submissions_utm_source_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX external_reservation_submissions_utm_source_idx ON public.external_reservation_submissions USING btree (utm_source);
+
+
+--
 -- Name: group_event_offering_selection_doneness_selection_idx; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -5477,6 +5553,13 @@ CREATE TRIGGER set_updated_at_discotheque_capacity_sessions BEFORE UPDATE ON pub
 
 
 --
+-- Name: external_reservation_submissions set_updated_at_external_reservation_submissions; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER set_updated_at_external_reservation_submissions BEFORE UPDATE ON public.external_reservation_submissions FOR EACH ROW EXECUTE FUNCTION public.tg_set_updated_at();
+
+
+--
 -- Name: group_event_offering_selections set_updated_at_group_event_offering_selections; Type: TRIGGER; Schema: public; Owner: -
 --
 
@@ -5925,6 +6008,14 @@ ALTER TABLE ONLY public.customer_contacts
 
 ALTER TABLE ONLY public.discotheque_capacity_events
     ADD CONSTRAINT discotheque_capacity_events_session_id_fkey FOREIGN KEY (session_id) REFERENCES public.discotheque_capacity_sessions(id) ON DELETE CASCADE;
+
+
+--
+-- Name: external_reservation_submissions external_reservation_submissions_group_event_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.external_reservation_submissions
+    ADD CONSTRAINT external_reservation_submissions_group_event_id_fkey FOREIGN KEY (group_event_id) REFERENCES public.group_events(id) ON DELETE CASCADE;
 
 
 --
@@ -6702,6 +6793,12 @@ ALTER TABLE public.discotheque_capacity_events ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.discotheque_capacity_sessions ENABLE ROW LEVEL SECURITY;
 
 --
+-- Name: external_reservation_submissions; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.external_reservation_submissions ENABLE ROW LEVEL SECURITY;
+
+--
 -- Name: group_event_offering_selection_doneness; Type: ROW SECURITY; Schema: public; Owner: -
 --
 
@@ -6790,5 +6887,5 @@ ALTER TABLE public.tasks ENABLE ROW LEVEL SECURITY;
 -- PostgreSQL database dump complete
 --
 
-\unrestrict qa6KUgVz2P5dNVg68luujNRNylSXxnZznhnHlw55tSDyzQnmskSowa7m56mXlxX
+\unrestrict GqbGlLjzyHfDmDsEdlRo0dSOHHsRE8csQ6VhGSwBugA6QstAypxN6PmOcAfKKGy
 

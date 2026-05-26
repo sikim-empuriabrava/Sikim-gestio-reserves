@@ -649,6 +649,35 @@ RLS: habilitado
 | `created_at` | `timestamp with time zone` | No | `now()` |
 | `updated_at` | `timestamp with time zone` | No | `now()` |
 
+### external_reservation_submissions
+RLS: habilitado
+
+| Columna | Tipo | Nullable | Default |
+| --- | --- | --- | --- |
+| `id` | `uuid` | No | `gen_random_uuid()` |
+| `group_event_id` | `uuid` | No |  |
+| `source_label` | `text` | No | `'Direct / Unknown'::text` |
+| `utm_source` | `text` | Sí |  |
+| `utm_medium` | `text` | Sí |  |
+| `utm_campaign` | `text` | Sí |  |
+| `utm_content` | `text` | Sí |  |
+| `utm_term` | `text` | Sí |  |
+| `referrer` | `text` | Sí |  |
+| `landing_page` | `text` | Sí |  |
+| `fbclid` | `text` | Sí |  |
+| `gclid` | `text` | Sí |  |
+| `ttclid` | `text` | Sí |  |
+| `preferred_language` | `text` | Sí |  |
+| `privacy_accepted_at` | `timestamp with time zone` | No |  |
+| `marketing_consent` | `boolean` | No | `false` |
+| `marketing_consent_at` | `timestamp with time zone` | Sí |  |
+| `marketing_consent_source` | `text` | Sí |  |
+| `ip_hash` | `text` | Sí |  |
+| `user_agent` | `text` | Sí |  |
+| `submitted_at` | `timestamp with time zone` | No | `now()` |
+| `created_at` | `timestamp with time zone` | No | `now()` |
+| `updated_at` | `timestamp with time zone` | No | `now()` |
+
 ### group_event_offering_selection_doneness
 RLS: habilitado
 
@@ -1005,6 +1034,7 @@ RLS: habilitado
 | `customers` | `set_updated_at_customers` | BEFORE | UPDATE |
 | `day_status` | `trg_day_status_sync_legacy_columns` | BEFORE | INSERT, UPDATE |
 | `discotheque_capacity_sessions` | `set_updated_at_discotheque_capacity_sessions` | BEFORE | UPDATE |
+| `external_reservation_submissions` | `set_updated_at_external_reservation_submissions` | BEFORE | UPDATE |
 | `group_event_offering_selection_doneness` | `sync_group_event_menu_text_from_doneness` | AFTER | INSERT, DELETE, UPDATE |
 | `group_event_offering_selections` | `set_updated_at_group_event_offering_selections` | BEFORE | UPDATE |
 | `group_event_offering_selections` | `sync_group_event_menu_text_from_selections` | AFTER | INSERT, DELETE, UPDATE |
