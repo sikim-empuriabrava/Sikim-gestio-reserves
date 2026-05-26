@@ -94,6 +94,20 @@ type CurrentRoomAllocation = {
   notes: string | null;
 };
 
+type ExternalReservationSubmission = {
+  source_label: string;
+  preferred_language: string | null;
+  submitted_at: string;
+  utm_source: string | null;
+  utm_medium: string | null;
+  utm_campaign: string | null;
+  referrer: string | null;
+  landing_page: string | null;
+  fbclid: string | null;
+  gclid: string | null;
+  ttclid: string | null;
+};
+
 type CustomSecondKind = 'custom_menu' | 'kids_menu';
 
 type CustomSecond = {
@@ -120,6 +134,7 @@ type Props = {
   offerings: ExistingOffering[];
   offeringSelections: ExistingOfferingSelection[];
   selectionDoneness: ExistingOfferingSelectionDoneness[];
+  externalSubmission: ExternalReservationSubmission | null;
   backDate?: string | null;
 };
 
@@ -132,6 +147,16 @@ const DONENESS_LABELS: Record<DonenessPoint, string> = {
 };
 
 const DONENESS_ORDER: DonenessPoint[] = ['crudo', 'poco', 'al_punto', 'hecho', 'muy_hecho'];
+const EXTERNAL_LANGUAGE_LABELS: Record<string, string> = {
+  ca: 'Catalan',
+  es: 'Espanol',
+  fr: 'Frances',
+  en: 'Ingles',
+  de: 'Aleman',
+  nl: 'Neerlandes',
+  it: 'Italiano',
+};
+const UNASSIGNED_OFFERING_LABEL = 'Sin carta/menu asignado';
 const buildOfferingCatalogId = (kind: ReservationOfferingKind, sourceId: string) => `${kind}:${sourceId}`;
 const toNonNegativeInt = (value: number | null | undefined) => Math.max(0, Math.floor(Number(value ?? 0) || 0));
 const toPositiveInt = (value: number | null | undefined) => Math.max(1, toNonNegativeInt(value));
@@ -158,6 +183,58 @@ const getDefaultAssignedPax = (primaryOffering: ExistingOffering | null, reserva
   }
 
   return toPositiveInt((reservation.adults ?? 0) + (reservation.children ?? 0));
+};
+const getReservationStatusMeta = (status: string) => {
+  switch (status) {
+    case 'confirmed':
+      return {
+        label: 'Confirmada',
+        className: 'border-emerald-500/25 bg-emerald-500/10 text-emerald-200',
+      };
+    case 'draft':
+      return {
+        label: 'Borrador',
+        className: 'border-[#e2b19b]/90 bg-[#f7e1d7] text-[#8a5c49]',
+      };
+    case 'completed':
+      return {
+        label: 'Completada',
+        className: 'border-emerald-500/25 bg-emerald-900/30 text-emerald-100',
+      };
+    case 'pending':
+      return {
+        label: 'Pendiente',
+        className: 'border-sky-500/30 bg-sky-500/10 text-sky-200',
+      };
+    case 'no_show':
+      return {
+        label: 'No-show',
+        className: 'border-rose-500/30 bg-rose-500/10 text-rose-200',
+      };
+    case 'cancelled':
+      return {
+        label: 'Cancelada',
+        className: 'border-stone-600/60 bg-stone-900/70 text-stone-300',
+      };
+    default:
+      return {
+        label: status,
+        className: 'border-stone-600/70 bg-stone-900/70 text-stone-200',
+      };
+  }
+};
+const toCleanText = (value: string | null | undefined) => {
+  if (typeof value !== 'string') return null;
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : null;
+};
+const formatExternalSubmittedAt = (value: string) => {
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return value;
+  return new Intl.DateTimeFormat('es-ES', {
+    dateStyle: 'medium',
+    timeStyle: 'short',
+  }).format(parsed);
 };
 
 function ReservaDetailPilotStyles() {
@@ -375,6 +452,7 @@ export function EditableReservationForm({
   offerings,
   offeringSelections,
   selectionDoneness,
+  externalSubmission,
   backDate,
 }: Props) {
   const router = useRouter();
@@ -496,6 +574,38 @@ export function EditableReservationForm({
     (!isSelectedOfferingInactive || (selectedOffering?.segundos.length ?? 0) > 0);
 
   const computedTotalPax = (form.adults ?? 0) + (form.children ?? 0);
+  const isExternalReservation = Boolean(externalSubmission);
+  const externalStatusMeta = getReservationStatusMeta(form.status);
+  const externalSourceLabel = toCleanText(externalSubmission?.source_label) ?? 'Direct / Unknown';
+  const externalLanguageLabel = externalSubmission?.preferred_language
+    ? EXTERNAL_LANGUAGE_LABELS[externalSubmission.preferred_language] ??
+      externalSubmission.preferred_language.toUpperCase()
+    : null;
+  const externalSubmittedAt = externalSubmission?.submitted_at
+    ? formatExternalSubmittedAt(externalSubmission.submitted_at)
+    : null;
+  const externalUtmSummary = externalSubmission
+    ? [
+        toCleanText(externalSubmission.utm_source),
+        toCleanText(externalSubmission.utm_medium),
+        toCleanText(externalSubmission.utm_campaign),
+      ]
+        .filter((value): value is string => Boolean(value))
+        .join(' · ') || null
+    : null;
+  const externalReferrer = toCleanText(externalSubmission?.referrer);
+  const externalLandingPage = toCleanText(externalSubmission?.landing_page);
+  const externalClickIdsSummary = externalSubmission
+    ? [
+        toCleanText(externalSubmission.gclid) ? `gclid: ${toCleanText(externalSubmission.gclid)}` : null,
+        toCleanText(externalSubmission.fbclid) ? `fbclid: ${toCleanText(externalSubmission.fbclid)}` : null,
+        toCleanText(externalSubmission.ttclid) ? `ttclid: ${toCleanText(externalSubmission.ttclid)}` : null,
+      ]
+        .filter((value): value is string => Boolean(value))
+        .join(' · ') || null
+    : null;
+  const externalComment = isExternalReservation ? toCleanText(form.extras) : null;
+  const assignedPaxSummary = selectedOffering ? String(assignedPax) : 'Pendiente';
 
   const handleChange = (key: keyof EditableReservation, value: unknown) => {
     setForm((prev) => ({ ...prev, [key]: value } as EditableReservation));
@@ -1012,11 +1122,6 @@ export function EditableReservationForm({
   }, [hydrateStateFromExistingStructure]);
 
   useEffect(() => {
-    if (selectedOfferingId || selectableOfferingCatalog.length === 0) return;
-    setSelectedOfferingId(selectableOfferingCatalog[0].id);
-  }, [selectableOfferingCatalog, selectedOfferingId]);
-
-  useEffect(() => {
     if (selectableRooms.length === 0) return;
 
     setRoomId((prev) => {
@@ -1081,6 +1186,92 @@ export function EditableReservationForm({
       </div>
 
       <div className="space-y-5">
+        {isExternalReservation && (
+          <section className="rounded-2xl border border-sky-500/25 bg-sky-950/15 p-5 space-y-4">
+            <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+              <div className="space-y-1">
+                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-sky-200">Solicitud externa</p>
+                <h2 className="text-lg font-semibold text-slate-100">Entrada desde el motor publico</h2>
+                <p className="text-sm leading-6 text-slate-300">
+                  Esta reserva entro desde el motor publico y conserva su trazabilidad de origen para revision interna.
+                </p>
+              </div>
+              <span
+                className={`inline-flex items-center rounded-full border px-3 py-1 text-xs font-semibold ${externalStatusMeta.className}`}
+              >
+                Estado operativo: {externalStatusMeta.label}
+              </span>
+            </div>
+
+            <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
+              <div className="rounded-xl border border-slate-800/70 bg-slate-950/30 p-3">
+                <p className="text-xs uppercase tracking-[0.14em] text-slate-400">Origen</p>
+                <p className="mt-1 text-sm font-semibold text-slate-100">{externalSourceLabel}</p>
+              </div>
+
+              {externalLanguageLabel && (
+                <div className="rounded-xl border border-slate-800/70 bg-slate-950/30 p-3">
+                  <p className="text-xs uppercase tracking-[0.14em] text-slate-400">Idioma</p>
+                  <p className="mt-1 text-sm font-semibold text-slate-100">{externalLanguageLabel}</p>
+                </div>
+              )}
+
+              {externalSubmittedAt && (
+                <div className="rounded-xl border border-slate-800/70 bg-slate-950/30 p-3">
+                  <p className="text-xs uppercase tracking-[0.14em] text-slate-400">Enviada</p>
+                  <p className="mt-1 text-sm font-semibold text-slate-100">{externalSubmittedAt}</p>
+                </div>
+              )}
+
+              {externalUtmSummary && (
+                <div className="rounded-xl border border-slate-800/70 bg-slate-950/30 p-3 md:col-span-2 xl:col-span-1">
+                  <p className="text-xs uppercase tracking-[0.14em] text-slate-400">UTM</p>
+                  <p className="mt-1 text-sm text-slate-100">{externalUtmSummary}</p>
+                </div>
+              )}
+
+              {(externalReferrer || externalLandingPage) && (
+                <div className="rounded-xl border border-slate-800/70 bg-slate-950/30 p-3 md:col-span-2">
+                  <p className="text-xs uppercase tracking-[0.14em] text-slate-400">Navegacion</p>
+                  <div className="mt-1 space-y-1 text-sm text-slate-100">
+                    {externalReferrer && (
+                      <p className="break-all">
+                        <span className="text-slate-400">Referrer:</span> {externalReferrer}
+                      </p>
+                    )}
+                    {externalLandingPage && (
+                      <p className="break-all">
+                        <span className="text-slate-400">Landing page:</span> {externalLandingPage}
+                      </p>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {!hasStructuredData && shouldUseFood && (
+              <div className="rounded-xl border border-amber-700/60 bg-amber-950/25 px-3 py-2 text-sm text-amber-100">
+                Carta/menu pendiente de asignar. Esta solicitud externa aun no tiene una oferta real guardada.
+              </div>
+            )}
+
+            {externalComment && (
+              <div className="rounded-xl border border-slate-800/70 bg-slate-950/30 p-4">
+                <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-400">
+                  Comentario de la solicitud externa
+                </p>
+                <p className="mt-2 whitespace-pre-wrap break-words text-sm leading-6 text-slate-100">
+                  {externalComment}
+                </p>
+              </div>
+            )}
+
+            {externalClickIdsSummary && (
+              <p className="text-xs text-slate-500 break-all">Click IDs: {externalClickIdsSummary}</p>
+            )}
+          </section>
+        )}
+
         <section className="rounded-2xl border border-slate-800 bg-slate-900/60 p-5 space-y-4">
           <div className="flex items-center justify-between">
             <h2 className="text-lg font-semibold text-slate-100">Datos generales</h2>
@@ -1254,12 +1445,23 @@ export function EditableReservationForm({
                 className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-100"
                 disabled={!canEditStructuredOffering || offeringsLoading || selectableOfferingCatalog.length === 0}
               >
+                {!hasStructuredData && (
+                  <option value="">
+                    {offeringsLoading ? 'Cargando catalogo de ofertas...' : UNASSIGNED_OFFERING_LABEL}
+                  </option>
+                )}
                 {selectableOfferingCatalog.map((offering) => (
                   <option key={offering.id} value={offering.id}>
                     {offering.display_name} {offering.kind === 'cheffing_card' ? '· Carta' : '· Menú'}
                   </option>
                 ))}
               </select>
+              {!hasStructuredData && !selectedOffering && (
+                <p className="text-xs text-slate-500">
+                  Esta reserva no tiene ninguna carta/menu real asignado. Solo se guardara una oferta si la seleccionas
+                  expresamente.
+                </p>
+              )}
             </label>
             <label className="space-y-1 text-sm text-slate-200">
               <span className="label text-xs">Pax asignado</span>
@@ -1274,7 +1476,7 @@ export function EditableReservationForm({
                   setAssignedPax(toPositiveInt(Number(e.target.value) || 1));
                 }}
                 className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-100"
-                disabled={!canEditStructuredOffering}
+                disabled={!canEditStructuredOffering || !selectedOffering}
               />
             </label>
           </div>
@@ -1479,6 +1681,11 @@ export function EditableReservationForm({
           <div className="detail-panel rounded-xl border border-slate-800 bg-slate-950/30 p-4 space-y-2">
             <p className="text-sm font-medium text-slate-200">Resumen estructurado</p>
             <p className="text-xs text-slate-400">
+              {selectedOffering
+                ? `Oferta: ${selectedOffering.display_name} · Pax asignado: ${assignedPax}`
+                : `Oferta: ${UNASSIGNED_OFFERING_LABEL} · Pax asignado: ${assignedPaxSummary}`}
+            </p>
+            <p className="hidden" aria-hidden="true">
               Oferta: {selectedOffering?.display_name ?? '—'} · Pax asignado: {assignedPax}
             </p>
             {isSelectedOfferingMenu && (
@@ -1650,8 +1857,10 @@ export function EditableReservationForm({
               <label className="text-sm font-medium text-slate-200">Estado</label>
               <select value={form.status} onChange={(e) => handleChange('status', e.target.value)} className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-100">
                 <option value="draft">Borrador</option>
+                <option value="pending">Pendiente</option>
                 <option value="confirmed">Confirmado</option>
                 <option value="completed">Completado</option>
+                <option value="no_show">No-show</option>
                 <option value="cancelled">Cancelado</option>
               </select>
             </div>
