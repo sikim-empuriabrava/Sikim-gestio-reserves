@@ -26,17 +26,22 @@ When that row exists, the internal UI now surfaces:
 
 ## Oferta por defecto para reservas externas
 
-`public.external_reservation_settings` is a singleton configuration table for the default catalog offering that future external reservation ingests may apply.
+`public.external_reservation_settings` is a singleton configuration table for the default catalog offering that `POST /api/external-reservation-requests` can apply automatically.
 
-- This PR only creates the database configuration model and its initial seed.
 - The singleton is enforced with `id boolean primary key default true` plus `check (id = true)`, so only the global `true` row is valid.
-- `POST /api/external-reservation-requests` does not read this table yet in this PR.
-- This PR does not create `group_event_offerings` rows yet for external reservations.
+- The route reads `external_reservation_settings` with `where id = true`.
+- If there is no row, `is_enabled = false`, or the configured offering is incomplete, the reservation still enters normally and no `group_event_offerings` row is created.
+- If `default_offering_kind = 'cheffing_card'` and the configured `default_cheffing_card_id` exists and is active, the route creates a `group_event_offerings` row with `assigned_pax = partySize`, `display_name_snapshot = cheffing_cards.name`, `unit_price_snapshot = null`, `sort_order = 0` and a minimal `snapshot_payload` marking the assignment as automatic.
+- If `default_offering_kind = 'cheffing_menu'` and the configured `default_cheffing_menu_id` exists and is active, the route creates a `group_event_offerings` row with `assigned_pax = partySize`, `display_name_snapshot = cheffing_menus.name`, `unit_price_snapshot = cheffing_menus.price_per_person`, `sort_order = 0` and the same automatic-assignment snapshot.
 - The initial seed tries to point the configuration to the active cheffing card whose name is exactly `Carta Plats`.
+- The current intended operational default is therefore `Carta Plats` whenever that card exists, is active and the singleton is enabled.
 - If `Carta Plats` does not exist or is not active, the singleton row is seeded with no default offering and `is_enabled = false`.
 - If a configured default card or menu later loses its valid FK reference, normalization leaves the row without offering and forces `is_enabled = false`.
 - `is_enabled = true` only makes sense when a valid default offering is configured.
-- No cheffing card or menu ID is hardcoded in application code; a follow-up PR should resolve the default offering through this table.
+- No cheffing card or menu ID is hardcoded in application code; the ingest resolves the default offering through this table at request time.
+- If the table points to a card or menu that no longer exists or is no longer active, the route logs a server-side warning, skips the offering assignment and still accepts the reservation.
+- If creating `group_event_offerings` fails unexpectedly, the route logs a server-side error and still accepts the reservation so the team can assign the card or menu manually from the internal UI.
+- The operational fallback is that Carla can assign the card or menu manually after the reservation lands as `pending`.
 
 ## Captured metadata
 
@@ -80,9 +85,14 @@ The endpoint accepts a strict JSON payload with:
 
 1. Insert a pending operational reservation into `public.group_events`.
 2. Insert the matching attribution row into `public.external_reservation_submissions`.
-3. Attempt CRM linking with `linkGroupEventCustomerFromSnapshot` on a best-effort basis.
+3. Read `public.external_reservation_settings` and, when the singleton is enabled and points to an active configured card or menu, insert the matching `public.group_event_offerings` row.
+4. Attempt CRM linking with `linkGroupEventCustomerFromSnapshot` on a best-effort basis.
 
 If step 2 fails after the reservation row was created, the handler attempts to delete the just-created `group_events` row to avoid leaving an orphan reservation without external provenance.
+
+If step 3 fails because the settings are missing, disabled, incomplete or point to an inactive catalog item, the handler keeps the reservation and submission rows intact and only skips the automatic offering assignment.
+
+If step 3 fails with an unexpected insert error in `group_event_offerings`, the handler logs the failure and still returns success so the customer request is not lost.
 
 ## Access model
 

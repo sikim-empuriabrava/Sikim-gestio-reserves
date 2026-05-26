@@ -220,6 +220,40 @@ const externalReservationRequestSchema = z
 
 type ExternalReservationRequest = z.infer<typeof externalReservationRequestSchema>;
 
+type ExternalReservationSettingsRow = {
+  is_enabled: boolean;
+  default_offering_kind: 'cheffing_card' | 'cheffing_menu' | null;
+  default_cheffing_card_id: string | null;
+  default_cheffing_menu_id: string | null;
+};
+
+type ActiveCheffingCardRow = {
+  id: string;
+  name: string;
+};
+
+type ActiveCheffingMenuRow = {
+  id: string;
+  name: string;
+  price_per_person: number | string | null;
+};
+
+type GroupEventOfferingInsert = {
+  group_event_id: string;
+  offering_kind: 'cheffing_card' | 'cheffing_menu';
+  cheffing_menu_id: string | null;
+  cheffing_card_id: string | null;
+  assigned_pax: number;
+  display_name_snapshot: string;
+  unit_price_snapshot: number | string | null;
+  notes: string | null;
+  sort_order: number;
+  snapshot_payload: {
+    source: 'external_reservation_settings';
+    appliedBy: 'external_reservation_ingest';
+  };
+};
+
 function buildGroupEventInsert(payload: ExternalReservationRequest) {
   return {
     name: payload.contactName,
@@ -259,6 +293,173 @@ function buildExternalSubmissionInsert(groupEventId: string, payload: ExternalRe
     user_agent: payload.attribution.userAgent,
     submitted_at: nowIso,
   };
+}
+
+async function buildDefaultOfferingInsert(
+  supabase: ReturnType<typeof createSupabaseAdminClient>,
+  groupEventId: string,
+  payload: ExternalReservationRequest,
+): Promise<GroupEventOfferingInsert | null> {
+  const { data: settingsData, error: settingsError } = await supabase
+    .from('external_reservation_settings')
+    .select('is_enabled, default_offering_kind, default_cheffing_card_id, default_cheffing_menu_id')
+    .eq('id', true)
+    .maybeSingle();
+
+  if (settingsError) {
+    console.error('[API] external-reservation-requests default offering settings lookup failed', {
+      groupEventId,
+      error: settingsError,
+    });
+    return null;
+  }
+
+  const settings = (settingsData ?? null) as ExternalReservationSettingsRow | null;
+
+  if (!settings || !settings.is_enabled) {
+    return null;
+  }
+
+  if (settings.default_offering_kind === 'cheffing_card') {
+    if (!settings.default_cheffing_card_id) {
+      console.warn('[API] external-reservation-requests enabled default card setting is missing card id', {
+        groupEventId,
+      });
+      return null;
+    }
+
+    const { data: cardData, error: cardError } = await supabase
+      .from('cheffing_cards')
+      .select('id, name')
+      .eq('id', settings.default_cheffing_card_id)
+      .eq('is_active', true)
+      .maybeSingle();
+
+    if (cardError) {
+      console.error('[API] external-reservation-requests default cheffing card lookup failed', {
+        groupEventId,
+        cheffingCardId: settings.default_cheffing_card_id,
+        error: cardError,
+      });
+      return null;
+    }
+
+    const card = (cardData ?? null) as ActiveCheffingCardRow | null;
+
+    if (!card) {
+      console.warn('[API] external-reservation-requests configured default cheffing card is missing or inactive', {
+        groupEventId,
+        cheffingCardId: settings.default_cheffing_card_id,
+      });
+      return null;
+    }
+
+    return {
+      group_event_id: groupEventId,
+      offering_kind: 'cheffing_card',
+      cheffing_menu_id: null,
+      cheffing_card_id: card.id,
+      assigned_pax: payload.partySize,
+      display_name_snapshot: card.name,
+      unit_price_snapshot: null,
+      notes: null,
+      sort_order: 0,
+      snapshot_payload: {
+        source: 'external_reservation_settings',
+        appliedBy: 'external_reservation_ingest',
+      },
+    };
+  }
+
+  if (settings.default_offering_kind === 'cheffing_menu') {
+    if (!settings.default_cheffing_menu_id) {
+      console.warn('[API] external-reservation-requests enabled default menu setting is missing menu id', {
+        groupEventId,
+      });
+      return null;
+    }
+
+    const { data: menuData, error: menuError } = await supabase
+      .from('cheffing_menus')
+      .select('id, name, price_per_person')
+      .eq('id', settings.default_cheffing_menu_id)
+      .eq('is_active', true)
+      .maybeSingle();
+
+    if (menuError) {
+      console.error('[API] external-reservation-requests default cheffing menu lookup failed', {
+        groupEventId,
+        cheffingMenuId: settings.default_cheffing_menu_id,
+        error: menuError,
+      });
+      return null;
+    }
+
+    const menu = (menuData ?? null) as ActiveCheffingMenuRow | null;
+
+    if (!menu) {
+      console.warn('[API] external-reservation-requests configured default cheffing menu is missing or inactive', {
+        groupEventId,
+        cheffingMenuId: settings.default_cheffing_menu_id,
+      });
+      return null;
+    }
+
+    return {
+      group_event_id: groupEventId,
+      offering_kind: 'cheffing_menu',
+      cheffing_menu_id: menu.id,
+      cheffing_card_id: null,
+      assigned_pax: payload.partySize,
+      display_name_snapshot: menu.name,
+      unit_price_snapshot: menu.price_per_person,
+      notes: null,
+      sort_order: 0,
+      snapshot_payload: {
+        source: 'external_reservation_settings',
+        appliedBy: 'external_reservation_ingest',
+      },
+    };
+  }
+
+  console.warn('[API] external-reservation-requests enabled default offering settings are incomplete or invalid', {
+    groupEventId,
+    defaultOfferingKind: settings.default_offering_kind,
+    hasCardId: Boolean(settings.default_cheffing_card_id),
+    hasMenuId: Boolean(settings.default_cheffing_menu_id),
+  });
+  return null;
+}
+
+async function applyDefaultOfferingToExternalReservation(
+  supabase: ReturnType<typeof createSupabaseAdminClient>,
+  groupEventId: string,
+  payload: ExternalReservationRequest,
+) {
+  try {
+    const offeringInsert = await buildDefaultOfferingInsert(supabase, groupEventId, payload);
+
+    if (!offeringInsert) {
+      return;
+    }
+
+    const { error: offeringError } = await supabase
+      .from('group_event_offerings')
+      .insert(offeringInsert);
+
+    if (offeringError) {
+      console.error('[API] external-reservation-requests automatic offering insert failed', {
+        groupEventId,
+        offeringKind: offeringInsert.offering_kind,
+        error: offeringError,
+      });
+    }
+  } catch (error) {
+    console.error('[API] external-reservation-requests automatic offering assignment threw unexpectedly', {
+      groupEventId,
+      error,
+    });
+  }
 }
 
 export async function POST(request: NextRequest) {
@@ -330,6 +531,8 @@ export async function POST(request: NextRequest) {
 
       return respond({ error: 'Unable to create external reservation request' }, { status: 500, headers: noStoreHeaders });
     }
+
+    await applyDefaultOfferingToExternalReservation(supabase, groupEventId, payload);
 
     try {
       await linkGroupEventCustomerFromSnapshot(
