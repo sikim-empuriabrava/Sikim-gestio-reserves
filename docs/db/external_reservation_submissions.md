@@ -24,6 +24,40 @@ Google Calendar sync continues to be driven by `group_events.status`. Pending re
 
 CRM data continues to come from `group_events.customer_*` fields and `group_events.customer_id`. This table should not become the operational CRM source of truth.
 
+## Internal ingest endpoint
+
+The internal app exposes `POST /api/external-reservation-requests` as a server-to-server ingest endpoint for public reservation requests coming from `Reserves_extern`.
+
+- The route is public at middleware level only so it can skip Supabase session auth.
+- The handler itself requires `Authorization: Bearer <secret>`.
+- The secret must come from the server-only env var `SIKIM_PUBLIC_RESERVATION_INGEST_SECRET`.
+- Missing or invalid bearer auth returns `401`.
+- Missing server configuration returns a generic `500`.
+- All responses set `Cache-Control: no-store`.
+
+### Request contract
+
+The endpoint accepts a strict JSON payload with:
+
+- `date` (`YYYY-MM-DD`)
+- `time` (`HH:mm`)
+- `partySize` (`1-80`)
+- `contactName`
+- `phone`
+- `email` optional
+- `comment` optional, stored as plain text in `group_events.extras`
+- `privacyAccepted` and it must be `true`
+- `preferredLanguage` optional: `ca`, `es`, `fr`, `en`, `de`, `nl`, `it`
+- `attribution` optional with source label, UTM fields, referrer, landing page, click ids, user agent and IP hash
+
+### Write flow
+
+1. Insert a pending operational reservation into `public.group_events`.
+2. Insert the matching attribution row into `public.external_reservation_submissions`.
+3. Attempt CRM linking with `linkGroupEventCustomerFromSnapshot` on a best-effort basis.
+
+If step 2 fails after the reservation row was created, the handler attempts to delete the just-created `group_events` row to avoid leaving an orphan reservation without external provenance.
+
 ## Access model
 
 RLS is enabled on `public.external_reservation_submissions`.

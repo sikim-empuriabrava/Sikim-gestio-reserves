@@ -12,6 +12,7 @@ const PUBLIC_PATHS = [
   /^\/aforo-sw\.js$/,
   /^\/api\/version$/,
   /^\/api\/_health\/env$/,
+  /^\/api\/external-reservation-requests$/,
   /^\/favicon\.ico$/,
 ];
 
