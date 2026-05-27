@@ -24,6 +24,20 @@ When that row exists, the internal UI now surfaces:
 - the client comment stored in `group_events.extras` as plain text under `Comentario de la solicitud externa`;
 - a pending card/menu state in the form when there is no real `group_event_offerings` row yet.
 
+## Internal reservations overview UI
+
+The `/reservas` overview treats an external pending request as:
+
+- `group_events.status = 'pending'`;
+- plus an associated `external_reservation_submissions` row with the same `group_event_id`.
+
+For the currently visible period, `/reservas` shows:
+
+- an `Externas pendientes` metric card;
+- a compact `Solicitudes externas pendientes` list with date, time, name, pax, phone, source label, short comment and a link to `/reservas/grupo/[id]`.
+
+This overview does not add a new reservation status and does not rely on an `external_pending` value.
+
 ## Oferta por defecto para reservas externas
 
 `public.external_reservation_settings` is a singleton configuration table for the default catalog offering that `POST /api/external-reservation-requests` can apply automatically.
