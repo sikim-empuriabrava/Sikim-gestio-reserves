@@ -49,6 +49,7 @@ This overview does not add a new reservation status and does not rely on an `ext
 - If `default_offering_kind = 'cheffing_menu'` and the configured `default_cheffing_menu_id` exists and is active, the route creates a `group_event_offerings` row with `assigned_pax = partySize`, `display_name_snapshot = cheffing_menus.name`, `unit_price_snapshot = cheffing_menus.price_per_person`, `sort_order = 0` and the same automatic-assignment snapshot.
 - The initial seed tries to point the configuration to the active cheffing card whose name is exactly `Carta Plats`.
 - The current intended operational default is therefore `Carta Plats` whenever that card exists, is active and the singleton is enabled.
+- Admins can update this singleton from the internal screen `/admin/reservas-externas` without touching Supabase manually.
 - If `Carta Plats` does not exist or is not active, the singleton row is seeded with no default offering and `is_enabled = false`.
 - If a configured default card or menu later loses its valid FK reference, normalization leaves the row without offering and forces `is_enabled = false`.
 - `is_enabled = true` only makes sense when a valid default offering is configured.

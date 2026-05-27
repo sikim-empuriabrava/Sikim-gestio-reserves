@@ -125,6 +125,11 @@ function buildGroups(allowedUser: AllowedUser | null): NavigationGroup[] {
         { label: 'Notas del día', href: '/admin/notas-del-dia', basePath: '/admin/notas-del-dia' },
         { label: 'Tareas', href: '/admin/tareas', basePath: '/admin/tareas' },
         { label: 'Rutinas', href: '/admin/rutinas', basePath: '/admin/rutinas' },
+        {
+          label: 'Reservas externas',
+          href: '/admin/reservas-externas',
+          basePath: '/admin/reservas-externas',
+        },
         { label: 'Usuarios y permisos', href: '/admin/usuarios', basePath: '/admin/usuarios' },
       ],
     });
