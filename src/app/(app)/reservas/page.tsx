@@ -5,6 +5,7 @@ import {
   CalendarDaysIcon,
   CheckCircleIcon,
   ClockIcon,
+  InboxStackIcon,
   Squares2X2Icon,
   UsersIcon,
 } from '@heroicons/react/24/outline';
@@ -66,6 +67,30 @@ type GroupEventDailyDetail = {
   extras?: string | null;
   setup_notes?: string | null;
   invoice_data?: string | null;
+};
+
+type PendingGroupEventRow = {
+  id: string;
+  name: string | null;
+  event_date: string;
+  entry_time: string | null;
+  status: string;
+  total_pax: number | null;
+  customer_phone: string | null;
+  extras: string | null;
+};
+
+type ExternalReservationSubmissionRow = {
+  group_event_id: string;
+  source_label: string | null;
+  preferred_language: string | null;
+  submitted_at: string | null;
+};
+
+type ExternalPendingReservation = PendingGroupEventRow & {
+  source_label: string | null;
+  preferred_language: string | null;
+  submitted_at: string | null;
 };
 
 function toISODate(date: Date) {
@@ -154,6 +179,22 @@ function formatMonthAgendaDay(dateString: string) {
 function formatMetricDate(dateString: string) {
   const label = new Intl.DateTimeFormat('es-ES', { weekday: 'long' }).format(new Date(dateString));
   return label.charAt(0).toUpperCase() + label.slice(1);
+}
+
+function formatExternalPendingDate(dateString: string) {
+  const date = new Date(dateString);
+  const weekday = new Intl.DateTimeFormat('es-ES', { weekday: 'short' }).format(date).replace('.', '');
+  const dayMonth = new Intl.DateTimeFormat('es-ES', { day: '2-digit', month: '2-digit' }).format(date);
+  return `${weekday.charAt(0).toUpperCase() + weekday.slice(1)} ${dayMonth}`;
+}
+
+function cleanText(input?: string | null) {
+  const text = input?.trim();
+  return text ? text : null;
+}
+
+function getExternalPendingCountLabel(count: number) {
+  return count === 1 ? '1 solicitud pendiente' : `${count} solicitudes pendientes`;
 }
 
 function statusBadge(status: string) {
@@ -486,13 +527,59 @@ function HeaderBar({
   );
 }
 
+async function getExternalPendingReservations(
+  supabase: ReturnType<typeof createSupabaseAdminClient>,
+  startDate: string,
+  endDate: string,
+) {
+  const { data: groupEventsData } = await supabase
+    .from('group_events')
+    .select('id, name, event_date, entry_time, status, total_pax, customer_phone, extras')
+    .eq('status', 'pending')
+    .gte('event_date', startDate)
+    .lte('event_date', endDate)
+    .order('event_date', { ascending: true })
+    .order('entry_time', { ascending: true })
+    .order('name', { ascending: true });
+
+  const pendingGroupEvents = (groupEventsData ?? []) as PendingGroupEventRow[];
+  const groupEventIds = pendingGroupEvents.map((event) => event.id);
+
+  if (groupEventIds.length === 0) {
+    return [];
+  }
+
+  const { data: submissionsData } = await supabase
+    .from('external_reservation_submissions')
+    .select('group_event_id, source_label, preferred_language, submitted_at')
+    .in('group_event_id', groupEventIds);
+
+  const submissionsByEventId = new Map<string, ExternalReservationSubmissionRow>();
+  ((submissionsData ?? []) as ExternalReservationSubmissionRow[]).forEach((submission) => {
+    submissionsByEventId.set(submission.group_event_id, submission);
+  });
+
+  return pendingGroupEvents.flatMap((event) => {
+    const submission = submissionsByEventId.get(event.id);
+    if (!submission) return [];
+    return [
+      {
+        ...event,
+        source_label: submission.source_label,
+        preferred_language: submission.preferred_language,
+        submitted_at: submission.submitted_at,
+      },
+    ];
+  });
+}
+
 // FIX: unify day/week/month data source using v_group_events_daily_detail
 async function getWeekData(weekStart: string) {
   const weekDates = getWeekDates(weekStart);
   const weekEnd = weekDates[6];
   const supabase = createSupabaseAdminClient();
 
-  const [{ data: statusesData }, { data: eventsData }] = await Promise.all([
+  const [{ data: statusesData }, { data: eventsData }, externalPendingReservations] = await Promise.all([
     supabase
       .from('v_day_status')
       .select('*')
@@ -504,6 +591,7 @@ async function getWeekData(weekStart: string) {
       .in('event_date', weekDates)
       .order('event_date', { ascending: true })
       .order('entry_time', { ascending: true }),
+    getExternalPendingReservations(supabase, weekStart, weekEnd),
   ]);
 
   const statusesMap = new Map<string, DayStatusRow>();
@@ -520,12 +608,12 @@ async function getWeekData(weekStart: string) {
     eventsByDate.set(key, list);
   }
 
-  return { weekEnd, statusesMap, eventsByDate };
+  return { weekEnd, statusesMap, eventsByDate, externalPendingReservations };
 }
 
 async function getDayData(selectedDate: string) {
   const supabase = createSupabaseAdminClient();
-  const [{ data: dayStatusData }, { data: eventsData }] = await Promise.all([
+  const [{ data: dayStatusData }, { data: eventsData }, externalPendingReservations] = await Promise.all([
     supabase.from('v_day_status').select('*').eq('event_date', selectedDate).maybeSingle(),
     supabase
       .from('v_group_events_daily_detail')
@@ -533,6 +621,7 @@ async function getDayData(selectedDate: string) {
       .eq('event_date', selectedDate)
       .order('entry_time', { ascending: true })
       .order('group_name', { ascending: true }),
+    getExternalPendingReservations(supabase, selectedDate, selectedDate),
   ]);
 
   const dayStatus: DayStatusRow =
@@ -547,7 +636,7 @@ async function getDayData(selectedDate: string) {
     };
 
   const reservations: GroupEventDailyDetail[] = eventsData ?? [];
-  return { dayStatus, reservations };
+  return { dayStatus, reservations, externalPendingReservations };
 }
 
 async function getMonthData(monthDate: Date) {
@@ -565,12 +654,15 @@ async function getMonthData(monthDate: Date) {
   }
 
   const supabase = createSupabaseAdminClient();
-  const { data } = await supabase
-    .from('v_group_events_daily_detail')
-    .select('*')
-    .in('event_date', days)
-    .order('event_date', { ascending: true })
-    .order('entry_time', { ascending: true });
+  const [{ data }, externalPendingReservations] = await Promise.all([
+    supabase
+      .from('v_group_events_daily_detail')
+      .select('*')
+      .in('event_date', days)
+      .order('event_date', { ascending: true })
+      .order('entry_time', { ascending: true }),
+    getExternalPendingReservations(supabase, days[0], days[days.length - 1]),
+  ]);
 
   const eventsByDate = new Map<string, GroupEventDailyDetail[]>();
   for (const event of data ?? []) {
@@ -581,17 +673,19 @@ async function getMonthData(monthDate: Date) {
     eventsByDate.set(key, list);
   }
 
-  return { calendarStart: days[0], calendarEnd: days[days.length - 1], eventsByDate };
+  return { calendarStart: days[0], calendarEnd: days[days.length - 1], eventsByDate, externalPendingReservations };
 }
 
 function WeekView({
   weekStart,
   statusesMap,
   eventsByDate,
+  externalPendingReservations,
 }: {
   weekStart: string;
   statusesMap: Map<string, DayStatusRow>;
   eventsByDate: Map<string, GroupEventDailyDetail[]>;
+  externalPendingReservations: ExternalPendingReservation[];
 }) {
   const weekDays = Array.from({ length: 7 }).map((_, idx) => addDays(weekStart, idx));
   const metrics = getPeriodMetrics(eventsByDate);
@@ -673,10 +767,12 @@ function WeekView({
         reservations={metrics.reservations}
         totalPax={metrics.totalPax}
         confirmed={metrics.confirmed}
+        externalPendingCount={externalPendingReservations.length}
         busiestDay={metrics.busiestDay}
         busiestCount={metrics.busiestCount}
         busiestPax={metrics.busiestPax}
       />
+      <ExternalPendingList reservations={externalPendingReservations} />
     </div>
   );
 }
@@ -685,6 +781,7 @@ function MetricStrip({
   reservations,
   totalPax,
   confirmed,
+  externalPendingCount,
   busiestDay,
   busiestCount,
   busiestPax,
@@ -692,6 +789,7 @@ function MetricStrip({
   reservations: number;
   totalPax: number;
   confirmed: number;
+  externalPendingCount: number;
   busiestDay: string | null;
   busiestCount: number;
   busiestPax: number;
@@ -721,10 +819,16 @@ function MetricStrip({
       detail: 'Solo reservas confirmadas',
       icon: CheckCircleIcon,
     },
+    {
+      label: 'Externas pendientes',
+      value: externalPendingCount,
+      detail: 'Solicitudes del periodo',
+      icon: InboxStackIcon,
+    },
   ];
 
   return (
-    <section className="grid overflow-hidden rounded-2xl border border-[#4a3f32]/70 bg-[#181715]/95 shadow-[0_18px_70px_-58px_rgba(0,0,0,0.95)] sm:grid-cols-2 xl:grid-cols-4">
+    <section className="grid overflow-hidden rounded-2xl border border-[#4a3f32]/70 bg-[#181715]/95 shadow-[0_18px_70px_-58px_rgba(0,0,0,0.95)] sm:grid-cols-2 xl:grid-cols-5">
       {metrics.map((metric) => {
         const Icon = metric.icon;
         return (
@@ -743,14 +847,88 @@ function MetricStrip({
     </section>
   );
 }
+
+function ExternalPendingList({ reservations }: { reservations: ExternalPendingReservation[] }) {
+  return (
+    <section
+      className="overflow-hidden rounded-2xl border border-[#4a3f32]/70 bg-[#181715]/95 shadow-[0_18px_70px_-58px_rgba(0,0,0,0.95)]"
+      aria-labelledby="external-pending-heading"
+    >
+      <div className="flex flex-col gap-1 border-b border-[#3c342a]/70 px-5 py-4 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <h2 id="external-pending-heading" className="text-lg font-semibold text-[#f6f0e8]">
+            Solicitudes externas pendientes
+          </h2>
+          <p className="mt-1 text-sm text-[#a99d90]">{getExternalPendingCountLabel(reservations.length)}</p>
+        </div>
+        <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[#bda37f]">Periodo visible</p>
+      </div>
+
+      {reservations.length === 0 ? (
+        <div className="flex items-center gap-3 px-5 py-5 text-sm text-[#b9aea1]">
+          <InboxStackIcon className="h-5 w-5 shrink-0 text-[#8f8578]" aria-hidden="true" />
+          No hay solicitudes externas pendientes en este periodo.
+        </div>
+      ) : (
+        <div className="divide-y divide-[#3c342a]/70">
+          {reservations.map((reservation) => {
+            const sourceLabel = cleanText(reservation.source_label);
+            const phone = cleanText(reservation.customer_phone);
+            const comment = cleanText(reservation.extras);
+            return (
+              <Link
+                key={reservation.id}
+                href={`/reservas/grupo/${reservation.id}?date=${reservation.event_date}`}
+                className="grid gap-3 px-5 py-4 transition-colors hover:bg-[#211f1b] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#c99555]/45 md:grid-cols-[minmax(7rem,0.8fr)_minmax(0,1.7fr)_auto] md:items-center"
+              >
+                <div className="shrink-0">
+                  <p className="text-sm font-semibold tabular-nums text-[#ffe2b6]">
+                    {formatExternalPendingDate(reservation.event_date)}
+                  </p>
+                  <p className="mt-1 text-sm tabular-nums text-[#c99a61]">
+                    {reservation.entry_time ? reservation.entry_time.slice(0, 5) : 'Sin hora'}
+                  </p>
+                </div>
+
+                <div className="min-w-0">
+                  <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                    <p className="min-w-0 break-words text-[0.95rem] font-semibold leading-tight text-[#f6f0e8]">
+                      {reservation.name ?? 'Solicitud sin nombre'}
+                    </p>
+                    <span className="shrink-0 rounded-full border border-sky-500/30 bg-sky-500/10 px-2 py-1 text-[0.66rem] font-semibold leading-none text-sky-200">
+                      Pendiente
+                    </span>
+                  </div>
+                  <p className="mt-2 flex flex-wrap gap-x-2 gap-y-1 text-sm text-[#b9aea1]">
+                    <span>{reservation.total_pax ?? '-'} pax</span>
+                    {phone ? <span>Tel. {phone}</span> : null}
+                    {sourceLabel ? <span>{sourceLabel}</span> : null}
+                  </p>
+                  {comment ? <p className="mt-1 line-clamp-2 text-xs leading-relaxed text-[#8f8578]">{comment}</p> : null}
+                </div>
+
+                <span className="inline-flex w-fit items-center justify-center rounded-xl border border-[#6f5434]/70 bg-[#3a2d20]/70 px-3 py-2 text-sm font-semibold text-[#ffe2b6] md:justify-self-end">
+                  Ver solicitud
+                </span>
+              </Link>
+            );
+          })}
+        </div>
+      )}
+    </section>
+  );
+}
+
 function DayView({
   selectedDate,
   dayStatus,
   reservations,
+  externalPendingReservations,
 }: {
   selectedDate: string;
   dayStatus: DayStatusRow;
   reservations: GroupEventDailyDetail[];
+  externalPendingReservations: ExternalPendingReservation[];
 }) {
   const badge = validationBadge(dayStatus);
   const metrics = getPeriodMetrics(new Map([[selectedDate, reservations]]));
@@ -773,10 +951,13 @@ function DayView({
         reservations={metrics.reservations}
         totalPax={metrics.totalPax}
         confirmed={metrics.confirmed}
+        externalPendingCount={externalPendingReservations.length}
         busiestDay={metrics.busiestDay}
         busiestCount={metrics.busiestCount}
         busiestPax={metrics.busiestPax}
       />
+
+      <ExternalPendingList reservations={externalPendingReservations} />
 
       <DayNotesPanel
         eventDate={selectedDate}
@@ -960,11 +1141,13 @@ function MonthView({
   calendarEnd,
   eventsByDate,
   referenceMonth,
+  externalPendingReservations,
 }: {
   calendarStart: string;
   calendarEnd: string;
   eventsByDate: Map<string, GroupEventDailyDetail[]>;
   referenceMonth: Date;
+  externalPendingReservations: ExternalPendingReservation[];
 }) {
   const days: string[] = [];
   const cursor = new Date(calendarStart);
@@ -1063,10 +1246,12 @@ function MonthView({
         reservations={metrics.reservations}
         totalPax={metrics.totalPax}
         confirmed={metrics.confirmed}
+        externalPendingCount={externalPendingReservations.length}
         busiestDay={metrics.busiestDay}
         busiestCount={metrics.busiestCount}
         busiestPax={metrics.busiestPax}
       />
+      <ExternalPendingList reservations={externalPendingReservations} />
     </div>
   );
 }
@@ -1089,34 +1274,50 @@ export default async function ReservasPage({ searchParams }: { searchParams?: Se
 
   if (view === 'week') {
     const weekStart = toISODate(startOfWeek(baseDate));
-    const { weekEnd, statusesMap, eventsByDate } = await getWeekData(weekStart);
+    const { weekEnd, statusesMap, eventsByDate, externalPendingReservations } = await getWeekData(weekStart);
     return (
       <div className="reservas-calendar-pilot min-h-[calc(100dvh-4.5rem)] space-y-6 bg-[#12110f] px-4 py-5 text-[#efe8dc] md:px-6 lg:px-8">
         <ReservasPilotChromeStyles />
         <HeaderBar view={view} dateParam={weekStart} rangeLabel={formatWeekRange(weekStart, weekEnd)} />
-        <WeekView weekStart={weekStart} statusesMap={statusesMap} eventsByDate={eventsByDate} />
+        <WeekView
+          weekStart={weekStart}
+          statusesMap={statusesMap}
+          eventsByDate={eventsByDate}
+          externalPendingReservations={externalPendingReservations}
+        />
       </div>
     );
   }
 
   if (view === 'day') {
     const selectedDate = dateParam;
-    const { dayStatus, reservations } = await getDayData(selectedDate);
+    const { dayStatus, reservations, externalPendingReservations } = await getDayData(selectedDate);
     return (
       <div className="reservas-calendar-pilot min-h-[calc(100dvh-4.5rem)] space-y-6 bg-[#12110f] px-4 py-5 text-[#efe8dc] md:px-6 lg:px-8">
         <ReservasPilotChromeStyles />
         <HeaderBar view={view} dateParam={selectedDate} rangeLabel={formatLongDate(selectedDate)} />
-        <DayView selectedDate={selectedDate} dayStatus={dayStatus} reservations={reservations} />
+        <DayView
+          selectedDate={selectedDate}
+          dayStatus={dayStatus}
+          reservations={reservations}
+          externalPendingReservations={externalPendingReservations}
+        />
       </div>
     );
   }
 
-  const { calendarStart, calendarEnd, eventsByDate } = await getMonthData(baseDate);
+  const { calendarStart, calendarEnd, eventsByDate, externalPendingReservations } = await getMonthData(baseDate);
   return (
     <div className="reservas-calendar-pilot min-h-[calc(100dvh-4.5rem)] space-y-6 bg-[#12110f] px-4 py-5 text-[#efe8dc] md:px-6 lg:px-8">
       <ReservasPilotChromeStyles />
       <HeaderBar view={view} dateParam={dateParam} rangeLabel={formatMonthLabel(baseDate)} />
-      <MonthView calendarStart={calendarStart} calendarEnd={calendarEnd} eventsByDate={eventsByDate} referenceMonth={baseDate} />
+      <MonthView
+        calendarStart={calendarStart}
+        calendarEnd={calendarEnd}
+        eventsByDate={eventsByDate}
+        referenceMonth={baseDate}
+        externalPendingReservations={externalPendingReservations}
+      />
     </div>
   );
 }
