@@ -29,8 +29,11 @@ export async function middleware(req: NextRequest) {
     redirectUrl.searchParams.set('next', `${pathname}${search}`);
   }
 
+  const requestHeaders = new Headers(req.headers);
+  requestHeaders.set('x-sikim-pathname', pathname);
+
   const supabaseResponse = setDebugHeader(
-    NextResponse.next({ request: { headers: req.headers }, headers: createNoStoreHeaders() }),
+    NextResponse.next({ request: { headers: requestHeaders }, headers: createNoStoreHeaders() }),
   );
   const missingSupabaseEnv = getMissingSupabaseEnv();
 
@@ -114,7 +117,7 @@ export async function middleware(req: NextRequest) {
   const { data: allowedUser, error: allowlistError } = await supabase
     .from('app_allowed_users')
     .select(
-      'email, role, is_active, can_reservas, can_mantenimiento, can_cocina, can_cheffing, view_live_capacity, manage_live_capacity, cheffing_images_manage',
+      'email, role, is_active, can_reservas, can_mantenimiento, can_cocina, can_cheffing, view_live_capacity, manage_live_capacity, cheffing_images_manage, notify_external_reservations',
     )
     .eq('email', requesterEmail)
     .eq('is_active', true)
@@ -130,6 +133,10 @@ export async function middleware(req: NextRequest) {
   }
 
   const isAdminUser = allowedUser.role === 'admin';
+  const isNotificationsAdminPath = pathname === '/admin/notificaciones';
+  const canUseNotificationSettings = Boolean(
+    (isAdminUser || allowedUser.can_reservas) && allowedUser.notify_external_reservations,
+  );
 
   const handleForbidden = () => {
     if (isApiRoute) {
@@ -146,7 +153,7 @@ export async function middleware(req: NextRequest) {
     return setDebugHeader(response);
   };
 
-  if (isAdminPath && !isAdminUser) {
+  if (isAdminPath && !isAdminUser && !(isNotificationsAdminPath && canUseNotificationSettings)) {
     return handleForbidden();
   }
 
