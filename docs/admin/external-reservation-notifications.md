@@ -1,14 +1,13 @@
 # Notificaciones push de reservas externas
 
-Este documento define la base interna para futuras notificaciones push cuando entre una solicitud desde el motor publico de reservas.
-
-Este PR no envia notificaciones todavia. Solo prepara permisos, suscripciones de dispositivo y el modelo operativo que usara una fase posterior.
+Este documento define el envio interno de notificaciones push cuando entra una solicitud desde el motor publico de reservas.
 
 ## Objetivo
 
 - Avisar internamente cuando una reserva externa llegue como solicitud pendiente.
 - Limitar los avisos a usuarios autorizados.
 - Guardar las suscripciones Web Push por dispositivo sin exponer claves de servidor al cliente.
+- Mantener el envio como best-effort: un fallo push no bloquea la creacion de la reserva.
 
 ## Permiso de usuario
 
@@ -18,7 +17,7 @@ El valor por defecto es `false`. Un admin debe activarlo desde `/admin/usuarios`
 
 Este permiso no sustituye a `can_reservas` y no crea roles nuevos.
 
-La regla futura de envio exigira:
+La regla de envio exige:
 
 1. `app_allowed_users.is_active = true`
 2. `role = 'admin' OR can_reservas = true`
@@ -47,9 +46,9 @@ RLS esta habilitado en `public.web_push_subscriptions`.
 
 No hay policies amplias para `anon` ni `authenticated`.
 
-El acceso directo queda revocado para `anon` y `authenticated`, y se concede a `service_role`, porque las subscriptions se guardaran mediante endpoints server-side. La service role nunca debe exponerse al cliente.
+El acceso directo queda revocado para `anon` y `authenticated`, y se concede a `service_role`, porque las subscriptions se guardan y se consultan mediante endpoints server-side. La service role nunca debe exponerse al cliente.
 
-## Variables futuras
+## Activacion del dispositivo
 
 La activacion del dispositivo se hace desde `/admin/notificaciones`.
 
@@ -64,18 +63,17 @@ Desactivar el dispositivo marca la subscription como `is_active = false`, rellen
 
 ## Variables
 
-Para registrar el navegador se necesita una VAPID public key expuesta al cliente:
+Para registrar el navegador y enviar push se necesitan estas variables:
 
 - `NEXT_PUBLIC_WEB_PUSH_VAPID_PUBLIC_KEY`
-
-Si falta, la pantalla muestra que la configuracion esta incompleta y no intenta suscribir el navegador.
-
-Una fase posterior necesitara configurar Web Push con variables server-side:
-
 - `WEB_PUSH_VAPID_PRIVATE_KEY`
 - `WEB_PUSH_VAPID_SUBJECT`
 
-No se crean `.env`, secretos ni dependencias en esta fase. La private key no debe exponerse al cliente.
+`NEXT_PUBLIC_WEB_PUSH_VAPID_PUBLIC_KEY` se expone al cliente para crear la subscription. `WEB_PUSH_VAPID_PRIVATE_KEY` y `WEB_PUSH_VAPID_SUBJECT` solo se usan server-side.
+
+Si falta alguna variable necesaria para enviar push, `POST /api/external-reservation-requests` registra un warning server-side, no envia la notificacion y mantiene la respuesta de exito si la solicitud se creo correctamente.
+
+No se deben crear `.env`, `.env.local` ni guardar secretos en el repo. La private key no debe exponerse al cliente.
 
 ## Endpoints internos
 
@@ -91,12 +89,61 @@ Los endpoints usan service role solo server-side y no muestran `endpoint`, `p256
 
 El service worker global `/aforo-sw.js` incluye handlers minimos de `push` y `notificationclick`.
 
-En fases posteriores, al recibir un push mostrara una notification y al hacer click abrira la URL incluida en el payload o `/reservas` como fallback.
+Al recibir un push muestra una notification. Al hacer click abre la URL incluida en el payload o `/reservas` como fallback.
 
 No cachea HTML privado.
 
-## Fases siguientes
+## Envio automatico
 
-1. Envio automatico cuando `POST /api/external-reservation-requests` cree una solicitud externa pendiente.
-2. Plantillas de payload para diferenciar tipos de aviso.
-3. Panel operativo para revisar dispositivos activos por usuario, si hace falta.
+`POST /api/external-reservation-requests` llama al helper server-side despues de crear correctamente:
+
+1. `group_events`
+2. `external_reservation_submissions`
+3. la asignacion automatica de carta o menu, si aplica
+4. el linking CRM best-effort
+
+El helper busca destinatarios en `public.app_allowed_users` con:
+
+1. `is_active = true`
+2. `notify_external_reservations = true`
+3. `role = 'admin' OR can_reservas = true`
+
+Despues busca subscriptions en `public.web_push_subscriptions` con:
+
+1. `is_active = true`
+2. `user_email` dentro de los destinatarios autorizados
+
+No envia notificaciones a usuarios sin permiso ni a subscriptions desactivadas.
+
+## Payload
+
+El payload enviado al service worker es JSON:
+
+```json
+{
+  "title": "Nueva solicitud externa",
+  "body": "2 pax \u00b7 21:00 \u00b7 Test Reserva",
+  "url": "/reservas/grupo/<groupEventId>",
+  "tag": "external-reservation-<groupEventId>"
+}
+```
+
+La notificacion abre `/reservas/grupo/[id]`.
+
+El payload no incluye telefono, email ni comentarios de la reserva.
+
+## Subscriptions invalidas
+
+Si el proveedor Web Push responde con `404` o `410`, la subscription se marca como inactiva:
+
+- `is_active = false`
+- `disabled_at = now()`
+
+No se borra fisicamente la fila.
+
+Otros errores se registran server-side y la subscription se mantiene activa para futuros intentos.
+
+## Fases siguientes opcionales
+
+1. Plantillas de payload para diferenciar tipos de aviso.
+2. Panel operativo para revisar dispositivos activos por usuario, si hace falta.
