@@ -1,6 +1,12 @@
-import { getAllowlistRoleForUserEmail, getDefaultModulePath, isAdmin } from '@/lib/auth/requireRole';
+import {
+  canReceiveExternalReservationNotifications,
+  getAllowlistRoleForUserEmail,
+  getDefaultModulePath,
+  isAdmin,
+} from '@/lib/auth/requireRole';
 import { OperationalPage } from '@/components/operational/OperationalUI';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
+import { headers } from 'next/headers';
 import { redirect } from 'next/navigation';
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
@@ -26,7 +32,12 @@ export default async function AdminLayout({ children }: { children: React.ReactN
     redirect('/login?error=not_allowed');
   }
 
-  if (!isAdmin(allowlistInfo.role)) {
+  const pathname = headers().get('x-sikim-pathname') ?? '';
+  const canUseNotificationsPage =
+    pathname === '/admin/notificaciones' &&
+    canReceiveExternalReservationNotifications(allowlistInfo.role, allowlistInfo.allowedUser);
+
+  if (!isAdmin(allowlistInfo.role) && !canUseNotificationsPage) {
     redirect(getDefaultModulePath(allowlistInfo.allowedUser));
   }
 

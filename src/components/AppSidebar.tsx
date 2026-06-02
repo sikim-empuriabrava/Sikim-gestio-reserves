@@ -26,6 +26,7 @@ type AllowedUser = {
   can_cheffing: boolean;
   view_live_capacity: boolean;
   manage_live_capacity: boolean;
+  notify_external_reservations: boolean;
 };
 
 type Props = {
@@ -36,6 +37,9 @@ type Props = {
 function buildGroups(allowedUser: AllowedUser | null): NavigationGroup[] {
   const groups: NavigationGroup[] = [];
   const isAdmin = allowedUser?.role === 'admin';
+  const canUseNotifications = Boolean(
+    allowedUser && allowedUser.notify_external_reservations && (isAdmin || allowedUser.can_reservas),
+  );
 
   if (isAdmin || allowedUser?.can_reservas) {
     groups.push({
@@ -122,6 +126,7 @@ function buildGroups(allowedUser: AllowedUser | null): NavigationGroup[] {
       label: 'Admin',
       links: [
         { label: 'Panel', href: '/admin', basePath: '/admin' },
+        { label: 'Notificaciones', href: '/admin/notificaciones', basePath: '/admin/notificaciones' },
         { label: 'Notas del día', href: '/admin/notas-del-dia', basePath: '/admin/notas-del-dia' },
         { label: 'Tareas', href: '/admin/tareas', basePath: '/admin/tareas' },
         { label: 'Rutinas', href: '/admin/rutinas', basePath: '/admin/rutinas' },
@@ -131,6 +136,13 @@ function buildGroups(allowedUser: AllowedUser | null): NavigationGroup[] {
           basePath: '/admin/reservas-externas',
         },
         { label: 'Usuarios y permisos', href: '/admin/usuarios', basePath: '/admin/usuarios' },
+      ],
+    });
+  } else if (canUseNotifications) {
+    groups.push({
+      label: 'Admin',
+      links: [
+        { label: 'Notificaciones', href: '/admin/notificaciones', basePath: '/admin/notificaciones' },
       ],
     });
   }
@@ -154,6 +166,7 @@ export function AppSidebar({ className, allowedUser }: Props) {
   const canCheffing = Boolean(allowedUser?.can_cheffing);
   const canViewLiveCapacity = Boolean(allowedUser?.view_live_capacity);
   const canManageLiveCapacity = Boolean(allowedUser?.manage_live_capacity);
+  const canNotifyExternalReservations = Boolean(allowedUser?.notify_external_reservations);
   const groups = useMemo(
     () =>
       buildGroups({
@@ -164,8 +177,18 @@ export function AppSidebar({ className, allowedUser }: Props) {
         can_cheffing: canCheffing,
         view_live_capacity: canViewLiveCapacity,
         manage_live_capacity: canManageLiveCapacity,
+        notify_external_reservations: canNotifyExternalReservations,
       }),
-    [role, canReservas, canMantenimiento, canCocina, canCheffing, canViewLiveCapacity, canManageLiveCapacity],
+    [
+      role,
+      canReservas,
+      canMantenimiento,
+      canCocina,
+      canCheffing,
+      canViewLiveCapacity,
+      canManageLiveCapacity,
+      canNotifyExternalReservations,
+    ],
   );
   const groupsRef = useRef(groups);
   const [openSection, setOpenSection] = useState<string | null>(() => {

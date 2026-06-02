@@ -15,6 +15,7 @@ export type AllowedUser = {
   view_live_capacity: boolean;
   manage_live_capacity: boolean;
   cheffing_images_manage: boolean;
+  notify_external_reservations: boolean;
 };
 
 export type AllowlistInfo = {
@@ -34,7 +35,7 @@ export async function getAllowlistRoleForUserEmail(email: string | null | undefi
   const { data, error } = await supabaseAdmin
     .from('app_allowed_users')
     .select(
-      'id, email, display_name, role, is_active, can_reservas, can_mantenimiento, can_cocina, can_cheffing, view_live_capacity, manage_live_capacity, cheffing_images_manage',
+      'id, email, display_name, role, is_active, can_reservas, can_mantenimiento, can_cocina, can_cheffing, view_live_capacity, manage_live_capacity, cheffing_images_manage, notify_external_reservations',
     )
     .eq('email', normalizedEmail)
     .limit(1)
@@ -64,6 +65,7 @@ export async function getAllowlistRoleForUserEmail(email: string | null | undefi
       view_live_capacity: Boolean(data.view_live_capacity),
       manage_live_capacity: Boolean(data.manage_live_capacity),
       cheffing_images_manage: Boolean(data.cheffing_images_manage),
+      notify_external_reservations: Boolean(data.notify_external_reservations),
     },
     error: null,
   };
@@ -103,6 +105,17 @@ export function canViewLiveCapacity(role: string | null, allowedUser: AllowedUse
 
 export function canManageLiveCapacity(role: string | null, allowedUser: AllowedUser | null): boolean {
   return isAdmin(role) || Boolean(allowedUser?.manage_live_capacity);
+}
+
+export function canReceiveExternalReservationNotifications(
+  role: string | null,
+  allowedUser: AllowedUser | null,
+): boolean {
+  return Boolean(
+    allowedUser?.is_active &&
+      (isAdmin(role) || allowedUser.can_reservas) &&
+      allowedUser.notify_external_reservations,
+  );
 }
 
 export function hasRole(role: string | null, allowedRoles: string[]): boolean {
