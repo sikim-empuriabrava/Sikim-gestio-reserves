@@ -100,6 +100,9 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   if (body?.cheffing_images_manage !== undefined) {
     updates.cheffing_images_manage = Boolean(body.cheffing_images_manage);
   }
+  if (body?.notify_external_reservations !== undefined) {
+    updates.notify_external_reservations = Boolean(body.notify_external_reservations);
+  }
 
   if (Object.keys(updates).length === 0) {
     const missing = NextResponse.json({ error: 'No fields to update' }, { status: 400 });

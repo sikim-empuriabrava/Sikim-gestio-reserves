@@ -38,6 +38,19 @@ For the currently visible period, `/reservas` shows:
 
 This overview does not add a new reservation status and does not rely on an `external_pending` value.
 
+## Futuras notificaciones push internas
+
+Las futuras notificaciones push internas se basaran en solicitudes externas pendientes: `group_events.status = 'pending'` mas una fila asociada en `external_reservation_submissions`.
+
+La base de permisos y dispositivos vive fuera de esta tabla:
+
+- `app_allowed_users.notify_external_reservations` controla que usuarios pueden recibir avisos.
+- `web_push_subscriptions` guarda las subscriptions activas por dispositivo.
+
+La regla futura de envio exigira usuario activo, rol `admin` o permiso `can_reservas`, permiso `notify_external_reservations` activo y al menos una subscription activa.
+
+Esta fase no envia notificaciones, no crea service worker y no cambia el endpoint publico externo.
+
 ## Oferta por defecto para reservas externas
 
 `public.external_reservation_settings` is a singleton configuration table for the default catalog offering that `POST /api/external-reservation-requests` can apply automatically.

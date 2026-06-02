@@ -48,7 +48,7 @@ export async function GET() {
   const { data, error } = await supabase
     .from('app_allowed_users')
     .select(
-      'id,email,display_name,role,is_active,can_reservas,can_mantenimiento,can_cocina,can_cheffing,view_live_capacity,manage_live_capacity,cheffing_images_manage',
+      'id,email,display_name,role,is_active,can_reservas,can_mantenimiento,can_cocina,can_cheffing,view_live_capacity,manage_live_capacity,cheffing_images_manage,notify_external_reservations',
     )
     .order('email', { ascending: true });
 
@@ -109,6 +109,7 @@ export async function POST(req: NextRequest) {
   const viewLiveCapacity = body?.view_live_capacity ?? false;
   const manageLiveCapacity = body?.manage_live_capacity ?? false;
   const cheffingImagesManage = body?.cheffing_images_manage ?? false;
+  const notifyExternalReservations = body?.notify_external_reservations ?? false;
 
   if (!targetEmail) {
     const invalidEmail = NextResponse.json({ error: 'Missing email' }, { status: 400 });
@@ -137,6 +138,7 @@ export async function POST(req: NextRequest) {
       view_live_capacity: Boolean(viewLiveCapacity),
       manage_live_capacity: Boolean(manageLiveCapacity),
       cheffing_images_manage: Boolean(cheffingImagesManage),
+      notify_external_reservations: Boolean(notifyExternalReservations),
     })
     .select()
     .maybeSingle();

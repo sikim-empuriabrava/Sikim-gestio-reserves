@@ -23,6 +23,7 @@ type AllowedUser = {
   view_live_capacity: boolean;
   manage_live_capacity: boolean;
   cheffing_images_manage: boolean;
+  notify_external_reservations: boolean;
 };
 
 type FormState = {
@@ -37,6 +38,7 @@ type FormState = {
   view_live_capacity: boolean;
   manage_live_capacity: boolean;
   cheffing_images_manage: boolean;
+  notify_external_reservations: boolean;
 };
 
 const roleLabels: Record<Role, string> = {
@@ -58,6 +60,7 @@ const defaultForm: FormState = {
   view_live_capacity: false,
   manage_live_capacity: false,
   cheffing_images_manage: false,
+  notify_external_reservations: false,
 };
 
 const permissionFields: Array<{
@@ -70,8 +73,10 @@ const permissionFields: Array<{
     | 'view_live_capacity'
     | 'manage_live_capacity'
     | 'cheffing_images_manage'
+    | 'notify_external_reservations'
   >;
   label: string;
+  help?: string;
 }> = [
   { key: 'can_reservas', label: 'Reservas' },
   { key: 'can_mantenimiento', label: 'Mantenimiento' },
@@ -80,6 +85,11 @@ const permissionFields: Array<{
   { key: 'view_live_capacity', label: 'Disco ver' },
   { key: 'manage_live_capacity', label: 'Disco operar' },
   { key: 'cheffing_images_manage', label: 'Cheffing imÃ¡genes' },
+  {
+    key: 'notify_external_reservations',
+    label: 'Notificaciones reservas externas',
+    help: 'Permite recibir avisos push cuando entra una solicitud desde el motor publico de reservas.',
+  },
 ];
 
 type Props = {
@@ -304,7 +314,7 @@ export function AllowedUsersManager({
 
         <div className="space-y-2">
           <p className="text-sm font-semibold text-slate-200">Permisos por módulo</p>
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7">
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
             <label className="flex min-h-11 items-center gap-3 rounded-lg border border-slate-800 bg-slate-950/40 px-3 py-2 text-sm text-slate-200">
               <input
                 type="checkbox"
@@ -373,6 +383,26 @@ export function AllowedUsersManager({
                 className="h-4 w-4 accent-emerald-500"
               />
               <span>Cheffing imágenes</span>
+            </label>
+            <label className="flex min-h-11 items-start gap-3 rounded-lg border border-slate-800 bg-slate-950/40 px-3 py-2 text-sm text-slate-200">
+              <input
+                type="checkbox"
+                checked={form.notify_external_reservations}
+                onChange={(event) =>
+                  setForm((prev) => ({
+                    ...prev,
+                    notify_external_reservations: event.target.checked,
+                  }))
+                }
+                className="mt-0.5 h-4 w-4 accent-emerald-500"
+              />
+              <span>
+                <span className="block">Notificaciones reservas externas</span>
+                <span className="mt-1 block text-xs leading-4 text-slate-400">
+                  Permite recibir avisos push cuando entra una solicitud desde el motor publico de
+                  reservas.
+                </span>
+              </span>
             </label>
           </div>
         </div>
@@ -498,7 +528,14 @@ export function AllowedUsersManager({
                       key={permission.key}
                       className="flex min-h-11 items-center justify-between gap-3 rounded-lg border border-slate-800 bg-slate-900/60 px-3 py-2 text-sm text-slate-200"
                     >
-                      <span>{permission.label}</span>
+                      <span>
+                        <span className="block">{permission.label}</span>
+                        {permission.help && (
+                          <span className="mt-1 block text-xs leading-4 text-slate-400">
+                            {permission.help}
+                          </span>
+                        )}
+                      </span>
                       <input
                         type="checkbox"
                         checked={Boolean(user[permission.key])}
@@ -543,6 +580,7 @@ export function AllowedUsersManager({
                 <th className="px-4 py-3">Disco ver</th>
                 <th className="px-4 py-3">Disco operar</th>
                 <th className="px-4 py-3">Imágenes</th>
+                <th className="px-4 py-3">Notif. externas</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-800">
@@ -672,18 +710,32 @@ export function AllowedUsersManager({
                       disabled={savingId === user.id}
                     />
                   </td>
+                  <td className="px-4 py-3">
+                    <input
+                      type="checkbox"
+                      checked={user.notify_external_reservations}
+                      onChange={(event) =>
+                        handleUpdate(user.id, {
+                          notify_external_reservations: event.target.checked,
+                        })
+                      }
+                      className="h-4 w-4 accent-emerald-500"
+                      disabled={savingId === user.id}
+                      title="Permite recibir avisos push cuando entra una solicitud desde el motor publico de reservas."
+                    />
+                  </td>
                 </tr>
               ))}
               {users.length === 0 && loading && (
                 <tr>
-                  <td colSpan={11} className="px-4 py-6 text-center text-sm text-slate-400">
+                  <td colSpan={12} className="px-4 py-6 text-center text-sm text-slate-400">
                     Cargando usuarios...
                   </td>
                 </tr>
               )}
               {users.length === 0 && !loading && (
                 <tr>
-                  <td colSpan={11} className="px-4 py-6 text-center text-sm text-slate-400">
+                  <td colSpan={12} className="px-4 py-6 text-center text-sm text-slate-400">
                     No hay usuarios allowlisted todavía.
                   </td>
                 </tr>
