@@ -66,6 +66,7 @@ self.addEventListener('push', (event) => {
     body: payload.body || 'Hay una nueva solicitud externa de reserva pendiente de revisar.',
     icon: '/branding/sikim-app-icon-192.png',
     badge: '/branding/sikim-app-icon-192.png',
+    tag: typeof payload.tag === 'string' ? payload.tag : undefined,
     data: {
       url: targetUrl,
     },

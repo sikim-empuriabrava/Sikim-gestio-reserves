@@ -2,6 +2,7 @@ import { timingSafeEqual } from 'node:crypto';
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { linkGroupEventCustomerFromSnapshot } from '@/lib/crm/customerLinking';
+import { sendExternalReservationCreatedPush } from '@/lib/notifications/externalReservationPush';
 import { createSupabaseAdminClient } from '@/lib/supabaseAdmin';
 
 export const runtime = 'nodejs';
@@ -548,6 +549,22 @@ export async function POST(request: NextRequest) {
       console.error('[API] external-reservation-requests CRM link failed', {
         groupEventId,
         error: crmError,
+      });
+    }
+
+    try {
+      await sendExternalReservationCreatedPush({
+        groupEventId,
+        name: payload.contactName,
+        eventDate: payload.date,
+        entryTime: payload.time,
+        totalPax: payload.partySize,
+        sourceLabel: payload.attribution.sourceLabel ?? 'Direct / Unknown',
+      });
+    } catch (pushError) {
+      console.error('[API] external-reservation-requests push notification failed', {
+        groupEventId,
+        error: pushError,
       });
     }
 
