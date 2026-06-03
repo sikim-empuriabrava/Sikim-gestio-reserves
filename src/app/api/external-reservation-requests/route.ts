@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { linkGroupEventCustomerFromSnapshot } from '@/lib/crm/customerLinking';
 import { sendExternalReservationCreatedPush } from '@/lib/notifications/externalReservationPush';
+import { isPartyRoomName } from '@/lib/reservations/roomMode';
 import { createSupabaseAdminClient } from '@/lib/supabaseAdmin';
 
 export const runtime = 'nodejs';
@@ -228,6 +229,10 @@ type ExternalReservationSettingsRow = {
   default_cheffing_menu_id: string | null;
 };
 
+type ExternalReservationRoomSettingsRow = {
+  default_room_id: string | null;
+};
+
 type ActiveCheffingCardRow = {
   id: string;
   name: string;
@@ -237,6 +242,11 @@ type ActiveCheffingMenuRow = {
   id: string;
   name: string;
   price_per_person: number | string | null;
+};
+
+type ActiveRoomRow = {
+  id: string;
+  name: string;
 };
 
 type GroupEventOfferingInsert = {
@@ -463,6 +473,84 @@ async function applyDefaultOfferingToExternalReservation(
   }
 }
 
+async function applyDefaultRoomToExternalReservation(
+  supabase: ReturnType<typeof createSupabaseAdminClient>,
+  groupEventId: string,
+  payload: ExternalReservationRequest,
+) {
+  try {
+    const { data: settingsData, error: settingsError } = await supabase
+      .from('external_reservation_settings')
+      .select('default_room_id')
+      .eq('id', true)
+      .maybeSingle();
+
+    if (settingsError) {
+      console.error('[API] external-reservation-requests default room settings lookup failed', {
+        groupEventId,
+        error: settingsError,
+      });
+      return;
+    }
+
+    const settings = (settingsData ?? null) as ExternalReservationRoomSettingsRow | null;
+
+    if (!settings?.default_room_id) {
+      return;
+    }
+
+    const { data: roomData, error: roomError } = await supabase
+      .from('rooms')
+      .select('id, name')
+      .eq('id', settings.default_room_id)
+      .eq('is_active', true)
+      .maybeSingle();
+
+    if (roomError) {
+      console.error('[API] external-reservation-requests default room lookup failed', {
+        groupEventId,
+        roomId: settings.default_room_id,
+        error: roomError,
+      });
+      return;
+    }
+
+    const room = (roomData ?? null) as ActiveRoomRow | null;
+
+    if (!room || isPartyRoomName(room.name)) {
+      console.warn('[API] external-reservation-requests configured default room is missing, inactive or not a dinner room', {
+        groupEventId,
+        roomId: settings.default_room_id,
+      });
+      return;
+    }
+
+    const { error: allocationError } = await supabase
+      .from('group_room_allocations')
+      .insert({
+        group_event_id: groupEventId,
+        room_id: room.id,
+        adults: payload.partySize,
+        children: 0,
+        override_capacity: false,
+        notes: null,
+      });
+
+    if (allocationError) {
+      console.error('[API] external-reservation-requests automatic room allocation insert failed', {
+        groupEventId,
+        roomId: room.id,
+        error: allocationError,
+      });
+    }
+  } catch (error) {
+    console.error('[API] external-reservation-requests automatic room assignment threw unexpectedly', {
+      groupEventId,
+      error,
+    });
+  }
+}
+
 export async function POST(request: NextRequest) {
   const ingestSecret = process.env.SIKIM_PUBLIC_RESERVATION_INGEST_SECRET?.trim();
 
@@ -534,6 +622,7 @@ export async function POST(request: NextRequest) {
     }
 
     await applyDefaultOfferingToExternalReservation(supabase, groupEventId, payload);
+    await applyDefaultRoomToExternalReservation(supabase, groupEventId, payload);
 
     try {
       await linkGroupEventCustomerFromSnapshot(
