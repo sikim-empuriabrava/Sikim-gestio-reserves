@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { linkGroupEventCustomerFromSnapshot } from '@/lib/crm/customerLinking';
 import { sendExternalReservationCreatedPush } from '@/lib/notifications/externalReservationPush';
+import { checkExternalReservationAntiAbuse } from '@/lib/reservations/externalReservationAntiAbuse';
 import { isPartyRoomName } from '@/lib/reservations/roomMode';
 import { createSupabaseAdminClient } from '@/lib/supabaseAdmin';
 
@@ -169,6 +170,10 @@ function formatValidationIssues(error: z.ZodError) {
     path: issue.path.length > 0 ? issue.path.join('.') : 'body',
     message: issue.message,
   }));
+}
+
+function getIpHashLogPrefix(ipHash: string | null) {
+  return ipHash ? `${ipHash.slice(0, 12)}...` : null;
 }
 
 const externalReservationRequestSchema = z
@@ -588,6 +593,48 @@ export async function POST(request: NextRequest) {
   const nowIso = new Date().toISOString();
 
   try {
+    const antiAbuseDecision = await checkExternalReservationAntiAbuse(supabase, payload);
+
+    if (antiAbuseDecision.action === 'deduplicated') {
+      console.warn('[external-reservation] duplicate request ignored', {
+        groupEventId: antiAbuseDecision.groupEventId,
+        eventDate: payload.date,
+        entryTime: payload.time,
+        partySize: payload.partySize,
+        ipHashPrefix: getIpHashLogPrefix(payload.attribution.ipHash),
+      });
+
+      return respond(
+        {
+          ok: true,
+          groupEventId: antiAbuseDecision.groupEventId,
+          status: antiAbuseDecision.status,
+          deduplicated: true,
+        },
+        { status: 201, headers: noStoreHeaders },
+      );
+    }
+
+    if (antiAbuseDecision.action === 'rate_limited') {
+      console.warn('[external-reservation] request accepted silently after anti-abuse rate limit', {
+        reason: antiAbuseDecision.reason,
+        eventDate: payload.date,
+        entryTime: payload.time,
+        partySize: payload.partySize,
+        ipHashPrefix: getIpHashLogPrefix(payload.attribution.ipHash),
+      });
+
+      return respond(
+        {
+          ok: true,
+          groupEventId: null,
+          status: 'accepted',
+          rateLimited: true,
+        },
+        { status: 201, headers: noStoreHeaders },
+      );
+    }
+
     const { data: groupEvent, error: groupEventError } = await supabase
       .from('group_events')
       .insert(buildGroupEventInsert(payload))

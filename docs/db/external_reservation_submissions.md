@@ -88,6 +88,23 @@ The table stores source labels, UTM fields, click identifiers, referrer, landing
 
 V1 intentionally does not store a raw request payload with PII.
 
+## Anti-abuse interno
+
+`Reserves_extern` hace el hardening de entrada del formulario publico: sanitizacion, bloqueo de XSS evidente, honeypot, trampa de velocidad, `ipHash` HMAC y timeout hacia el endpoint interno.
+
+`Sikim-gestio-reserves` anade una segunda capa conservadora en `POST /api/external-reservation-requests` antes de crear reservas operativas:
+
+- Deduplicacion exacta: si en las ultimas 24 horas ya existe una solicitud externa asociada a un `group_events` con el mismo telefono normalizado, `event_date`, `entry_time` y `total_pax`, y su estado no es `cancelled` ni `no_show`, no se crea una nueva reserva.
+- El telefono solo se normaliza para comparacion anti-abuse: `trim`, eliminacion de espacios, guiones y parentesis, conservando un `+` inicial si existe. El valor original se sigue guardando en `group_events.customer_phone`.
+- Rate limit por telefono normalizado: maximo 3 solicitudes en 15 minutos y maximo 10 en 24 horas.
+- Rate limit por `ip_hash`, solo si el payload trae `attribution.ipHash`: maximo 5 solicitudes en 15 minutos y maximo 20 en 24 horas.
+- Si `ipHash` es `null`, se omite el control por IP y se aplican solo las comprobaciones por telefono.
+- En deduplicacion o rate limit, el endpoint responde de forma silenciosa con HTTP `201` y `ok: true` para no cambiar la UX publica ni dar pistas a bots.
+- En deduplicacion devuelve el `groupEventId` existente y `deduplicated: true`.
+- En rate limit devuelve `groupEventId: null`, `status: "accepted"` y `rateLimited: true`.
+- No se guarda IP plana, no se intenta reconstruir IP y los logs server-side evitan telefono completo, email, comentario, token y payload completo.
+- Como el anti-abuse se ejecuta antes de insertar `group_events`, tampoco se crean `external_reservation_submissions`, offerings, asignaciones de sala, enlaces CRM ni notificaciones push en esos casos.
+
 ## Calendar and CRM
 
 Google Calendar sync continues to be driven by `group_events.status`. Pending reservations are not synced; calendar sync starts only when the reservation reaches the existing confirmed/completed flow.
@@ -122,19 +139,23 @@ The endpoint accepts a strict JSON payload with:
 
 ### Write flow
 
-1. Insert a pending operational reservation into `public.group_events`.
-2. Insert the matching attribution row into `public.external_reservation_submissions`.
-3. Read `public.external_reservation_settings` and, when the singleton is enabled and points to an active configured card or menu, insert the matching `public.group_event_offerings` row.
-4. Read `public.external_reservation_settings.default_room_id` and, when it points to an active dinner room, insert the matching `public.group_room_allocations` row.
-5. Attempt CRM linking with `linkGroupEventCustomerFromSnapshot` on a best-effort basis.
+1. Check internal anti-abuse for exact duplicates, phone limits and optional `ip_hash` limits.
+2. Insert a pending operational reservation into `public.group_events`.
+3. Insert the matching attribution row into `public.external_reservation_submissions`.
+4. Read `public.external_reservation_settings` and, when the singleton is enabled and points to an active configured card or menu, insert the matching `public.group_event_offerings` row.
+5. Read `public.external_reservation_settings.default_room_id` and, when it points to an active dinner room, insert the matching `public.group_room_allocations` row.
+6. Attempt CRM linking with `linkGroupEventCustomerFromSnapshot` on a best-effort basis.
+7. Attempt internal push notification delivery on a best-effort basis.
 
-If step 2 fails after the reservation row was created, the handler attempts to delete the just-created `group_events` row to avoid leaving an orphan reservation without external provenance.
+If step 1 detects an exact duplicate or rate limit, the handler returns a silent success response before creating any reservation, attribution, default offering, default room allocation, CRM link or push notification.
 
-If step 3 fails because the settings are missing, disabled, incomplete or point to an inactive catalog item, the handler keeps the reservation and submission rows intact and only skips the automatic offering assignment.
+If step 3 fails after the reservation row was created, the handler attempts to delete the just-created `group_events` row to avoid leaving an orphan reservation without external provenance.
 
-If step 3 fails with an unexpected insert error in `group_event_offerings`, the handler logs the failure and still returns success so the customer request is not lost.
+If step 4 fails because the settings are missing, disabled, incomplete or point to an inactive catalog item, the handler keeps the reservation and submission rows intact and only skips the automatic offering assignment.
 
-If step 4 fails because the room setting is missing, inactive, not a dinner room or the allocation insert fails unexpectedly, the handler logs the failure and still returns success so the customer request is not lost.
+If step 4 fails with an unexpected insert error in `group_event_offerings`, the handler logs the failure and still returns success so the customer request is not lost.
+
+If step 5 fails because the room setting is missing, inactive, not a dinner room or the allocation insert fails unexpectedly, the handler logs the failure and still returns success so the customer request is not lost.
 
 ## Access model
 
