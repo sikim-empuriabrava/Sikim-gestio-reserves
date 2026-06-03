@@ -35,6 +35,7 @@ For the currently visible period, `/reservas` shows:
 
 - an `Externas pendientes` metric card;
 - a compact `Solicitudes externas pendientes` list with date, time, name, pax, phone, source label, short comment and a link to `/reservas/grupo/[id]`.
+- a compact `Externa` badge on reservation cards when an associated `external_reservation_submissions` row exists for the same `group_event_id`, including reservations that have already been confirmed.
 
 This overview does not add a new reservation status and does not rely on an `external_pending` value.
 
