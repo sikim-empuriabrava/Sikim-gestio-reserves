@@ -67,6 +67,8 @@ type GroupEventDailyDetail = {
   extras?: string | null;
   setup_notes?: string | null;
   invoice_data?: string | null;
+  isExternalReservation: boolean;
+  externalSourceLabel?: string | null;
 };
 
 type PendingGroupEventRow = {
@@ -273,6 +275,20 @@ function validationBadge(statusRow?: DayStatusRow) {
 
 const validationBadgeClass =
   'inline-flex w-fit shrink-0 items-center justify-center whitespace-nowrap rounded-full border px-2.5 py-1 text-[0.68rem] font-semibold leading-none';
+
+const externalReservationBadgeClass =
+  'inline-flex w-fit shrink-0 items-center justify-center whitespace-nowrap rounded-full border border-[#d6a76e]/70 bg-[#fff1d6] px-2 py-1 text-[0.64rem] font-semibold leading-none text-[#7b4b12]';
+
+function ExternalReservationBadge({ sourceLabel }: { sourceLabel?: string | null }) {
+  const cleanSourceLabel = cleanText(sourceLabel);
+  const title = cleanSourceLabel ? `Externa - ${cleanSourceLabel}` : 'Externa';
+
+  return (
+    <span className={externalReservationBadgeClass} title={title}>
+      Externa
+    </span>
+  );
+}
 
 function getReservationMeta(event: GroupEventDailyDetail) {
   if (event.event_mode === 'private_party_only') {
@@ -573,6 +589,42 @@ async function getExternalPendingReservations(
   });
 }
 
+async function enrichExternalReservations(
+  supabase: ReturnType<typeof createSupabaseAdminClient>,
+  events: GroupEventDailyDetail[],
+) {
+  const eventIds = Array.from(new Set(events.map((event) => event.group_event_id).filter(Boolean)));
+
+  if (eventIds.length === 0) {
+    return events.map((event) => ({
+      ...event,
+      isExternalReservation: false,
+      externalSourceLabel: null,
+    }));
+  }
+
+  const { data: submissionsData } = await supabase
+    .from('external_reservation_submissions')
+    .select('group_event_id, source_label')
+    .in('group_event_id', eventIds);
+
+  const submissionsByEventId = new Map<string, string | null>();
+  ((submissionsData ?? []) as Pick<ExternalReservationSubmissionRow, 'group_event_id' | 'source_label'>[]).forEach(
+    (submission) => {
+      submissionsByEventId.set(submission.group_event_id, submission.source_label);
+    },
+  );
+
+  return events.map((event) => {
+    const hasExternalSubmission = submissionsByEventId.has(event.group_event_id);
+    return {
+      ...event,
+      isExternalReservation: hasExternalSubmission,
+      externalSourceLabel: hasExternalSubmission ? submissionsByEventId.get(event.group_event_id) ?? null : null,
+    };
+  });
+}
+
 // FIX: unify day/week/month data source using v_group_events_daily_detail
 async function getWeekData(weekStart: string) {
   const weekDates = getWeekDates(weekStart);
@@ -600,11 +652,12 @@ async function getWeekData(weekStart: string) {
   });
 
   const eventsByDate = new Map<string, GroupEventDailyDetail[]>();
-  for (const event of eventsData ?? []) {
+  const enrichedEvents = await enrichExternalReservations(supabase, (eventsData ?? []) as GroupEventDailyDetail[]);
+  for (const event of enrichedEvents) {
     const key = event.event_date;
     if (!key) continue;
     const list = eventsByDate.get(key) ?? [];
-    list.push(event as GroupEventDailyDetail);
+    list.push(event);
     eventsByDate.set(key, list);
   }
 
@@ -635,7 +688,7 @@ async function getDayData(selectedDate: string) {
       notes_maintenance: '',
     };
 
-  const reservations: GroupEventDailyDetail[] = eventsData ?? [];
+  const reservations = await enrichExternalReservations(supabase, (eventsData ?? []) as GroupEventDailyDetail[]);
   return { dayStatus, reservations, externalPendingReservations };
 }
 
@@ -665,11 +718,12 @@ async function getMonthData(monthDate: Date) {
   ]);
 
   const eventsByDate = new Map<string, GroupEventDailyDetail[]>();
-  for (const event of data ?? []) {
+  const enrichedEvents = await enrichExternalReservations(supabase, (data ?? []) as GroupEventDailyDetail[]);
+  for (const event of enrichedEvents) {
     const key = event.event_date;
     if (!key) continue;
     const list = eventsByDate.get(key) ?? [];
-    list.push(event as GroupEventDailyDetail);
+    list.push(event);
     eventsByDate.set(key, list);
   }
 
@@ -741,9 +795,12 @@ function WeekView({
                               {evt.group_name}
                             </h3>
                           </div>
-                          <span className={`w-fit shrink-0 rounded-full border px-2 py-1 text-[0.66rem] font-semibold leading-none ${status.className}`}>
-                            {status.label}
-                          </span>
+                          <div className="flex shrink-0 flex-wrap justify-end gap-1">
+                            {evt.isExternalReservation ? <ExternalReservationBadge sourceLabel={evt.externalSourceLabel} /> : null}
+                            <span className={`w-fit shrink-0 rounded-full border px-2 py-1 text-[0.66rem] font-semibold leading-none ${status.className}`}>
+                              {status.label}
+                            </span>
+                          </div>
                         </div>
                         <p className="mt-2 text-sm text-[#b9aea1]">{evt.total_pax ?? '-'} personas</p>
                         <p className="mt-1 line-clamp-2 text-xs leading-relaxed text-[#8f8578]">{getReservationMeta(evt)}</p>
@@ -1008,6 +1065,8 @@ function DayView({
                 extras={reservation.extras}
                 setupNotes={reservation.setup_notes}
                 invoiceData={reservation.invoice_data}
+                isExternalReservation={reservation.isExternalReservation}
+                externalSourceLabel={reservation.externalSourceLabel}
               />
             ))}
           </div>
@@ -1115,9 +1174,12 @@ function MobileMonthAgenda({
                           <h3 className="min-w-0 flex-1 break-words text-[0.95rem] font-semibold leading-tight text-[#f5eee4]">
                             {event.group_name}
                           </h3>
-                          <span className={`w-fit shrink-0 rounded-full border px-2 py-1 text-[0.66rem] font-semibold leading-none ${status.className}`}>
-                            {status.label}
-                          </span>
+                          <div className="flex shrink-0 flex-wrap justify-end gap-1">
+                            {event.isExternalReservation ? <ExternalReservationBadge sourceLabel={event.externalSourceLabel} /> : null}
+                            <span className={`w-fit shrink-0 rounded-full border px-2 py-1 text-[0.66rem] font-semibold leading-none ${status.className}`}>
+                              {status.label}
+                            </span>
+                          </div>
                         </div>
                         <p className="mt-2 text-sm text-[#b9aea1]">{event.total_pax ?? '-'} pax</p>
                         <p className="mt-1 line-clamp-2 text-xs leading-relaxed text-[#8f8578]">
@@ -1212,11 +1274,14 @@ function MonthView({
                           href={`/reservas/grupo/${evt.group_event_id}?date=${evt.event_date}`}
                           className={`block rounded-md border px-2 py-1.5 text-xs leading-tight transition duration-200 hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#c99555]/45 ${monthReservationClassName(evt.status)}`}
                         >
-                          <div className="flex items-center gap-1.5">
+                          <div className="flex items-start gap-1.5">
                             <p className="min-w-0 flex-1 truncate font-medium">{evt.group_name}</p>
-                            <span className={`shrink-0 rounded-full border px-1.5 py-0.5 text-[0.58rem] font-semibold leading-none ${statusBadge(evt.status).className}`}>
-                              {statusBadge(evt.status).label}
-                            </span>
+                            <div className="flex shrink-0 flex-wrap justify-end gap-1">
+                              {evt.isExternalReservation ? <ExternalReservationBadge sourceLabel={evt.externalSourceLabel} /> : null}
+                              <span className={`shrink-0 rounded-full border px-1.5 py-0.5 text-[0.58rem] font-semibold leading-none ${statusBadge(evt.status).className}`}>
+                                {statusBadge(evt.status).label}
+                              </span>
+                            </div>
                           </div>
                           <p className="mt-0.5 truncate text-[0.68rem] text-[#9d9285]">
                             {evt.entry_time ? evt.entry_time.slice(0, 5) : 'Sin hora'} · {evt.total_pax ?? '-'} pax

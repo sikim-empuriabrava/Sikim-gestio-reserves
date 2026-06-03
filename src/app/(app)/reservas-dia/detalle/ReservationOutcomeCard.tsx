@@ -45,6 +45,8 @@ type ReservationOutcomeCardProps = {
   extras?: string | null;
   setupNotes?: string | null;
   invoiceData?: string | null;
+  isExternalReservation?: boolean;
+  externalSourceLabel?: string | null;
 };
 
 export function ReservationOutcomeCard({
@@ -69,6 +71,8 @@ export function ReservationOutcomeCard({
   extras,
   setupNotes,
   invoiceData,
+  isExternalReservation = false,
+  externalSourceLabel,
 }: ReservationOutcomeCardProps) {
   const [currentOutcome, setCurrentOutcome] = useState(serviceOutcome ?? 'normal');
   const [notes, setNotes] = useState(serviceOutcomeNotes ?? '');
@@ -107,6 +111,8 @@ export function ReservationOutcomeCard({
   };
 
   const statusClass = statusStyles[status] ?? 'border-stone-600/70 bg-stone-900/70 text-stone-200';
+  const cleanExternalSourceLabel = externalSourceLabel?.trim();
+  const externalReservationTitle = cleanExternalSourceLabel ? `Externa - ${cleanExternalSourceLabel}` : 'Externa';
   const cardClass =
     status === 'draft'
       ? 'border-[#e2b19b]/90 bg-[#f3ddd2] hover:border-[#d99d84]/90 [&>div:first-child_h3]:text-[#5f4033] [&>div:first-child_p]:text-[#8a5c49] [&>div:first-child_a]:text-[#8a5c49] hover:[&>div:first-child_a]:text-[#6f4b3c] [&>div:first-child_button]:text-[#8a5c49] hover:[&>div:first-child_button]:text-[#6f4b3c]'
@@ -142,7 +148,15 @@ export function ReservationOutcomeCard({
           </div>
         </div>
         <div className="flex flex-col items-start gap-2 sm:items-end sm:text-right">
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center gap-2 sm:justify-end">
+            {isExternalReservation ? (
+              <span
+                className="inline-flex w-fit shrink-0 items-center justify-center whitespace-nowrap rounded-full border border-[#d6a76e]/70 bg-[#fff1d6] px-2 py-1 text-[0.64rem] font-semibold leading-none text-[#7b4b12]"
+                title={externalReservationTitle}
+              >
+                Externa
+              </span>
+            ) : null}
             <span className={`inline-flex items-center rounded-full border px-3 py-1 text-xs font-semibold whitespace-nowrap ${statusClass}`}>
               {statusLabels[status] ?? status}
             </span>
