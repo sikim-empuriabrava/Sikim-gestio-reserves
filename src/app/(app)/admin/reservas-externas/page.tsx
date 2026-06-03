@@ -25,10 +25,13 @@ export default async function AdminExternalReservationsPage() {
       currentName: null,
       currentCardId: null,
       currentMenuId: null,
+      defaultRoomId: null,
+      defaultRoomName: null,
       updatedAt: null,
     },
     cards: [] as Array<{ id: string; name: string }>,
     menus: [] as Array<{ id: string; name: string; price_per_person: number | null }>,
+    rooms: [] as Array<{ id: string; name: string }>,
   };
   let initialLoadError: string | null = null;
 
@@ -51,6 +54,7 @@ export default async function AdminExternalReservationsPage() {
         initialSummary={initialData.summary}
         initialCards={initialData.cards}
         initialMenus={initialData.menus}
+        initialRooms={initialData.rooms}
         initialLoadError={initialLoadError}
       />
     </>

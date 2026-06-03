@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createSupabaseAdminClient } from '@/lib/supabaseAdmin';
 import { createSupabaseRouteHandlerClient, mergeResponseCookies } from '@/lib/supabase/route';
-import { getAllowlistRoleForUserEmail } from '@/lib/auth/requireRole';
+import { getAllowlistRoleForUserEmail, isAdmin } from '@/lib/auth/requireRole';
 
 export const runtime = 'nodejs';
 
@@ -44,7 +44,11 @@ export async function GET() {
     return allowlistError;
   }
 
-  if (!allowlistInfo.allowlisted || !allowlistInfo.allowedUser?.is_active) {
+  if (
+    !allowlistInfo.allowlisted ||
+    !allowlistInfo.allowedUser?.is_active ||
+    (!isAdmin(allowlistInfo.role) && !allowlistInfo.allowedUser.can_reservas)
+  ) {
     const forbidden = NextResponse.json(
       { error: 'Forbidden' },
       { status: 403, headers: { 'Cache-Control': 'no-store' } },
@@ -57,13 +61,14 @@ export async function GET() {
 
   const { data, error } = await supabase
     .from('rooms')
-    .select('id, name, sort_order')
+    .select('id, name')
     .eq('is_active', true)
-    .order('sort_order', { ascending: true });
+    .order('name', { ascending: true });
 
   if (error) {
+    console.error('[api/rooms] Failed to load active rooms', error);
     const serverError = NextResponse.json(
-      { error: error.message },
+      { error: 'Unable to load active rooms' },
       { status: 500, headers: { 'Cache-Control': 'no-store' } },
     );
     mergeResponseCookies(supabaseResponse, serverError);

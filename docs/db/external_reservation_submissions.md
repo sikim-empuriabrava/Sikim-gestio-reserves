@@ -51,9 +51,9 @@ La regla futura de envio exigira usuario activo, rol `admin` o permiso `can_rese
 
 Esta fase no envia notificaciones, no crea service worker y no cambia el endpoint publico externo.
 
-## Oferta por defecto para reservas externas
+## Oferta y sala por defecto para reservas externas
 
-`public.external_reservation_settings` is a singleton configuration table for the default catalog offering that `POST /api/external-reservation-requests` can apply automatically.
+`public.external_reservation_settings` is a singleton configuration table for defaults that `POST /api/external-reservation-requests` can apply automatically.
 
 - The singleton is enforced with `id boolean primary key default true` plus `check (id = true)`, so only the global `true` row is valid.
 - The route reads `external_reservation_settings` with `where id = true`.
@@ -70,6 +70,16 @@ Esta fase no envia notificaciones, no crea service worker y no cambia el endpoin
 - If the table points to a card or menu that no longer exists or is no longer active, the route logs a server-side warning, skips the offering assignment and still accepts the reservation.
 - If creating `group_event_offerings` fails unexpectedly, the route logs a server-side error and still accepts the reservation so the team can assign the card or menu manually from the internal UI.
 - The operational fallback is that Carla can assign the card or menu manually after the reservation lands as `pending`.
+
+`external_reservation_settings.default_room_id` stores the default dinner room for external reservations with `event_mode = 'dinner'`.
+
+- The column references `public.rooms(id)` with `on delete set null`.
+- The initial seed tries to set `default_room_id` to the active room whose normalized lookup is `lower(name) = 'medi'`.
+- The seed only writes the value when exactly one active room named `medi` exists; if none or multiple match, it leaves `default_room_id = null` and the migration still succeeds.
+- No room UUID is hardcoded in application code.
+- When `default_room_id` points to an active dinner room, the ingest creates a `public.group_room_allocations` row with `group_event_id` set to the new reservation id, `room_id = default_room_id`, `adults = partySize`, `children = 0`, `override_capacity = false` and `notes = null`.
+- If there is no configured room, the room is inactive, the room is not a dinner room, or the allocation insert fails, the route logs server-side context and still accepts the reservation as `pending`.
+- The operational fallback is that Carla can assign the room manually from the internal detail screen.
 
 ## Captured metadata
 
@@ -114,13 +124,16 @@ The endpoint accepts a strict JSON payload with:
 1. Insert a pending operational reservation into `public.group_events`.
 2. Insert the matching attribution row into `public.external_reservation_submissions`.
 3. Read `public.external_reservation_settings` and, when the singleton is enabled and points to an active configured card or menu, insert the matching `public.group_event_offerings` row.
-4. Attempt CRM linking with `linkGroupEventCustomerFromSnapshot` on a best-effort basis.
+4. Read `public.external_reservation_settings.default_room_id` and, when it points to an active dinner room, insert the matching `public.group_room_allocations` row.
+5. Attempt CRM linking with `linkGroupEventCustomerFromSnapshot` on a best-effort basis.
 
 If step 2 fails after the reservation row was created, the handler attempts to delete the just-created `group_events` row to avoid leaving an orphan reservation without external provenance.
 
 If step 3 fails because the settings are missing, disabled, incomplete or point to an inactive catalog item, the handler keeps the reservation and submission rows intact and only skips the automatic offering assignment.
 
 If step 3 fails with an unexpected insert error in `group_event_offerings`, the handler logs the failure and still returns success so the customer request is not lost.
+
+If step 4 fails because the room setting is missing, inactive, not a dinner room or the allocation insert fails unexpectedly, the handler logs the failure and still returns success so the customer request is not lost.
 
 ## Access model
 

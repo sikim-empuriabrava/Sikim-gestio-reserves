@@ -19,6 +19,8 @@ type Summary = {
   currentName: string | null;
   currentCardId: string | null;
   currentMenuId: string | null;
+  defaultRoomId: string | null;
+  defaultRoomName: string | null;
   updatedAt: string | null;
 };
 
@@ -33,10 +35,16 @@ type MenuOption = {
   price_per_person: number | null;
 };
 
+type RoomOption = {
+  id: string;
+  name: string;
+};
+
 type Props = {
   initialSummary: Summary;
   initialCards: CardOption[];
   initialMenus: MenuOption[];
+  initialRooms: RoomOption[];
   initialLoadError: string | null;
 };
 
@@ -71,6 +79,7 @@ export function ExternalReservationSettingsManager({
   initialSummary,
   initialCards,
   initialMenus,
+  initialRooms,
   initialLoadError,
 }: Props) {
   const router = useRouter();
@@ -78,6 +87,7 @@ export function ExternalReservationSettingsManager({
   const [mode, setMode] = useState<'none' | 'cheffing_card' | 'cheffing_menu'>(buildInitialMode(initialSummary));
   const [selectedCardId, setSelectedCardId] = useState(initialSummary.currentCardId ?? initialCards[0]?.id ?? '');
   const [selectedMenuId, setSelectedMenuId] = useState(initialSummary.currentMenuId ?? initialMenus[0]?.id ?? '');
+  const [selectedRoomId, setSelectedRoomId] = useState(initialSummary.defaultRoomId ?? '');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
@@ -89,8 +99,9 @@ export function ExternalReservationSettingsManager({
     () => ({
       cards: initialCards.length,
       menus: initialMenus.length,
+      rooms: initialRooms.length,
     }),
-    [initialCards.length, initialMenus.length],
+    [initialCards.length, initialMenus.length, initialRooms.length],
   );
 
   const handleModeChange = (nextMode: 'none' | 'cheffing_card' | 'cheffing_menu') => {
@@ -167,6 +178,7 @@ export function ExternalReservationSettingsManager({
           mode,
           cheffingCardId: mode === 'cheffing_card' ? selectedCardId : null,
           cheffingMenuId: mode === 'cheffing_menu' ? selectedMenuId : null,
+          defaultRoomId: selectedRoomId || null,
         }),
       });
 
@@ -183,6 +195,7 @@ export function ExternalReservationSettingsManager({
       setMode(buildInitialMode(payload.settings));
       setSelectedCardId(payload.settings.currentCardId ?? selectedCardId);
       setSelectedMenuId(payload.settings.currentMenuId ?? selectedMenuId);
+      setSelectedRoomId(payload.settings.defaultRoomId ?? '');
       setMessage('Configuracion guardada.');
       router.refresh();
     } catch (submitError) {
@@ -230,6 +243,13 @@ export function ExternalReservationSettingsManager({
           </div>
 
           <div className="rounded-2xl border border-[#4a3f32]/70 bg-[#12110f]/70 p-4">
+            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[#a99d90]">Sala por defecto</p>
+            <p className="mt-2 text-lg font-semibold text-[#f6f0e8]">
+              {summary.defaultRoomName ?? 'Sin sala asignada'}
+            </p>
+          </div>
+
+          <div className="rounded-2xl border border-[#4a3f32]/70 bg-[#12110f]/70 p-4">
             <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[#a99d90]">Ultima actualizacion</p>
             <p className="mt-2 text-lg font-semibold text-[#f6f0e8]">{formatDateTime(summary.updatedAt)}</p>
           </div>
@@ -244,94 +264,130 @@ export function ExternalReservationSettingsManager({
             <div className="flex flex-wrap items-center gap-2">
               <OperationalPill tone="muted">{availabilitySummary.cards} cartas activas</OperationalPill>
               <OperationalPill tone="muted">{availabilitySummary.menus} menus activos</OperationalPill>
+              <OperationalPill tone="muted">{availabilitySummary.rooms} salas activas</OperationalPill>
             </div>
           }
         >
-          Configura la carta o menu asignado automaticamente a las solicitudes del motor publico.
+          Configura la carta o menu y la sala de cena por defecto para las solicitudes del motor publico.
         </OperationalSectionHeader>
 
         <form onSubmit={handleSubmit} className="mt-5 space-y-5">
-          <label className="flex min-h-11 items-center gap-3 rounded-2xl border border-[#4a3f32]/80 bg-[#12110f]/75 px-4 py-3 text-sm text-[#efe8dc]">
-            <input
-              type="checkbox"
-              checked={isEnabled}
-              onChange={(event) => handleAutoAssignToggle(event.target.checked)}
-              className="h-4 w-4 accent-[#c9833f]"
-              disabled={saving}
-            />
-            <span className="font-semibold">
-              Asignar automaticamente una carta o menu a las reservas externas
-            </span>
-          </label>
+          <div className="space-y-4 rounded-2xl border border-[#4a3f32]/80 bg-[#12110f]/55 p-4">
+            <p className="text-sm font-semibold uppercase tracking-[0.16em] text-[#c9a46f]">
+              Carta/menu por defecto
+            </p>
 
-          <label className={operationalLabelClass}>
-            <span className="block font-semibold">Tipo de asignacion</span>
-            <select
-              value={mode}
-              onChange={(event) =>
-                handleModeChange(event.target.value as 'none' | 'cheffing_card' | 'cheffing_menu')
-              }
-              className={operationalFieldClass}
-              disabled={saving}
-            >
-              <option value="none">Sin asignacion automatica</option>
-              <option value="cheffing_card">Carta</option>
-              <option value="cheffing_menu">Menu</option>
-            </select>
-          </label>
+            <label className="flex min-h-11 items-center gap-3 rounded-2xl border border-[#4a3f32]/80 bg-[#12110f]/75 px-4 py-3 text-sm text-[#efe8dc]">
+              <input
+                type="checkbox"
+                checked={isEnabled}
+                onChange={(event) => handleAutoAssignToggle(event.target.checked)}
+                className="h-4 w-4 accent-[#c9833f]"
+                disabled={saving}
+              />
+              <span className="font-semibold">
+                Asignar automaticamente una carta o menu a las reservas externas
+              </span>
+            </label>
 
-          {mode === 'cheffing_card' ? (
             <label className={operationalLabelClass}>
-              <span className="block font-semibold">Carta activa</span>
+              <span className="block font-semibold">Tipo de asignacion</span>
               <select
-                value={selectedCardId}
+                value={mode}
+                onChange={(event) =>
+                  handleModeChange(event.target.value as 'none' | 'cheffing_card' | 'cheffing_menu')
+                }
+                className={operationalFieldClass}
+                disabled={saving}
+              >
+                <option value="none">Sin asignacion automatica</option>
+                <option value="cheffing_card">Carta</option>
+                <option value="cheffing_menu">Menu</option>
+              </select>
+            </label>
+
+            {mode === 'cheffing_card' ? (
+              <label className={operationalLabelClass}>
+                <span className="block font-semibold">Carta activa</span>
+                <select
+                  value={selectedCardId}
+                  onChange={(event) => {
+                    setSelectedCardId(event.target.value);
+                    setError(null);
+                    setMessage(null);
+                  }}
+                  className={operationalFieldClass}
+                  disabled={saving || initialCards.length === 0}
+                >
+                  <option value="">{initialCards.length === 0 ? 'No hay cartas activas disponibles.' : 'Selecciona una carta'}</option>
+                  {initialCards.map((card) => (
+                    <option key={card.id} value={card.id}>
+                      {card.name}
+                    </option>
+                  ))}
+                </select>
+                {initialCards.length === 0 ? (
+                  <p className="text-sm text-amber-200">No hay cartas activas disponibles.</p>
+                ) : null}
+              </label>
+            ) : null}
+
+            {mode === 'cheffing_menu' ? (
+              <label className={operationalLabelClass}>
+                <span className="block font-semibold">Menu activo</span>
+                <select
+                  value={selectedMenuId}
+                  onChange={(event) => {
+                    setSelectedMenuId(event.target.value);
+                    setError(null);
+                    setMessage(null);
+                  }}
+                  className={operationalFieldClass}
+                  disabled={saving || initialMenus.length === 0}
+                >
+                  <option value="">{initialMenus.length === 0 ? 'No hay menus activos disponibles.' : 'Selecciona un menu'}</option>
+                  {initialMenus.map((menu) => (
+                    <option key={menu.id} value={menu.id}>
+                      {menu.name}
+                      {menu.price_per_person !== null ? ` - ${formatPrice(menu.price_per_person)}/pax` : ''}
+                    </option>
+                  ))}
+                </select>
+                {initialMenus.length === 0 ? (
+                  <p className="text-sm text-amber-200">No hay menus activos disponibles.</p>
+                ) : null}
+              </label>
+            ) : null}
+          </div>
+
+          <div className="space-y-4 rounded-2xl border border-[#4a3f32]/80 bg-[#12110f]/55 p-4">
+            <p className="text-sm font-semibold uppercase tracking-[0.16em] text-[#c9a46f]">
+              Sala por defecto
+            </p>
+            <label className={operationalLabelClass}>
+              <span className="block font-semibold">Sala de cena por defecto</span>
+              <select
+                value={selectedRoomId}
                 onChange={(event) => {
-                  setSelectedCardId(event.target.value);
+                  setSelectedRoomId(event.target.value);
                   setError(null);
                   setMessage(null);
                 }}
                 className={operationalFieldClass}
-                disabled={saving || initialCards.length === 0}
+                disabled={saving || initialRooms.length === 0}
               >
-                <option value="">{initialCards.length === 0 ? 'No hay cartas activas disponibles.' : 'Selecciona una carta'}</option>
-                {initialCards.map((card) => (
-                  <option key={card.id} value={card.id}>
-                    {card.name}
+                <option value="">Sin sala por defecto</option>
+                {initialRooms.map((room) => (
+                  <option key={room.id} value={room.id}>
+                    {room.name}
                   </option>
                 ))}
               </select>
-              {initialCards.length === 0 ? (
-                <p className="text-sm text-amber-200">No hay cartas activas disponibles.</p>
+              {initialRooms.length === 0 ? (
+                <p className="text-sm text-amber-200">No hay salas activas disponibles.</p>
               ) : null}
             </label>
-          ) : null}
-
-          {mode === 'cheffing_menu' ? (
-            <label className={operationalLabelClass}>
-              <span className="block font-semibold">Menu activo</span>
-              <select
-                value={selectedMenuId}
-                onChange={(event) => {
-                  setSelectedMenuId(event.target.value);
-                  setError(null);
-                  setMessage(null);
-                }}
-                className={operationalFieldClass}
-                disabled={saving || initialMenus.length === 0}
-              >
-                <option value="">{initialMenus.length === 0 ? 'No hay menus activos disponibles.' : 'Selecciona un menu'}</option>
-                {initialMenus.map((menu) => (
-                  <option key={menu.id} value={menu.id}>
-                    {menu.name}
-                    {menu.price_per_person !== null ? ` - ${formatPrice(menu.price_per_person)}/pax` : ''}
-                  </option>
-                ))}
-              </select>
-              {initialMenus.length === 0 ? (
-                <p className="text-sm text-amber-200">No hay menus activos disponibles.</p>
-              ) : null}
-            </label>
-          ) : null}
+          </div>
 
           <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
             <button

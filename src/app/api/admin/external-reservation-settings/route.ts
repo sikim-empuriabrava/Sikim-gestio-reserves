@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { getAllowlistRoleForUserEmail, isAdmin } from '@/lib/auth/requireRole';
 import { loadExternalReservationSettingsAdminData } from '@/lib/reservations/externalReservationSettings';
+import { isPartyRoomName } from '@/lib/reservations/roomMode';
 import { createSupabaseRouteHandlerClient, mergeResponseCookies } from '@/lib/supabase/route';
 import { createSupabaseAdminClient } from '@/lib/supabaseAdmin';
 
@@ -13,6 +14,7 @@ const updateSettingsSchema = z
     mode: z.enum(['none', 'cheffing_card', 'cheffing_menu']),
     cheffingCardId: z.string().uuid().nullable().optional(),
     cheffingMenuId: z.string().uuid().nullable().optional(),
+    defaultRoomId: z.string().uuid().nullable().optional(),
   })
   .strict();
 
@@ -69,7 +71,37 @@ export async function PUT(req: NextRequest) {
     default_offering_kind: 'cheffing_card' | 'cheffing_menu' | null;
     default_cheffing_card_id: string | null;
     default_cheffing_menu_id: string | null;
+    default_room_id: string | null;
   };
+  const defaultRoomId = payload.defaultRoomId ?? null;
+
+  if (defaultRoomId) {
+    const { data: roomData, error: roomError } = await supabase
+      .from('rooms')
+      .select('id, name')
+      .eq('id', defaultRoomId)
+      .eq('is_active', true)
+      .maybeSingle();
+
+    if (roomError) {
+      console.error('[api/admin/external-reservation-settings] Failed to validate default room', roomError);
+      const validationError = NextResponse.json(
+        { error: 'No se pudo validar la sala seleccionada.' },
+        { status: 500 },
+      );
+      mergeResponseCookies(supabaseResponse, validationError);
+      return validationError;
+    }
+
+    if (!roomData || isPartyRoomName(String(roomData.name))) {
+      const invalidRoom = NextResponse.json(
+        { error: 'La sala seleccionada no existe, no esta activa o no es una sala de cena.' },
+        { status: 400 },
+      );
+      mergeResponseCookies(supabaseResponse, invalidRoom);
+      return invalidRoom;
+    }
+  }
 
   if (payload.mode === 'none') {
     settingsUpdate = {
@@ -78,6 +110,7 @@ export async function PUT(req: NextRequest) {
       default_offering_kind: null,
       default_cheffing_card_id: null,
       default_cheffing_menu_id: null,
+      default_room_id: defaultRoomId,
     };
   } else if (payload.mode === 'cheffing_card') {
     if (!payload.cheffingCardId) {
@@ -121,6 +154,7 @@ export async function PUT(req: NextRequest) {
       default_offering_kind: 'cheffing_card',
       default_cheffing_card_id: payload.cheffingCardId,
       default_cheffing_menu_id: null,
+      default_room_id: defaultRoomId,
     };
   } else {
     if (!payload.cheffingMenuId) {
@@ -164,6 +198,7 @@ export async function PUT(req: NextRequest) {
       default_offering_kind: 'cheffing_menu',
       default_cheffing_card_id: null,
       default_cheffing_menu_id: payload.cheffingMenuId,
+      default_room_id: defaultRoomId,
     };
   }
 
@@ -202,6 +237,8 @@ export async function PUT(req: NextRequest) {
         currentName: null,
         currentCardId: settingsUpdate.default_cheffing_card_id,
         currentMenuId: settingsUpdate.default_cheffing_menu_id,
+        defaultRoomId: settingsUpdate.default_room_id,
+        defaultRoomName: null,
         updatedAt: null,
       },
     });
