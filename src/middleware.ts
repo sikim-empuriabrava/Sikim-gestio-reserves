@@ -13,6 +13,7 @@ const PUBLIC_PATHS = [
   /^\/api\/version$/,
   /^\/api\/_health\/env$/,
   /^\/api\/external-reservation-requests$/,
+  /^\/api\/external-tracking-config$/,
   /^\/favicon\.ico$/,
 ];
 

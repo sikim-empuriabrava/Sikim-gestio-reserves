@@ -57,7 +57,8 @@ This separation is intentional:
 
 - `external_reservation_submissions` stores first-party attribution data already received by the internal ingest.
 - `external_tracking_integrations` stores future provider configuration such as Meta Pixel, Google Tag, Google Ads Conversion or Google Tag Manager IDs.
-- The tracking configuration does not load external scripts, create cookies or expose a public endpoint in this phase.
+- The tracking configuration does not load external scripts or create cookies.
+- The safe server-to-server read endpoint for active public tracking configuration is documented at [Admin: tracking de reservas externas](../admin/external-reservation-tracking.md#endpoint-seguro-de-configuración-pública).
 
 ## Futuras notificaciones push internas
 
