@@ -50,9 +50,14 @@ export default async function AdminExternalReservationsPage() {
         title="Reservas externas"
         description="Define que carta o menu se asigna automaticamente a las solicitudes que llegan desde el motor publico de reservas."
         actions={
-          <Link href="/admin/reservas-externas/atribucion" className={operationalSecondaryButtonClass}>
-            Atribucion reservas externas
-          </Link>
+          <div className="flex flex-wrap items-center gap-3">
+            <Link href="/admin/reservas-externas/tracking" className={operationalSecondaryButtonClass}>
+              Tracking reservas externas
+            </Link>
+            <Link href="/admin/reservas-externas/atribucion" className={operationalSecondaryButtonClass}>
+              Atribucion reservas externas
+            </Link>
+          </div>
         }
       />
 

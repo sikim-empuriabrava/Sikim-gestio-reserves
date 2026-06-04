@@ -19,6 +19,8 @@ Este dashboard no es un pixel publicitario y no mide conversiones desde el naveg
 
 La atribucion propia se basa en datos server-side guardados en `public.external_reservation_submissions` cuando el motor publico envia la solicitud a la app interna. Meta Pixel, Google Tag o conversion APIs son otra capa: permiten optimizacion publicitaria y medicion en plataformas externas, pero requieren una fase posterior con consentimiento, cookies/legal y configuracion de eventos.
 
+La configuracion interna para futuras integraciones de tracking se gestiona aparte en `/admin/reservas-externas/tracking`. Esa pantalla solo guarda IDs estructurados en `public.external_tracking_integrations`; no carga pixeles, tags, scripts ni cookies.
+
 Esta pantalla no anade:
 
 - Meta Pixel;

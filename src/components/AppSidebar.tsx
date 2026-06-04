@@ -137,6 +137,11 @@ function buildGroups(allowedUser: AllowedUser | null): NavigationGroup[] {
           includeChildren: false,
         },
         {
+          label: 'Tracking reservas externas',
+          href: '/admin/reservas-externas/tracking',
+          basePath: '/admin/reservas-externas/tracking',
+        },
+        {
           label: 'Atribucion reservas externas',
           href: '/admin/reservas-externas/atribucion',
           basePath: '/admin/reservas-externas/atribucion',
