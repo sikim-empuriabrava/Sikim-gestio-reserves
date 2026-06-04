@@ -21,6 +21,7 @@ RLS: habilitado
 | `cheffing_images_manage` | `boolean` | No | `false` |
 | `view_live_capacity` | `boolean` | No | `false` |
 | `manage_live_capacity` | `boolean` | No | `false` |
+| `notify_external_reservations` | `boolean` | No | `false` |
 
 ### backup_cheffing_dish_items_phase2_20260312
 RLS: habilitado
@@ -661,6 +662,7 @@ RLS: habilitado
 | `is_enabled` | `boolean` | No | `true` |
 | `created_at` | `timestamp with time zone` | No | `now()` |
 | `updated_at` | `timestamp with time zone` | No | `now()` |
+| `default_room_id` | `uuid` | Sí |  |
 
 ### external_reservation_submissions
 RLS: habilitado
@@ -688,6 +690,26 @@ RLS: habilitado
 | `ip_hash` | `text` | Sí |  |
 | `user_agent` | `text` | Sí |  |
 | `submitted_at` | `timestamp with time zone` | No | `now()` |
+| `created_at` | `timestamp with time zone` | No | `now()` |
+| `updated_at` | `timestamp with time zone` | No | `now()` |
+
+### external_tracking_integrations
+RLS: habilitado
+
+| Columna | Tipo | Nullable | Default |
+| --- | --- | --- | --- |
+| `id` | `uuid` | No | `gen_random_uuid()` |
+| `provider` | `text` | No |  |
+| `name` | `text` | No |  |
+| `enabled` | `boolean` | No | `false` |
+| `consent_category` | `text` | No | `'marketing'::text` |
+| `trigger_event` | `text` | No | `'reservation_request_submitted'::text` |
+| `meta_pixel_id` | `text` | Sí |  |
+| `google_tag_id` | `text` | Sí |  |
+| `google_ads_conversion_id` | `text` | Sí |  |
+| `google_ads_conversion_label` | `text` | Sí |  |
+| `gtm_container_id` | `text` | Sí |  |
+| `notes` | `text` | Sí |  |
 | `created_at` | `timestamp with time zone` | No | `now()` |
 | `updated_at` | `timestamp with time zone` | No | `now()` |
 
@@ -922,6 +944,24 @@ RLS: habilitado
 | `routine_week_start` | `date` | Sí |  |
 | `window_start_date` | `date` | Sí |  |
 
+### web_push_subscriptions
+RLS: habilitado
+
+| Columna | Tipo | Nullable | Default |
+| --- | --- | --- | --- |
+| `id` | `uuid` | No | `gen_random_uuid()` |
+| `user_email` | `text` | No |  |
+| `endpoint` | `text` | No |  |
+| `p256dh` | `text` | No |  |
+| `auth` | `text` | No |  |
+| `device_label` | `text` | Sí |  |
+| `user_agent` | `text` | Sí |  |
+| `is_active` | `boolean` | No | `true` |
+| `created_at` | `timestamp with time zone` | No | `now()` |
+| `updated_at` | `timestamp with time zone` | No | `now()` |
+| `last_seen_at` | `timestamp with time zone` | Sí |  |
+| `disabled_at` | `timestamp with time zone` | Sí |  |
+
 
 ## ENUMs
 - `group_service_outcome`: `normal`, `annotation`, `incident`, `no_show`, `note`
@@ -1050,6 +1090,7 @@ RLS: habilitado
 | `external_reservation_settings` | `normalize_external_reservation_settings_default_offering` | BEFORE | INSERT, UPDATE |
 | `external_reservation_settings` | `set_updated_at_external_reservation_settings` | BEFORE | UPDATE |
 | `external_reservation_submissions` | `set_updated_at_external_reservation_submissions` | BEFORE | UPDATE |
+| `external_tracking_integrations` | `set_updated_at_external_tracking_integrations` | BEFORE | UPDATE |
 | `group_event_offering_selection_doneness` | `sync_group_event_menu_text_from_doneness` | AFTER | INSERT, DELETE, UPDATE |
 | `group_event_offering_selections` | `set_updated_at_group_event_offering_selections` | BEFORE | UPDATE |
 | `group_event_offering_selections` | `sync_group_event_menu_text_from_selections` | AFTER | INSERT, DELETE, UPDATE |
@@ -1067,6 +1108,7 @@ RLS: habilitado
 | `rooms` | `set_timestamp_rooms` | BEFORE | UPDATE |
 | `routines` | `set_timestamp_routines` | BEFORE | UPDATE |
 | `tasks` | `set_timestamp_tasks` | BEFORE | UPDATE |
+| `web_push_subscriptions` | `set_updated_at_web_push_subscriptions` | BEFORE | UPDATE |
 
 ## Functions
 | Función | Args | Devuelve |
