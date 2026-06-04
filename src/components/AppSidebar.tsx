@@ -134,6 +134,12 @@ function buildGroups(allowedUser: AllowedUser | null): NavigationGroup[] {
           label: 'Reservas externas',
           href: '/admin/reservas-externas',
           basePath: '/admin/reservas-externas',
+          includeChildren: false,
+        },
+        {
+          label: 'Atribucion reservas externas',
+          href: '/admin/reservas-externas/atribucion',
+          basePath: '/admin/reservas-externas/atribucion',
         },
         { label: 'Usuarios y permisos', href: '/admin/usuarios', basePath: '/admin/usuarios' },
       ],

@@ -1,5 +1,6 @@
+import Link from 'next/link';
 import { redirect } from 'next/navigation';
-import { OperationalPageHeader } from '@/components/operational/OperationalUI';
+import { OperationalPageHeader, operationalSecondaryButtonClass } from '@/components/operational/OperationalUI';
 import type { ExternalReservationSettingsAdminData } from '@/lib/reservations/externalReservationSettings';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { loadExternalReservationSettingsAdminData } from '@/lib/reservations/externalReservationSettings';
@@ -48,6 +49,11 @@ export default async function AdminExternalReservationsPage() {
         eyebrow="Admin"
         title="Reservas externas"
         description="Define que carta o menu se asigna automaticamente a las solicitudes que llegan desde el motor publico de reservas."
+        actions={
+          <Link href="/admin/reservas-externas/atribucion" className={operationalSecondaryButtonClass}>
+            Atribucion reservas externas
+          </Link>
+        }
       />
 
       <ExternalReservationSettingsManager
