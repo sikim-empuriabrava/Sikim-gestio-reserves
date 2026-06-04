@@ -47,6 +47,18 @@ The dashboard reads `external_reservation_submissions` joined to `group_events`,
 
 More detail: [Admin: atribucion de reservas externas](../admin/external-reservation-attribution.md).
 
+## Configuracion interna de tracking futuro
+
+Admins can prepare future pixel/tag IDs at `/admin/reservas-externas/tracking`.
+
+That configuration is stored outside this attribution table, in `public.external_tracking_integrations`, and is documented at [Admin: tracking de reservas externas](../admin/external-reservation-tracking.md).
+
+This separation is intentional:
+
+- `external_reservation_submissions` stores first-party attribution data already received by the internal ingest.
+- `external_tracking_integrations` stores future provider configuration such as Meta Pixel, Google Tag, Google Ads Conversion or Google Tag Manager IDs.
+- The tracking configuration does not load external scripts, create cookies or expose a public endpoint in this phase.
+
 ## Futuras notificaciones push internas
 
 Las futuras notificaciones push internas se basaran en solicitudes externas pendientes: `group_events.status = 'pending'` mas una fila asociada en `external_reservation_submissions`.
