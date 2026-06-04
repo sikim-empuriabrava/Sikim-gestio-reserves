@@ -39,6 +39,14 @@ For the currently visible period, `/reservas` shows:
 
 This overview does not add a new reservation status and does not rely on an `external_pending` value.
 
+## Internal attribution dashboard
+
+Admins can review internal attribution for external reservation requests at `/admin/reservas-externas/atribucion`.
+
+The dashboard reads `external_reservation_submissions` joined to `group_events`, applies the selected range over `submitted_at`, and summarizes requests, operational status, pax, source labels, UTM campaigns and preferred languages.
+
+More detail: [Admin: atribucion de reservas externas](../admin/external-reservation-attribution.md).
+
 ## Futuras notificaciones push internas
 
 Las futuras notificaciones push internas se basaran en solicitudes externas pendientes: `group_events.status = 'pending'` mas una fila asociada en `external_reservation_submissions`.
