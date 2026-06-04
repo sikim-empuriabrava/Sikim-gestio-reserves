@@ -2879,6 +2879,7 @@ CREATE TABLE public.app_allowed_users (
     cheffing_images_manage boolean DEFAULT false NOT NULL,
     view_live_capacity boolean DEFAULT false NOT NULL,
     manage_live_capacity boolean DEFAULT false NOT NULL,
+    notify_external_reservations boolean DEFAULT false NOT NULL,
     CONSTRAINT app_allowed_users_email_lower_chk CHECK ((email = lower(email))),
     CONSTRAINT app_allowed_users_role_check CHECK ((role = ANY (ARRAY['admin'::text, 'staff'::text, 'viewer'::text, 'porter'::text])))
 );
@@ -3610,6 +3611,7 @@ CREATE TABLE public.external_reservation_settings (
     is_enabled boolean DEFAULT true NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    default_room_id uuid,
     CONSTRAINT external_reservation_settings_default_offering_kind_check CHECK (((default_offering_kind IS NULL) OR (default_offering_kind = ANY (ARRAY['cheffing_card'::text, 'cheffing_menu'::text])))),
     CONSTRAINT external_reservation_settings_default_offering_reference_consis CHECK ((((default_offering_kind IS NULL) AND (default_cheffing_card_id IS NULL) AND (default_cheffing_menu_id IS NULL)) OR ((default_offering_kind = 'cheffing_card'::text) AND (default_cheffing_card_id IS NOT NULL) AND (default_cheffing_menu_id IS NULL)) OR ((default_offering_kind = 'cheffing_menu'::text) AND (default_cheffing_menu_id IS NOT NULL) AND (default_cheffing_card_id IS NULL)))),
     CONSTRAINT external_reservation_settings_singleton_chk CHECK ((id = true))
@@ -3646,6 +3648,39 @@ CREATE TABLE public.external_reservation_submissions (
     updated_at timestamp with time zone DEFAULT now() NOT NULL,
     CONSTRAINT external_reservation_submissions_preferred_language_check CHECK (((preferred_language IS NULL) OR (preferred_language = ANY (ARRAY['ca'::text, 'es'::text, 'fr'::text, 'en'::text, 'de'::text, 'nl'::text, 'it'::text])))),
     CONSTRAINT external_reservation_submissions_source_label_not_empty CHECK ((btrim(source_label) <> ''::text))
+);
+
+
+--
+-- Name: external_tracking_integrations; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.external_tracking_integrations (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    provider text NOT NULL,
+    name text NOT NULL,
+    enabled boolean DEFAULT false NOT NULL,
+    consent_category text DEFAULT 'marketing'::text NOT NULL,
+    trigger_event text DEFAULT 'reservation_request_submitted'::text NOT NULL,
+    meta_pixel_id text,
+    google_tag_id text,
+    google_ads_conversion_id text,
+    google_ads_conversion_label text,
+    gtm_container_id text,
+    notes text,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT external_tracking_integrations_consent_category_chk CHECK ((consent_category = ANY (ARRAY['analytics'::text, 'marketing'::text]))),
+    CONSTRAINT external_tracking_integrations_google_ads_conversion_id_format_ CHECK (((google_ads_conversion_id IS NULL) OR (google_ads_conversion_id ~ '^AW-[A-Za-z0-9_-]{4,64}$'::text))),
+    CONSTRAINT external_tracking_integrations_google_tag_id_format_chk CHECK (((google_tag_id IS NULL) OR (google_tag_id ~ '^(G|AW)-[A-Za-z0-9_-]{4,64}$'::text))),
+    CONSTRAINT external_tracking_integrations_gtm_container_id_format_chk CHECK (((gtm_container_id IS NULL) OR (gtm_container_id ~ '^GTM-[A-Za-z0-9_-]{4,64}$'::text))),
+    CONSTRAINT external_tracking_integrations_meta_pixel_id_format_chk CHECK (((meta_pixel_id IS NULL) OR (meta_pixel_id ~ '^[0-9]{5,32}$'::text))),
+    CONSTRAINT external_tracking_integrations_name_not_empty_chk CHECK (((btrim(name) <> ''::text) AND (length(btrim(name)) <= 120))),
+    CONSTRAINT external_tracking_integrations_no_script_text_chk CHECK (((POSITION(('<script'::text) IN (lower(((((((name || COALESCE(meta_pixel_id, ''::text)) || COALESCE(google_tag_id, ''::text)) || COALESCE(google_ads_conversion_id, ''::text)) || COALESCE(google_ads_conversion_label, ''::text)) || COALESCE(gtm_container_id, ''::text)) || COALESCE(notes, ''::text))))) = 0) AND (POSITION(('javascript:'::text) IN (lower(((((((name || COALESCE(meta_pixel_id, ''::text)) || COALESCE(google_tag_id, ''::text)) || COALESCE(google_ads_conversion_id, ''::text)) || COALESCE(google_ads_conversion_label, ''::text)) || COALESCE(gtm_container_id, ''::text)) || COALESCE(notes, ''::text))))) = 0))),
+    CONSTRAINT external_tracking_integrations_provider_chk CHECK ((provider = ANY (ARRAY['meta_pixel'::text, 'google_tag'::text, 'google_ads_conversion'::text, 'google_tag_manager'::text]))),
+    CONSTRAINT external_tracking_integrations_provider_fields_chk CHECK ((((provider = 'meta_pixel'::text) AND (meta_pixel_id IS NOT NULL) AND (google_tag_id IS NULL) AND (google_ads_conversion_id IS NULL) AND (google_ads_conversion_label IS NULL) AND (gtm_container_id IS NULL) AND (consent_category = 'marketing'::text)) OR ((provider = 'google_tag'::text) AND (google_tag_id IS NOT NULL) AND (meta_pixel_id IS NULL) AND (google_ads_conversion_id IS NULL) AND (google_ads_conversion_label IS NULL) AND (gtm_container_id IS NULL)) OR ((provider = 'google_ads_conversion'::text) AND (google_ads_conversion_id IS NOT NULL) AND (google_ads_conversion_label IS NOT NULL) AND (meta_pixel_id IS NULL) AND (google_tag_id IS NULL) AND (gtm_container_id IS NULL) AND (consent_category = 'marketing'::text)) OR ((provider = 'google_tag_manager'::text) AND (gtm_container_id IS NOT NULL) AND (meta_pixel_id IS NULL) AND (google_tag_id IS NULL) AND (google_ads_conversion_id IS NULL) AND (google_ads_conversion_label IS NULL)))),
+    CONSTRAINT external_tracking_integrations_text_lengths_chk CHECK ((((meta_pixel_id IS NULL) OR (length(meta_pixel_id) <= 64)) AND ((google_tag_id IS NULL) OR (length(google_tag_id) <= 80)) AND ((google_ads_conversion_id IS NULL) OR (length(google_ads_conversion_id) <= 80)) AND ((google_ads_conversion_label IS NULL) OR ((btrim(google_ads_conversion_label) <> ''::text) AND (length(google_ads_conversion_label) <= 128))) AND ((gtm_container_id IS NULL) OR (length(gtm_container_id) <= 80)) AND ((notes IS NULL) OR (length(notes) <= 1000)))),
+    CONSTRAINT external_tracking_integrations_trigger_event_chk CHECK ((trigger_event = ANY (ARRAY['page_view'::text, 'reservation_request_submitted'::text])))
 );
 
 
@@ -4301,6 +4336,29 @@ CREATE VIEW public.v_maintenance_daily_detail WITH (security_invoker='true') AS
 
 
 --
+-- Name: web_push_subscriptions; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.web_push_subscriptions (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    user_email text NOT NULL,
+    endpoint text NOT NULL,
+    p256dh text NOT NULL,
+    auth text NOT NULL,
+    device_label text,
+    user_agent text,
+    is_active boolean DEFAULT true NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    last_seen_at timestamp with time zone,
+    disabled_at timestamp with time zone,
+    CONSTRAINT web_push_subscriptions_auth_not_empty CHECK ((btrim(auth) <> ''::text)),
+    CONSTRAINT web_push_subscriptions_endpoint_not_empty CHECK ((btrim(endpoint) <> ''::text)),
+    CONSTRAINT web_push_subscriptions_p256dh_not_empty CHECK ((btrim(p256dh) <> ''::text))
+);
+
+
+--
 -- Name: cheffing_pos_order_items id; Type: DEFAULT; Schema: public; Owner: -
 --
 
@@ -4604,6 +4662,14 @@ ALTER TABLE ONLY public.external_reservation_submissions
 
 
 --
+-- Name: external_tracking_integrations external_tracking_integrations_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.external_tracking_integrations
+    ADD CONSTRAINT external_tracking_integrations_pkey PRIMARY KEY (id);
+
+
+--
 -- Name: group_event_offering_selection_doneness group_event_offering_selection_doneness_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -4769,6 +4835,14 @@ ALTER TABLE ONLY public.tasks
 
 ALTER TABLE ONLY public.tasks
     ADD CONSTRAINT tasks_routine_week_unique UNIQUE (routine_id, routine_week_start);
+
+
+--
+-- Name: web_push_subscriptions web_push_subscriptions_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.web_push_subscriptions
+    ADD CONSTRAINT web_push_subscriptions_pkey PRIMARY KEY (id);
 
 
 --
@@ -5150,6 +5224,41 @@ CREATE INDEX external_reservation_submissions_utm_source_idx ON public.external_
 
 
 --
+-- Name: external_tracking_integrations_consent_category_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX external_tracking_integrations_consent_category_idx ON public.external_tracking_integrations USING btree (consent_category);
+
+
+--
+-- Name: external_tracking_integrations_enabled_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX external_tracking_integrations_enabled_idx ON public.external_tracking_integrations USING btree (enabled);
+
+
+--
+-- Name: external_tracking_integrations_provider_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX external_tracking_integrations_provider_idx ON public.external_tracking_integrations USING btree (provider);
+
+
+--
+-- Name: external_tracking_integrations_trigger_event_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX external_tracking_integrations_trigger_event_idx ON public.external_tracking_integrations USING btree (trigger_event);
+
+
+--
+-- Name: external_tracking_integrations_updated_at_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX external_tracking_integrations_updated_at_idx ON public.external_tracking_integrations USING btree (updated_at);
+
+
+--
 -- Name: group_event_offering_selection_doneness_selection_idx; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -5385,6 +5494,34 @@ CREATE UNIQUE INDEX ux_cheffing_ingredients_source ON public.cheffing_ingredient
 --
 
 CREATE UNIQUE INDEX ux_cheffing_subrecipes_source ON public.cheffing_subrecipes USING btree (source_system, source_uid);
+
+
+--
+-- Name: web_push_subscriptions_endpoint_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX web_push_subscriptions_endpoint_idx ON public.web_push_subscriptions USING btree (endpoint);
+
+
+--
+-- Name: web_push_subscriptions_is_active_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX web_push_subscriptions_is_active_idx ON public.web_push_subscriptions USING btree (is_active);
+
+
+--
+-- Name: web_push_subscriptions_user_email_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX web_push_subscriptions_user_email_idx ON public.web_push_subscriptions USING btree (user_email);
+
+
+--
+-- Name: web_push_subscriptions_user_email_is_active_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX web_push_subscriptions_user_email_is_active_idx ON public.web_push_subscriptions USING btree (user_email, is_active);
 
 
 --
@@ -5626,6 +5763,13 @@ CREATE TRIGGER set_updated_at_external_reservation_submissions BEFORE UPDATE ON 
 
 
 --
+-- Name: external_tracking_integrations set_updated_at_external_tracking_integrations; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER set_updated_at_external_tracking_integrations BEFORE UPDATE ON public.external_tracking_integrations FOR EACH ROW EXECUTE FUNCTION public.tg_set_updated_at();
+
+
+--
 -- Name: group_event_offering_selections set_updated_at_group_event_offering_selections; Type: TRIGGER; Schema: public; Owner: -
 --
 
@@ -5651,6 +5795,13 @@ CREATE TRIGGER set_updated_at_menu_second_courses BEFORE UPDATE ON public.menu_s
 --
 
 CREATE TRIGGER set_updated_at_menus BEFORE UPDATE ON public.menus FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
+
+
+--
+-- Name: web_push_subscriptions set_updated_at_web_push_subscriptions; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER set_updated_at_web_push_subscriptions BEFORE UPDATE ON public.web_push_subscriptions FOR EACH ROW EXECUTE FUNCTION public.tg_set_updated_at();
 
 
 --
@@ -6093,6 +6244,14 @@ ALTER TABLE ONLY public.external_reservation_settings
 
 
 --
+-- Name: external_reservation_settings external_reservation_settings_default_room_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.external_reservation_settings
+    ADD CONSTRAINT external_reservation_settings_default_room_id_fkey FOREIGN KEY (default_room_id) REFERENCES public.rooms(id) ON DELETE SET NULL;
+
+
+--
 -- Name: external_reservation_submissions external_reservation_submissions_group_event_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -6234,6 +6393,14 @@ ALTER TABLE ONLY public.routines
 
 ALTER TABLE ONLY public.tasks
     ADD CONSTRAINT tasks_routine_id_fkey FOREIGN KEY (routine_id) REFERENCES public.routines(id) ON DELETE RESTRICT;
+
+
+--
+-- Name: web_push_subscriptions web_push_subscriptions_user_email_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.web_push_subscriptions
+    ADD CONSTRAINT web_push_subscriptions_user_email_fkey FOREIGN KEY (user_email) REFERENCES public.app_allowed_users(email) ON DELETE CASCADE;
 
 
 --
@@ -6887,6 +7054,12 @@ ALTER TABLE public.external_reservation_settings ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.external_reservation_submissions ENABLE ROW LEVEL SECURITY;
 
 --
+-- Name: external_tracking_integrations; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.external_tracking_integrations ENABLE ROW LEVEL SECURITY;
+
+--
 -- Name: group_event_offering_selection_doneness; Type: ROW SECURITY; Schema: public; Owner: -
 --
 
@@ -6972,8 +7145,14 @@ ALTER TABLE public.staffing_ratios ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.tasks ENABLE ROW LEVEL SECURITY;
 
 --
+-- Name: web_push_subscriptions; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.web_push_subscriptions ENABLE ROW LEVEL SECURITY;
+
+--
 -- PostgreSQL database dump complete
 --
 
-\unrestrict d67lkdo0k8M9FPKjQDQ0ccKHhAQQ61xmVFO9BoMAWkt4Bie3SvT8nXGYJGgkcWI
+\unrestrict wAjw7kx8H1yHCOxqQcYK6sJIYzSCOix3wzAWLIZX0yCtaZMkAgyiIMKjJwiQomN
 
