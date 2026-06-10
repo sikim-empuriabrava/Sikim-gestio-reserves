@@ -1,6 +1,6 @@
 'use client';
 
-import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
+import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { ReservationEventMode, Turno } from '@/types/reservation';
@@ -432,11 +432,17 @@ export default function NuevaReservaClient() {
   const [offeringsLoading, setOfferingsLoading] = useState(true);
   const [offeringsError, setOfferingsError] = useState<string | null>(null);
   const [donenessCollapsed, setDonenessCollapsed] = useState(true);
+  const isSubmittingRef = useRef(false);
 
   const selectedOffering = useMemo(
     () => offerings.find((offering) => offering.id === selectedOfferingId) ?? null,
     [offerings, selectedOfferingId],
   );
+  const finalizeSubmit = () => {
+    setIsSubmitting(false);
+    setSubmittingStatus(null);
+    isSubmittingRef.current = false;
+  };
   const isSelectedOfferingMenu = selectedOffering?.kind === 'cheffing_menu';
   const isPrivatePartyOnly = eventMode === 'private_party_only';
   const shouldUseDinnerRoom = usesDinnerRoom(eventMode);
@@ -803,9 +809,15 @@ export default function NuevaReservaClient() {
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    if (isPrivatePartyOnly && isSubmittingRef.current) {
+      return;
+    }
     setSubmitError(null);
     setSubmitSuccess(null);
     setCalendarWarning(null);
+    if (isPrivatePartyOnly) {
+      isSubmittingRef.current = true;
+    }
     setIsSubmitting(true);
 
     const submitter = (event.nativeEvent as SubmitEvent).submitter as HTMLButtonElement | null;
@@ -815,8 +827,7 @@ export default function NuevaReservaClient() {
     const normalizedNumeroPersonas = parsePositivePaxInput(numeroPersonasInput);
     if (normalizedNumeroPersonas === null) {
       setSubmitError('Indica un numero de personas valido, minimo 1.');
-      setIsSubmitting(false);
-      setSubmittingStatus(null);
+      finalizeSubmit();
       return;
     }
 
@@ -827,8 +838,7 @@ export default function NuevaReservaClient() {
       setSubmitError(
         shouldUseDinnerRoom ? 'Selecciona una sala de restaurante para continuar.' : 'La sala de cena no es válida.',
       );
-      setIsSubmitting(false);
-      setSubmittingStatus(null);
+      finalizeSubmit();
       return;
     }
 
@@ -836,8 +846,7 @@ export default function NuevaReservaClient() {
       setSubmitError(
         shouldUsePartyRoom ? 'Selecciona Pub o Disco como zona de fiesta.' : 'La zona de fiesta no es válida.',
       );
-      setIsSubmitting(false);
-      setSubmittingStatus(null);
+      finalizeSubmit();
       return;
     }
 
@@ -855,8 +864,7 @@ export default function NuevaReservaClient() {
       );
 
       if (!proceed) {
-        setIsSubmitting(false);
-        setSubmittingStatus(null);
+        finalizeSubmit();
         return;
       }
     }
@@ -1031,8 +1039,7 @@ export default function NuevaReservaClient() {
         const message = createResult.error ?? 'No se ha podido crear la reserva. Inténtalo de nuevo.';
         console.error('[Nueva reserva] Error creando reserva', message);
         setSubmitError(message);
-        setIsSubmitting(false);
-        setSubmittingStatus(null);
+        finalizeSubmit();
         return;
       }
 
@@ -1073,8 +1080,7 @@ export default function NuevaReservaClient() {
       console.error('[Nueva reserva] Error creando reserva', error);
       setSubmitError('No se ha podido crear la reserva. Inténtalo de nuevo.');
     } finally {
-      setIsSubmitting(false);
-      setSubmittingStatus(null);
+      finalizeSubmit();
     }
   };
 
