@@ -3563,6 +3563,33 @@ CREATE TABLE public.customer_contacts (
 
 
 --
+-- Name: customer_reservation_notifications; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.customer_reservation_notifications (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    group_event_id uuid NOT NULL,
+    channel text NOT NULL,
+    notification_type text NOT NULL,
+    recipient text NOT NULL,
+    recipient_name_snapshot text,
+    status text NOT NULL,
+    provider text,
+    provider_message_id text,
+    subject_snapshot text,
+    body_text_snapshot text,
+    payload_snapshot jsonb DEFAULT '{}'::jsonb NOT NULL,
+    error_message text,
+    sent_at timestamp with time zone,
+    created_at timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL,
+    updated_at timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL,
+    CONSTRAINT customer_reservation_notifications_channel_check CHECK ((channel = 'email'::text)),
+    CONSTRAINT customer_reservation_notifications_notification_type_check CHECK ((notification_type = 'reservation_confirmed'::text)),
+    CONSTRAINT customer_reservation_notifications_status_check CHECK ((status = ANY (ARRAY['pending'::text, 'sent'::text, 'skipped'::text, 'failed'::text, 'provider_not_configured'::text])))
+);
+
+
+--
 -- Name: customers; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -4622,6 +4649,22 @@ ALTER TABLE ONLY public.customer_contacts
 
 
 --
+-- Name: customer_reservation_notifications customer_reservation_notifica_group_event_id_channel_notifi_key; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.customer_reservation_notifications
+    ADD CONSTRAINT customer_reservation_notifica_group_event_id_channel_notifi_key UNIQUE (group_event_id, channel, notification_type);
+
+
+--
+-- Name: customer_reservation_notifications customer_reservation_notifications_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.customer_reservation_notifications
+    ADD CONSTRAINT customer_reservation_notifications_pkey PRIMARY KEY (id);
+
+
+--
 -- Name: customers customers_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -5151,6 +5194,20 @@ CREATE UNIQUE INDEX customer_contacts_one_primary_per_type_idx ON public.custome
 --
 
 CREATE INDEX customer_contacts_type_normalized_idx ON public.customer_contacts USING btree (contact_type, normalized_value);
+
+
+--
+-- Name: customer_reservation_notifications_group_event_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX customer_reservation_notifications_group_event_idx ON public.customer_reservation_notifications USING btree (group_event_id);
+
+
+--
+-- Name: customer_reservation_notifications_status_created_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX customer_reservation_notifications_status_created_idx ON public.customer_reservation_notifications USING btree (status, created_at DESC);
 
 
 --
@@ -5735,6 +5792,13 @@ CREATE TRIGGER set_updated_at_customer_contacts BEFORE UPDATE ON public.customer
 
 
 --
+-- Name: customer_reservation_notifications set_updated_at_customer_reservation_notifications; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER set_updated_at_customer_reservation_notifications BEFORE UPDATE ON public.customer_reservation_notifications FOR EACH ROW EXECUTE FUNCTION public.tg_set_updated_at();
+
+
+--
 -- Name: customers set_updated_at_customers; Type: TRIGGER; Schema: public; Owner: -
 --
 
@@ -6217,6 +6281,14 @@ ALTER TABLE ONLY public.cheffing_supplier_product_refs
 
 ALTER TABLE ONLY public.customer_contacts
     ADD CONSTRAINT customer_contacts_customer_id_fkey FOREIGN KEY (customer_id) REFERENCES public.customers(id) ON DELETE CASCADE;
+
+
+--
+-- Name: customer_reservation_notifications customer_reservation_notifications_group_event_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.customer_reservation_notifications
+    ADD CONSTRAINT customer_reservation_notifications_group_event_id_fkey FOREIGN KEY (group_event_id) REFERENCES public.group_events(id) ON DELETE CASCADE;
 
 
 --
@@ -7018,6 +7090,12 @@ CREATE POLICY cheffing_units_update ON public.cheffing_units FOR UPDATE USING (p
 ALTER TABLE public.customer_contacts ENABLE ROW LEVEL SECURITY;
 
 --
+-- Name: customer_reservation_notifications; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.customer_reservation_notifications ENABLE ROW LEVEL SECURITY;
+
+--
 -- Name: customers; Type: ROW SECURITY; Schema: public; Owner: -
 --
 
@@ -7154,5 +7232,5 @@ ALTER TABLE public.web_push_subscriptions ENABLE ROW LEVEL SECURITY;
 -- PostgreSQL database dump complete
 --
 
-\unrestrict wAjw7kx8H1yHCOxqQcYK6sJIYzSCOix3wzAWLIZX0yCtaZMkAgyiIMKjJwiQomN
+\unrestrict nN9jQQ8xgvDKLhVfvy2TyJcGcXMpavRODABlsdetlREwVJ60XpJexPmuofjMbTf
 
