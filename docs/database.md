@@ -693,6 +693,40 @@ RLS: habilitado
 | `created_at` | `timestamp with time zone` | No | `now()` |
 | `updated_at` | `timestamp with time zone` | No | `now()` |
 
+### customer_reservation_notifications
+RLS: habilitado
+
+| Columna | Tipo | Nullable | Default |
+| --- | --- | --- | --- |
+| `id` | `uuid` | No | `gen_random_uuid()` |
+| `group_event_id` | `uuid` | No |  |
+| `channel` | `text` | No |  |
+| `notification_type` | `text` | No |  |
+| `recipient` | `text` | No |  |
+| `recipient_name_snapshot` | `text` | Si |  |
+| `status` | `text` | No |  |
+| `provider` | `text` | Si |  |
+| `provider_message_id` | `text` | Si |  |
+| `subject_snapshot` | `text` | Si |  |
+| `body_text_snapshot` | `text` | Si |  |
+| `payload_snapshot` | `jsonb` | No | `'{}'::jsonb` |
+| `error_message` | `text` | Si |  |
+| `sent_at` | `timestamp with time zone` | Si |  |
+| `created_at` | `timestamp with time zone` | No | `timezone('utc'::text, now())` |
+| `updated_at` | `timestamp with time zone` | No | `timezone('utc'::text, now())` |
+
+Constraints principales:
+
+- `unique (group_event_id, channel, notification_type)`
+- `channel in ('email')`
+- `notification_type in ('reservation_confirmed')`
+- `status in ('pending', 'sent', 'skipped', 'failed', 'provider_not_configured')`
+
+Indices principales:
+
+- `customer_reservation_notifications_group_event_idx` on `(group_event_id)`
+- `customer_reservation_notifications_status_created_idx` on `(status, created_at desc)`
+
 ### external_tracking_integrations
 RLS: habilitado
 
@@ -1087,6 +1121,7 @@ RLS: habilitado
 | `customers` | `set_updated_at_customers` | BEFORE | UPDATE |
 | `day_status` | `trg_day_status_sync_legacy_columns` | BEFORE | INSERT, UPDATE |
 | `discotheque_capacity_sessions` | `set_updated_at_discotheque_capacity_sessions` | BEFORE | UPDATE |
+| `customer_reservation_notifications` | `set_updated_at_customer_reservation_notifications` | BEFORE | UPDATE |
 | `external_reservation_settings` | `normalize_external_reservation_settings_default_offering` | BEFORE | INSERT, UPDATE |
 | `external_reservation_settings` | `set_updated_at_external_reservation_settings` | BEFORE | UPDATE |
 | `external_reservation_submissions` | `set_updated_at_external_reservation_submissions` | BEFORE | UPDATE |
