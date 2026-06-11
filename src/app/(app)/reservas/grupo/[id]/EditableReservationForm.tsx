@@ -128,6 +128,21 @@ type SelectedSecond = {
   notes?: string | null;
 };
 
+type OfferingAssignmentDraft = {
+  id: string;
+  catalogId: string;
+  assignedPax: number;
+  notes?: string | null;
+  isExpanded: boolean;
+  menuDetails: AssignmentMenuDetails;
+};
+
+type AssignmentMenuDetails = {
+  segundosSeleccionados: SelectedSecond[];
+  customSeconds: CustomSecond[];
+  donenessByDishId: Record<string, Record<DonenessPoint, number>>;
+};
+
 type Props = {
   reservation: EditableReservation;
   currentRoomAllocation: CurrentRoomAllocation | null;
@@ -183,6 +198,102 @@ const getDefaultAssignedPax = (primaryOffering: ExistingOffering | null, reserva
   }
 
   return toPositiveInt((reservation.adults ?? 0) + (reservation.children ?? 0));
+};
+const getExistingOfferingCatalogId = (offering: ExistingOffering) => {
+  const sourceId = offering.offering_kind === 'cheffing_menu' ? offering.cheffing_menu_id : offering.cheffing_card_id;
+  return sourceId ? buildOfferingCatalogId(offering.offering_kind, sourceId) : '';
+};
+const createEmptyAssignmentMenuDetails = (): AssignmentMenuDetails => ({
+  segundosSeleccionados: [],
+  customSeconds: [],
+  donenessByDishId: {},
+});
+const createOfferingAssignmentDraft = (catalogId = '', assignedPax = 1): OfferingAssignmentDraft => ({
+  id:
+    globalThis.crypto && typeof globalThis.crypto.randomUUID === 'function'
+      ? globalThis.crypto.randomUUID()
+      : `offering-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+  catalogId,
+  assignedPax: toPositiveInt(assignedPax),
+  notes: null,
+  isExpanded: true,
+  menuDetails: createEmptyAssignmentMenuDetails(),
+});
+const buildMenuDetailsForExistingOffering = (
+  offering: ExistingOffering,
+  offeringSelections: ExistingOfferingSelection[],
+  selectionDoneness: ExistingOfferingSelectionDoneness[],
+): AssignmentMenuDetails => {
+  const selectionsForOffering = offeringSelections
+    .filter((selection) => selection.group_event_offering_id === offering.id)
+    .sort((a, b) => a.sort_order - b.sort_order);
+
+  const segundosSeleccionados = selectionsForOffering
+    .filter((selection) => selection.selection_kind === 'menu_second')
+    .map((selection) => ({
+      dishId: selection.cheffing_dish_id ?? selection.id,
+      menuItemId: selection.cheffing_menu_item_id,
+      nombre: selection.display_name_snapshot,
+      descripcion: selection.description_snapshot ?? '',
+      needsDonenessPoints: selection.needs_doneness_points,
+      cantidad: selection.quantity,
+      notes: selection.notes,
+    }));
+
+  const customSeconds = selectionsForOffering
+    .filter((selection) => selection.selection_kind === 'custom_menu' || selection.selection_kind === 'kids_menu')
+    .map((selection) => ({
+      id: selection.id,
+      name: selection.display_name_snapshot,
+      cantidad: selection.quantity,
+      kind: selection.selection_kind as CustomSecondKind,
+      notes: selection.notes ?? undefined,
+    }));
+
+  const donenessByDishId = selectionsForOffering.reduce<Record<string, Record<DonenessPoint, number>>>((acc, selection) => {
+    if (selection.selection_kind !== 'menu_second' || !selection.needs_doneness_points) return acc;
+    const dishId = selection.cheffing_dish_id ?? selection.id;
+    acc[dishId] = selectionDoneness
+      .filter((point) => point.selection_id === selection.id)
+      .reduce<Record<DonenessPoint, number>>(
+        (pointAcc, point) => ({
+          ...pointAcc,
+          [point.point]: point.quantity,
+        }),
+        { crudo: 0, poco: 0, al_punto: 0, hecho: 0, muy_hecho: 0 },
+      );
+    return acc;
+  }, {});
+
+  return { segundosSeleccionados, customSeconds, donenessByDishId };
+};
+const buildInitialOfferingAssignments = (
+  existingOfferings: ExistingOffering[],
+  reservation: EditableReservation,
+  offeringSelections: ExistingOfferingSelection[] = [],
+  selectionDoneness: ExistingOfferingSelectionDoneness[] = [],
+): OfferingAssignmentDraft[] => {
+  if (existingOfferings.length === 0) {
+    return [
+      {
+        id: 'existing-offering-initial',
+        catalogId: '',
+        assignedPax: getDefaultAssignedPax(null, reservation),
+        notes: null,
+        isExpanded: true,
+        menuDetails: createEmptyAssignmentMenuDetails(),
+      },
+    ];
+  }
+
+  return existingOfferings.map((offering) => ({
+    id: offering.id,
+    catalogId: getExistingOfferingCatalogId(offering),
+    assignedPax: getDefaultAssignedPax(offering, reservation),
+    notes: offering.notes,
+    isExpanded: false,
+    menuDetails: buildMenuDetailsForExistingOffering(offering, offeringSelections, selectionDoneness),
+  }));
 };
 const getReservationStatusMeta = (status: string) => {
   switch (status) {
@@ -476,17 +587,10 @@ export function EditableReservationForm({
   const [offeringsError, setOfferingsError] = useState<string | null>(null);
 
   const primaryOffering = offerings[0] ?? null;
-  const defaultOfferingCatalogId = primaryOffering
-    ? buildOfferingCatalogId(
-        primaryOffering.offering_kind,
-        primaryOffering.offering_kind === 'cheffing_menu'
-          ? (primaryOffering.cheffing_menu_id as string)
-          : (primaryOffering.cheffing_card_id as string),
-      )
-    : '';
 
-  const [selectedOfferingId, setSelectedOfferingId] = useState(defaultOfferingCatalogId);
-  const [assignedPax, setAssignedPax] = useState<number>(getDefaultAssignedPax(primaryOffering, reservation));
+  const [offeringAssignments, setOfferingAssignments] = useState<OfferingAssignmentDraft[]>(() =>
+    buildInitialOfferingAssignments(offerings, reservation, offeringSelections, selectionDoneness),
+  );
   const [segundosSeleccionados, setSegundosSeleccionados] = useState<SelectedSecond[]>([]);
   const [customSeconds, setCustomSeconds] = useState<CustomSecond[]>([]);
   const [donenessByDishId, setDonenessByDishId] = useState<Record<string, Record<DonenessPoint, number>>>({});
@@ -496,8 +600,6 @@ export function EditableReservationForm({
   const [structuredEditorTouched, setStructuredEditorTouched] = useState(false);
 
   const hasStructuredData = offerings.length > 0;
-  const hasMultipleOfferings = offerings.length > 1;
-
   const inactiveHistoricalOfferings = useMemo(() => {
     return offerings
       .filter((offering) => {
@@ -546,9 +648,17 @@ export function EditableReservationForm({
     return Array.from(map.values());
   }, [currentRoomAllocation, rooms]);
 
+  const primaryOfferingAssignment = useMemo(
+    () => offeringAssignments.find((assignment) => assignment.catalogId) ?? offeringAssignments[0] ?? null,
+    [offeringAssignments],
+  );
+
   const selectedOffering = useMemo(
-    () => selectableOfferingCatalog.find((offering) => offering.id === selectedOfferingId) ?? null,
-    [selectableOfferingCatalog, selectedOfferingId],
+    () =>
+      primaryOfferingAssignment?.catalogId
+        ? selectableOfferingCatalog.find((offering) => offering.id === primaryOfferingAssignment.catalogId) ?? null
+        : null,
+    [primaryOfferingAssignment, selectableOfferingCatalog],
   );
 
   const isSelectedOfferingMenu = selectedOffering?.kind === 'cheffing_menu';
@@ -567,9 +677,7 @@ export function EditableReservationForm({
     () => Boolean(selectedOffering && !offeringCatalog.some((offering) => offering.id === selectedOffering.id)),
     [offeringCatalog, selectedOffering],
   );
-  const canEditStructuredOffering = !hasMultipleOfferings;
   const canEditMenuDetails =
-    canEditStructuredOffering &&
     isSelectedOfferingMenu &&
     (!isSelectedOfferingInactive || (selectedOffering?.segundos.length ?? 0) > 0);
 
@@ -605,7 +713,19 @@ export function EditableReservationForm({
         .join(' · ') || null
     : null;
   const externalComment = isExternalReservation ? toCleanText(form.extras) : null;
-  const assignedPaxSummary = selectedOffering ? String(assignedPax) : 'Pendiente';
+  const primaryAssignedPax = primaryOfferingAssignment?.catalogId
+    ? toPositiveInt(primaryOfferingAssignment.assignedPax)
+    : getDefaultAssignedPax(primaryOffering, reservation);
+  const totalAssignedPax = useMemo(
+    () =>
+      offeringAssignments
+        .filter((assignment) => assignment.catalogId)
+        .reduce((sum, assignment) => sum + toPositiveInt(assignment.assignedPax), 0),
+    [offeringAssignments],
+  );
+  const reservationTotalPax = computedTotalPax > 0 ? computedTotalPax : toNonNegativeInt(form.total_pax);
+  const hasOfferingPaxMismatch = shouldUseFood && totalAssignedPax !== reservationTotalPax;
+  const assignedPaxSummary = selectedOffering ? String(primaryAssignedPax) : 'Pendiente';
 
   const handleChange = (key: keyof EditableReservation, value: unknown) => {
     setForm((prev) => ({ ...prev, [key]: value } as EditableReservation));
@@ -640,6 +760,72 @@ export function EditableReservationForm({
     setCustomSecondQuantityDrafts({});
     setDonenessQuantityDrafts({});
   }, []);
+
+  const updateOfferingAssignment = (id: string, updates: Partial<OfferingAssignmentDraft>) => {
+    setStructuredEditorTouched(true);
+    setOfferingAssignments((prev) =>
+      prev.map((assignment) => (assignment.id === id ? { ...assignment, ...updates } : assignment)),
+    );
+  };
+
+  const updateAssignmentMenuDetails = (
+    assignmentId: string,
+    updater: (details: AssignmentMenuDetails) => AssignmentMenuDetails,
+  ) => {
+    setStructuredEditorTouched(true);
+    setOfferingAssignments((prev) =>
+      prev.map((assignment) =>
+        assignment.id === assignmentId
+          ? {
+              ...assignment,
+              menuDetails: updater(assignment.menuDetails),
+            }
+          : assignment,
+      ),
+    );
+  };
+
+  const handleOfferingCatalogChange = (id: string, catalogId: string) => {
+    updateOfferingAssignment(id, {
+      catalogId,
+      isExpanded: true,
+      menuDetails: createEmptyAssignmentMenuDetails(),
+    });
+  };
+
+  const toggleOfferingAssignmentExpanded = (id: string) => {
+    setOfferingAssignments((prev) =>
+      prev.map((assignment) =>
+        assignment.id === id ? { ...assignment, isExpanded: !assignment.isExpanded } : assignment,
+      ),
+    );
+  };
+
+  const handleOfferingPaxChange = (id: string, value: string) => {
+    const parsed = parseIntegerDraft(value, 1);
+    if (!parsed || parsed.parsed === null) return;
+    updateOfferingAssignment(id, { assignedPax: parsed.parsed });
+  };
+
+  const addOfferingAssignment = () => {
+    const usedCatalogIds = new Set(offeringAssignments.map((assignment) => assignment.catalogId).filter(Boolean));
+    const nextCatalogId = selectableOfferingCatalog.find((offering) => !usedCatalogIds.has(offering.id))?.id ?? '';
+    const remainingPax = Math.max(1, reservationTotalPax - totalAssignedPax);
+    setStructuredEditorTouched(true);
+    setOfferingAssignments((prev) => [...prev, createOfferingAssignmentDraft(nextCatalogId, remainingPax)]);
+  };
+
+  const removeOfferingAssignment = (id: string) => {
+    const isPrimaryRow = primaryOfferingAssignment?.id === id;
+    setStructuredEditorTouched(true);
+    setOfferingAssignments((prev) => {
+      const next = prev.filter((assignment) => assignment.id !== id);
+      return next.length > 0 ? next : [createOfferingAssignmentDraft('', reservationTotalPax)];
+    });
+    if (isPrimaryRow) {
+      resetMenuDependentState();
+    }
+  };
 
   const hydrateStateFromExistingStructure = useCallback(() => {
     if (!primaryOffering) return;
@@ -825,7 +1011,122 @@ export function EditableReservationForm({
     setCustomSecondQuantityDrafts((prev) => omitRecordKey(prev, id));
   };
 
-  const includeOfferingAssignments = shouldUseFood && (hasStructuredData || structuredEditorTouched);
+  const handleAssignmentSegundoChange = (
+    assignmentId: string,
+    segundo: ReservationOfferingCatalogItem['segundos'][number],
+    cantidad: number,
+  ) => {
+    updateAssignmentMenuDetails(assignmentId, (details) => {
+      const existing = details.segundosSeleccionados.find((entry) => entry.dishId === segundo.id);
+      const segundosSeleccionados = existing
+        ? details.segundosSeleccionados.map((entry) =>
+            entry.dishId === segundo.id
+              ? {
+                  ...entry,
+                  cantidad,
+                  menuItemId: segundo.menu_item_id ?? null,
+                  nombre: segundo.nombre,
+                  descripcion: segundo.descripcion,
+                  needsDonenessPoints: segundo.needsDonenessPoints,
+                }
+              : entry,
+          )
+        : [
+            ...details.segundosSeleccionados,
+            {
+              dishId: segundo.id,
+              menuItemId: segundo.menu_item_id ?? null,
+              nombre: segundo.nombre,
+              descripcion: segundo.descripcion,
+              needsDonenessPoints: segundo.needsDonenessPoints,
+              cantidad,
+            },
+          ];
+
+      return { ...details, segundosSeleccionados };
+    });
+  };
+
+  const handleAssignmentSegundoQuantityChange = (
+    assignmentId: string,
+    segundo: ReservationOfferingCatalogItem['segundos'][number],
+    value: string,
+  ) => {
+    const parsed = parseIntegerDraft(value, 0);
+    if (!parsed) return;
+
+    const draftKey = `${assignmentId}:${segundo.id}`;
+    setSegundoQuantityDrafts((prev) => ({ ...prev, [draftKey]: parsed.draft }));
+    if (parsed.parsed !== null) {
+      handleAssignmentSegundoChange(assignmentId, segundo, parsed.parsed);
+    }
+  };
+
+  const handleAssignmentSegundoQuantityBlur = (
+    assignmentId: string,
+    segundo: ReservationOfferingCatalogItem['segundos'][number],
+  ) => {
+    const assignment = offeringAssignments.find((entry) => entry.id === assignmentId);
+    const quantity =
+      assignment?.menuDetails.segundosSeleccionados.find((selection) => selection.dishId === segundo.id)?.cantidad ?? 0;
+    setSegundoQuantityDrafts((prev) => omitRecordKey(prev, `${assignmentId}:${segundo.id}`));
+    handleAssignmentSegundoChange(assignmentId, segundo, Math.max(0, quantity));
+  };
+
+  const updateAssignmentDonenessPoint = (
+    assignmentId: string,
+    dishId: string,
+    point: DonenessPoint,
+    value: number,
+  ) => {
+    updateAssignmentMenuDetails(assignmentId, (details) => ({
+      ...details,
+      donenessByDishId: {
+        ...details.donenessByDishId,
+        [dishId]: {
+          crudo: details.donenessByDishId[dishId]?.crudo ?? 0,
+          poco: details.donenessByDishId[dishId]?.poco ?? 0,
+          al_punto: details.donenessByDishId[dishId]?.al_punto ?? 0,
+          hecho: details.donenessByDishId[dishId]?.hecho ?? 0,
+          muy_hecho: details.donenessByDishId[dishId]?.muy_hecho ?? 0,
+          [point]: Math.max(0, value),
+        },
+      },
+    }));
+  };
+
+  const addAssignmentCustomSecond = (assignmentId: string, kind: CustomSecondKind) => {
+    updateAssignmentMenuDetails(assignmentId, (details) => ({
+      ...details,
+      customSeconds: [
+        ...details.customSeconds,
+        {
+          id: crypto.randomUUID(),
+          kind,
+          name: kind === 'kids_menu' ? 'Menú infantil' : 'Menú personalizado',
+          cantidad: 1,
+        },
+      ],
+    }));
+  };
+
+  const updateAssignmentCustomSecond = (assignmentId: string, id: string, updates: Partial<CustomSecond>) => {
+    updateAssignmentMenuDetails(assignmentId, (details) => ({
+      ...details,
+      customSeconds: details.customSeconds.map((custom) => (custom.id === id ? { ...custom, ...updates } : custom)),
+    }));
+  };
+
+  const removeAssignmentCustomSecond = (assignmentId: string, id: string) => {
+    updateAssignmentMenuDetails(assignmentId, (details) => ({
+      ...details,
+      customSeconds: details.customSeconds.filter((custom) => custom.id !== id),
+    }));
+    setCustomSecondQuantityDrafts((prev) => omitRecordKey(prev, `${assignmentId}:${id}`));
+  };
+
+  const includeOfferingAssignments =
+    shouldUseFood && (hasStructuredData || structuredEditorTouched || offeringAssignments.some((assignment) => assignment.catalogId));
   const hasCustomOrKidsMenuDistribution =
     customSeconds.length > 0 ||
     offeringSelections.some(
@@ -838,11 +1139,11 @@ export function EditableReservationForm({
     [customSeconds, segundosSeleccionados],
   );
   const paxMismatchWarning =
-    !isPrivatePartyOnly && canEditStructuredOffering && isSelectedOfferingMenu && totalAssignedMenus !== assignedPax
-      ? `Hay ${assignedPax} pax asignados a la oferta, pero ${totalAssignedMenus} menús/platos repartidos (segundos + personalizados + infantiles).`
+    !isPrivatePartyOnly && isSelectedOfferingMenu && totalAssignedMenus !== primaryAssignedPax
+      ? `Hay ${primaryAssignedPax} pax asignados a la primera oferta, pero ${totalAssignedMenus} menús/platos repartidos (segundos + personalizados + infantiles).`
       : null;
   const donenessMismatchWarnings = useMemo(() => {
-    if (isPrivatePartyOnly || !canEditStructuredOffering || !isSelectedOfferingMenu) return [];
+    if (isPrivatePartyOnly || !isSelectedOfferingMenu) return [];
 
     return segundosSeleccionados
       .filter((selection) => selection.cantidad > 0 && selection.needsDonenessPoints)
@@ -859,8 +1160,45 @@ export function EditableReservationForm({
         return `${selection.nombre}: ${selection.cantidad} uds, puntos de cocción ${totalPoints}.`;
       })
       .filter((warning): warning is string => warning !== null);
-  }, [canEditStructuredOffering, donenessByDishId, isPrivatePartyOnly, isSelectedOfferingMenu, segundosSeleccionados]);
-  const hasStructuredWarnings = Boolean(paxMismatchWarning) || donenessMismatchWarnings.length > 0;
+  }, [donenessByDishId, isPrivatePartyOnly, isSelectedOfferingMenu, segundosSeleccionados]);
+  const assignmentStructuredWarnings = useMemo(() => {
+    if (isPrivatePartyOnly) return [];
+
+    return offeringAssignments.flatMap((assignment) => {
+      const offering = selectableOfferingCatalog.find((entry) => entry.id === assignment.catalogId);
+      if (!offering || offering.kind !== 'cheffing_menu') return [];
+
+      const warnings: string[] = [];
+      const totalMenusAsignados =
+        assignment.menuDetails.segundosSeleccionados.reduce((sum, selection) => sum + selection.cantidad, 0) +
+        assignment.menuDetails.customSeconds.reduce((sum, custom) => sum + custom.cantidad, 0);
+      const assignedPax = toPositiveInt(assignment.assignedPax);
+
+      if (totalMenusAsignados !== assignedPax) {
+        warnings.push(`${offering.display_name}: ${assignedPax} pax asignados, ${totalMenusAsignados} menús/platos repartidos.`);
+      }
+
+      assignment.menuDetails.segundosSeleccionados
+        .filter((selection) => selection.cantidad > 0 && selection.needsDonenessPoints)
+        .forEach((selection) => {
+          const points = assignment.menuDetails.donenessByDishId[selection.dishId] ?? {
+            crudo: 0,
+            poco: 0,
+            al_punto: 0,
+            hecho: 0,
+            muy_hecho: 0,
+          };
+          const totalPoints = DONENESS_ORDER.reduce((sum, point) => sum + (points[point] ?? 0), 0);
+          if (totalPoints !== selection.cantidad) {
+            warnings.push(`${offering.display_name} · ${selection.nombre}: ${selection.cantidad} uds, puntos de cocción ${totalPoints}.`);
+          }
+        });
+
+      return warnings;
+    });
+  }, [isPrivatePartyOnly, offeringAssignments, selectableOfferingCatalog]);
+  const hasStructuredWarnings =
+    Boolean(paxMismatchWarning) || donenessMismatchWarnings.length > 0 || assignmentStructuredWarnings.length > 0;
 
   const handleSubmit = async () => {
     setMessage(null);
@@ -888,6 +1226,31 @@ export function EditableReservationForm({
           return;
         }
 
+        const normalizedOfferingAssignments = shouldUseFood
+          ? offeringAssignments.reduce<
+              { draft: OfferingAssignmentDraft; offering: ReservationOfferingCatalogItem; assignedPax: number }[]
+            >((acc, draft) => {
+              if (!draft.catalogId) return acc;
+              const offering = selectableOfferingCatalog.find((catalogOffering) => catalogOffering.id === draft.catalogId);
+              if (!offering) return acc;
+              acc.push({ draft, offering, assignedPax: toPositiveInt(draft.assignedPax) });
+              return acc;
+            }, [])
+          : [];
+        const duplicateOfferingIds = normalizedOfferingAssignments
+          .map((assignment) => assignment.offering.id)
+          .filter((catalogId, index, list) => list.indexOf(catalogId) !== index);
+
+        if (duplicateOfferingIds.length > 0) {
+          setError('Hay menús/cartas duplicados. Agrupa los pax en una sola línea para cada oferta.');
+          return;
+        }
+
+        const normalizedTotalAssignedPax = normalizedOfferingAssignments.reduce(
+          (sum, assignment) => sum + assignment.assignedPax,
+          0,
+        );
+
         let payload: Record<string, unknown> = {
           ...form,
           room_id: shouldUseDinnerRoom ? roomId || null : null,
@@ -906,8 +1269,17 @@ export function EditableReservationForm({
           };
         }
 
-        if (includeOfferingAssignments && selectedOffering && canEditStructuredOffering) {
-          if (hasStructuredWarnings && isSelectedOfferingMenu) {
+        if (includeOfferingAssignments) {
+          if (shouldUseFood && normalizedTotalAssignedPax !== reservationTotalPax) {
+            const proceed = window.confirm(
+              'Hay descuadres entre pax de la reserva y menús/cartas asignadas. ¿Quieres guardar igualmente?',
+            );
+            if (!proceed) {
+              return;
+            }
+          }
+
+          if (hasStructuredWarnings) {
             const proceed = window.confirm(
               'Hay descuadres de pax o puntos de cocción en la estructura de cocina. ¿Quieres guardar igualmente?',
             );
@@ -957,27 +1329,68 @@ export function EditableReservationForm({
                 })),
               ]
             : [];
+          void secondSelections;
+
+          const buildSecondSelectionsForAssignment = (
+            assignment: OfferingAssignmentDraft,
+            offering: ReservationOfferingCatalogItem,
+          ) =>
+            offering.kind === 'cheffing_menu'
+              ? [
+                  ...assignment.menuDetails.segundosSeleccionados
+                    .filter((selection) => selection.cantidad > 0)
+                    .map((selection, index) => {
+                      const donenessRecord = assignment.menuDetails.donenessByDishId[selection.dishId] ?? {
+                        crudo: 0,
+                        poco: 0,
+                        al_punto: 0,
+                        hecho: 0,
+                        muy_hecho: 0,
+                      };
+                      const doneness = DONENESS_ORDER.map((point) => ({
+                        point,
+                        quantity: donenessRecord[point] ?? 0,
+                      })).filter((item) => item.quantity > 0);
+
+                      return {
+                        selectionKind: 'menu_second',
+                        dishId: selection.dishId,
+                        menuItemId: selection.menuItemId,
+                        displayName: selection.nombre,
+                        description: selection.descripcion,
+                        quantity: toPositiveInt(selection.cantidad),
+                        notes: selection.notes ?? null,
+                        needsDonenessPoints: selection.needsDonenessPoints,
+                        sortOrder: index,
+                        doneness: doneness.map((entry) => ({
+                          point: entry.point,
+                          quantity: toPositiveInt(entry.quantity),
+                        })),
+                      };
+                    }),
+                  ...assignment.menuDetails.customSeconds.map((custom, index) => ({
+                    selectionKind: custom.kind,
+                    displayName: custom.name.trim() || (custom.kind === 'kids_menu' ? 'Menú infantil' : 'Menú personalizado'),
+                    quantity: toPositiveInt(custom.cantidad),
+                    notes: custom.notes?.trim() || null,
+                    sortOrder: assignment.menuDetails.segundosSeleccionados.length + index,
+                  })),
+                ]
+              : [];
 
           payload = {
             ...payload,
-            offeringAssignments: [
-              {
-                offeringKind: selectedOffering.kind,
-                offeringId: selectedOffering.source_id,
-                assignedPax: toPositiveInt(assignedPax),
-                sortOrder: 0,
-                notes:
-                  primaryOffering &&
-                  selectedOffering.kind === primaryOffering.offering_kind &&
-                  selectedOffering.source_id ===
-                    (primaryOffering.offering_kind === 'cheffing_menu'
-                      ? primaryOffering.cheffing_menu_id
-                      : primaryOffering.cheffing_card_id)
-                    ? primaryOffering.notes
-                    : null,
-                ...(isSelectedOfferingMenu ? { secondSelections } : {}),
-              },
-            ],
+            offeringAssignments: normalizedOfferingAssignments.map((assignment, index) => ({
+              offeringKind: assignment.offering.kind,
+              offeringId: assignment.offering.source_id,
+              assignedPax: assignment.assignedPax,
+              sortOrder: index,
+              notes: assignment.draft.notes?.trim() || null,
+              secondSelections:
+                assignment.offering.kind === 'cheffing_menu'
+                  ? buildSecondSelectionsForAssignment(assignment.draft, assignment.offering)
+                  : undefined,
+            })),
           };
         }
 
@@ -1156,14 +1569,22 @@ export function EditableReservationForm({
     const canAutosyncAssignedPax =
       shouldUseFood &&
       !isPrivatePartyOnly &&
-      canEditStructuredOffering &&
+      offeringAssignments.length === 1 &&
       !hasCustomOrKidsMenuDistribution &&
       computedTotalPax > 0;
 
     if (!canAutosyncAssignedPax) return;
 
-    setAssignedPax(toPositiveInt(computedTotalPax));
-  }, [canEditStructuredOffering, computedTotalPax, hasCustomOrKidsMenuDistribution, isPrivatePartyOnly, shouldUseFood]);
+    setOfferingAssignments((prev) =>
+      prev.length === 1 ? prev.map((assignment) => ({ ...assignment, assignedPax: toPositiveInt(computedTotalPax) })) : prev,
+    );
+  }, [
+    computedTotalPax,
+    hasCustomOrKidsMenuDistribution,
+    isPrivatePartyOnly,
+    offeringAssignments.length,
+    shouldUseFood,
+  ]);
 
   return (
     <div className="reserva-detail-pilot space-y-5 pb-[calc(1rem+env(safe-area-inset-bottom))]">
@@ -1430,66 +1851,231 @@ export function EditableReservationForm({
         <section className="rounded-2xl border border-slate-800 bg-slate-900/60 p-5 space-y-4">
           <h2 className="text-lg font-semibold text-slate-100">Menú y cocina</h2>
 
-          <div className="grid grid-cols-1 gap-3 lg:grid-cols-3">
-            <label className="space-y-1 text-sm text-slate-200 lg:col-span-2">
-              <span className="label text-xs">Oferta principal</span>
-              <select
-                value={selectedOfferingId}
-                onChange={(e) => {
-                  if (!canEditStructuredOffering) return;
-                  setStructuredEditorTouched(true);
-                  setSelectedOfferingId(e.target.value);
-                  setAssignedPax(getDefaultAssignedPax(primaryOffering, form));
-                  resetMenuDependentState();
-                }}
-                className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-100"
-                disabled={!canEditStructuredOffering || offeringsLoading || selectableOfferingCatalog.length === 0}
-              >
-                {!hasStructuredData && (
-                  <option value="">
-                    {offeringsLoading ? 'Cargando catalogo de ofertas...' : UNASSIGNED_OFFERING_LABEL}
-                  </option>
-                )}
-                {selectableOfferingCatalog.map((offering) => (
-                  <option key={offering.id} value={offering.id}>
-                    {offering.display_name} {offering.kind === 'cheffing_card' ? '· Carta' : '· Menú'}
-                  </option>
-                ))}
-              </select>
-              {!hasStructuredData && !selectedOffering && (
-                <p className="text-xs text-slate-500">
-                  Esta reserva no tiene ninguna carta/menu real asignado. Solo se guardara una oferta si la seleccionas
-                  expresamente.
-                </p>
-              )}
-            </label>
-            <label className="space-y-1 text-sm text-slate-200">
-              <span className="label text-xs">Pax asignado</span>
-              <input
-                type="number"
-                min={1}
-                step={1}
-                value={assignedPax}
-                onChange={(e) => {
-                  if (!canEditStructuredOffering) return;
-                  setStructuredEditorTouched(true);
-                  setAssignedPax(toPositiveInt(Number(e.target.value) || 1));
-                }}
-                className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-100"
-                disabled={!canEditStructuredOffering || !selectedOffering}
-              />
-            </label>
-          </div>
-
-          {hasMultipleOfferings && (
-            <div className="rounded-lg border border-amber-700/70 bg-amber-950/40 p-3 space-y-1">
-              <p className="text-sm font-semibold text-amber-100">Edición estructurada protegida</p>
-              <p className="text-xs text-amber-200/90">
-                Esta reserva tiene múltiples ofertas. Esta pantalla aún no soporta su edición estructurada completa.
-                Puedes editar campos generales, pero no se enviarán cambios de offerings/selecciones para evitar sobrescrituras.
-              </p>
+          <div className="space-y-3">
+            <div>
+              <p className="label text-xs">Menús / cartas asignadas</p>
+              <p className="text-xs text-slate-400">La primera línea se usa para el detalle de segundos.</p>
             </div>
-          )}
+            <div className="space-y-2">
+              {offeringAssignments.map((assignment, index) => (
+                <div key={assignment.id} className="grid grid-cols-1 gap-2 rounded-lg border border-slate-800 bg-slate-950/30 p-3 lg:grid-cols-[minmax(0,1fr)_7rem_auto]">
+                  <select
+                    value={assignment.catalogId}
+                    onChange={(e) => handleOfferingCatalogChange(assignment.id, e.target.value)}
+                    className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-100"
+                    disabled={offeringsLoading || selectableOfferingCatalog.length === 0}
+                  >
+                    <option value="">
+                      {offeringsLoading ? 'Cargando catálogo de ofertas...' : UNASSIGNED_OFFERING_LABEL}
+                    </option>
+                    {selectableOfferingCatalog.map((offering) => (
+                      <option
+                        key={offering.id}
+                        value={offering.id}
+                        disabled={offeringAssignments.some(
+                          (other) => other.id !== assignment.id && other.catalogId === offering.id,
+                        )}
+                      >
+                        {offering.display_name} {offering.kind === 'cheffing_card' ? '· Carta' : '· Menú'}
+                      </option>
+                    ))}
+                  </select>
+                  <input
+                    type="number"
+                    min={1}
+                    step={1}
+                    value={assignment.assignedPax}
+                    onChange={(e) => handleOfferingPaxChange(assignment.id, e.target.value)}
+                    className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-100"
+                    aria-label={`Pax asignados a la oferta ${index + 1}`}
+                    disabled={!assignment.catalogId}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => removeOfferingAssignment(assignment.id)}
+                    className="rounded-lg border border-red-800 px-3 py-2 text-xs font-semibold text-red-300 hover:bg-red-950 disabled:cursor-not-allowed disabled:opacity-50"
+                    disabled={offeringAssignments.length === 1}
+                  >
+                    Eliminar
+                  </button>
+                  {(() => {
+                    const offering = selectableOfferingCatalog.find((entry) => entry.id === assignment.catalogId);
+                    if (!offering) return null;
+                    const totalLineSelections =
+                      assignment.menuDetails.segundosSeleccionados.reduce((sum, selection) => sum + selection.cantidad, 0) +
+                      assignment.menuDetails.customSeconds.reduce((sum, custom) => sum + custom.cantidad, 0);
+
+                    return (
+                      <div className="space-y-3 border-t border-slate-800 pt-3 lg:col-span-3">
+                        <button
+                          type="button"
+                          onClick={() => toggleOfferingAssignmentExpanded(assignment.id)}
+                          className="flex w-full items-center justify-between text-left text-xs font-semibold uppercase tracking-wide text-slate-300"
+                        >
+                          <span>
+                            Detalle de {offering.kind === 'cheffing_menu' ? 'menú' : 'carta'} · {totalLineSelections}/{toPositiveInt(assignment.assignedPax)} pax
+                          </span>
+                          <span>{assignment.isExpanded ? 'Ocultar' : 'Mostrar'}</span>
+                        </button>
+
+                        {assignment.isExpanded && offering.kind === 'cheffing_card' && (
+                          <p className="rounded-lg border border-slate-800 bg-slate-950/40 p-3 text-xs text-slate-300">
+                            Oferta tipo carta: no aplica selección de segundos.
+                          </p>
+                        )}
+
+                        {assignment.isExpanded && offering.kind === 'cheffing_menu' && (
+                          <div className="space-y-3">
+                            {offering.segundos.length === 0 ? (
+                              <p className="rounded-lg border border-amber-700/70 bg-amber-950/30 p-3 text-xs text-amber-200">
+                                Este menú histórico no tiene catálogo activo de segundos. Puedes conservar sus selecciones guardadas o cambiar a un menú activo.
+                              </p>
+                            ) : (
+                              <div className="space-y-2">
+                                {offering.segundos.map((segundo) => {
+                                  const selected = assignment.menuDetails.segundosSeleccionados.find((entry) => entry.dishId === segundo.id);
+                                  const selectedQuantityValue =
+                                    segundoQuantityDrafts[`${assignment.id}:${segundo.id}`] ?? String(selected?.cantidad ?? 0);
+                                  const donenessValues = assignment.menuDetails.donenessByDishId[segundo.id] ?? {
+                                    crudo: 0,
+                                    poco: 0,
+                                    al_punto: 0,
+                                    hecho: 0,
+                                    muy_hecho: 0,
+                                  };
+
+                                  return (
+                                    <div key={segundo.id} className="rounded-xl border border-slate-800/60 bg-slate-900/40 p-3 space-y-2">
+                                      <div className="flex items-center justify-between gap-3">
+                                        <div>
+                                          <p className="text-sm font-semibold text-slate-100">{segundo.nombre}</p>
+                                          <p className="text-xs text-slate-400">{segundo.descripcion}</p>
+                                        </div>
+                                        <input
+                                          type="number"
+                                          min={0}
+                                          step={1}
+                                          value={selectedQuantityValue}
+                                          onChange={(e) => handleAssignmentSegundoQuantityChange(assignment.id, segundo, e.target.value)}
+                                          onBlur={() => handleAssignmentSegundoQuantityBlur(assignment.id, segundo)}
+                                          className="w-24 rounded-lg border border-slate-700 bg-slate-900 px-2 py-1 text-sm text-slate-100"
+                                        />
+                                      </div>
+
+                                      {segundo.needsDonenessPoints && (
+                                        <div className="grid grid-cols-1 gap-2 lg:grid-cols-5">
+                                          {DONENESS_ORDER.map((point) => (
+                                            <label key={point} className="text-xs text-slate-300 space-y-1">
+                                              <span>{DONENESS_LABELS[point]}</span>
+                                              <input
+                                                type="number"
+                                                min={0}
+                                                step={1}
+                                                value={donenessValues[point]}
+                                                onChange={(e) =>
+                                                  updateAssignmentDonenessPoint(
+                                                    assignment.id,
+                                                    segundo.id,
+                                                    point,
+                                                    parseInt(e.target.value, 10) || 0,
+                                                  )
+                                                }
+                                                className="w-full rounded border border-slate-700 bg-slate-900 px-2 py-1 text-slate-100"
+                                              />
+                                            </label>
+                                          ))}
+                                        </div>
+                                      )}
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            )}
+
+                            <div className="space-y-2">
+                              <div className="flex items-center justify-between gap-2">
+                                <p className="text-sm font-medium text-slate-200">Menús personalizados e infantiles</p>
+                                <div className="flex gap-2">
+                                  <button type="button" onClick={() => addAssignmentCustomSecond(assignment.id, 'custom_menu')} className="rounded-md border border-slate-700 px-2 py-1 text-xs text-slate-100 hover:bg-slate-800">
+                                    + Personalizado
+                                  </button>
+                                  <button type="button" onClick={() => addAssignmentCustomSecond(assignment.id, 'kids_menu')} className="rounded-md border border-slate-700 px-2 py-1 text-xs text-slate-100 hover:bg-slate-800">
+                                    + Infantil
+                                  </button>
+                                </div>
+                              </div>
+
+                              {assignment.menuDetails.customSeconds.map((custom) => {
+                                const quantityValue = customSecondQuantityDrafts[`${assignment.id}:${custom.id}`] ?? String(custom.cantidad);
+
+                                return (
+                                  <div key={custom.id} className="grid grid-cols-1 gap-2 rounded-xl border border-slate-800/60 bg-slate-900/40 p-3 lg:grid-cols-12">
+                                    <input
+                                      value={custom.name}
+                                      onChange={(e) => updateAssignmentCustomSecond(assignment.id, custom.id, { name: e.target.value })}
+                                      className="rounded border border-slate-700 bg-slate-900 px-2 py-1 text-sm text-slate-100 lg:col-span-6"
+                                    />
+                                    <input
+                                      type="number"
+                                      min={1}
+                                      step={1}
+                                      value={quantityValue}
+                                      onChange={(e) => {
+                                        const parsed = parseIntegerDraft(e.target.value, 1);
+                                        if (!parsed) return;
+                                        setCustomSecondQuantityDrafts((prev) => ({ ...prev, [`${assignment.id}:${custom.id}`]: parsed.draft }));
+                                        if (parsed.parsed !== null) {
+                                          updateAssignmentCustomSecond(assignment.id, custom.id, { cantidad: parsed.parsed });
+                                        }
+                                      }}
+                                      onBlur={() => setCustomSecondQuantityDrafts((prev) => omitRecordKey(prev, `${assignment.id}:${custom.id}`))}
+                                      className="rounded border border-slate-700 bg-slate-900 px-2 py-1 text-sm text-slate-100 lg:col-span-2"
+                                    />
+                                    <input
+                                      value={custom.notes ?? ''}
+                                      onChange={(e) => updateAssignmentCustomSecond(assignment.id, custom.id, { notes: e.target.value })}
+                                      placeholder="Notas"
+                                      className="rounded border border-slate-700 bg-slate-900 px-2 py-1 text-sm text-slate-100 lg:col-span-3"
+                                    />
+                                    <button type="button" onClick={() => removeAssignmentCustomSecond(assignment.id, custom.id)} className="rounded border border-red-800 px-2 py-1 text-xs text-red-300 hover:bg-red-950 lg:col-span-1">
+                                      ×
+                                    </button>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })()}
+                </div>
+              ))}
+            </div>
+            <div className="space-y-2">
+              <p className={`text-sm font-semibold ${hasOfferingPaxMismatch ? 'text-amber-200' : 'text-emerald-200'}`}>
+                Total asignado: {totalAssignedPax} / {reservationTotalPax} pax
+              </p>
+              {hasOfferingPaxMismatch && (
+                <div className="rounded-md border border-amber-700/70 bg-amber-950/30 px-3 py-2 text-xs text-amber-200">
+                  Hay {reservationTotalPax} personas en la reserva, pero solo {totalAssignedPax} pax asignados a menús/cartas.
+                </div>
+              )}
+              <button
+                type="button"
+                onClick={addOfferingAssignment}
+                className="rounded-md border border-slate-700 px-3 py-2 text-xs font-semibold text-slate-100 hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
+                disabled={
+                  offeringsLoading ||
+                  selectableOfferingCatalog.every((offering) =>
+                    offeringAssignments.some((assignment) => assignment.catalogId === offering.id),
+                  )
+                }
+              >
+                + Añadir menú/carta
+              </button>
+            </div>
+          </div>
 
           {isSelectedOfferingInactive && (
             <div className="rounded-lg border border-amber-700/70 bg-amber-950/30 p-3 space-y-1">
@@ -1503,12 +2089,12 @@ export function EditableReservationForm({
 
           {offeringsError && <p className="text-xs text-red-300">{offeringsError}</p>}
 
-          {isSelectedOfferingMenu && selectedOffering && canEditMenuDetails && (
+          {false && isSelectedOfferingMenu && selectedOffering && canEditMenuDetails && (
             <div className="detail-panel space-y-4 rounded-xl border border-slate-800 bg-slate-950/30 p-4">
               <p className="text-sm font-medium text-slate-200">Detalle cocina</p>
 
               <div className="space-y-2">
-                {selectedOffering.segundos.map((segundo) => {
+                {selectedOffering?.segundos.map((segundo) => {
                   const selected = segundosSeleccionados.find((entry) => entry.dishId === segundo.id);
                   const donenessValues = donenessByDishId[segundo.id] ?? {
                     crudo: 0,
@@ -1608,30 +2194,38 @@ export function EditableReservationForm({
             </div>
           )}
 
-          {isSelectedOfferingMenu && selectedOffering && !canEditMenuDetails && (
+          {false && isSelectedOfferingMenu && selectedOffering && !canEditMenuDetails && (
             <div className="detail-panel rounded-xl border border-slate-800 bg-slate-950/30 p-4 text-sm text-slate-300">
-              {hasMultipleOfferings
-                ? 'Esta reserva está en modo protegido por múltiples ofertas. El detalle de cocina se muestra en solo lectura.'
-                : 'Este menú histórico no tiene catálogo activo de segundos. Para editar detalle, cambia a un menú activo.'}
+              Este menú histórico no tiene catálogo activo de segundos. Para editar detalle, cambia la primera línea a un menú activo.
             </div>
           )}
 
-          {selectedOffering?.kind === 'cheffing_card' && (
+          {false && selectedOffering?.kind === 'cheffing_card' && (
             <div className="detail-panel rounded-xl border border-slate-800 bg-slate-950/30 p-4 text-sm text-slate-300">
               Oferta tipo carta: no aplica edición de segundos, menús personalizados ni puntos de cocción.
             </div>
           )}
 
-          {paxMismatchWarning && (
+          {false && paxMismatchWarning && (
             <div className="rounded-md border border-amber-700/70 bg-amber-950/30 px-3 py-2 text-xs text-amber-200">
               {paxMismatchWarning}
             </div>
           )}
-          {donenessMismatchWarnings.length > 0 && (
+          {false && donenessMismatchWarnings.length > 0 && (
             <div className="rounded-md border border-amber-700/70 bg-amber-950/30 px-3 py-2 text-xs text-amber-200">
               <p className="font-semibold">Descuadre en puntos de cocción:</p>
               <ul className="list-disc pl-5">
                 {donenessMismatchWarnings.map((warning) => (
+                  <li key={warning}>{warning}</li>
+                ))}
+              </ul>
+            </div>
+          )}
+          {assignmentStructuredWarnings.length > 0 && (
+            <div className="rounded-md border border-amber-700/70 bg-amber-950/30 px-3 py-2 text-xs text-amber-200">
+              <p className="font-semibold">Descuadres en menús/cartas:</p>
+              <ul className="list-disc pl-5">
+                {assignmentStructuredWarnings.map((warning) => (
                   <li key={warning}>{warning}</li>
                 ))}
               </ul>
@@ -1681,12 +2275,19 @@ export function EditableReservationForm({
           <div className="detail-panel rounded-xl border border-slate-800 bg-slate-950/30 p-4 space-y-2">
             <p className="text-sm font-medium text-slate-200">Resumen estructurado</p>
             <p className="text-xs text-slate-400">
-              {selectedOffering
-                ? `Oferta: ${selectedOffering.display_name} · Pax asignado: ${assignedPax}`
+              {offeringAssignments.some((assignment) => assignment.catalogId)
+                ? offeringAssignments
+                    .filter((assignment) => assignment.catalogId)
+                    .map((assignment) => {
+                      const offering = selectableOfferingCatalog.find((entry) => entry.id === assignment.catalogId);
+                      return offering ? `${offering.display_name} · ${toPositiveInt(assignment.assignedPax)} pax` : null;
+                    })
+                    .filter((entry): entry is string => Boolean(entry))
+                    .join(' · ')
                 : `Oferta: ${UNASSIGNED_OFFERING_LABEL} · Pax asignado: ${assignedPaxSummary}`}
             </p>
             <p className="hidden" aria-hidden="true">
-              Oferta: {selectedOffering?.display_name ?? '—'} · Pax asignado: {assignedPax}
+              Oferta: {selectedOffering?.display_name ?? '—'} · Pax asignado: {primaryAssignedPax}
             </p>
             {isSelectedOfferingMenu && (
               <ul className="space-y-1 text-xs text-slate-300">

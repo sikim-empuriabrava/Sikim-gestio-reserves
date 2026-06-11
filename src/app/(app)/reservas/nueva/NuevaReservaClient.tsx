@@ -58,6 +58,22 @@ type SelectedSecond = {
   cantidad: number;
 };
 
+type OfferingAssignmentDraft = {
+  id: string;
+  catalogId: string;
+  assignedPax: number;
+  notes?: string | null;
+  isExpanded: boolean;
+  menuDetails: AssignmentMenuDetails;
+};
+
+type AssignmentMenuDetails = {
+  segundosSeleccionados: SelectedSecond[];
+  customSeconds: CustomSecond[];
+  entrecotPoints: EntrecotPoints;
+  donenessCollapsed: boolean;
+};
+
 type RoomOption = {
   id: string;
   name: string;
@@ -66,6 +82,32 @@ type RoomOption = {
 type CreateReservationStatus = 'confirmed' | 'draft';
 
 const EVENT_MODE_OPTIONS: ReservationEventMode[] = ['dinner', 'dinner_private_party', 'private_party_only'];
+const toNonNegativeInt = (value: number | null | undefined) => Math.max(0, Math.floor(Number(value ?? 0) || 0));
+const toPositiveInt = (value: number | null | undefined) => Math.max(1, toNonNegativeInt(value));
+const createEmptyAssignmentMenuDetails = (): AssignmentMenuDetails => ({
+  segundosSeleccionados: [],
+  customSeconds: [],
+  entrecotPoints: {
+    crudo: 0,
+    poco: 0,
+    alPunto: 0,
+    hecho: 0,
+    muyHecho: 0,
+  },
+  donenessCollapsed: true,
+});
+
+const createOfferingAssignmentDraft = (catalogId = '', assignedPax = 1): OfferingAssignmentDraft => ({
+  id:
+    globalThis.crypto && typeof globalThis.crypto.randomUUID === 'function'
+      ? globalThis.crypto.randomUUID()
+      : `offering-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+  catalogId,
+  assignedPax: toPositiveInt(assignedPax),
+  notes: null,
+  isExpanded: true,
+  menuDetails: createEmptyAssignmentMenuDetails(),
+});
 
 const parseIntegerDraft = (value: string, min: number) => {
   if (value === '') {
@@ -390,15 +432,24 @@ export default function NuevaReservaClient() {
   const [numeroPersonas, setNumeroPersonas] = useState(2);
   const [numeroPersonasInput, setNumeroPersonasInput] = useState('2');
   const [eventMode, setEventMode] = useState<ReservationEventMode>('dinner');
-  const [selectedOfferingId, setSelectedOfferingId] = useState('');
+  const [offeringAssignments, setOfferingAssignments] = useState<OfferingAssignmentDraft[]>([
+    {
+      id: 'new-offering-initial',
+      catalogId: '',
+      assignedPax: 2,
+      notes: null,
+      isExpanded: true,
+      menuDetails: createEmptyAssignmentMenuDetails(),
+    },
+  ]);
   const [intolerancias, setIntolerancias] = useState('');
   const [notasSala, setNotasSala] = useState('');
   const [notasCocina, setNotasCocina] = useState('');
   const [mesa, setMesa] = useState('');
-  const [segundosSeleccionados, setSegundosSeleccionados] = useState<SelectedSecond[]>([]);
+  const [segundosSeleccionados] = useState<SelectedSecond[]>([]);
   const [segundoQuantityDrafts, setSegundoQuantityDrafts] = useState<Record<string, string>>({});
   const [customSecondQuantityDrafts, setCustomSecondQuantityDrafts] = useState<Record<string, string>>({});
-  const [entrecotPoints, setEntrecotPoints] = useState<EntrecotPoints>({
+  const [entrecotPoints] = useState<EntrecotPoints>({
     crudo: 0,
     poco: 0,
     alPunto: 0,
@@ -412,6 +463,7 @@ export default function NuevaReservaClient() {
   const [customMenuCantidad, setCustomMenuCantidad] = useState(1);
   const [customMenuCantidadDraft, setCustomMenuCantidadDraft] = useState('1');
   const [customMenuNotes, setCustomMenuNotes] = useState('');
+  const [customSecondTargetAssignmentId, setCustomSecondTargetAssignmentId] = useState<string | null>(null);
   const [kidsMenuName, setKidsMenuName] = useState('Menú infantil');
   const [kidsMenuCantidad, setKidsMenuCantidad] = useState(1);
   const [kidsMenuCantidadDraft, setKidsMenuCantidadDraft] = useState('1');
@@ -434,9 +486,16 @@ export default function NuevaReservaClient() {
   const [donenessCollapsed, setDonenessCollapsed] = useState(true);
   const isSubmittingRef = useRef(false);
 
+  const primaryOfferingAssignment = useMemo(
+    () => offeringAssignments.find((assignment) => assignment.catalogId) ?? offeringAssignments[0] ?? null,
+    [offeringAssignments],
+  );
   const selectedOffering = useMemo(
-    () => offerings.find((offering) => offering.id === selectedOfferingId) ?? null,
-    [offerings, selectedOfferingId],
+    () =>
+      primaryOfferingAssignment?.catalogId
+        ? offerings.find((offering) => offering.id === primaryOfferingAssignment.catalogId) ?? null
+        : null,
+    [offerings, primaryOfferingAssignment],
   );
   const finalizeSubmit = () => {
     setIsSubmitting(false);
@@ -453,9 +512,24 @@ export default function NuevaReservaClient() {
   const isPartyRoomSelectionValid =
     !shouldUsePartyRoom || Boolean(partyRoomId && partyRooms.some((room) => room.id === partyRoomId));
   const customMenusCount = useMemo(
-    () => customSeconds.reduce((sum, custom) => sum + custom.cantidad, 0),
-    [customSeconds],
+    () =>
+      offeringAssignments.reduce(
+        (sum, assignment) => sum + assignment.menuDetails.customSeconds.reduce((lineSum, custom) => lineSum + custom.cantidad, 0),
+        0,
+      ),
+    [offeringAssignments],
   );
+  const totalAssignedPax = useMemo(
+    () =>
+      offeringAssignments
+        .filter((assignment) => assignment.catalogId)
+        .reduce((sum, assignment) => sum + toPositiveInt(assignment.assignedPax), 0),
+    [offeringAssignments],
+  );
+  const hasOfferingPaxMismatch = shouldUseFood && totalAssignedPax !== numeroPersonas;
+  const primaryAssignedPax = primaryOfferingAssignment?.catalogId
+    ? toPositiveInt(primaryOfferingAssignment.assignedPax)
+    : numeroPersonas;
 
   const parsePositivePaxInput = (value: string) => {
     const trimmed = value.trim();
@@ -473,82 +547,164 @@ export default function NuevaReservaClient() {
     const parsed = parsePositivePaxInput(value);
     if (parsed !== null) {
       setNumeroPersonas(parsed);
+      setOfferingAssignments((prev) =>
+        prev.length === 1 ? prev.map((assignment) => ({ ...assignment, assignedPax: parsed })) : prev,
+      );
     }
   };
 
-  const updateEntrecotPoint = (key: keyof EntrecotPoints, value: number) => {
-    setEntrecotPoints((prev) => ({
-      ...prev,
-      [key]: Math.max(0, value),
+  const updateOfferingAssignment = (id: string, updates: Partial<OfferingAssignmentDraft>) => {
+    setOfferingAssignments((prev) =>
+      prev.map((assignment) => (assignment.id === id ? { ...assignment, ...updates } : assignment)),
+    );
+  };
+
+  const updateAssignmentMenuDetails = (
+    assignmentId: string,
+    updater: (details: AssignmentMenuDetails) => AssignmentMenuDetails,
+  ) => {
+    setOfferingAssignments((prev) =>
+      prev.map((assignment) =>
+        assignment.id === assignmentId
+          ? {
+              ...assignment,
+              menuDetails: updater(assignment.menuDetails),
+            }
+          : assignment,
+      ),
+    );
+  };
+
+  const handleOfferingCatalogChange = (id: string, catalogId: string) => {
+    updateOfferingAssignment(id, {
+      catalogId,
+      isExpanded: true,
+      menuDetails: createEmptyAssignmentMenuDetails(),
+    });
+  };
+
+  const toggleOfferingAssignmentExpanded = (id: string) => {
+    setOfferingAssignments((prev) =>
+      prev.map((assignment) =>
+        assignment.id === id ? { ...assignment, isExpanded: !assignment.isExpanded } : assignment,
+      ),
+    );
+  };
+
+  const handleOfferingPaxChange = (id: string, value: string) => {
+    const parsed = parseIntegerDraft(value, 1);
+    if (!parsed || parsed.parsed === null) return;
+    updateOfferingAssignment(id, { assignedPax: parsed.parsed });
+  };
+
+  const addOfferingAssignment = () => {
+    const usedCatalogIds = new Set(offeringAssignments.map((assignment) => assignment.catalogId).filter(Boolean));
+    const nextCatalogId = offerings.find((offering) => !usedCatalogIds.has(offering.id))?.id ?? '';
+    const remainingPax = Math.max(1, numeroPersonas - totalAssignedPax);
+    setOfferingAssignments((prev) => [...prev, createOfferingAssignmentDraft(nextCatalogId, remainingPax)]);
+  };
+
+  const removeOfferingAssignment = (id: string) => {
+    const isPrimaryRow = primaryOfferingAssignment?.id === id;
+    setOfferingAssignments((prev) => {
+      const next = prev.filter((assignment) => assignment.id !== id);
+      return next.length > 0 ? next : [createOfferingAssignmentDraft('', numeroPersonas)];
+    });
+    if (isPrimaryRow) {
+      resetMenuDependentState();
+    }
+  };
+
+  const updateEntrecotPoint = (assignmentId: string, key: keyof EntrecotPoints, value: number) => {
+    updateAssignmentMenuDetails(assignmentId, (details) => ({
+      ...details,
+      entrecotPoints: {
+        ...details.entrecotPoints,
+        [key]: Math.max(0, value),
+      },
     }));
   };
 
   const handleSegundoChange = (
+    assignmentId: string,
     segundo: ReservationOfferingCatalogItem['segundos'][number],
     cantidad: number,
   ) => {
-    setSegundosSeleccionados((prev) => {
-      const existing = prev.find((s) => s.dishId === segundo.id);
-      if (existing) {
-        return prev.map((s) =>
-          s.dishId === segundo.id
-            ? {
-                ...s,
-                cantidad,
-                menuItemId: segundo.menu_item_id ?? null,
-                descripcion: segundo.descripcion,
-                needsDonenessPoints: segundo.needsDonenessPoints,
-              }
-            : s,
-        );
-      }
-      return [
-        ...prev,
-        {
-          dishId: segundo.id,
-          menuItemId: segundo.menu_item_id ?? null,
-          nombre: segundo.nombre,
-          descripcion: segundo.descripcion,
-          needsDonenessPoints: segundo.needsDonenessPoints,
-          cantidad,
-        },
-      ];
+    updateAssignmentMenuDetails(assignmentId, (details) => {
+      const existing = details.segundosSeleccionados.find((s) => s.dishId === segundo.id);
+      const segundosSeleccionados = existing
+        ? details.segundosSeleccionados.map((s) =>
+            s.dishId === segundo.id
+              ? {
+                  ...s,
+                  cantidad,
+                  menuItemId: segundo.menu_item_id ?? null,
+                  descripcion: segundo.descripcion,
+                  needsDonenessPoints: segundo.needsDonenessPoints,
+                }
+              : s,
+          )
+        : [
+            ...details.segundosSeleccionados,
+            {
+              dishId: segundo.id,
+              menuItemId: segundo.menu_item_id ?? null,
+              nombre: segundo.nombre,
+              descripcion: segundo.descripcion,
+              needsDonenessPoints: segundo.needsDonenessPoints,
+              cantidad,
+            },
+          ];
+
+      return {
+        ...details,
+        segundosSeleccionados,
+      };
     });
   };
 
   const handleSegundoQuantityChange = (
+    assignmentId: string,
     segundo: ReservationOfferingCatalogItem['segundos'][number],
     value: string,
   ) => {
     const parsed = parseIntegerDraft(value, 0);
     if (!parsed) return;
 
-    setSegundoQuantityDrafts((prev) => ({ ...prev, [segundo.id]: parsed.draft }));
+    const draftKey = `${assignmentId}:${segundo.id}`;
+    setSegundoQuantityDrafts((prev) => ({ ...prev, [draftKey]: parsed.draft }));
     if (parsed.parsed !== null) {
-      handleSegundoChange(segundo, parsed.parsed);
+      handleSegundoChange(assignmentId, segundo, parsed.parsed);
     }
   };
 
-  const handleSegundoQuantityBlur = (segundo: ReservationOfferingCatalogItem['segundos'][number]) => {
-    const quantity = segundosSeleccionados.find((selection) => selection.dishId === segundo.id)?.cantidad ?? 0;
-    setSegundoQuantityDrafts((prev) => omitRecordKey(prev, segundo.id));
-    handleSegundoChange(segundo, Math.max(0, quantity));
+  const handleSegundoQuantityBlur = (
+    assignmentId: string,
+    segundo: ReservationOfferingCatalogItem['segundos'][number],
+  ) => {
+    const assignment = offeringAssignments.find((entry) => entry.id === assignmentId);
+    const quantity =
+      assignment?.menuDetails.segundosSeleccionados.find((selection) => selection.dishId === segundo.id)?.cantidad ?? 0;
+    const draftKey = `${assignmentId}:${segundo.id}`;
+    setSegundoQuantityDrafts((prev) => omitRecordKey(prev, draftKey));
+    handleSegundoChange(assignmentId, segundo, Math.max(0, quantity));
   };
 
-  const handleCustomSecondQuantityChange = (id: string, value: string) => {
+  const handleCustomSecondQuantityChange = (assignmentId: string, id: string, value: string) => {
     const parsed = parseIntegerDraft(value, 1);
     if (!parsed) return;
 
-    setCustomSecondQuantityDrafts((prev) => ({ ...prev, [id]: parsed.draft }));
+    const draftKey = `${assignmentId}:${id}`;
+    setCustomSecondQuantityDrafts((prev) => ({ ...prev, [draftKey]: parsed.draft }));
     if (parsed.parsed !== null) {
-      updateCustomSecond(id, { cantidad: parsed.parsed });
+      updateCustomSecond(assignmentId, id, { cantidad: parsed.parsed });
     }
   };
 
-  const handleCustomSecondQuantityBlur = (custom: CustomSecond) => {
+  const handleCustomSecondQuantityBlur = (assignmentId: string, custom: CustomSecond) => {
     const quantity = Math.max(1, custom.cantidad || 1);
-    updateCustomSecond(custom.id, { cantidad: quantity });
-    setCustomSecondQuantityDrafts((prev) => omitRecordKey(prev, custom.id));
+    updateCustomSecond(assignmentId, custom.id, { cantidad: quantity });
+    setCustomSecondQuantityDrafts((prev) => omitRecordKey(prev, `${assignmentId}:${custom.id}`));
   };
 
   const handleModalQuantityChange = (value: string, setter: (value: number) => void, draftSetter: (value: string) => void) => {
@@ -562,23 +718,27 @@ export default function NuevaReservaClient() {
   };
 
   const handleCreateCustomMenu = () => {
-    if (!customMenuName.trim()) {
+    if (!customMenuName.trim() || !customSecondTargetAssignmentId) {
       return;
     }
-    setCustomSeconds((prev) => [
-      ...prev,
-      {
-        id: crypto.randomUUID(),
-        kind: 'custom_menu',
-        name: customMenuName.trim(),
-        cantidad: Math.max(1, customMenuCantidad || 1),
-        notes: customMenuNotes.trim() || undefined,
-      },
-    ]);
+    updateAssignmentMenuDetails(customSecondTargetAssignmentId, (details) => ({
+      ...details,
+      customSeconds: [
+        ...details.customSeconds,
+        {
+          id: crypto.randomUUID(),
+          kind: 'custom_menu',
+          name: customMenuName.trim(),
+          cantidad: Math.max(1, customMenuCantidad || 1),
+          notes: customMenuNotes.trim() || undefined,
+        },
+      ],
+    }));
     setCustomMenuName('');
     setCustomMenuCantidad(1);
     setCustomMenuCantidadDraft('1');
     setCustomMenuNotes('');
+    setCustomSecondTargetAssignmentId(null);
     setIsCustomMenuModalOpen(false);
   };
 
@@ -587,25 +747,33 @@ export default function NuevaReservaClient() {
     setCustomMenuCantidad(1);
     setCustomMenuCantidadDraft('1');
     setCustomMenuNotes('');
+    setCustomSecondTargetAssignmentId(null);
     setIsCustomMenuModalOpen(false);
   };
 
   const handleCreateKidsMenu = () => {
+    if (!customSecondTargetAssignmentId) {
+      return;
+    }
     const trimmedName = kidsMenuName.trim() || 'Menú infantil';
-    setCustomSeconds((prev) => [
-      ...prev,
-      {
-        id: crypto.randomUUID(),
-        kind: 'kids_menu',
-        name: trimmedName,
-        cantidad: Math.max(1, kidsMenuCantidad || 1),
-        notes: kidsMenuNotes.trim() || undefined,
-      },
-    ]);
+    updateAssignmentMenuDetails(customSecondTargetAssignmentId, (details) => ({
+      ...details,
+      customSeconds: [
+        ...details.customSeconds,
+        {
+          id: crypto.randomUUID(),
+          kind: 'kids_menu',
+          name: trimmedName,
+          cantidad: Math.max(1, kidsMenuCantidad || 1),
+          notes: kidsMenuNotes.trim() || undefined,
+        },
+      ],
+    }));
     setKidsMenuName('Menú infantil');
     setKidsMenuCantidad(1);
     setKidsMenuCantidadDraft('1');
     setKidsMenuNotes('');
+    setCustomSecondTargetAssignmentId(null);
     setIsKidsMenuModalOpen(false);
   };
 
@@ -614,30 +782,39 @@ export default function NuevaReservaClient() {
     setKidsMenuCantidad(1);
     setKidsMenuCantidadDraft('1');
     setKidsMenuNotes('');
+    setCustomSecondTargetAssignmentId(null);
     setIsKidsMenuModalOpen(false);
   };
 
-  function updateCustomSecond(id: string, updates: Partial<CustomSecond>) {
-    setCustomSeconds((prev) => prev.map((custom) => (custom.id === id ? { ...custom, ...updates } : custom)));
+  function updateCustomSecond(assignmentId: string, id: string, updates: Partial<CustomSecond>) {
+    updateAssignmentMenuDetails(assignmentId, (details) => ({
+      ...details,
+      customSeconds: details.customSeconds.map((custom) => (custom.id === id ? { ...custom, ...updates } : custom)),
+    }));
+  }
+
+  function removeCustomSecond(assignmentId: string, id: string) {
+    updateAssignmentMenuDetails(assignmentId, (details) => ({
+      ...details,
+      customSeconds: details.customSeconds.filter((custom) => custom.id !== id),
+    }));
+    setCustomSecondQuantityDrafts((prev) => omitRecordKey(prev, `${assignmentId}:${id}`));
   }
 
   const resetMenuDependentState = useCallback(() => {
-    setSegundosSeleccionados([]);
-    setEntrecotPoints({
-      crudo: 0,
-      poco: 0,
-      alPunto: 0,
-      hecho: 0,
-      muyHecho: 0,
-    });
-    setCustomSeconds([]);
+    setOfferingAssignments((prev) =>
+      prev.map((assignment) => ({
+        ...assignment,
+        menuDetails: createEmptyAssignmentMenuDetails(),
+      })),
+    );
     setSegundoQuantityDrafts({});
     setCustomSecondQuantityDrafts({});
     setWarningMenus(null);
     setWarningEntrecot(null);
-    setDonenessCollapsed(true);
     setIsCustomMenuModalOpen(false);
     setIsKidsMenuModalOpen(false);
+    setCustomSecondTargetAssignmentId(null);
   }, []);
 
   const validateMenus = useCallback(() => {
@@ -668,9 +845,9 @@ export default function NuevaReservaClient() {
     const donenessSelection = segundosSeleccionados.find((s) => donenessSecondsIds.includes(s.dishId));
     const totalDonenessPeople = donenessSelection?.cantidad ?? 0;
 
-    if (totalMenusAsignados !== numeroPersonas) {
+    if (totalMenusAsignados !== primaryAssignedPax) {
       setWarningMenus(
-        `Hay ${numeroPersonas} personas pero has asignado ${totalMenusAsignados} menús. Revisa si falta alguien o si sobra algún menú.`,
+        `Hay ${primaryAssignedPax} pax en la primera oferta, pero has asignado ${totalMenusAsignados} menús. Revisa si falta alguien o si sobra algún menú.`,
       );
     } else {
       setWarningMenus(null);
@@ -685,7 +862,7 @@ export default function NuevaReservaClient() {
     }
 
     return (
-      totalMenusAsignados === numeroPersonas &&
+      totalMenusAsignados === primaryAssignedPax &&
       (totalDonenessPeople === 0 || totalPuntosEntrecot === totalDonenessPeople)
     );
   }, [
@@ -693,10 +870,71 @@ export default function NuevaReservaClient() {
     entrecotPoints,
     isPrivatePartyOnly,
     isSelectedOfferingMenu,
-    numeroPersonas,
+    primaryAssignedPax,
     segundosSeleccionados,
     selectedOffering,
   ]);
+
+  const validateMenuAssignments = useCallback(() => {
+    if (isPrivatePartyOnly) {
+      setWarningMenus(null);
+      setWarningEntrecot(null);
+      return true;
+    }
+
+    const menuAssignments = offeringAssignments
+      .map((assignment) => ({
+        assignment,
+        offering: offerings.find((offering) => offering.id === assignment.catalogId) ?? null,
+      }))
+      .filter(
+        (entry): entry is { assignment: OfferingAssignmentDraft; offering: ReservationOfferingCatalogItem } =>
+          entry.offering?.kind === 'cheffing_menu',
+      );
+
+    if (menuAssignments.length === 0) {
+      setWarningMenus(null);
+      setWarningEntrecot(null);
+      return true;
+    }
+
+    const menuWarnings: string[] = [];
+    const donenessWarnings: string[] = [];
+
+    menuAssignments.forEach(({ assignment, offering }) => {
+      const totalSegundosBase = assignment.menuDetails.segundosSeleccionados.reduce((sum, s) => sum + s.cantidad, 0);
+      const totalCustom = assignment.menuDetails.customSeconds.reduce((sum, s) => sum + s.cantidad, 0);
+      const totalMenusAsignados = totalSegundosBase + totalCustom;
+      const assignedPax = toPositiveInt(assignment.assignedPax);
+
+      if (totalMenusAsignados !== assignedPax) {
+        menuWarnings.push(`${offering.display_name}: ${assignedPax} pax asignados, ${totalMenusAsignados} menús/platos repartidos.`);
+      }
+
+      const totalPuntosEntrecot =
+        assignment.menuDetails.entrecotPoints.crudo +
+        assignment.menuDetails.entrecotPoints.poco +
+        assignment.menuDetails.entrecotPoints.alPunto +
+        assignment.menuDetails.entrecotPoints.hecho +
+        assignment.menuDetails.entrecotPoints.muyHecho;
+      const donenessSecondsIds = offering.segundos.filter((s) => s.needsDonenessPoints).map((s) => s.id);
+      const totalDonenessPeople = assignment.menuDetails.segundosSeleccionados
+        .filter((s) => donenessSecondsIds.includes(s.dishId))
+        .reduce((sum, s) => sum + s.cantidad, 0);
+
+      if (totalDonenessPeople > 0 && totalPuntosEntrecot !== totalDonenessPeople) {
+        donenessWarnings.push(
+          `${offering.display_name}: ${totalDonenessPeople} platos con puntos de cocción, ${totalPuntosEntrecot} puntos asignados.`,
+        );
+      }
+    });
+
+    setWarningMenus(menuWarnings.length > 0 ? menuWarnings.join('\n') : null);
+    setWarningEntrecot(donenessWarnings.length > 0 ? donenessWarnings.join('\n') : null);
+
+    return menuWarnings.length === 0 && donenessWarnings.length === 0;
+  }, [isPrivatePartyOnly, offeringAssignments, offerings]);
+  void validateMenus;
 
   useEffect(() => {
     const loadOfferings = async () => {
@@ -724,7 +962,13 @@ export default function NuevaReservaClient() {
         }
 
         setOfferings(offeringsResponse);
-        setSelectedOfferingId((prev) => prev || offeringsResponse[0]?.id || '');
+        setOfferingAssignments((prev) =>
+          prev.some((assignment) => assignment.catalogId)
+            ? prev
+            : prev.map((assignment, index) =>
+                index === 0 ? { ...assignment, catalogId: offeringsResponse[0]?.id || '' } : assignment,
+              ),
+        );
       } catch (error) {
         console.error('[Nueva reserva] Error cargando catálogo de ofertas', error);
         setOfferingsError(
@@ -804,8 +1048,8 @@ export default function NuevaReservaClient() {
   }, [partyRooms, rooms.length, shouldUsePartyRoom]);
 
   useEffect(() => {
-    validateMenus();
-  }, [validateMenus]);
+    validateMenuAssignments();
+  }, [validateMenuAssignments]);
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -854,9 +1098,45 @@ export default function NuevaReservaClient() {
     const eventDate = datePart;
     const entryTime = timePart ? `${timePart}:00` : null;
 
-    const selectedOfferingSnapshot = shouldUseFood ? selectedOffering : null;
+    const normalizedOfferingAssignments = shouldUseFood
+      ? offeringAssignments.reduce<
+          { draft: OfferingAssignmentDraft; offering: ReservationOfferingCatalogItem; assignedPax: number }[]
+        >((acc, draft) => {
+          if (!draft.catalogId) return acc;
+          const offering = offerings.find((catalogOffering) => catalogOffering.id === draft.catalogId);
+          if (!offering) return acc;
+          acc.push({ draft, offering, assignedPax: toPositiveInt(draft.assignedPax) });
+          return acc;
+        }, [])
+      : [];
+    const duplicateOfferingIds = normalizedOfferingAssignments
+      .map((assignment) => assignment.offering.id)
+      .filter((catalogId, index, list) => list.indexOf(catalogId) !== index);
 
-    const isValid = validateMenus();
+    if (duplicateOfferingIds.length > 0) {
+      setSubmitError('Hay menús/cartas duplicados. Agrupa los pax en una sola línea para cada oferta.');
+      finalizeSubmit();
+      return;
+    }
+
+    const normalizedTotalAssignedPax = normalizedOfferingAssignments.reduce(
+      (sum, assignment) => sum + assignment.assignedPax,
+      0,
+    );
+    const selectedOfferingSnapshot = normalizedOfferingAssignments[0]?.offering ?? null;
+
+    const isValid = validateMenuAssignments();
+
+    if (shouldUseFood && normalizedTotalAssignedPax !== normalizedNumeroPersonas) {
+      const proceed = window.confirm(
+        'Hay descuadres entre pax de la reserva y menús/cartas asignadas. ¿Quieres guardar igualmente?',
+      );
+
+      if (!proceed) {
+        finalizeSubmit();
+        return;
+      }
+    }
 
     if (!isValid) {
       const proceed = window.confirm(
@@ -869,10 +1149,17 @@ export default function NuevaReservaClient() {
       }
     }
 
+    const assignmentSummaryText =
+      normalizedOfferingAssignments.length > 0
+        ? normalizedOfferingAssignments
+            .map((assignment) => `- ${assignment.offering.display_name}: ${assignment.assignedPax} pax`)
+            .join('\n')
+        : null;
+
     let menuText: string | null = null;
 
     if (selectedOfferingSnapshot?.kind === 'cheffing_card') {
-      menuText = `${selectedOfferingSnapshot.display_name} · ${numeroPersonas} pax`;
+      menuText = assignmentSummaryText ? `Menús / cartas asignadas:\n${assignmentSummaryText}` : null;
     }
 
     if (selectedOfferingSnapshot?.kind === 'cheffing_menu') {
@@ -926,7 +1213,7 @@ export default function NuevaReservaClient() {
           : null;
 
       const partesMenuText = [
-        `Menú asignado: ${selectedOfferingSnapshot.display_name}`,
+        assignmentSummaryText ? `Menús / cartas asignadas:\n${assignmentSummaryText}` : null,
         segundosBaseTexto ? 'Plato principal:' : null,
         segundosBaseTexto || null,
         detalleEntrecot,
@@ -938,6 +1225,49 @@ export default function NuevaReservaClient() {
         .filter((p) => p && p.toString().trim().length > 0)
         .join('\n\n') || null;
     }
+
+    const structuredMenuDetailsText = normalizedOfferingAssignments
+      .filter((assignment) => assignment.offering.kind === 'cheffing_menu')
+      .map((assignment) => {
+        const baseSeconds = assignment.draft.menuDetails.segundosSeleccionados
+          .filter((selection) => selection.cantidad > 0)
+          .map((selection) => `- ${selection.nombre}: ${selection.cantidad}`)
+          .join('\n');
+        const customMenus = assignment.draft.menuDetails.customSeconds.filter((custom) => custom.kind === 'custom_menu');
+        const kidsMenus = assignment.draft.menuDetails.customSeconds.filter((custom) => custom.kind === 'kids_menu');
+        const customText =
+          customMenus.length > 0
+            ? ['Menús personalizados:', ...customMenus.map((custom) => `- ${custom.name}: ${custom.cantidad}${custom.notes ? ` — ${custom.notes}` : ''}`)].join('\n')
+            : null;
+        const kidsText =
+          kidsMenus.length > 0
+            ? ['Menús infantiles:', ...kidsMenus.map((custom) => `- ${custom.name}: ${custom.cantidad}${custom.notes ? ` — ${custom.notes}` : ''}`)].join('\n')
+            : null;
+        const points = assignment.draft.menuDetails.entrecotPoints;
+        const pointsText = [
+          points.crudo > 0 ? `Crudo: ${points.crudo}` : null,
+          points.poco > 0 ? `Poco hecho: ${points.poco}` : null,
+          points.alPunto > 0 ? `Al punto: ${points.alPunto}` : null,
+          points.hecho > 0 ? `Hecho: ${points.hecho}` : null,
+          points.muyHecho > 0 ? `Muy hecho: ${points.muyHecho}` : null,
+        ].filter((entry): entry is string => Boolean(entry));
+
+        return [
+          `${assignment.offering.display_name} (${assignment.assignedPax} pax)`,
+          baseSeconds ? `Plato principal:\n${baseSeconds}` : null,
+          pointsText.length > 0 ? `Puntos de cocción:\n${pointsText.map((entry) => `  · ${entry}`).join('\n')}` : null,
+          customText,
+          kidsText,
+        ].filter((entry): entry is string => Boolean(entry)).join('\n');
+      })
+      .filter((entry) => entry.trim().length > 0);
+
+    menuText = [
+      assignmentSummaryText ? `Menús / cartas asignadas:\n${assignmentSummaryText}` : null,
+      ...structuredMenuDetailsText,
+    ]
+      .filter((entry): entry is string => Boolean(entry))
+      .join('\n\n') || null;
 
     const setupNotesLines = [
       shouldUseDinnerRoom && mesa ? `Mesa / zona: ${mesa}` : null,
@@ -989,18 +1319,64 @@ export default function NuevaReservaClient() {
           ]
         : [];
 
-    const offeringAssignments = selectedOfferingSnapshot
-      ? [
-          {
-            offeringKind: selectedOfferingSnapshot.kind,
-            offeringId: selectedOfferingSnapshot.source_id,
-            assignedPax: Math.max(1, numeroPersonas),
-            sortOrder: 0,
-            notes: null,
-            secondSelections: selectedOfferingSnapshot.kind === 'cheffing_menu' ? secondSelections : undefined,
-          },
-        ]
-      : undefined;
+    const buildSecondSelectionsForAssignment = (
+      assignment: OfferingAssignmentDraft,
+      offering: ReservationOfferingCatalogItem,
+    ) =>
+      offering.kind === 'cheffing_menu'
+        ? [
+            ...offering.segundos
+              .map((segundo, index) => {
+                const selected = assignment.menuDetails.segundosSeleccionados.find((entry) => entry.dishId === segundo.id);
+                if (!selected || selected.cantidad <= 0) {
+                  return null;
+                }
+
+                const doneness = segundo.needsDonenessPoints
+                  ? [
+                      { point: 'crudo', quantity: assignment.menuDetails.entrecotPoints.crudo },
+                      { point: 'poco', quantity: assignment.menuDetails.entrecotPoints.poco },
+                      { point: 'al_punto', quantity: assignment.menuDetails.entrecotPoints.alPunto },
+                      { point: 'hecho', quantity: assignment.menuDetails.entrecotPoints.hecho },
+                      { point: 'muy_hecho', quantity: assignment.menuDetails.entrecotPoints.muyHecho },
+                    ].filter((point) => point.quantity > 0)
+                  : [];
+
+                return {
+                  selectionKind: 'menu_second',
+                  dishId: segundo.id,
+                  menuItemId: segundo.menu_item_id ?? null,
+                  quantity: selected.cantidad,
+                  notes: null,
+                  sortOrder: index,
+                  doneness,
+                };
+              })
+              .filter((selection): selection is NonNullable<typeof selection> => selection !== null),
+            ...assignment.menuDetails.customSeconds.map((custom, index) => ({
+              selectionKind: custom.kind,
+              displayName: custom.name.trim() || (custom.kind === 'kids_menu' ? 'Menú infantil' : 'Menú personalizado'),
+              quantity: Math.max(1, custom.cantidad),
+              notes: custom.notes?.trim() || null,
+              sortOrder: offering.segundos.length + index,
+            })),
+          ]
+        : [];
+    void secondSelections;
+
+    const offeringAssignmentsPayload = shouldUseFood
+      ? normalizedOfferingAssignments.map((assignment, index) => ({
+          offeringKind: assignment.offering.kind,
+          offeringId: assignment.offering.source_id,
+          assignedPax: assignment.assignedPax,
+          sortOrder: index,
+          notes: assignment.draft.notes?.trim() || null,
+          secondSelections:
+            assignment.offering.kind === 'cheffing_menu'
+              ? buildSecondSelectionsForAssignment(assignment.draft, assignment.offering)
+              : undefined,
+        }))
+      : [];
 
     try {
       const resCreate = await fetch('/api/group-events/create', {
@@ -1016,11 +1392,11 @@ export default function NuevaReservaClient() {
           customer_email: email || null,
           event_date: eventDate,
           entry_time: entryTime,
-          adults: numeroPersonas,
+          adults: normalizedNumeroPersonas,
           children: 0,
           event_mode: eventMode,
           menu_text: menuText,
-          offeringAssignments,
+          offeringAssignments: offeringAssignmentsPayload,
           allergens_and_diets: intolerancias || null,
           extras,
           setup_notes: setupNotes,
@@ -1316,28 +1692,293 @@ export default function NuevaReservaClient() {
         </div>
 
         <aside className="card max-h-none space-y-5 overflow-y-auto rounded-2xl p-5 xl:sticky xl:top-6 xl:max-h-[calc(100dvh-7.5rem)]">
-          {shouldUseFood && <div className="space-y-2">
-            <p className="label">Oferta asignada</p>
-            <div className="relative">
-              <select
-                value={selectedOfferingId}
-                onChange={(e) => {
-                  setSelectedOfferingId(e.target.value);
-                  resetMenuDependentState();
-                }}
-                className="input appearance-none pr-10"
-                disabled={offeringsLoading || !!offeringsError || offerings.length === 0}
-              >
-                {offerings.map((offering) => (
-                  <option key={offering.id} value={offering.id}>
-                    {offering.display_name} {offering.kind === 'cheffing_card' ? '· Carta' : '· Menú'}
-                  </option>
+          {shouldUseFood && (
+            <div className="space-y-3">
+              <div>
+                <p className="label">Menús / cartas asignadas</p>
+                <p className="text-xs text-slate-400">La primera línea se usa para el detalle de segundos.</p>
+              </div>
+              <div className="space-y-2">
+                {offeringAssignments.map((assignment, index) => (
+                  <div key={assignment.id} className="grid gap-2 rounded-lg border border-slate-800 bg-slate-900/50 p-3 sm:grid-cols-[minmax(0,1fr)_6rem_auto]">
+                    <div className="relative">
+                      <select
+                        value={assignment.catalogId}
+                        onChange={(e) => handleOfferingCatalogChange(assignment.id, e.target.value)}
+                        className="input appearance-none pr-10"
+                        disabled={offeringsLoading || !!offeringsError || offerings.length === 0}
+                      >
+                        <option value="">
+                          {offeringsLoading ? 'Cargando catálogo...' : 'Selecciona menú/carta'}
+                        </option>
+                        {offerings.map((offering) => (
+                          <option
+                            key={offering.id}
+                            value={offering.id}
+                            disabled={offeringAssignments.some(
+                              (other) => other.id !== assignment.id && other.catalogId === offering.id,
+                            )}
+                          >
+                            {offering.display_name} {offering.kind === 'cheffing_card' ? '· Carta' : '· Menú'}
+                          </option>
+                        ))}
+                      </select>
+                      <ChevronDownIcon className="pointer-events-none absolute right-3 top-3.5 h-5 w-5 text-slate-500" />
+                    </div>
+                    <label className="space-y-1">
+                      <span className="sr-only">Pax asignados</span>
+                      <input
+                        type="number"
+                        min={1}
+                        step={1}
+                        value={assignment.assignedPax}
+                        onChange={(e) => handleOfferingPaxChange(assignment.id, e.target.value)}
+                        className="input"
+                        aria-label={`Pax asignados a la oferta ${index + 1}`}
+                      />
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => removeOfferingAssignment(assignment.id)}
+                      className="rounded-md border border-red-800/70 px-3 py-2 text-xs font-semibold text-red-200 transition-colors hover:bg-red-950/60 disabled:cursor-not-allowed disabled:opacity-50"
+                      disabled={offeringAssignments.length === 1}
+                    >
+                      Eliminar
+                    </button>
+                    {(() => {
+                      const offering = offerings.find((entry) => entry.id === assignment.catalogId);
+                      if (!offering) return null;
+                      const totalLineSelections =
+                        assignment.menuDetails.segundosSeleccionados.reduce((sum, selection) => sum + selection.cantidad, 0) +
+                        assignment.menuDetails.customSeconds.reduce((sum, custom) => sum + custom.cantidad, 0);
+
+                      return (
+                        <div className="space-y-3 border-t border-slate-800 pt-3 sm:col-span-3">
+                          <button
+                            type="button"
+                            onClick={() => toggleOfferingAssignmentExpanded(assignment.id)}
+                            className="flex w-full items-center justify-between text-left text-xs font-semibold uppercase tracking-wide text-slate-300"
+                          >
+                            <span>
+                              Detalle de {offering.kind === 'cheffing_menu' ? 'menú' : 'carta'} · {totalLineSelections}/{toPositiveInt(assignment.assignedPax)} pax
+                            </span>
+                            <ChevronDownIcon className={`h-4 w-4 transition-transform ${assignment.isExpanded ? 'rotate-180' : ''}`} />
+                          </button>
+
+                          {assignment.isExpanded && offering.kind === 'cheffing_card' && (
+                            <p className="rounded-lg border border-slate-800 bg-slate-950/40 p-3 text-xs text-slate-300">
+                              Oferta tipo carta: no aplica selección de segundos.
+                            </p>
+                          )}
+
+                          {assignment.isExpanded && offering.kind === 'cheffing_menu' && (
+                            <div className="space-y-3">
+                              <div className="space-y-2">
+                                {offering.segundos.map((segundo) => {
+                                  const selectedQuantity =
+                                    assignment.menuDetails.segundosSeleccionados.find((selection) => selection.dishId === segundo.id)
+                                      ?.cantidad ?? 0;
+                                  const quantityValue = segundoQuantityDrafts[`${assignment.id}:${segundo.id}`] ?? String(selectedQuantity);
+
+                                  return (
+                                    <div key={segundo.id} className="space-y-3 rounded-lg border border-slate-800 bg-slate-950/40 p-3">
+                                      <div className="flex items-center justify-between gap-3">
+                                        <div>
+                                          <p className="font-semibold text-white">{segundo.nombre}</p>
+                                          <p className="text-xs text-slate-400">{segundo.descripcion}</p>
+                                        </div>
+                                        <input
+                                          type="number"
+                                          min={0}
+                                          className="input w-24"
+                                          value={quantityValue}
+                                          onChange={(e) => handleSegundoQuantityChange(assignment.id, segundo, e.target.value)}
+                                          onBlur={() => handleSegundoQuantityBlur(assignment.id, segundo)}
+                                        />
+                                      </div>
+
+                                      {segundo.needsDonenessPoints && (
+                                        <div className="space-y-3 rounded-lg border border-slate-800 bg-slate-900/40 p-3">
+                                          <button
+                                            type="button"
+                                            onClick={() =>
+                                              updateAssignmentMenuDetails(assignment.id, (details) => ({
+                                                ...details,
+                                                donenessCollapsed: !details.donenessCollapsed,
+                                              }))
+                                            }
+                                            className="flex w-full items-center justify-between text-left text-xs uppercase tracking-wide text-slate-400"
+                                          >
+                                            <span>Puntos de cocción</span>
+                                            <ChevronDownIcon
+                                              className={`h-4 w-4 transition-transform ${
+                                                assignment.menuDetails.donenessCollapsed ? '' : 'rotate-180'
+                                              }`}
+                                            />
+                                          </button>
+
+                                          {!assignment.menuDetails.donenessCollapsed && (
+                                            <div className="space-y-2">
+                                              {(
+                                                [
+                                                  { key: 'crudo', label: 'Crudo' },
+                                                  { key: 'poco', label: 'Poco hecho' },
+                                                  { key: 'alPunto', label: 'Al punto' },
+                                                  { key: 'hecho', label: 'Hecho' },
+                                                  { key: 'muyHecho', label: 'Muy hecho' },
+                                                ] as { key: keyof EntrecotPoints; label: string }[]
+                                              ).map((punto) => {
+                                                const currentValue = assignment.menuDetails.entrecotPoints[punto.key];
+                                                const maxEntrecotPeople = Math.max(selectedQuantity, toPositiveInt(assignment.assignedPax), currentValue, 10);
+
+                                                return (
+                                                  <label key={punto.key} className="grid grid-cols-[1fr_5rem] items-center gap-2 text-xs text-slate-300">
+                                                    <span>{punto.label}</span>
+                                                    <input
+                                                      type="number"
+                                                      min={0}
+                                                      max={maxEntrecotPeople}
+                                                      className="input text-sm"
+                                                      value={currentValue}
+                                                      onChange={(e) =>
+                                                        updateEntrecotPoint(assignment.id, punto.key, parseInt(e.target.value, 10) || 0)
+                                                      }
+                                                    />
+                                                  </label>
+                                                );
+                                              })}
+                                            </div>
+                                          )}
+                                        </div>
+                                      )}
+                                    </div>
+                                  );
+                                })}
+                              </div>
+
+                              <div className="space-y-2">
+                                <div className="flex flex-wrap gap-2">
+                                  <button
+                                    type="button"
+                                    className="button-secondary"
+                                    onClick={() => {
+                                      setCustomSecondTargetAssignmentId(assignment.id);
+                                      setIsCustomMenuModalOpen(true);
+                                    }}
+                                  >
+                                    + Crear menú
+                                  </button>
+                                  <button
+                                    type="button"
+                                    className="button-secondary"
+                                    onClick={() => {
+                                      setCustomSecondTargetAssignmentId(assignment.id);
+                                      setIsKidsMenuModalOpen(true);
+                                    }}
+                                  >
+                                    + Menú infantil
+                                  </button>
+                                </div>
+
+                                {assignment.menuDetails.customSeconds.map((custom) => {
+                                  const quantityValue = customSecondQuantityDrafts[`${assignment.id}:${custom.id}`] ?? String(custom.cantidad);
+
+                                  return (
+                                    <div key={custom.id} className="space-y-2 rounded-lg border border-slate-800 bg-slate-950/40 p-3">
+                                      <div className="flex items-center justify-between text-xs uppercase tracking-wide text-slate-400">
+                                        <span>{custom.kind === 'custom_menu' ? 'Menú personalizado' : 'Menú infantil'}</span>
+                                        <button
+                                          type="button"
+                                          className="text-xs text-red-300 hover:text-red-200"
+                                          onClick={() => removeCustomSecond(assignment.id, custom.id)}
+                                        >
+                                          Eliminar
+                                        </button>
+                                      </div>
+                                      <input
+                                        className="input"
+                                        value={custom.name}
+                                        onChange={(e) => updateCustomSecond(assignment.id, custom.id, { name: e.target.value })}
+                                      />
+                                      <input
+                                        type="number"
+                                        min={1}
+                                        className="input"
+                                        value={quantityValue}
+                                        onChange={(e) => handleCustomSecondQuantityChange(assignment.id, custom.id, e.target.value)}
+                                        onBlur={() => handleCustomSecondQuantityBlur(assignment.id, custom)}
+                                      />
+                                      <input
+                                        className="input"
+                                        value={custom.notes ?? ''}
+                                        placeholder="Notas"
+                                        onChange={(e) => updateCustomSecond(assignment.id, custom.id, { notes: e.target.value })}
+                                      />
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })()}
+                  </div>
                 ))}
-              </select>
-              <ChevronDownIcon className="pointer-events-none absolute right-3 top-3.5 h-5 w-5 text-slate-500" />
+              </div>
+              <div className="space-y-2">
+                <p className={`text-sm font-semibold ${hasOfferingPaxMismatch ? 'text-amber-200' : 'text-emerald-200'}`}>
+                  Total asignado: {totalAssignedPax} / {numeroPersonas} pax
+                </p>
+                {hasOfferingPaxMismatch && (
+                  <p className="rounded-md border border-amber-700/70 bg-amber-950/30 px-3 py-2 text-xs text-amber-200">
+                    Hay {numeroPersonas} personas en la reserva, pero solo {totalAssignedPax} pax asignados a menús/cartas.
+                  </p>
+                )}
+                <button
+                  type="button"
+                  onClick={addOfferingAssignment}
+                  className="button-secondary w-full justify-center"
+                  disabled={
+                    offeringsLoading ||
+                    !!offeringsError ||
+                    offerings.every((offering) =>
+                      offeringAssignments.some((assignment) => assignment.catalogId === offering.id),
+                    )
+                  }
+                >
+                  + Añadir menú/carta
+                </button>
+              </div>
+              {offeringsError && <p className="text-xs text-red-400">{offeringsError}</p>}
+              {submitError && <p className="text-sm text-red-400">{submitError}</p>}
+              {submitSuccess && <p className="text-sm text-green-400">{submitSuccess}</p>}
+              {calendarWarning && <p className="text-sm text-amber-300">{calendarWarning}</p>}
+              {warningMenus && <p className="whitespace-pre-line text-sm text-amber-300">{warningMenus}</p>}
+              {warningEntrecot && <p className="whitespace-pre-line text-sm text-amber-300">{warningEntrecot}</p>}
+
+              <div className="grid gap-2 sm:grid-cols-[1fr_auto]">
+                <button
+                  type="submit"
+                  name="reservationStatus"
+                  value="confirmed"
+                  className="button-primary justify-center"
+                  disabled={isSubmitting}
+                >
+                  {isSubmitting && submittingStatus === 'confirmed' ? 'Creando...' : 'Crear reserva confirmada'}
+                </button>
+                <button
+                  type="submit"
+                  name="reservationStatus"
+                  value="draft"
+                  className="button-secondary justify-center"
+                  disabled={isSubmitting}
+                >
+                  {isSubmitting && submittingStatus === 'draft' ? 'Guardando...' : 'Guardar borrador'}
+                </button>
+              </div>
             </div>
-            {offeringsError && <p className="text-xs text-red-400">{offeringsError}</p>}
-          </div>}
+          )}
 
           {shouldUseFood && offeringsLoading && <p className="text-sm text-slate-300">Cargando catálogo...</p>}
 
@@ -1381,14 +2022,14 @@ export default function NuevaReservaClient() {
             </div>
           )}
 
-          {shouldUseFood && selectedOffering && !offeringsLoading && !offeringsError && (
+          {false && shouldUseFood && selectedOffering && !offeringsLoading && !offeringsError && (
             <div className="space-y-4">
               {isSelectedOfferingMenu && (
                 <div>
                   <p className="text-sm font-semibold text-white">Segundos disponibles</p>
                   <p className="text-xs text-slate-400">Indica cantidades para cocina.</p>
                   <div className="mt-3 space-y-2">
-                    {selectedOffering.segundos.map((segundo) => {
+                    {selectedOffering?.segundos.map((segundo) => {
                       const selectedQuantity = segundosSeleccionados.find((s) => s.dishId === segundo.id)?.cantidad ?? 0;
                       const quantityValue = segundoQuantityDrafts[segundo.id] ?? String(selectedQuantity);
 
@@ -1407,8 +2048,8 @@ export default function NuevaReservaClient() {
                           min={0}
                           className="input w-24"
                           value={quantityValue}
-                          onChange={(e) => handleSegundoQuantityChange(segundo, e.target.value)}
-                          onBlur={() => handleSegundoQuantityBlur(segundo)}
+                          onChange={(e) => handleSegundoQuantityChange(primaryOfferingAssignment?.id ?? '', segundo, e.target.value)}
+                          onBlur={() => handleSegundoQuantityBlur(primaryOfferingAssignment?.id ?? '', segundo)}
                         />
                       </div>
 
@@ -1454,7 +2095,7 @@ export default function NuevaReservaClient() {
                                 const currentValue = entrecotPoints[punto.key];
                                 const maxEntrecotPeople = Math.max(
                                   segundosSeleccionados.find((s) => s.dishId === segundo.id)?.cantidad ?? 0,
-                                  numeroPersonas,
+                                  primaryAssignedPax,
                                   currentValue,
                                   10,
                                 );
@@ -1474,7 +2115,7 @@ export default function NuevaReservaClient() {
                                       <button
                                         type="button"
                                         className="rounded-md border border-slate-700 px-2 py-1 text-sm text-slate-200 hover:bg-slate-800"
-                                        onClick={() => updateEntrecotPoint(punto.key, currentValue - 1)}
+                                        onClick={() => updateEntrecotPoint(primaryOfferingAssignment?.id ?? '', punto.key, currentValue - 1)}
                                         aria-label={`Restar ${punto.label}`}
                                       >
                                         -
@@ -1483,7 +2124,7 @@ export default function NuevaReservaClient() {
                                       <select
                                         className="input w-28 appearance-none pr-8 text-sm"
                                         value={currentValue}
-                                        onChange={(e) => updateEntrecotPoint(punto.key, parseInt(e.target.value) || 0)}
+                                        onChange={(e) => updateEntrecotPoint(primaryOfferingAssignment?.id ?? '', punto.key, parseInt(e.target.value) || 0)}
                                       >
                                         {options.map((option) => (
                                           <option key={option} value={option}>
@@ -1495,7 +2136,7 @@ export default function NuevaReservaClient() {
                                       <button
                                         type="button"
                                         className="rounded-md border border-slate-700 px-2 py-1 text-sm text-slate-200 hover:bg-slate-800"
-                                        onClick={() => updateEntrecotPoint(punto.key, Math.min(currentValue + 1, maxEntrecotPeople))}
+                                        onClick={() => updateEntrecotPoint(primaryOfferingAssignment?.id ?? '', punto.key, Math.min(currentValue + 1, maxEntrecotPeople))}
                                         aria-label={`Sumar ${punto.label}`}
                                       >
                                         +
@@ -1553,7 +2194,7 @@ export default function NuevaReservaClient() {
                           <input
                             className="input"
                             value={custom.name}
-                            onChange={(e) => updateCustomSecond(custom.id, { name: e.target.value })}
+                            onChange={(e) => updateCustomSecond(primaryOfferingAssignment?.id ?? '', custom.id, { name: e.target.value })}
                             placeholder="Ej: Vegano sin soja"
                           />
                         </label>
@@ -1565,7 +2206,7 @@ export default function NuevaReservaClient() {
                               className="rounded-md border border-slate-700 px-2 py-1 text-sm text-slate-200 hover:bg-slate-800"
                               onClick={() =>
                                 {
-                                  updateCustomSecond(custom.id, {
+                                  updateCustomSecond(primaryOfferingAssignment?.id ?? '', custom.id, {
                                     cantidad: Math.max(1, custom.cantidad - 1),
                                   });
                                   setCustomSecondQuantityDrafts((prev) => omitRecordKey(prev, custom.id));
@@ -1580,14 +2221,14 @@ export default function NuevaReservaClient() {
                               min={1}
                               className="input w-20 text-center"
                               value={quantityValue}
-                              onChange={(e) => handleCustomSecondQuantityChange(custom.id, e.target.value)}
-                              onBlur={() => handleCustomSecondQuantityBlur(custom)}
+                              onChange={(e) => handleCustomSecondQuantityChange(primaryOfferingAssignment?.id ?? '', custom.id, e.target.value)}
+                              onBlur={() => handleCustomSecondQuantityBlur(primaryOfferingAssignment?.id ?? '', custom)}
                             />
                             <button
                               type="button"
                               className="rounded-md border border-slate-700 px-2 py-1 text-sm text-slate-200 hover:bg-slate-800"
                               onClick={() => {
-                                updateCustomSecond(custom.id, { cantidad: custom.cantidad + 1 });
+                                updateCustomSecond(primaryOfferingAssignment?.id ?? '', custom.id, { cantidad: custom.cantidad + 1 });
                                 setCustomSecondQuantityDrafts((prev) => omitRecordKey(prev, custom.id));
                               }}
                               aria-label="Sumar cantidad"
@@ -1603,7 +2244,7 @@ export default function NuevaReservaClient() {
                         <input
                           className="input"
                           value={custom.notes ?? ''}
-                          onChange={(e) => updateCustomSecond(custom.id, { notes: e.target.value })}
+                          onChange={(e) => updateCustomSecond(primaryOfferingAssignment?.id ?? '', custom.id, { notes: e.target.value })}
                           placeholder="Indicaciones específicas"
                         />
                       </label>
@@ -1737,10 +2378,17 @@ export default function NuevaReservaClient() {
                   Resumen rápido
                 </div>
                 <p className="mt-2 text-primary-50">
-                  {selectedOffering.kind === 'cheffing_card'
-                    ? `${selectedOffering.display_name} · ${numeroPersonas} pax`
+                  {selectedOffering?.kind === 'cheffing_card'
+                    ? offeringAssignments
+                        .filter((assignment) => assignment.catalogId)
+                        .map((assignment) => {
+                          const offering = offerings.find((entry) => entry.id === assignment.catalogId);
+                          return offering ? `${offering.display_name} · ${toPositiveInt(assignment.assignedPax)} pax` : null;
+                        })
+                        .filter((entry): entry is string => Boolean(entry))
+                        .join(' · ') || 'Añade menús/cartas para organizar la reserva.'
                     : segundosSeleccionados.length > 0
-                      ? selectedOffering.segundos
+                      ? selectedOffering?.segundos
                           .map((segundo) => {
                             const selected = segundosSeleccionados.find((entry) => entry.dishId === segundo.id);
                             if (!selected || selected.cantidad <= 0) return null;
@@ -1750,7 +2398,7 @@ export default function NuevaReservaClient() {
                           .join(' · ')
                       : 'Añade cantidades para organizar la comanda.'}
                 </p>
-                {selectedOffering.kind === 'cheffing_menu' && (
+                {selectedOffering?.kind === 'cheffing_menu' && (
                   <p className="mt-1 text-primary-50">Especiales/infantiles: {customMenusCount}</p>
                 )}
               </div>
