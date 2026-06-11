@@ -147,3 +147,35 @@ Otros errores se registran server-side y la subscription se mantiene activa para
 
 1. Plantillas de payload para diferenciar tipos de aviso.
 2. Panel operativo para revisar dispositivos activos por usuario, si hace falta.
+
+## Confirmacion por email al cliente
+
+Las notificaciones push anteriores son internas. La confirmacion por email al cliente es un flujo separado y solo aplica cuando una solicitud externa se confirma manualmente desde la app interna.
+
+Regla de envio:
+
+1. `previousStatus !== 'confirmed'`
+2. nuevo estado `confirmed`
+3. existe `public.external_reservation_submissions.group_event_id` para la reserva
+4. no existe ya una fila idempotente en `public.customer_reservation_notifications` para `group_event_id + email + reservation_confirmed`
+
+La tabla `public.customer_reservation_notifications` guarda el resultado del intento:
+
+- `sent`
+- `skipped`
+- `failed`
+- `provider_not_configured`
+
+El proveedor es Resend y se llama server-side mediante `fetch`, sin SDK.
+
+Variables necesarias:
+
+- `RESERVATION_EMAIL_CONFIRMATIONS_ENABLED`
+- `RESEND_API_KEY`
+- `RESERVATION_EMAIL_FROM`
+- `RESERVATION_EMAIL_REPLY_TO`
+- `RESERVATION_EMAIL_GOOGLE_MAPS_URL`
+
+Si falta configuracion, no se llama a Resend y se registra `provider_not_configured`.
+
+El email no incluye comentarios del cliente, extras, alergias, notas internas, datos de facturacion, procedencia, UTM, IDs internos ni tracking data. En esta fase no se implementa SMS ni WhatsApp.

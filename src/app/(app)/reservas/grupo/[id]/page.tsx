@@ -59,6 +59,19 @@ type ExternalReservationSubmission = {
   ttclid: string | null;
 };
 
+type CustomerReservationNotification = {
+  id: string;
+  channel: 'email';
+  notification_type: 'reservation_confirmed';
+  recipient: string;
+  status: 'pending' | 'sent' | 'skipped' | 'failed' | 'provider_not_configured';
+  provider: string | null;
+  provider_message_id: string | null;
+  error_message: string | null;
+  sent_at: string | null;
+  created_at: string;
+};
+
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 export const fetchCache = 'force-no-store';
@@ -171,6 +184,39 @@ function ReservaGroupPilotStyles() {
   );
 }
 
+function getCustomerNotificationStatusLabel(status: CustomerReservationNotification['status']) {
+  switch (status) {
+    case 'sent':
+      return 'enviado';
+    case 'provider_not_configured':
+      return 'proveedor no configurado';
+    case 'failed':
+      return 'fallido';
+    case 'skipped':
+      return 'omitido';
+    case 'pending':
+      return 'pendiente';
+    default:
+      return status;
+  }
+}
+
+function formatNotificationDate(value: string | null) {
+  if (!value) {
+    return '-';
+  }
+
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) {
+    return value;
+  }
+
+  return new Intl.DateTimeFormat('es-ES', {
+    dateStyle: 'medium',
+    timeStyle: 'short',
+  }).format(parsed);
+}
+
 export default async function GroupReservationDetail({
   params,
   searchParams,
@@ -266,6 +312,16 @@ export default async function GroupReservationDetail({
 
   const externalSubmission = externalSubmissionData as ExternalReservationSubmission | null;
 
+  const { data: customerNotificationsData } = await supabaseAdmin
+    .from('customer_reservation_notifications')
+    .select(
+      'id, channel, notification_type, recipient, status, provider, provider_message_id, error_message, sent_at, created_at',
+    )
+    .eq('group_event_id', params.id)
+    .order('created_at', { ascending: false });
+
+  const customerNotifications = (customerNotificationsData ?? []) as CustomerReservationNotification[];
+
   const { data: partyRoomData } = reservation.party_room_id
     ? await supabaseAdmin
         .from('rooms')
@@ -342,6 +398,49 @@ export default async function GroupReservationDetail({
         externalSubmission={externalSubmission}
         backDate={dateParam}
       />
+
+      {customerNotifications.length > 0 && (
+        <section className="rounded-2xl border border-[#4a3f32]/70 bg-[#181715]/92 p-5 shadow-[0_24px_80px_-56px_rgba(0,0,0,0.95)] space-y-3">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[#d6a76e]">
+              Confirmacion al cliente
+            </p>
+            <h2 className="text-lg font-semibold text-[#f5eee4]">Estado del email</h2>
+          </div>
+
+          <div className="space-y-3">
+            {customerNotifications.map((notification) => (
+              <div
+                key={notification.id}
+                className="rounded-xl border border-[#4a3f32]/70 bg-[#11100e]/70 p-4 text-sm text-[#d8cfc2]"
+              >
+                <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                  <div>
+                    <p className="text-xs uppercase tracking-[0.14em] text-[#a89c8e]">Email</p>
+                    <p className="mt-1 font-semibold text-[#f5eee4]">
+                      {getCustomerNotificationStatusLabel(notification.status)}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-xs uppercase tracking-[0.14em] text-[#a89c8e]">Fecha envio</p>
+                    <p className="mt-1 text-[#f5eee4]">{formatNotificationDate(notification.sent_at)}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs uppercase tracking-[0.14em] text-[#a89c8e]">Destinatario</p>
+                    <p className="mt-1 break-all text-[#f5eee4]">{notification.recipient}</p>
+                  </div>
+                  {notification.error_message && (
+                    <div>
+                      <p className="text-xs uppercase tracking-[0.14em] text-[#a89c8e]">Error</p>
+                      <p className="mt-1 text-[#f0c58d]">{notification.error_message}</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
 
       <section className="rounded-2xl border border-[#4a3f32]/70 bg-[#181715]/92 p-5 shadow-[0_24px_80px_-56px_rgba(0,0,0,0.95)] space-y-3">
         <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">

@@ -132,6 +132,46 @@ Google Calendar sync continues to be driven by `group_events.status`. Pending re
 
 CRM data continues to come from `group_events.customer_*` fields and `group_events.customer_id`. This table should not become the operational CRM source of truth.
 
+## Customer confirmation email
+
+When Carla or another internal admin confirms an external reservation, the internal app can send a customer-facing confirmation email through Resend.
+
+The trigger condition is intentionally narrow:
+
+- the reservation had a previous status different from `confirmed`;
+- the new status is `confirmed`;
+- there is a row in `public.external_reservation_submissions` for the same `group_event_id`.
+
+Internal reservations created manually do not send customer confirmation emails in this phase.
+
+Idempotency is enforced by `public.customer_reservation_notifications` with a unique constraint on:
+
+```txt
+group_event_id + channel + notification_type
+```
+
+For this phase:
+
+- `channel = email`
+- `notification_type = reservation_confirmed`
+- provider is `resend`
+
+The helper creates a notification row before calling Resend. If that row already exists, it does not send another email.
+
+If `RESERVATION_EMAIL_CONFIRMATIONS_ENABLED` is not `true`, or `RESEND_API_KEY` / `RESERVATION_EMAIL_FROM` are missing, the helper does not call Resend and records `status = provider_not_configured`.
+
+If `group_events.customer_email` is missing or fails conservative validation, the helper records `status = skipped`.
+
+The email contains only:
+
+- customer name;
+- date;
+- time;
+- number of people;
+- Google Maps link.
+
+It does not include comments, extras, allergies, diets, internal notes, invoice data, attribution, UTM fields, click identifiers, internal IDs or tracking data.
+
 ## Internal ingest endpoint
 
 The internal app exposes `POST /api/external-reservation-requests` as a server-to-server ingest endpoint for public reservation requests coming from `Reserves_extern`.

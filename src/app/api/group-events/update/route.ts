@@ -5,6 +5,7 @@ import { getAllowlistRoleForUserEmail, isAdmin } from '@/lib/auth/requireRole';
 import { getRpcHttpStatus } from '@/lib/api/rpcError';
 import { isPartyRoomName } from '@/lib/reservations/roomMode';
 import { linkGroupEventCustomerFromSnapshot } from '@/lib/crm/customerLinking';
+import { sendExternalReservationConfirmationEmail } from '@/lib/server/customer-notifications/externalReservationConfirmationEmail';
 
 export const runtime = 'nodejs';
 
@@ -74,6 +75,20 @@ export async function POST(req: NextRequest) {
     delete sanitizedBody.room_notes;
 
     const supabase = createSupabaseAdminClient();
+    const groupEventId = String(body.id);
+
+    const { data: previousEvent, error: previousEventError } = await supabase
+      .from('group_events')
+      .select('status')
+      .eq('id', groupEventId)
+      .maybeSingle<{ status: string | null }>();
+
+    if (previousEventError || !previousEvent) {
+      const message = previousEventError?.message ?? 'Group event not found';
+      const serverError = NextResponse.json({ error: message }, { status: previousEventError ? 500 : 404 });
+      mergeResponseCookies(supabaseResponse, serverError);
+      return serverError;
+    }
 
     if (shouldUpdateRoom && requestedRoomId) {
       const { data: room, error: roomError } = await supabase
@@ -130,8 +145,6 @@ export async function POST(req: NextRequest) {
     }
 
     if (shouldUpdateRoom) {
-      const groupEventId = String(body.id);
-
       if (!requestedRoomId) {
         const { error: deleteRoomError } = await supabase
           .from('group_room_allocations')
@@ -201,6 +214,35 @@ export async function POST(req: NextRequest) {
       await linkGroupEventCustomerFromSnapshot(String(body.id), undefined, supabase);
     } catch (crmError) {
       console.error('[API] group-events/update CRM link failed', crmError);
+    }
+
+    const newStatus =
+      typeof sanitizedBody.status === 'string' && sanitizedBody.status.trim()
+        ? sanitizedBody.status.trim()
+        : previousEvent.status;
+
+    if (previousEvent.status !== 'confirmed' && newStatus === 'confirmed') {
+      const { data: externalSubmission, error: externalSubmissionError } = await supabase
+        .from('external_reservation_submissions')
+        .select('id')
+        .eq('group_event_id', groupEventId)
+        .maybeSingle<{ id: string }>();
+
+      if (externalSubmissionError) {
+        console.error('[API] group-events/update external submission lookup failed', {
+          groupEventId,
+          error: externalSubmissionError,
+        });
+      } else if (externalSubmission) {
+        try {
+          await sendExternalReservationConfirmationEmail(groupEventId, supabase);
+        } catch (notificationError) {
+          console.error('[API] group-events/update customer confirmation email failed', {
+            groupEventId,
+            error: notificationError,
+          });
+        }
+      }
     }
 
     const success = NextResponse.json({ success: true });
