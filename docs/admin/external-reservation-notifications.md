@@ -178,4 +178,4 @@ Variables necesarias:
 
 Si falta configuracion, no se llama a Resend y se registra `provider_not_configured`.
 
-El email no incluye comentarios del cliente, extras, alergias, notas internas, datos de facturacion, procedencia, UTM, IDs internos ni tracking data. En esta fase no se implementa SMS ni WhatsApp.
+El email no incluye comentarios del cliente, extras, alergias, notas internas, datos de facturacion, procedencia, UTM, IDs internos ni tracking data. La plantilla puede incluir un enlace publico de ayuda por WhatsApp, pero en esta fase no se implementa envio por SMS ni por WhatsApp.

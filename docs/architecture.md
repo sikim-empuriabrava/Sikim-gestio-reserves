@@ -32,6 +32,8 @@ The template sends only customer-facing reservation basics:
 - reservation date;
 - reservation time;
 - party size;
-- Google Maps link.
+- location link;
+- WhatsApp help link;
+- public social links.
 
 It must not include comments, extras, allergies, diets, internal notes, invoice data, source attribution, UTM fields, internal IDs or tracking data.
