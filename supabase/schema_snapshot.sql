@@ -3673,6 +3673,15 @@ CREATE TABLE public.external_reservation_submissions (
     submitted_at timestamp with time zone DEFAULT now() NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    confirmation_email_sent_at timestamp with time zone,
+    confirmation_email_attempted_at timestamp with time zone,
+    confirmation_email_to text,
+    confirmation_email_language text,
+    confirmation_email_provider text,
+    confirmation_email_provider_id text,
+    confirmation_email_error text,
+    CONSTRAINT external_reservation_submissions_confirmation_email_language_ch CHECK (((confirmation_email_language IS NULL) OR (confirmation_email_language = ANY (ARRAY['ca'::text, 'es'::text, 'fr'::text, 'en'::text, 'de'::text, 'nl'::text, 'it'::text])))),
+    CONSTRAINT external_reservation_submissions_confirmation_email_provider_ch CHECK (((confirmation_email_provider IS NULL) OR (confirmation_email_provider = 'resend'::text))),
     CONSTRAINT external_reservation_submissions_preferred_language_check CHECK (((preferred_language IS NULL) OR (preferred_language = ANY (ARRAY['ca'::text, 'es'::text, 'fr'::text, 'en'::text, 'de'::text, 'nl'::text, 'it'::text])))),
     CONSTRAINT external_reservation_submissions_source_label_not_empty CHECK ((btrim(source_label) <> ''::text))
 );
@@ -5243,6 +5252,20 @@ CREATE UNIQUE INDEX discotheque_capacity_sessions_one_open_per_venue_idx ON publ
 --
 
 CREATE INDEX discotheque_capacity_sessions_venue_opened_at_idx ON public.discotheque_capacity_sessions USING btree (venue_slug, opened_at DESC);
+
+
+--
+-- Name: external_reservation_submissions_confirmation_email_attempted_a; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX external_reservation_submissions_confirmation_email_attempted_a ON public.external_reservation_submissions USING btree (confirmation_email_attempted_at);
+
+
+--
+-- Name: external_reservation_submissions_confirmation_email_sent_at_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX external_reservation_submissions_confirmation_email_sent_at_idx ON public.external_reservation_submissions USING btree (confirmation_email_sent_at);
 
 
 --
@@ -7232,5 +7255,5 @@ ALTER TABLE public.web_push_subscriptions ENABLE ROW LEVEL SECURITY;
 -- PostgreSQL database dump complete
 --
 
-\unrestrict nN9jQQ8xgvDKLhVfvy2TyJcGcXMpavRODABlsdetlREwVJ60XpJexPmuofjMbTf
+\unrestrict 5fy5RDFis7dRIbxsZghWpY7Zz1gamQckOyrGR4MeHiqZBXGd2mGRQxWk8oVYi5N
 
