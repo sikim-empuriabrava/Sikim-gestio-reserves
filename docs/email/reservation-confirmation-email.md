@@ -19,6 +19,16 @@ buildReservationConfirmationEmail(input) => {
 }
 ```
 
+## Tracking e idempotencia
+
+La plantilla solo genera el contenido del email. No decide si se envia, no registra intentos y no aplica idempotencia.
+
+El tracking operativo especifico de confirmaciones de reservas externas vive en `public.external_reservation_submissions`.
+
+Los campos `confirmation_email_sent_at`, `confirmation_email_attempted_at`, `confirmation_email_to`, `confirmation_email_language`, `confirmation_email_provider`, `confirmation_email_provider_id` y `confirmation_email_error` preparan la idempotencia del flujo: si `confirmation_email_sent_at` ya existe, el envio automatico no debe reenviar la confirmacion.
+
+`confirmation_email_language` se derivara de `preferred_language` y `confirmation_email_provider` sera inicialmente `resend`. Esta documentacion de plantilla no activa envios, no registra tracking y no configura Resend.
+
 ## Arquitectura
 
 - Un unico template HTML base, construido con tablas y estilos inline.
