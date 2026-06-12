@@ -714,6 +714,13 @@ RLS: habilitado
 | `submitted_at` | `timestamp with time zone` | No | `now()` |
 | `created_at` | `timestamp with time zone` | No | `now()` |
 | `updated_at` | `timestamp with time zone` | No | `now()` |
+| `confirmation_email_sent_at` | `timestamp with time zone` | Sí |  |
+| `confirmation_email_attempted_at` | `timestamp with time zone` | Sí |  |
+| `confirmation_email_to` | `text` | Sí |  |
+| `confirmation_email_language` | `text` | Sí |  |
+| `confirmation_email_provider` | `text` | Sí |  |
+| `confirmation_email_provider_id` | `text` | Sí |  |
+| `confirmation_email_error` | `text` | Sí |  |
 
 ### external_tracking_integrations
 RLS: habilitado
