@@ -132,45 +132,27 @@ Google Calendar sync continues to be driven by `group_events.status`. Pending re
 
 CRM data continues to come from `group_events.customer_*` fields and `group_events.customer_id`. This table should not become the operational CRM source of truth.
 
-## Customer confirmation email
+## Email de confirmacion
 
-When Carla or another internal admin confirms an external reservation, the internal app can send a customer-facing confirmation email through Resend.
+`public.external_reservation_submissions` prepara el futuro envio de email al confirmar una reserva externa. Este PR solo anade tracking e idempotencia en base de datos para este flujo especifico: no envia emails, no conecta Resend y no cambia endpoints.
 
-The trigger condition is intentionally narrow:
+Campos de tracking:
 
-- the reservation had a previous status different from `confirmed`;
-- the new status is `confirmed`;
-- there is a row in `public.external_reservation_submissions` for the same `group_event_id`.
+- `confirmation_email_sent_at`: cuando el email se envio correctamente. Sera la fuente directa para evitar reenviar automaticamente la confirmacion si ya se envio.
+- `confirmation_email_attempted_at`: ultimo intento de envio, aunque haya fallado.
+- `confirmation_email_to`: email de destino usado en el envio.
+- `confirmation_email_language`: idioma usado para generar el email. Se derivara de `preferred_language`.
+- `confirmation_email_provider`: proveedor usado. Inicialmente sera `resend`.
+- `confirmation_email_provider_id`: identificador devuelto por el proveedor, por ejemplo el message id de Resend.
+- `confirmation_email_error`: ultimo error si el envio fallo. El PR de envio debera guardar mensajes cortos y sanitizados, no stack traces ni payloads completos.
 
-Internal reservations created manually do not send customer confirmation emails in this phase.
+Para este flujo especifico de reservas externas, los campos `confirmation_email_*` en `external_reservation_submissions` seran la fuente directa de idempotencia. La regla futura de envio debe ser idempotente: si `confirmation_email_sent_at` ya existe, no se debe reenviar automaticamente.
 
-Idempotency is enforced by `public.customer_reservation_notifications` with a unique constraint on:
+Si existe infraestructura generica como `public.customer_reservation_notifications`, queda fuera del alcance de este PR y no se modifica aqui. Este documento no elimina conceptualmente esa infraestructura; solo define donde vivira el tracking operativo directo de la confirmacion por email de reservas externas.
 
-```txt
-group_event_id + channel + notification_type
-```
+El PR posterior sera el que conecte Resend, genere el email con el idioma resuelto, ejecute el envio server-side y actualice estos campos. La plantilla de email vive documentada en [Email de confirmacion de reserva externa](../email/reservation-confirmation-email.md).
 
-For this phase:
-
-- `channel = email`
-- `notification_type = reservation_confirmed`
-- provider is `resend`
-
-The helper creates a notification row before calling Resend. If that row already exists, it does not send another email.
-
-If `RESERVATION_EMAIL_CONFIRMATIONS_ENABLED` is not `true`, or `RESEND_API_KEY` / `RESERVATION_EMAIL_FROM` are missing, the helper does not call Resend and records `status = provider_not_configured`.
-
-If `group_events.customer_email` is missing or fails conservative validation, the helper records `status = skipped`.
-
-The email contains only:
-
-- customer name;
-- date;
-- time;
-- number of people;
-- Google Maps link.
-
-It does not include comments, extras, allergies, diets, internal notes, invoice data, attribution, UTM fields, click identifiers, internal IDs or tracking data.
+El email no debe incluir comentarios, extras, alergias, dietas, notas internas, datos de facturacion, procedencia, UTM fields, click identifiers, internal IDs ni tracking data.
 
 ## Internal ingest endpoint
 
