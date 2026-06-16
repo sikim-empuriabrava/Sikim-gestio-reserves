@@ -100,6 +100,7 @@ function getEmailConfig() {
     process.env.RESERVATION_EMAIL_HERO_INCLUDES_LOGO?.trim().toLowerCase() === 'true';
   const logoImageUrl = process.env.RESERVATION_EMAIL_LOGO_IMAGE_URL?.trim() || null;
   const whatsappIconUrl = process.env.RESERVATION_EMAIL_WHATSAPP_ICON_URL?.trim() || null;
+  const whatsappHelpIconUrl = process.env.RESERVATION_EMAIL_WHATSAPP_HELP_ICON_URL?.trim() || null;
   const whatsappFooterIconUrl = process.env.RESERVATION_EMAIL_WHATSAPP_FOOTER_ICON_URL?.trim() || null;
   const instagramIconUrl = process.env.RESERVATION_EMAIL_INSTAGRAM_ICON_URL?.trim() || null;
   const facebookIconUrl = process.env.RESERVATION_EMAIL_FACEBOOK_ICON_URL?.trim() || null;
@@ -114,6 +115,7 @@ function getEmailConfig() {
     heroIncludesLogo,
     logoImageUrl,
     whatsappIconUrl,
+    whatsappHelpIconUrl,
     whatsappFooterIconUrl,
     instagramIconUrl,
     facebookIconUrl,
@@ -313,6 +315,7 @@ export async function sendExternalReservationConfirmationEmail(
       heroIncludesLogo: config.heroIncludesLogo,
       logoImageUrl: config.logoImageUrl,
       whatsappIconUrl: config.whatsappIconUrl,
+      whatsappHelpIconUrl: config.whatsappHelpIconUrl,
       whatsappFooterIconUrl: config.whatsappFooterIconUrl,
       instagramIconUrl: config.instagramIconUrl,
       facebookIconUrl: config.facebookIconUrl,

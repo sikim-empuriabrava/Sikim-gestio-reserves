@@ -77,6 +77,8 @@ for (const language of RESERVATION_EMAIL_LANGUAGES) {
   assert.ok(email.html.includes('Laura'), `${language} should include customer name`);
   assert.ok(email.html.includes('21:30'), `${language} should include time`);
   assert.ok(email.html.includes('4'), `${language} should include pax`);
+  assert.ok(email.html.includes('#fff7ef'), `${language} html should include the cream background`);
+  assert.ok(!email.html.includes('background:#2b2119'), `${language} html must not use the old dark brand band`);
   assert.ok(!email.html.includes('Sala'), `${language} html must not include Sala`);
   assert.ok(!email.text.includes('Sala'), `${language} text must not include Sala`);
   assert.ok(!email.html.includes('Ver reserva'), `${language} html must not include Ver reserva`);
@@ -107,6 +109,9 @@ assert.ok(formattedEmail.html.includes('Personas'));
 assert.ok(formattedEmail.html.includes('WhatsApp'));
 assert.ok(formattedEmail.html.includes('Cómo llegar'));
 assert.ok(!formattedEmail.html.includes('&#9586;'));
+assert.ok(formattedEmail.html.includes('>IG<'));
+assert.ok(formattedEmail.html.includes('>FB<'));
+assert.ok(formattedEmail.html.includes('>WA<'));
 
 const precomposedHeroEmail = buildReservationConfirmationEmail({
   ...baseInput,
@@ -137,14 +142,34 @@ const customIconEmail = buildReservationConfirmationEmail({
   ...baseInput,
   language: 'es',
   whatsappIconUrl: 'https://cdn.example.com/whatsapp.png',
-  whatsappFooterIconUrl: 'https://cdn.example.com/whatsapp-footer.png',
+  whatsappHelpIconUrl: 'https://cdn.example.com/whatsapp-help.png',
   instagramIconUrl: 'https://cdn.example.com/instagram.png',
   facebookIconUrl: 'https://cdn.example.com/facebook.png',
 });
+assert.ok(customIconEmail.html.includes('<img'));
+assert.ok(customIconEmail.html.includes('https://cdn.example.com/whatsapp-help.png'));
 assert.ok(customIconEmail.html.includes('https://cdn.example.com/whatsapp.png'));
-assert.ok(customIconEmail.html.includes('https://cdn.example.com/whatsapp-footer.png'));
 assert.ok(customIconEmail.html.includes('https://cdn.example.com/instagram.png'));
 assert.ok(customIconEmail.html.includes('https://cdn.example.com/facebook.png'));
+assert.ok(customIconEmail.html.includes('alt="Instagram"'));
+assert.ok(customIconEmail.html.includes('alt="Facebook"'));
+assert.ok(customIconEmail.html.includes('alt="WhatsApp"'));
+
+const invalidIconEmail = buildReservationConfirmationEmail({
+  ...baseInput,
+  language: 'es',
+  whatsappIconUrl: 'javascript:alert(1)',
+  whatsappHelpIconUrl: 'ftp://cdn.example.com/whatsapp-help.png',
+  instagramIconUrl: 'data:text/plain,IG',
+  facebookIconUrl: 'mailto:facebook@example.com',
+});
+assert.ok(!invalidIconEmail.html.includes('javascript:alert'));
+assert.ok(!invalidIconEmail.html.includes('ftp://cdn.example.com/whatsapp-help.png'));
+assert.ok(!invalidIconEmail.html.includes('data:text/plain'));
+assert.ok(!invalidIconEmail.html.includes('mailto:facebook@example.com'));
+assert.ok(invalidIconEmail.html.includes('>IG<'));
+assert.ok(invalidIconEmail.html.includes('>FB<'));
+assert.ok(invalidIconEmail.html.includes('>WA<'));
 
 const unsafeEmail = buildReservationConfirmationEmail({
   language: 'es',

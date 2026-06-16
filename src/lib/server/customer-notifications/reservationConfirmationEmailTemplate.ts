@@ -12,14 +12,8 @@ const EMAIL_ICON_CLOCK =
   'data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%2264%22 height=%2264%22 viewBox=%220 0 64 64%22 fill=%22none%22 stroke=%22%23ad7428%22 stroke-width=%223.5%22 stroke-linecap=%22round%22 stroke-linejoin=%22round%22%3E%3Ccircle cx=%2232%22 cy=%2232%22 r=%2222%22/%3E%3Cpath d=%22M32 18v16l11 7%22/%3E%3C/svg%3E';
 const EMAIL_ICON_PEOPLE =
   'data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%2264%22 height=%2264%22 viewBox=%220 0 64 64%22 fill=%22none%22 stroke=%22%23ad7428%22 stroke-width=%223.5%22 stroke-linecap=%22round%22 stroke-linejoin=%22round%22%3E%3Ccircle cx=%2232%22 cy=%2222%22 r=%227%22/%3E%3Cpath d=%22M18 50v-4c0-8 6-14 14-14s14 6 14 14v4%22/%3E%3Ccircle cx=%2217%22 cy=%2228%22 r=%225%22/%3E%3Cpath d=%22M8 50v-3c0-6 4-11 10-12%22/%3E%3Ccircle cx=%2247%22 cy=%2228%22 r=%225%22/%3E%3Cpath d=%22M56 50v-3c0-6-4-11-10-12%22/%3E%3C/svg%3E';
-const EMAIL_ICON_WHATSAPP =
-  'data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%2264%22 height=%2264%22 viewBox=%220 0 64 64%22%3E%3Ccircle cx=%2232%22 cy=%2232%22 r=%2225%22 fill=%22%23f1fff4%22 stroke=%22%23099b3d%22 stroke-width=%223%22/%3E%3Cpath d=%22M23 45l2-7c-2-3-3-6-3-9 0-8 6-14 14-14s14 6 14 14-6 14-14 14c-3 0-6-1-8-2l-5 4z%22 fill=%22none%22 stroke=%22%23099b3d%22 stroke-width=%223%22 stroke-linecap=%22round%22 stroke-linejoin=%22round%22/%3E%3Cpath d=%22M29 24c1 7 5 11 12 13%22 fill=%22none%22 stroke=%22%23099b3d%22 stroke-width=%223%22 stroke-linecap=%22round%22/%3E%3C/svg%3E';
 const EMAIL_ICON_LOCATION =
   'data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%2248%22 height=%2248%22 viewBox=%220 0 48 48%22 fill=%22none%22 stroke=%22white%22 stroke-width=%223%22 stroke-linecap=%22round%22 stroke-linejoin=%22round%22%3E%3Cpath d=%22M24 43s14-13 14-25a14 14 0 1 0-28 0c0 12 14 25 14 25z%22/%3E%3Ccircle cx=%2224%22 cy=%2218%22 r=%224%22/%3E%3C/svg%3E';
-const EMAIL_ICON_INSTAGRAM =
-  'data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%2248%22 height=%2248%22 viewBox=%220 0 48 48%22 fill=%22none%22 stroke=%22%23ad7428%22 stroke-width=%223%22 stroke-linecap=%22round%22 stroke-linejoin=%22round%22%3E%3Crect x=%2211%22 y=%2211%22 width=%2226%22 height=%2226%22 rx=%227%22/%3E%3Ccircle cx=%2224%22 cy=%2224%22 r=%226%22/%3E%3Ccircle cx=%2231%22 cy=%2217%22 r=%221.5%22 fill=%22%23ad7428%22 stroke=%22none%22/%3E%3C/svg%3E';
-const EMAIL_ICON_FACEBOOK =
-  'data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%2248%22 height=%2248%22 viewBox=%220 0 48 48%22%3E%3Ccircle cx=%2224%22 cy=%2224%22 r=%2219%22 fill=%22none%22 stroke=%22%23ad7428%22 stroke-width=%223%22/%3E%3Ctext x=%2224%22 y=%2233%22 text-anchor=%22middle%22 font-family=%22Georgia,serif%22 font-size=%2228%22 font-weight=%22700%22 fill=%22%23ad7428%22%3Ef%3C/text%3E%3C/svg%3E';
 
 export const RESERVATION_EMAIL_LANGUAGES = ['ca', 'es', 'fr', 'en', 'de', 'nl', 'it'] as const;
 
@@ -36,6 +30,7 @@ export type BuildReservationConfirmationEmailInput = {
   heroIncludesLogo?: boolean;
   logoImageUrl?: string | null;
   whatsappIconUrl?: string | null;
+  whatsappHelpIconUrl?: string | null;
   whatsappFooterIconUrl?: string | null;
   instagramIconUrl?: string | null;
   facebookIconUrl?: string | null;
@@ -400,20 +395,6 @@ function getOptionalImageUrl(value: string | null | undefined) {
   }
 }
 
-function getOptionalEmailImageSrc(value: string | null | undefined) {
-  const normalized = value?.trim();
-
-  if (!normalized) {
-    return null;
-  }
-
-  if (/^data:image\/(?:png|jpe?g|gif|webp|svg\+xml);base64,[a-z0-9+/=]+$/i.test(normalized)) {
-    return normalized;
-  }
-
-  return getOptionalImageUrl(normalized);
-}
-
 function renderHero(input: {
   heroImageUrl: string | null;
   heroIncludesLogo: boolean;
@@ -424,8 +405,8 @@ function renderHero(input: {
     ? `<img src="${escapeHtml(input.logoImageUrl)}" width="168" alt="${escapeHtml(
         input.translation.alt.logo,
       )}" style="display:block; width:168px; max-width:168px; height:auto; margin:0 auto; border:0;">`
-    : `<div style="font-family:Georgia, 'Times New Roman', serif; font-size:54px; line-height:1; font-weight:bold; color:#fffaf1; letter-spacing:0.01em;">Sikim</div>
-       <div style="padding-top:8px; font-family:Arial, Helvetica, sans-serif; font-size:11px; line-height:1.2; letter-spacing:0.34em; color:#d7ae74;">EMPURIABRAVA</div>`;
+    : `<div style="font-family:Georgia, 'Times New Roman', serif; font-size:54px; line-height:1; font-weight:bold; color:#171311; letter-spacing:0.01em;">Sikim</div>
+       <div style="padding-top:8px; font-family:Arial, Helvetica, sans-serif; font-size:11px; line-height:1.2; letter-spacing:0.34em; color:#b8792e;">EMPURIABRAVA</div>`;
 
   if (input.heroImageUrl) {
     const heroRow = `<tr>
@@ -442,17 +423,41 @@ function renderHero(input: {
 
     return `${heroRow}
     <tr>
-      <td align="center" style="padding:22px 24px 20px; background:#2b2119;">
+      <td align="center" style="padding:22px 24px 20px; background:#fff7ef;">
         ${logo}
       </td>
     </tr>`;
   }
 
   return `<tr>
-    <td align="center" style="padding:54px 24px 46px; background:#2b2119;">
+    <td align="center" style="padding:54px 24px 46px; background:#fff7ef;">
       ${logo}
     </td>
   </tr>`;
+}
+
+function renderOptionalIconImage(input: {
+  imageUrl: string | null;
+  alt: string;
+  fallback: string;
+  size: number;
+  color: string;
+  background?: string;
+  borderColor?: string;
+}) {
+  if (input.imageUrl) {
+    return `<img src="${escapeHtml(input.imageUrl)}" width="${input.size}" height="${input.size}" alt="${escapeHtml(
+      input.alt,
+    )}" style="display:block; width:${input.size}px; height:${input.size}px; border:0;">`;
+  }
+
+  return `<span style="display:inline-block; width:${input.size}px; height:${input.size}px; border:1px solid ${
+    input.borderColor ?? '#dfc8aa'
+  }; border-radius:${input.size}px; background:${
+    input.background ?? '#fffaf3'
+  }; color:${input.color}; font-family:Arial, Helvetica, sans-serif; font-size:11px; line-height:${
+    input.size
+  }px; text-align:center; font-weight:bold; letter-spacing:0.06em;">${escapeHtml(input.fallback)}</span>`;
 }
 
 function renderReservationDetailCell(iconUrl: string, label: string, value: string, isLast = false) {
@@ -490,10 +495,10 @@ function buildHtml(input: {
   heroImageUrl: string | null;
   heroIncludesLogo: boolean;
   logoImageUrl: string | null;
-  whatsappIconUrl: string;
-  whatsappFooterIconUrl: string;
-  instagramIconUrl: string;
-  facebookIconUrl: string;
+  whatsappIconUrl: string | null;
+  whatsappHelpIconUrl: string | null;
+  instagramIconUrl: string | null;
+  facebookIconUrl: string | null;
 }) {
   const preheader = `${input.translation.greeting(input.customerName)} ${input.translation.confirmation}`;
   const titlePadding = input.heroImageUrl && input.heroIncludesLogo ? '0 28px 0' : '30px 28px 0';
@@ -507,11 +512,11 @@ function buildHtml(input: {
     <meta name="x-apple-disable-message-reformatting">
     <title>${escapeHtml(input.translation.subject)}</title>
   </head>
-  <body style="margin:0; padding:0; background:#f4eee7; color:#201b18; font-family:Arial, Helvetica, sans-serif;">
+  <body style="margin:0; padding:0; background:#fff7ef; color:#201b18; font-family:Arial, Helvetica, sans-serif;">
     <div style="display:none; max-height:0; overflow:hidden; opacity:0; color:transparent; mso-hide:all;">${escapeHtml(
       preheader,
     )}</div>
-    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="width:100%; border-collapse:collapse; background:#f4eee7;">
+    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="width:100%; border-collapse:collapse; background:#fff7ef;">
       <tr>
         <td align="center" style="padding:28px 12px;">
           <table role="presentation" width="640" cellspacing="0" cellpadding="0" border="0" style="width:100%; max-width:640px; border-collapse:separate; border-spacing:0; background:#fff7ef; border:1px solid #ead8c2; border-radius:18px; overflow:hidden; box-shadow:0 14px 34px rgba(74, 47, 24, 0.15);">
@@ -576,9 +581,15 @@ function buildHtml(input: {
                       <a href="${escapeHtml(
                         RESERVATION_EMAIL_WHATSAPP_URL,
                       )}" style="display:inline-block; width:50px; height:50px; border:0; text-decoration:none;">
-                        <img src="${escapeHtml(
-                          input.whatsappIconUrl,
-                        )}" width="50" height="50" alt="WhatsApp" style="display:block; width:50px; height:50px; border:0;">
+                        ${renderOptionalIconImage({
+                          imageUrl: input.whatsappHelpIconUrl,
+                          alt: input.translation.socialLinks.whatsapp,
+                          fallback: 'WA',
+                          size: 42,
+                          color: '#0a8f35',
+                          background: '#f1fff4',
+                          borderColor: '#b7dfc2',
+                        })}
                       </a>
                     </td>
                     <td width="1" style="background:#e1c4b6; font-size:1px; line-height:1px;">&nbsp;</td>
@@ -631,25 +642,37 @@ function buildHtml(input: {
                   <tr>
                     <td align="center"><a href="${escapeHtml(
                       RESERVATION_EMAIL_INSTAGRAM_URL,
-                    )}" style="display:inline-block; width:34px; height:34px; text-decoration:none;"><img src="${escapeHtml(
-                      input.instagramIconUrl,
-                    )}" width="34" height="34" alt="${escapeHtml(
-                      input.translation.socialLinks.instagram,
-                    )}" style="display:block; width:34px; height:34px; border:0;"></a></td>
+                    )}" style="display:inline-block; width:26px; height:26px; text-decoration:none;">${renderOptionalIconImage(
+                      {
+                        imageUrl: input.instagramIconUrl,
+                        alt: input.translation.socialLinks.instagram,
+                        fallback: 'IG',
+                        size: 24,
+                        color: '#b8792e',
+                      },
+                    )}</a></td>
                     <td align="center"><a href="${escapeHtml(
                       RESERVATION_EMAIL_FACEBOOK_URL,
-                    )}" style="display:inline-block; width:34px; height:34px; text-decoration:none;"><img src="${escapeHtml(
-                      input.facebookIconUrl,
-                    )}" width="34" height="34" alt="${escapeHtml(
-                      input.translation.socialLinks.facebook,
-                    )}" style="display:block; width:34px; height:34px; border:0;"></a></td>
+                    )}" style="display:inline-block; width:26px; height:26px; text-decoration:none;">${renderOptionalIconImage(
+                      {
+                        imageUrl: input.facebookIconUrl,
+                        alt: input.translation.socialLinks.facebook,
+                        fallback: 'FB',
+                        size: 24,
+                        color: '#b8792e',
+                      },
+                    )}</a></td>
                     <td align="center"><a href="${escapeHtml(
                       RESERVATION_EMAIL_WHATSAPP_URL,
-                    )}" style="display:inline-block; width:34px; height:34px; text-decoration:none;"><img src="${escapeHtml(
-                      input.whatsappFooterIconUrl,
-                    )}" width="34" height="34" alt="${escapeHtml(
-                      input.translation.socialLinks.whatsapp,
-                    )}" style="display:block; width:34px; height:34px; border:0;"></a></td>
+                    )}" style="display:inline-block; width:26px; height:26px; text-decoration:none;">${renderOptionalIconImage(
+                      {
+                        imageUrl: input.whatsappIconUrl,
+                        alt: input.translation.socialLinks.whatsapp,
+                        fallback: 'WA',
+                        size: 24,
+                        color: '#0a8f35',
+                      },
+                    )}</a></td>
                   </tr>
                 </table>
               </td>
@@ -707,10 +730,10 @@ export function buildReservationConfirmationEmail(
   const heroImageUrl = getOptionalImageUrl(input.heroImageUrl);
   const heroIncludesLogo = input.heroIncludesLogo === true;
   const logoImageUrl = getOptionalImageUrl(input.logoImageUrl);
-  const whatsappIconUrl = getOptionalEmailImageSrc(input.whatsappIconUrl) ?? EMAIL_ICON_WHATSAPP;
-  const whatsappFooterIconUrl = getOptionalEmailImageSrc(input.whatsappFooterIconUrl) ?? whatsappIconUrl;
-  const instagramIconUrl = getOptionalEmailImageSrc(input.instagramIconUrl) ?? EMAIL_ICON_INSTAGRAM;
-  const facebookIconUrl = getOptionalEmailImageSrc(input.facebookIconUrl) ?? EMAIL_ICON_FACEBOOK;
+  const whatsappIconUrl = getOptionalImageUrl(input.whatsappIconUrl) ?? getOptionalImageUrl(input.whatsappFooterIconUrl);
+  const whatsappHelpIconUrl = getOptionalImageUrl(input.whatsappHelpIconUrl);
+  const instagramIconUrl = getOptionalImageUrl(input.instagramIconUrl);
+  const facebookIconUrl = getOptionalImageUrl(input.facebookIconUrl);
 
   return {
     language,
@@ -727,7 +750,7 @@ export function buildReservationConfirmationEmail(
       heroIncludesLogo,
       logoImageUrl,
       whatsappIconUrl,
-      whatsappFooterIconUrl,
+      whatsappHelpIconUrl,
       instagramIconUrl,
       facebookIconUrl,
     }),
