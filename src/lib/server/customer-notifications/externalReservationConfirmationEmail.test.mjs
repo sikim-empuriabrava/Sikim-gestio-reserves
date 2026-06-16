@@ -323,7 +323,7 @@ test('on success sends html and text to Resend and records sent tracking with pr
     RESERVATION_EMAIL_HERO_INCLUDES_LOGO: 'true',
     RESERVATION_EMAIL_LOGO_IMAGE_URL: 'https://cdn.example.com/sikim-logo.png',
     RESERVATION_EMAIL_WHATSAPP_ICON_URL: 'https://cdn.example.com/whatsapp.png',
-    RESERVATION_EMAIL_WHATSAPP_FOOTER_ICON_URL: 'https://cdn.example.com/whatsapp-footer.png',
+    RESERVATION_EMAIL_WHATSAPP_HELP_ICON_URL: 'https://cdn.example.com/whatsapp-help.png',
     RESERVATION_EMAIL_INSTAGRAM_ICON_URL: 'https://cdn.example.com/instagram.png',
     RESERVATION_EMAIL_FACEBOOK_ICON_URL: 'https://cdn.example.com/facebook.png',
   }, async () => {
@@ -345,8 +345,8 @@ test('on success sends html and text to Resend and records sent tracking with pr
     assert.ok(payload.text.length > 0);
     assert.ok(payload.html.includes('https://cdn.example.com/sikim-hero.jpg'));
     assert.ok(!payload.html.includes('https://cdn.example.com/sikim-logo.png'));
+    assert.ok(payload.html.includes('https://cdn.example.com/whatsapp-help.png'));
     assert.ok(payload.html.includes('https://cdn.example.com/whatsapp.png'));
-    assert.ok(payload.html.includes('https://cdn.example.com/whatsapp-footer.png'));
     assert.ok(payload.html.includes('https://cdn.example.com/instagram.png'));
     assert.ok(payload.html.includes('https://cdn.example.com/facebook.png'));
     assert.equal(request.init.headers['Idempotency-Key'], 'external-reservation-confirmation-group-event-1');

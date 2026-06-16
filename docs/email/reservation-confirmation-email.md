@@ -52,7 +52,7 @@ Opcionales:
 - `RESERVATION_EMAIL_HERO_INCLUDES_LOGO`
 - `RESERVATION_EMAIL_LOGO_IMAGE_URL`
 - `RESERVATION_EMAIL_WHATSAPP_ICON_URL`
-- `RESERVATION_EMAIL_WHATSAPP_FOOTER_ICON_URL`
+- `RESERVATION_EMAIL_WHATSAPP_HELP_ICON_URL`
 - `RESERVATION_EMAIL_INSTAGRAM_ICON_URL`
 - `RESERVATION_EMAIL_FACEBOOK_ICON_URL`
 
@@ -111,6 +111,7 @@ El `id` devuelto por Resend se guarda en `confirmation_email_provider_id`.
 ## Arquitectura
 
 - Un unico template HTML base, construido con tablas y estilos inline.
+- La version visual real usa un fondo claro calido. El color crema principal es `#fff7ef` y se aplica al fondo exterior, contenedor principal, zona bajo el hero y footer para evitar que clientes de email lo interpreten como una plantilla oscura.
 - Un diccionario `TRANSLATIONS` para `ca`, `es`, `fr`, `en`, `de`, `nl`, `it`.
 - `normalizeReservationEmailLanguage` acepta variantes como `en-GB` o `EN_us` y hace fallback a `es`.
 - Las fechas se formatean con `Intl.DateTimeFormat` y estos locales:
@@ -142,7 +143,7 @@ La plantilla acepta:
 - `heroIncludesLogo`
 - `logoImageUrl`
 - `whatsappIconUrl`
-- `whatsappFooterIconUrl`
+- `whatsappHelpIconUrl`
 - `instagramIconUrl`
 - `facebookIconUrl`
 
@@ -176,7 +177,16 @@ El template no hace overlay del logo sobre el hero con CSS. No depender de `back
 
 `RESERVATION_EMAIL_LOGO_IMAGE_URL` es opcional. Sirve como fallback para mostrar el logo por separado debajo del hero, o como cabecera de marca cuando no hay hero. No debe considerarse un mecanismo de overlay sobre la imagen principal.
 
-Los iconos de WhatsApp, Instagram y Facebook tambien pueden apuntar a imagenes publicas de Supabase Storage mediante `RESERVATION_EMAIL_WHATSAPP_ICON_URL`, `RESERVATION_EMAIL_WHATSAPP_FOOTER_ICON_URL`, `RESERVATION_EMAIL_INSTAGRAM_ICON_URL` y `RESERVATION_EMAIL_FACEBOOK_ICON_URL`. Si falta `RESERVATION_EMAIL_WHATSAPP_FOOTER_ICON_URL`, el footer reutiliza `RESERVATION_EMAIL_WHATSAPP_ICON_URL`. Si faltan todos, la plantilla usa iconos inline compatibles como fallback.
+Los iconos de Instagram, Facebook y WhatsApp tambien pueden apuntar a imagenes publicas de Supabase Storage, siempre via variables de entorno y nunca hardcodeando URLs de Storage en codigo:
+
+- `RESERVATION_EMAIL_INSTAGRAM_ICON_URL` para el icono Instagram del footer.
+- `RESERVATION_EMAIL_FACEBOOK_ICON_URL` para el icono Facebook del footer.
+- `RESERVATION_EMAIL_WHATSAPP_ICON_URL` para el icono WhatsApp del footer.
+- `RESERVATION_EMAIL_WHATSAPP_HELP_ICON_URL` para el icono verde del bloque de ayuda/cancelacion.
+
+La plantilla valida que esas variables sean URLs `http://` o `https://`. Si falta una URL o no es valida, el footer usa fallback textual `IG`, `FB` o `WA`; el bloque de ayuda usa fallback textual `WA`. Los enlaces de destino siguen siendo los enlaces oficiales de Instagram, Facebook y WhatsApp definidos en la plantilla.
+
+Los assets pueden vivir en Supabase Storage publico siempre que la URL final se configure como env var de servidor en Vercel o en el entorno local de prueba. No se deben commitear secrets ni URLs privadas.
 
 ## Contenido
 
