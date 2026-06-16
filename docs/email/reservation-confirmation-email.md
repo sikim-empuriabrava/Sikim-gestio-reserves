@@ -49,7 +49,12 @@ Opcionales:
 - `RESERVATION_EMAIL_LOCATION_URL`
 - `RESERVATION_EMAIL_GOOGLE_MAPS_URL` como alias compatible si no se define `RESERVATION_EMAIL_LOCATION_URL`
 - `RESERVATION_EMAIL_HERO_IMAGE_URL`
+- `RESERVATION_EMAIL_HERO_INCLUDES_LOGO`
 - `RESERVATION_EMAIL_LOGO_IMAGE_URL`
+- `RESERVATION_EMAIL_WHATSAPP_ICON_URL`
+- `RESERVATION_EMAIL_WHATSAPP_FOOTER_ICON_URL`
+- `RESERVATION_EMAIL_INSTAGRAM_ICON_URL`
+- `RESERVATION_EMAIL_FACEBOOK_ICON_URL`
 
 Ejemplos esperados, sin secrets:
 
@@ -134,15 +139,44 @@ Esta URL ya existia en la documentacion/env del repo como valor de Google Maps p
 La plantilla acepta:
 
 - `heroImageUrl`
+- `heroIncludesLogo`
 - `logoImageUrl`
+- `whatsappIconUrl`
+- `whatsappFooterIconUrl`
+- `instagramIconUrl`
+- `facebookIconUrl`
 
-Ambas deben apuntar a imagenes publicas (`http://` o `https://`) para que funcionen en clientes de email. Si faltan, el HTML mantiene una cabecera de marca compatible con email sin depender de assets locales.
+Las URLs de imagen deben apuntar a assets publicos (`http://` o `https://`) para que funcionen en clientes de email. Si faltan, el HTML mantiene una cabecera de marca compatible con email sin depender de assets locales.
 
 `RESERVATION_EMAIL_HERO_IMAGE_URL` debe apuntar preferiblemente a una imagen ya recortada al formato de cabecera del email. El template la renderiza como una imagen completa de ancho maximo `640px`, con `height:auto`, sin depender de CSS avanzado como `object-fit` u `object-position`, porque esos estilos no son fiables en todos los clientes de email.
 
-Cuando se busca maxima fidelidad al diseno aprobado, el asset de `RESERVATION_EMAIL_HERO_IMAGE_URL` debe ser una imagen precompuesta que ya incluya el logo Sikim integrado sobre la fotografia. El template actual no hace overlay del logo sobre el hero: si se proporciona `heroImageUrl`, la imagen se renderiza en una fila y el logo se renderiza despues en otra fila separada.
+Cuando se busca maxima fidelidad al diseno aprobado, el asset de `RESERVATION_EMAIL_HERO_IMAGE_URL` debe ser una imagen precompuesta que ya incluya el logo Sikim integrado sobre la fotografia. En Supabase Storage se recomienda una ruta publica estable como:
+
+```txt
+email-assets/reservation-confirmation/hero-with-logo.jpg
+```
+
+Si el asset usa una curva inferior, exportarlo con transparencia alfa real o con el mismo fondo crema final del email. No debe llevar un damero visible ni una zona blanca opaca distinta al fondo, porque eso rompe la continuidad visual entre hero y contenido. Para la version con curva transparente se puede usar una ruta publica como:
+
+```txt
+email-assets/reservation-confirmation/Hero w logo transparent.png
+```
+
+Si el hero ya lleva el logo integrado, configurar tambien:
+
+```txt
+RESERVATION_EMAIL_HERO_INCLUDES_LOGO=true
+```
+
+Con `RESERVATION_EMAIL_HERO_IMAGE_URL` y `RESERVATION_EMAIL_HERO_INCLUDES_LOGO=true`, la plantilla renderiza solo el hero y no renderiza ningun logo separado debajo.
+
+Si `RESERVATION_EMAIL_HERO_INCLUDES_LOGO` falta o no es exactamente `true`, se mantiene el comportamiento compatible: el hero se renderiza arriba y el logo/fallback de marca se renderiza despues en una fila separada.
+
+El template no hace overlay del logo sobre el hero con CSS. No depender de `background-image`, `position:absolute`, `object-fit` u otros overlays avanzados en email, porque no son fiables entre clientes.
 
 `RESERVATION_EMAIL_LOGO_IMAGE_URL` es opcional. Sirve como fallback para mostrar el logo por separado debajo del hero, o como cabecera de marca cuando no hay hero. No debe considerarse un mecanismo de overlay sobre la imagen principal.
+
+Los iconos de WhatsApp, Instagram y Facebook tambien pueden apuntar a imagenes publicas de Supabase Storage mediante `RESERVATION_EMAIL_WHATSAPP_ICON_URL`, `RESERVATION_EMAIL_WHATSAPP_FOOTER_ICON_URL`, `RESERVATION_EMAIL_INSTAGRAM_ICON_URL` y `RESERVATION_EMAIL_FACEBOOK_ICON_URL`. Si falta `RESERVATION_EMAIL_WHATSAPP_FOOTER_ICON_URL`, el footer reutiliza `RESERVATION_EMAIL_WHATSAPP_ICON_URL`. Si faltan todos, la plantilla usa iconos inline compatibles como fallback.
 
 ## Contenido
 
