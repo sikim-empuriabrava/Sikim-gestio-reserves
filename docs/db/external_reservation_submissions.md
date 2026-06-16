@@ -207,7 +207,7 @@ The endpoint accepts a strict JSON payload with:
 - `partySize` (`1-80`)
 - `contactName`
 - `phone`
-- `email` optional
+- `email` required, with valid email format; it is stored in `group_events.customer_email` and is required for the customer confirmation email when the reservation is confirmed internally
 - `comment` optional, stored as plain text in `group_events.extras`
 - `privacyAccepted` and it must be `true`
 - `preferredLanguage` optional: `ca`, `es`, `fr`, `en`, `de`, `nl`, `it`

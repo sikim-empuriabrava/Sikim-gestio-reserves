@@ -80,27 +80,27 @@ function optionalText(
   );
 }
 
-function optionalEmail(label: string) {
+function requiredEmail(label: string) {
   return z.preprocess(
     (value) => {
-      if (value === null || value === undefined) {
-        return null;
+      if (value === null) {
+        return undefined;
       }
 
       if (typeof value !== 'string') {
         return value;
       }
 
-      const normalized = normalizeSingleLineText(value);
-      return normalized.length > 0 ? normalized : null;
+      return normalizeSingleLineText(value);
     },
     z
       .string({
+        required_error: `${label} is required`,
         invalid_type_error: `${label} must be a string`,
       })
+      .min(1, `${label} is required`)
       .max(320, `${label} must be at most 320 characters`)
-      .email(`${label} must be a valid email`)
-      .nullable(),
+      .email(`${label} must be a valid email`),
   );
 }
 
@@ -196,7 +196,7 @@ const externalReservationRequestSchema = z
       .max(80, 'partySize must be between 1 and 80'),
     contactName: requiredText('contactName', 2, 120),
     phone: requiredText('phone', 6, 30),
-    email: optionalEmail('email'),
+    email: requiredEmail('email'),
     comment: optionalText('comment', 1000, normalizePlainText),
     privacyAccepted: z.literal(true, {
       errorMap: () => ({ message: 'privacyAccepted must be true' }),
