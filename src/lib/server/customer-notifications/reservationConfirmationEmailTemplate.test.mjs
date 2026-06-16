@@ -101,6 +101,50 @@ assert.ok(fallbackEmail.html.includes('Cómo llegar'));
 const formattedEmail = buildReservationConfirmationEmail({ ...baseInput, language: 'es' });
 assert.ok(formattedEmail.html.includes('domingo, 21 de junio de 2026'));
 assert.ok(formattedEmail.text.includes('Fecha: domingo, 21 de junio de 2026'));
+assert.ok(formattedEmail.html.includes('Fecha'));
+assert.ok(formattedEmail.html.includes('Hora'));
+assert.ok(formattedEmail.html.includes('Personas'));
+assert.ok(formattedEmail.html.includes('WhatsApp'));
+assert.ok(formattedEmail.html.includes('Cómo llegar'));
+assert.ok(!formattedEmail.html.includes('&#9586;'));
+
+const precomposedHeroEmail = buildReservationConfirmationEmail({
+  ...baseInput,
+  language: 'es',
+  heroIncludesLogo: true,
+});
+assert.ok(precomposedHeroEmail.html.includes('https://cdn.example.com/sikim-hero.jpg'));
+assert.ok(!precomposedHeroEmail.html.includes('https://cdn.example.com/sikim-logo.png'));
+
+const separateLogoEmail = buildReservationConfirmationEmail({
+  ...baseInput,
+  language: 'es',
+  heroIncludesLogo: false,
+});
+assert.ok(separateLogoEmail.html.includes('https://cdn.example.com/sikim-hero.jpg'));
+assert.ok(separateLogoEmail.html.includes('https://cdn.example.com/sikim-logo.png'));
+
+const noHeroFallbackEmail = buildReservationConfirmationEmail({
+  ...baseInput,
+  language: 'es',
+  heroImageUrl: null,
+  heroIncludesLogo: true,
+});
+assert.ok(!noHeroFallbackEmail.html.includes('https://cdn.example.com/sikim-hero.jpg'));
+assert.ok(noHeroFallbackEmail.html.includes('https://cdn.example.com/sikim-logo.png'));
+
+const customIconEmail = buildReservationConfirmationEmail({
+  ...baseInput,
+  language: 'es',
+  whatsappIconUrl: 'https://cdn.example.com/whatsapp.png',
+  whatsappFooterIconUrl: 'https://cdn.example.com/whatsapp-footer.png',
+  instagramIconUrl: 'https://cdn.example.com/instagram.png',
+  facebookIconUrl: 'https://cdn.example.com/facebook.png',
+});
+assert.ok(customIconEmail.html.includes('https://cdn.example.com/whatsapp.png'));
+assert.ok(customIconEmail.html.includes('https://cdn.example.com/whatsapp-footer.png'));
+assert.ok(customIconEmail.html.includes('https://cdn.example.com/instagram.png'));
+assert.ok(customIconEmail.html.includes('https://cdn.example.com/facebook.png'));
 
 const unsafeEmail = buildReservationConfirmationEmail({
   language: 'es',

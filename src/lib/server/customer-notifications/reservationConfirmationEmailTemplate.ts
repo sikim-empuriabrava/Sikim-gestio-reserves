@@ -6,6 +6,21 @@ export const RESERVATION_EMAIL_FACEBOOK_URL =
 export const DEFAULT_RESERVATION_EMAIL_LOCATION_URL =
   'https://www.google.com/maps/search/?api=1&query=Sikim%20Empuriabrava';
 
+const EMAIL_ICON_CALENDAR =
+  'data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%2264%22 height=%2264%22 viewBox=%220 0 64 64%22 fill=%22none%22 stroke=%22%23ad7428%22 stroke-width=%223.5%22 stroke-linecap=%22round%22 stroke-linejoin=%22round%22%3E%3Crect x=%2212%22 y=%2214%22 width=%2240%22 height=%2238%22 rx=%224%22/%3E%3Cpath d=%22M22 10v10M42 10v10M12 26h40M22 36h.1M32 36h.1M42 36h.1M22 44h.1M32 44h.1M42 44h.1%22/%3E%3C/svg%3E';
+const EMAIL_ICON_CLOCK =
+  'data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%2264%22 height=%2264%22 viewBox=%220 0 64 64%22 fill=%22none%22 stroke=%22%23ad7428%22 stroke-width=%223.5%22 stroke-linecap=%22round%22 stroke-linejoin=%22round%22%3E%3Ccircle cx=%2232%22 cy=%2232%22 r=%2222%22/%3E%3Cpath d=%22M32 18v16l11 7%22/%3E%3C/svg%3E';
+const EMAIL_ICON_PEOPLE =
+  'data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%2264%22 height=%2264%22 viewBox=%220 0 64 64%22 fill=%22none%22 stroke=%22%23ad7428%22 stroke-width=%223.5%22 stroke-linecap=%22round%22 stroke-linejoin=%22round%22%3E%3Ccircle cx=%2232%22 cy=%2222%22 r=%227%22/%3E%3Cpath d=%22M18 50v-4c0-8 6-14 14-14s14 6 14 14v4%22/%3E%3Ccircle cx=%2217%22 cy=%2228%22 r=%225%22/%3E%3Cpath d=%22M8 50v-3c0-6 4-11 10-12%22/%3E%3Ccircle cx=%2247%22 cy=%2228%22 r=%225%22/%3E%3Cpath d=%22M56 50v-3c0-6-4-11-10-12%22/%3E%3C/svg%3E';
+const EMAIL_ICON_WHATSAPP =
+  'data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%2264%22 height=%2264%22 viewBox=%220 0 64 64%22%3E%3Ccircle cx=%2232%22 cy=%2232%22 r=%2225%22 fill=%22%23f1fff4%22 stroke=%22%23099b3d%22 stroke-width=%223%22/%3E%3Cpath d=%22M23 45l2-7c-2-3-3-6-3-9 0-8 6-14 14-14s14 6 14 14-6 14-14 14c-3 0-6-1-8-2l-5 4z%22 fill=%22none%22 stroke=%22%23099b3d%22 stroke-width=%223%22 stroke-linecap=%22round%22 stroke-linejoin=%22round%22/%3E%3Cpath d=%22M29 24c1 7 5 11 12 13%22 fill=%22none%22 stroke=%22%23099b3d%22 stroke-width=%223%22 stroke-linecap=%22round%22/%3E%3C/svg%3E';
+const EMAIL_ICON_LOCATION =
+  'data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%2248%22 height=%2248%22 viewBox=%220 0 48 48%22 fill=%22none%22 stroke=%22white%22 stroke-width=%223%22 stroke-linecap=%22round%22 stroke-linejoin=%22round%22%3E%3Cpath d=%22M24 43s14-13 14-25a14 14 0 1 0-28 0c0 12 14 25 14 25z%22/%3E%3Ccircle cx=%2224%22 cy=%2218%22 r=%224%22/%3E%3C/svg%3E';
+const EMAIL_ICON_INSTAGRAM =
+  'data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%2248%22 height=%2248%22 viewBox=%220 0 48 48%22 fill=%22none%22 stroke=%22%23ad7428%22 stroke-width=%223%22 stroke-linecap=%22round%22 stroke-linejoin=%22round%22%3E%3Crect x=%2211%22 y=%2211%22 width=%2226%22 height=%2226%22 rx=%227%22/%3E%3Ccircle cx=%2224%22 cy=%2224%22 r=%226%22/%3E%3Ccircle cx=%2231%22 cy=%2217%22 r=%221.5%22 fill=%22%23ad7428%22 stroke=%22none%22/%3E%3C/svg%3E';
+const EMAIL_ICON_FACEBOOK =
+  'data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%2248%22 height=%2248%22 viewBox=%220 0 48 48%22%3E%3Ccircle cx=%2224%22 cy=%2224%22 r=%2219%22 fill=%22none%22 stroke=%22%23ad7428%22 stroke-width=%223%22/%3E%3Ctext x=%2224%22 y=%2233%22 text-anchor=%22middle%22 font-family=%22Georgia,serif%22 font-size=%2228%22 font-weight=%22700%22 fill=%22%23ad7428%22%3Ef%3C/text%3E%3C/svg%3E';
+
 export const RESERVATION_EMAIL_LANGUAGES = ['ca', 'es', 'fr', 'en', 'de', 'nl', 'it'] as const;
 
 export type ReservationEmailLanguage = (typeof RESERVATION_EMAIL_LANGUAGES)[number];
@@ -18,7 +33,12 @@ export type BuildReservationConfirmationEmailInput = {
   totalPax: number | null;
   locationUrl?: string | null;
   heroImageUrl?: string | null;
+  heroIncludesLogo?: boolean;
   logoImageUrl?: string | null;
+  whatsappIconUrl?: string | null;
+  whatsappFooterIconUrl?: string | null;
+  instagramIconUrl?: string | null;
+  facebookIconUrl?: string | null;
   /**
    * Backward-compatible alias for the existing sender. Prefer locationUrl in new code.
    */
@@ -380,8 +400,23 @@ function getOptionalImageUrl(value: string | null | undefined) {
   }
 }
 
+function getOptionalEmailImageSrc(value: string | null | undefined) {
+  const normalized = value?.trim();
+
+  if (!normalized) {
+    return null;
+  }
+
+  if (/^data:image\/(?:png|jpe?g|gif|webp|svg\+xml);base64,[a-z0-9+/=]+$/i.test(normalized)) {
+    return normalized;
+  }
+
+  return getOptionalImageUrl(normalized);
+}
+
 function renderHero(input: {
   heroImageUrl: string | null;
+  heroIncludesLogo: boolean;
   logoImageUrl: string | null;
   translation: ReservationEmailTranslation;
 }) {
@@ -393,15 +428,21 @@ function renderHero(input: {
        <div style="padding-top:8px; font-family:Arial, Helvetica, sans-serif; font-size:11px; line-height:1.2; letter-spacing:0.34em; color:#d7ae74;">EMPURIABRAVA</div>`;
 
   if (input.heroImageUrl) {
-    return `<tr>
-      <td style="padding:0; background:#2b2119;">
+    const heroRow = `<tr>
+      <td style="padding:0; background:#fff7ef;">
         <img src="${escapeHtml(input.heroImageUrl)}" width="640" alt="${escapeHtml(
           input.translation.alt.hero,
-        )}" style="display:block; width:100%; max-width:640px; height:auto; border:0;">
+        )}" style="display:block; width:100%; max-width:640px; height:auto; border:0; margin:0;">
       </td>
-    </tr>
+    </tr>`;
+
+    if (input.heroIncludesLogo) {
+      return heroRow;
+    }
+
+    return `${heroRow}
     <tr>
-      <td align="center" style="padding:24px 24px 22px; background:#2b2119;">
+      <td align="center" style="padding:22px 24px 20px; background:#2b2119;">
         ${logo}
       </td>
     </tr>`;
@@ -414,16 +455,27 @@ function renderHero(input: {
   </tr>`;
 }
 
-function renderReservationDetailCell(label: string, value: string, isLast = false) {
-  return `<td align="center" valign="top" width="33.33%" style="padding:24px 16px; ${
-    isLast ? '' : 'border-right:1px solid #dfc8aa;'
+function renderReservationDetailCell(iconUrl: string, label: string, value: string, isLast = false) {
+  return `<td align="center" valign="middle" width="33.33%" height="168" style="padding:22px 14px 24px; height:168px; ${
+    isLast ? '' : 'border-right:1px solid #d9b987;'
   }">
-    <div style="font-family:Arial, Helvetica, sans-serif; font-size:13px; line-height:1.2; letter-spacing:0.18em; text-transform:uppercase; color:#a66f24; font-weight:bold;">${escapeHtml(
-      label,
-    )}</div>
-    <div style="padding-top:16px; font-family:Georgia, 'Times New Roman', serif; font-size:25px; line-height:1.18; color:#201b18;">${escapeHtml(
-      value,
-    )}</div>
+    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="width:100%; border-collapse:collapse;">
+      <tr>
+        <td align="center" style="padding:0 0 14px;">
+          <img src="${iconUrl}" width="42" height="42" alt="" style="display:block; width:42px; height:42px; border:0; margin:0 auto;">
+        </td>
+      </tr>
+      <tr>
+        <td align="center" style="font-family:Arial, Helvetica, sans-serif; font-size:12px; line-height:1.2; letter-spacing:0.2em; text-transform:uppercase; color:#a36b21; font-weight:bold;">${escapeHtml(
+          label,
+        )}</td>
+      </tr>
+      <tr>
+        <td align="center" style="padding-top:15px; font-family:Georgia, 'Times New Roman', serif; font-size:25px; line-height:1.18; color:#171311; text-align:center;">${escapeHtml(
+          value,
+        )}</td>
+      </tr>
+    </table>
   </td>`;
 }
 
@@ -436,9 +488,16 @@ function buildHtml(input: {
   totalPax: string;
   locationUrl: string;
   heroImageUrl: string | null;
+  heroIncludesLogo: boolean;
   logoImageUrl: string | null;
+  whatsappIconUrl: string;
+  whatsappFooterIconUrl: string;
+  instagramIconUrl: string;
+  facebookIconUrl: string;
 }) {
   const preheader = `${input.translation.greeting(input.customerName)} ${input.translation.confirmation}`;
+  const titlePadding = input.heroImageUrl && input.heroIncludesLogo ? '0 28px 0' : '30px 28px 0';
+  const titleOverlap = input.heroImageUrl && input.heroIncludesLogo ? '-58px' : '0';
 
   return `<!doctype html>
 <html lang="${input.language}">
@@ -454,33 +513,39 @@ function buildHtml(input: {
     )}</div>
     <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="width:100%; border-collapse:collapse; background:#f4eee7;">
       <tr>
-        <td align="center" style="padding:30px 12px;">
-          <table role="presentation" width="640" cellspacing="0" cellpadding="0" border="0" style="width:100%; max-width:640px; border-collapse:separate; border-spacing:0; background:#fffaf3; border:1px solid #ead8c2; border-radius:20px; overflow:hidden; box-shadow:0 14px 36px rgba(74, 47, 24, 0.16);">
+        <td align="center" style="padding:28px 12px;">
+          <table role="presentation" width="640" cellspacing="0" cellpadding="0" border="0" style="width:100%; max-width:640px; border-collapse:separate; border-spacing:0; background:#fff7ef; border:1px solid #ead8c2; border-radius:18px; overflow:hidden; box-shadow:0 14px 34px rgba(74, 47, 24, 0.15);">
             ${renderHero({
               heroImageUrl: input.heroImageUrl,
+              heroIncludesLogo: input.heroIncludesLogo,
               logoImageUrl: input.logoImageUrl,
               translation: input.translation,
             })}
             <tr>
-              <td align="center" style="padding:34px 28px 0;">
-                <div style="font-size:24px; line-height:1; color:#b8782d;">&#9586;&#9586;&#9586;</div>
-                <h1 style="margin:18px 0 0; font-family:Georgia, 'Times New Roman', serif; font-size:46px; line-height:1.08; font-weight:400; color:#171311;">
-                  ${escapeHtml(input.translation.titlePrefix)}
-                  <span style="color:#d7196f; font-weight:700;">${escapeHtml(input.translation.titleAccent)}</span>
-                </h1>
-                <div style="padding:22px 0 0;">
-                  <table role="presentation" cellspacing="0" cellpadding="0" border="0" align="center" style="border-collapse:collapse;">
-                    <tr>
-                      <td width="122" style="border-top:1px solid #d8bb91; font-size:1px; line-height:1px;">&nbsp;</td>
-                      <td style="padding:0 12px; color:#b8782d; font-size:18px; line-height:1;">&#9671;</td>
-                      <td width="122" style="border-top:1px solid #d8bb91; font-size:1px; line-height:1px;">&nbsp;</td>
-                    </tr>
-                  </table>
-                </div>
+              <td align="center" style="padding:${titlePadding};">
+                <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" align="center" style="width:100%; border-collapse:collapse; margin-top:${titleOverlap};">
+                  <tr>
+                    <td align="center">
+                      <h1 style="margin:0; font-family:Georgia, 'Times New Roman', serif; font-size:46px; line-height:1.08; font-weight:400; color:#171311;">
+                        ${escapeHtml(input.translation.titlePrefix)}
+                        <span style="color:#d7196f; font-weight:700;">${escapeHtml(input.translation.titleAccent)}</span>
+                      </h1>
+                      <div style="padding:18px 0 0;">
+                        <table role="presentation" cellspacing="0" cellpadding="0" border="0" align="center" style="border-collapse:collapse;">
+                          <tr>
+                            <td width="122" style="border-top:1px solid #d8bb91; font-size:1px; line-height:1px;">&nbsp;</td>
+                            <td style="padding:0 12px; color:#b8782d; font-size:18px; line-height:1;">&#9671;</td>
+                            <td width="122" style="border-top:1px solid #d8bb91; font-size:1px; line-height:1px;">&nbsp;</td>
+                          </tr>
+                        </table>
+                      </div>
+                    </td>
+                  </tr>
+                </table>
               </td>
             </tr>
             <tr>
-              <td align="center" style="padding:22px 40px 0;">
+              <td align="center" style="padding:18px 42px 0;">
                 <p style="margin:0; font-size:17px; line-height:1.65; color:#1f2428;">
                   ${escapeHtml(input.translation.greeting(input.customerName))}
                   ${escapeHtml(input.translation.confirmation)}
@@ -488,24 +553,33 @@ function buildHtml(input: {
               </td>
             </tr>
             <tr>
-              <td style="padding:34px 46px 0;">
-                <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="width:100%; border-collapse:separate; border-spacing:0; background:#fffaf3; border:1px solid #e2c398; border-radius:14px;">
+              <td style="padding:30px 46px 0;">
+                <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="width:100%; border-collapse:separate; border-spacing:0; background:#fffaf6; border:1px solid #dcb77d; border-radius:14px; box-shadow:0 8px 18px rgba(140, 92, 39, 0.08);">
                   <tr>
-                    ${renderReservationDetailCell(input.translation.labels.date, input.eventDate)}
-                    ${renderReservationDetailCell(input.translation.labels.time, input.entryTime)}
-                    ${renderReservationDetailCell(input.translation.labels.people, input.totalPax, true)}
+                    ${renderReservationDetailCell(EMAIL_ICON_CALENDAR, input.translation.labels.date, input.eventDate)}
+                    ${renderReservationDetailCell(EMAIL_ICON_CLOCK, input.translation.labels.time, input.entryTime)}
+                    ${renderReservationDetailCell(
+                      EMAIL_ICON_PEOPLE,
+                      input.translation.labels.people,
+                      input.totalPax,
+                      true,
+                    )}
                   </tr>
                 </table>
               </td>
             </tr>
             <tr>
               <td style="padding:30px 46px 0;">
-                <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="width:100%; border-collapse:separate; border-spacing:0; background:#fff8f5; border:1px solid #ecd5cb; border-radius:14px;">
+                <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="width:100%; border-collapse:separate; border-spacing:0; background:#fff8f5; border:1px solid #ead3c8; border-radius:14px;">
                   <tr>
                     <td align="center" width="104" style="padding:18px 14px;">
                       <a href="${escapeHtml(
                         RESERVATION_EMAIL_WHATSAPP_URL,
-                      )}" style="display:inline-block; width:48px; height:48px; border:1px solid #e7cfc5; border-radius:24px; color:#0f9d3f; font-family:Arial, Helvetica, sans-serif; font-size:14px; line-height:48px; text-align:center; text-decoration:none; font-weight:bold;">WA</a>
+                      )}" style="display:inline-block; width:50px; height:50px; border:0; text-decoration:none;">
+                        <img src="${escapeHtml(
+                          input.whatsappIconUrl,
+                        )}" width="50" height="50" alt="WhatsApp" style="display:block; width:50px; height:50px; border:0;">
+                      </a>
                     </td>
                     <td width="1" style="background:#e1c4b6; font-size:1px; line-height:1px;">&nbsp;</td>
                     <td style="padding:18px 24px;">
@@ -526,12 +600,14 @@ function buildHtml(input: {
               <td align="center" style="padding:22px 28px 26px;">
                 <table role="presentation" cellspacing="0" cellpadding="0" border="0" align="center" style="border-collapse:separate; border-spacing:0;">
                   <tr>
-                    <td align="center" bgcolor="#b8792e" style="border-radius:9px; box-shadow:0 4px 10px rgba(135, 84, 28, 0.24);">
+                    <td align="center" bgcolor="#b8792e" width="330" style="border-radius:9px; box-shadow:0 4px 10px rgba(135, 84, 28, 0.24);">
                       <a href="${escapeHtml(
                         input.locationUrl,
-                      )}" style="display:inline-block; padding:15px 72px; border-radius:9px; background:#b8792e; color:#fffdf8; font-family:Georgia, 'Times New Roman', serif; font-size:18px; line-height:1.2; letter-spacing:0.12em; text-transform:uppercase; text-decoration:none;">${escapeHtml(
-                        input.translation.directionsCta,
-                      )}</a>
+                      )}" style="display:block; padding:15px 20px; border-radius:9px; background:#b8792e; color:#fffdf8; font-family:Georgia, 'Times New Roman', serif; font-size:18px; line-height:1.2; letter-spacing:0.12em; text-transform:uppercase; text-decoration:none;">
+                        <img src="${EMAIL_ICON_LOCATION}" width="22" height="22" alt="" style="display:inline-block; width:22px; height:22px; border:0; vertical-align:-5px;">&nbsp;&nbsp;${escapeHtml(
+                          input.translation.directionsCta,
+                        )}
+                      </a>
                     </td>
                   </tr>
                 </table>
@@ -539,17 +615,15 @@ function buildHtml(input: {
             </tr>
             <tr>
               <td align="center" style="padding:0 28px;">
-                <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="border-collapse:collapse;">
+                <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="width:100%; border-collapse:collapse;">
                   <tr>
-                    <td style="border-top:1px solid #d8bb91; font-size:1px; line-height:1px;">&nbsp;</td>
-                    <td width="52" align="center" style="color:#b8782d; font-size:18px; line-height:1;">&#9586;&#9586;</td>
                     <td style="border-top:1px solid #d8bb91; font-size:1px; line-height:1px;">&nbsp;</td>
                   </tr>
                 </table>
               </td>
             </tr>
             <tr>
-              <td align="center" style="padding:18px 28px 26px;">
+              <td align="center" style="padding:18px 28px 28px;">
                 <p style="margin:0 0 12px; font-family:Georgia, 'Times New Roman', serif; font-size:21px; line-height:1.2; color:#1f1b18; font-weight:bold;">${escapeHtml(
                   input.translation.footerBrand,
                 )}</p>
@@ -557,13 +631,25 @@ function buildHtml(input: {
                   <tr>
                     <td align="center"><a href="${escapeHtml(
                       RESERVATION_EMAIL_INSTAGRAM_URL,
-                    )}" style="display:inline-block; min-width:34px; padding:8px 10px; border:1px solid #bf8439; border-radius:18px; color:#a66f24; font-size:12px; line-height:1; text-decoration:none; font-weight:bold;">IG</a></td>
+                    )}" style="display:inline-block; width:34px; height:34px; text-decoration:none;"><img src="${escapeHtml(
+                      input.instagramIconUrl,
+                    )}" width="34" height="34" alt="${escapeHtml(
+                      input.translation.socialLinks.instagram,
+                    )}" style="display:block; width:34px; height:34px; border:0;"></a></td>
                     <td align="center"><a href="${escapeHtml(
                       RESERVATION_EMAIL_FACEBOOK_URL,
-                    )}" style="display:inline-block; min-width:34px; padding:8px 10px; border:1px solid #bf8439; border-radius:18px; color:#a66f24; font-size:12px; line-height:1; text-decoration:none; font-weight:bold;">FB</a></td>
+                    )}" style="display:inline-block; width:34px; height:34px; text-decoration:none;"><img src="${escapeHtml(
+                      input.facebookIconUrl,
+                    )}" width="34" height="34" alt="${escapeHtml(
+                      input.translation.socialLinks.facebook,
+                    )}" style="display:block; width:34px; height:34px; border:0;"></a></td>
                     <td align="center"><a href="${escapeHtml(
                       RESERVATION_EMAIL_WHATSAPP_URL,
-                    )}" style="display:inline-block; min-width:34px; padding:8px 10px; border:1px solid #bf8439; border-radius:18px; color:#a66f24; font-size:12px; line-height:1; text-decoration:none; font-weight:bold;">WA</a></td>
+                    )}" style="display:inline-block; width:34px; height:34px; text-decoration:none;"><img src="${escapeHtml(
+                      input.whatsappFooterIconUrl,
+                    )}" width="34" height="34" alt="${escapeHtml(
+                      input.translation.socialLinks.whatsapp,
+                    )}" style="display:block; width:34px; height:34px; border:0;"></a></td>
                   </tr>
                 </table>
               </td>
@@ -619,7 +705,12 @@ export function buildReservationConfirmationEmail(
     DEFAULT_RESERVATION_EMAIL_LOCATION_URL,
   );
   const heroImageUrl = getOptionalImageUrl(input.heroImageUrl);
+  const heroIncludesLogo = input.heroIncludesLogo === true;
   const logoImageUrl = getOptionalImageUrl(input.logoImageUrl);
+  const whatsappIconUrl = getOptionalEmailImageSrc(input.whatsappIconUrl) ?? EMAIL_ICON_WHATSAPP;
+  const whatsappFooterIconUrl = getOptionalEmailImageSrc(input.whatsappFooterIconUrl) ?? whatsappIconUrl;
+  const instagramIconUrl = getOptionalEmailImageSrc(input.instagramIconUrl) ?? EMAIL_ICON_INSTAGRAM;
+  const facebookIconUrl = getOptionalEmailImageSrc(input.facebookIconUrl) ?? EMAIL_ICON_FACEBOOK;
 
   return {
     language,
@@ -633,7 +724,12 @@ export function buildReservationConfirmationEmail(
       totalPax,
       locationUrl,
       heroImageUrl,
+      heroIncludesLogo,
       logoImageUrl,
+      whatsappIconUrl,
+      whatsappFooterIconUrl,
+      instagramIconUrl,
+      facebookIconUrl,
     }),
     text: buildText({
       translation,
