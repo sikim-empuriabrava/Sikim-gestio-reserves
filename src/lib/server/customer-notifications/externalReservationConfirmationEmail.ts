@@ -2,7 +2,10 @@ import 'server-only';
 
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { createSupabaseAdminClient } from '@/lib/supabaseAdmin';
-import { buildReservationConfirmationEmail } from './reservationConfirmationEmailTemplate';
+import {
+  buildReservationConfirmationEmail,
+  normalizeReservationEmailLanguage,
+} from './reservationConfirmationEmailTemplate';
 
 type SupabaseAdminClient = SupabaseClient;
 
@@ -18,23 +21,31 @@ type GroupEventRow = {
   status: string | null;
 };
 
-type NotificationRow = {
+type ExternalReservationSubmissionRow = {
   id: string;
-  status: string;
+  preferred_language: string | null;
+  confirmation_email_sent_at: string | null;
 };
 
-type NotificationStatus = 'pending' | 'sent' | 'skipped' | 'failed' | 'provider_not_configured';
-
-const CHANNEL = 'email';
-const NOTIFICATION_TYPE = 'reservation_confirmed';
 const PROVIDER = 'resend';
 const NOT_CONFIGURED_MESSAGE = 'Email provider is not configured';
 const INVALID_EMAIL_MESSAGE = 'Missing or invalid customer email.';
 const RESEND_EMAILS_ENDPOINT = 'https://api.resend.com/emails';
 const RESEND_TIMEOUT_MS = 8000;
+const MAX_TRACKING_ERROR_LENGTH = 240;
 
 function getErrorMessage(error: unknown) {
   return error instanceof Error ? error.message : String(error);
+}
+
+function sanitizeTrackingError(error: unknown) {
+  const message = getErrorMessage(error).replace(/[\u0000-\u001f\u007f]+/g, ' ').replace(/\s+/g, ' ').trim();
+  const fallback = 'Unknown email provider error';
+  const sanitized = message || fallback;
+
+  return sanitized.length > MAX_TRACKING_ERROR_LENGTH
+    ? `${sanitized.slice(0, MAX_TRACKING_ERROR_LENGTH - 3)}...`
+    : sanitized;
 }
 
 function isAbortError(error: unknown) {
@@ -80,14 +91,21 @@ function getEmailConfig() {
   const apiKey = process.env.RESEND_API_KEY?.trim() ?? '';
   const from = process.env.RESERVATION_EMAIL_FROM?.trim() ?? '';
   const replyTo = process.env.RESERVATION_EMAIL_REPLY_TO?.trim() || null;
-  const googleMapsUrl = process.env.RESERVATION_EMAIL_GOOGLE_MAPS_URL?.trim() || null;
+  const locationUrl =
+    process.env.RESERVATION_EMAIL_LOCATION_URL?.trim() ||
+    process.env.RESERVATION_EMAIL_GOOGLE_MAPS_URL?.trim() ||
+    null;
+  const heroImageUrl = process.env.RESERVATION_EMAIL_HERO_IMAGE_URL?.trim() || null;
+  const logoImageUrl = process.env.RESERVATION_EMAIL_LOGO_IMAGE_URL?.trim() || null;
 
   return {
     enabled,
     apiKey,
     from,
     replyTo,
-    googleMapsUrl,
+    locationUrl,
+    heroImageUrl,
+    logoImageUrl,
     isConfigured: enabled && Boolean(apiKey) && Boolean(from),
   };
 }
@@ -110,35 +128,15 @@ async function loadReservation(supabase: SupabaseAdminClient, groupEventId: stri
   return data ?? null;
 }
 
-async function isExternalReservation(supabase: SupabaseAdminClient, groupEventId: string) {
+async function loadExternalSubmission(supabase: SupabaseAdminClient, groupEventId: string) {
   const { data, error } = await supabase
     .from('external_reservation_submissions')
-    .select('id')
+    .select('id, preferred_language, confirmation_email_sent_at')
     .eq('group_event_id', groupEventId)
-    .maybeSingle<{ id: string }>();
+    .maybeSingle<ExternalReservationSubmissionRow>();
 
   if (error) {
-    console.error('[customer-notifications] Failed to verify external submission', {
-      groupEventId,
-      error,
-    });
-    return false;
-  }
-
-  return Boolean(data);
-}
-
-async function getExistingNotification(supabase: SupabaseAdminClient, groupEventId: string) {
-  const { data, error } = await supabase
-    .from('customer_reservation_notifications')
-    .select('id, status')
-    .eq('group_event_id', groupEventId)
-    .eq('channel', CHANNEL)
-    .eq('notification_type', NOTIFICATION_TYPE)
-    .maybeSingle<NotificationRow>();
-
-  if (error) {
-    console.error('[customer-notifications] Failed to load existing notification', {
+    console.error('[customer-notifications] Failed to load external submission', {
       groupEventId,
       error,
     });
@@ -148,124 +146,34 @@ async function getExistingNotification(supabase: SupabaseAdminClient, groupEvent
   return data ?? null;
 }
 
-async function upsertNonSendingNotification(
+async function updateExternalSubmissionTracking(
   supabase: SupabaseAdminClient,
-  reservation: GroupEventRow,
-  recipient: string,
-  status: Exclude<NotificationStatus, 'pending' | 'sent' | 'failed'>,
-  errorMessage: string,
-) {
-  const email = buildReservationConfirmationEmail({
-    customerName: reservation.customer_name,
-    eventDate: reservation.event_date,
-    entryTime: reservation.entry_time,
-    totalPax: getTotalPax(reservation),
-    googleMapsUrl: getEmailConfig().googleMapsUrl,
-  });
-
-  const { error } = await supabase
-    .from('customer_reservation_notifications')
-    .upsert(
-      {
-        group_event_id: reservation.id,
-        channel: CHANNEL,
-        notification_type: NOTIFICATION_TYPE,
-        recipient,
-        recipient_name_snapshot: reservation.customer_name,
-        status,
-        provider: PROVIDER,
-        provider_message_id: null,
-        subject_snapshot: email.subject,
-        body_text_snapshot: email.text,
-        payload_snapshot: {
-          eventDate: reservation.event_date,
-          entryTime: reservation.entry_time,
-          totalPax: getTotalPax(reservation),
-        },
-        error_message: errorMessage,
-        sent_at: null,
-      },
-      { onConflict: 'group_event_id,channel,notification_type' },
-    );
-
-  if (error) {
-    console.error('[customer-notifications] Failed to upsert non-sending notification', {
-      groupEventId: reservation.id,
-      status,
-      error,
-    });
-  }
-}
-
-async function createPendingNotification(
-  supabase: SupabaseAdminClient,
-  reservation: GroupEventRow,
-  recipient: string,
-  subject: string,
-  bodyText: string,
-) {
-  const { data, error } = await supabase
-    .from('customer_reservation_notifications')
-    .insert({
-      group_event_id: reservation.id,
-      channel: CHANNEL,
-      notification_type: NOTIFICATION_TYPE,
-      recipient,
-      recipient_name_snapshot: reservation.customer_name,
-      status: 'pending',
-      provider: PROVIDER,
-      provider_message_id: null,
-      subject_snapshot: subject,
-      body_text_snapshot: bodyText,
-      payload_snapshot: {
-        eventDate: reservation.event_date,
-        entryTime: reservation.entry_time,
-        totalPax: getTotalPax(reservation),
-      },
-      error_message: null,
-      sent_at: null,
-    })
-    .select('id, status')
-    .single<NotificationRow>();
-
-  if (error?.code === '23505') {
-    return null;
-  }
-
-  if (error) {
-    console.error('[customer-notifications] Failed to create pending notification', {
-      groupEventId: reservation.id,
-      error,
-    });
-    return null;
-  }
-
-  return data;
-}
-
-async function markNotification(
-  supabase: SupabaseAdminClient,
-  notificationId: string,
+  submissionId: string,
   patch: {
-    status: Exclude<NotificationStatus, 'pending' | 'skipped' | 'provider_not_configured'>;
-    providerMessageId?: string | null;
-    errorMessage?: string | null;
+    attemptedAt: string;
+    sentAt?: string | null;
+    recipient: string | null;
+    language: string;
+    providerId: string | null;
+    errorMessage: string | null;
   },
 ) {
   const { error } = await supabase
-    .from('customer_reservation_notifications')
+    .from('external_reservation_submissions')
     .update({
-      status: patch.status,
-      provider_message_id: patch.providerMessageId ?? null,
-      error_message: patch.errorMessage ?? null,
-      sent_at: patch.status === 'sent' ? new Date().toISOString() : null,
+      confirmation_email_sent_at: patch.sentAt ?? null,
+      confirmation_email_attempted_at: patch.attemptedAt,
+      confirmation_email_to: patch.recipient,
+      confirmation_email_language: patch.language,
+      confirmation_email_provider: PROVIDER,
+      confirmation_email_provider_id: patch.providerId,
+      confirmation_email_error: patch.errorMessage,
     })
-    .eq('id', notificationId);
+    .eq('id', submissionId);
 
   if (error) {
-    console.error('[customer-notifications] Failed to update notification status', {
-      notificationId,
-      status: patch.status,
+    console.error('[customer-notifications] Failed to update external confirmation email tracking', {
+      submissionId,
       error,
     });
   }
@@ -279,6 +187,7 @@ async function sendWithResend(input: {
   subject: string;
   html: string;
   text: string;
+  idempotencyKey: string;
 }) {
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), RESEND_TIMEOUT_MS);
@@ -292,6 +201,7 @@ async function sendWithResend(input: {
       headers: {
         Authorization: `Bearer ${input.apiKey}`,
         'Content-Type': 'application/json',
+        'Idempotency-Key': input.idempotencyKey,
       },
       body: JSON.stringify({
         from: input.from,
@@ -333,64 +243,64 @@ export async function sendExternalReservationConfirmationEmail(
       return;
     }
 
-    if (!(await isExternalReservation(supabase, groupEventId))) {
+    if (reservation.status !== 'confirmed') {
       return;
     }
 
-    const existingNotification = await getExistingNotification(supabase, groupEventId);
+    const externalSubmission = await loadExternalSubmission(supabase, groupEventId);
 
-    if (existingNotification?.status === 'sent') {
+    if (!externalSubmission || externalSubmission.confirmation_email_sent_at) {
       return;
     }
 
     const recipient = normalizeCustomerEmail(reservation.customer_email);
+    const language = normalizeReservationEmailLanguage(externalSubmission.preferred_language);
+    const attemptedAt = new Date().toISOString();
 
     if (!isValidCustomerEmail(recipient)) {
-      await upsertNonSendingNotification(
+      await updateExternalSubmissionTracking(
         supabase,
-        reservation,
-        recipient || 'missing',
-        'skipped',
-        INVALID_EMAIL_MESSAGE,
+        externalSubmission.id,
+        {
+          attemptedAt,
+          sentAt: null,
+          recipient: recipient || null,
+          language,
+          providerId: null,
+          errorMessage: INVALID_EMAIL_MESSAGE,
+        },
       );
       return;
     }
 
     const config = getEmailConfig();
-    const email = buildReservationConfirmationEmail({
-      customerName: reservation.customer_name,
-      eventDate: reservation.event_date,
-      entryTime: reservation.entry_time,
-      totalPax: getTotalPax(reservation),
-      googleMapsUrl: config.googleMapsUrl,
-    });
 
     if (!config.isConfigured) {
-      await upsertNonSendingNotification(
+      await updateExternalSubmissionTracking(
         supabase,
-        reservation,
-        recipient,
-        'provider_not_configured',
-        NOT_CONFIGURED_MESSAGE,
+        externalSubmission.id,
+        {
+          attemptedAt,
+          sentAt: null,
+          recipient,
+          language,
+          providerId: null,
+          errorMessage: NOT_CONFIGURED_MESSAGE,
+        },
       );
       return;
     }
 
-    if (existingNotification) {
-      return;
-    }
-
-    const pendingNotification = await createPendingNotification(
-      supabase,
-      reservation,
-      recipient,
-      email.subject,
-      email.text,
-    );
-
-    if (!pendingNotification) {
-      return;
-    }
+    const email = buildReservationConfirmationEmail({
+      language,
+      customerName: reservation.customer_name,
+      eventDate: reservation.event_date,
+      entryTime: reservation.entry_time,
+      totalPax: getTotalPax(reservation),
+      locationUrl: config.locationUrl,
+      heroImageUrl: config.heroImageUrl,
+      logoImageUrl: config.logoImageUrl,
+    });
 
     try {
       const providerMessageId = await sendWithResend({
@@ -401,16 +311,38 @@ export async function sendExternalReservationConfirmationEmail(
         subject: email.subject,
         html: email.html,
         text: email.text,
+        idempotencyKey: `external-reservation-confirmation-${groupEventId}`,
       });
+      const sentAt = new Date().toISOString();
 
-      await markNotification(supabase, pendingNotification.id, {
-        status: 'sent',
-        providerMessageId,
-      });
+      await updateExternalSubmissionTracking(
+        supabase,
+        externalSubmission.id,
+        {
+          attemptedAt,
+          sentAt,
+          recipient,
+          language: email.language,
+          providerId: providerMessageId,
+          errorMessage: null,
+        },
+      );
     } catch (error) {
-      await markNotification(supabase, pendingNotification.id, {
-        status: 'failed',
-        errorMessage: getErrorMessage(error),
+      await updateExternalSubmissionTracking(
+        supabase,
+        externalSubmission.id,
+        {
+          attemptedAt,
+          sentAt: null,
+          recipient,
+          language: email.language,
+          providerId: null,
+          errorMessage: sanitizeTrackingError(error),
+        },
+      );
+      console.error('[customer-notifications] Reservation confirmation email failed', {
+        groupEventId,
+        error,
       });
     }
   } catch (error) {

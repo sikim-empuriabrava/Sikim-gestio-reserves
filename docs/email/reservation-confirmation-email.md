@@ -8,7 +8,7 @@ La plantilla de confirmacion de reserva externa vive en:
 src/lib/server/customer-notifications/reservationConfirmationEmailTemplate.ts
 ```
 
-El modulo no envia emails. Solo construye el payload preparado para un proveedor como Resend:
+El modulo de plantilla no envia emails. Solo construye el payload preparado para un proveedor como Resend:
 
 ```ts
 buildReservationConfirmationEmail(input) => {
@@ -19,15 +19,89 @@ buildReservationConfirmationEmail(input) => {
 }
 ```
 
+## Envio automatico
+
+El envio server-side vive en:
+
+```txt
+src/lib/server/customer-notifications/externalReservationConfirmationEmail.ts
+```
+
+Se ejecuta en la app interna cuando una reserva operativa externa pasa a:
+
+```txt
+group_events.status = 'confirmed'
+```
+
+La ruta de actualizacion de reservas llama al helper de forma best-effort. Si Resend falla, si falta configuracion o si el cliente no tiene email valido, la reserva ya confirmada no debe volver a error para el usuario interno.
+
+## Configuracion
+
+El envio real requiere variables de entorno de servidor:
+
+- `RESERVATION_EMAIL_CONFIRMATIONS_ENABLED=true`
+- `RESEND_API_KEY`
+- `RESERVATION_EMAIL_FROM`
+
+Opcionales:
+
+- `RESERVATION_EMAIL_REPLY_TO`
+- `RESERVATION_EMAIL_LOCATION_URL`
+- `RESERVATION_EMAIL_GOOGLE_MAPS_URL` como alias compatible si no se define `RESERVATION_EMAIL_LOCATION_URL`
+- `RESERVATION_EMAIL_HERO_IMAGE_URL`
+- `RESERVATION_EMAIL_LOGO_IMAGE_URL`
+
+Ejemplos esperados, sin secrets:
+
+```txt
+RESERVATION_EMAIL_FROM="Sikim Empuriabrava <booking@sikimempuriabrava.com>"
+RESERVATION_EMAIL_REPLY_TO="booking@sikimempuriabrava.com"
+```
+
+Si `RESERVATION_EMAIL_CONFIRMATIONS_ENABLED` no es `true`, falta `RESEND_API_KEY` o falta `RESERVATION_EMAIL_FROM`, no se llama a Resend y se guarda `Email provider is not configured` en el tracking.
+
 ## Tracking e idempotencia
 
-La plantilla solo genera el contenido del email. No decide si se envia, no registra intentos y no aplica idempotencia.
-
-El tracking operativo especifico de confirmaciones de reservas externas vive en `public.external_reservation_submissions`.
+La plantilla solo genera el contenido del email. La decision de envio, los intentos y la idempotencia del flujo externo V1 viven en `public.external_reservation_submissions`.
 
 Los campos `confirmation_email_sent_at`, `confirmation_email_attempted_at`, `confirmation_email_to`, `confirmation_email_language`, `confirmation_email_provider`, `confirmation_email_provider_id` y `confirmation_email_error` preparan la idempotencia del flujo: si `confirmation_email_sent_at` ya existe, el envio automatico no debe reenviar la confirmacion.
 
-`confirmation_email_language` se derivara de `preferred_language` y `confirmation_email_provider` sera inicialmente `resend`. Esta documentacion de plantilla no activa envios, no registra tracking y no configura Resend.
+`confirmation_email_language` se deriva de `preferred_language` y `confirmation_email_provider` es inicialmente `resend`. Si `preferred_language` es nulo o invalido, se usa `es` y ese idioma resuelto se guarda en el tracking.
+
+`customer_reservation_notifications` queda fuera del alcance de este flujo V1. No se elimina ni se migra aqui, pero no es la fuente principal de idempotencia para confirmaciones externas.
+
+## Resend
+
+El proveedor inicial es Resend, sin dependencia nueva. El helper llama a:
+
+```txt
+POST https://api.resend.com/emails
+```
+
+Con payload:
+
+```ts
+{
+  from,
+  to: [recipient],
+  subject,
+  html,
+  text,
+  ...(replyTo ? { reply_to: replyTo } : {})
+}
+```
+
+Y headers:
+
+```ts
+{
+  Authorization: `Bearer ${apiKey}`,
+  "Content-Type": "application/json",
+  "Idempotency-Key": `external-reservation-confirmation-${groupEventId}`
+}
+```
+
+El `id` devuelto por Resend se guarda en `confirmation_email_provider_id`.
 
 ## Arquitectura
 
@@ -63,6 +137,12 @@ La plantilla acepta:
 - `logoImageUrl`
 
 Ambas deben apuntar a imagenes publicas (`http://` o `https://`) para que funcionen en clientes de email. Si faltan, el HTML mantiene una cabecera de marca compatible con email sin depender de assets locales.
+
+`RESERVATION_EMAIL_HERO_IMAGE_URL` debe apuntar preferiblemente a una imagen ya recortada al formato de cabecera del email. El template la renderiza como una imagen completa de ancho maximo `640px`, con `height:auto`, sin depender de CSS avanzado como `object-fit` u `object-position`, porque esos estilos no son fiables en todos los clientes de email.
+
+Cuando se busca maxima fidelidad al diseno aprobado, el asset de `RESERVATION_EMAIL_HERO_IMAGE_URL` debe ser una imagen precompuesta que ya incluya el logo Sikim integrado sobre la fotografia. El template actual no hace overlay del logo sobre el hero: si se proporciona `heroImageUrl`, la imagen se renderiza en una fila y el logo se renderiza despues en otra fila separada.
+
+`RESERVATION_EMAIL_LOGO_IMAGE_URL` es opcional. Sirve como fallback para mostrar el logo por separado debajo del hero, o como cabecera de marca cuando no hay hero. No debe considerarse un mecanismo de overlay sobre la imagen principal.
 
 ## Contenido
 

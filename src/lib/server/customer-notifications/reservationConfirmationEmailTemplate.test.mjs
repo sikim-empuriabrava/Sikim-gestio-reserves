@@ -5,7 +5,13 @@ import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
 const require = createRequire(import.meta.url);
-const ts = require('typescript');
+let ts = null;
+
+try {
+  ts = require('typescript');
+} catch {
+  ts = null;
+}
 
 const templatePath = join(
   process.cwd(),
@@ -16,19 +22,25 @@ const templatePath = join(
   'reservationConfirmationEmailTemplate.ts',
 );
 
-const source = readFileSync(templatePath, 'utf8');
-const compiled = ts.transpileModule(source, {
-  compilerOptions: {
-    module: ts.ModuleKind.CommonJS,
-    target: ts.ScriptTarget.ES2020,
-  },
-});
-
 const moduleUrl = pathToFileURL(templatePath).href;
-const compiledModule = { exports: {} };
-const loadTemplate = new Function('exports', 'module', 'require', '__filename', '__dirname', compiled.outputText);
+async function loadTemplateModule() {
+  if (!ts) {
+    return import(moduleUrl);
+  }
 
-loadTemplate(compiledModule.exports, compiledModule, require, templatePath, process.cwd());
+  const source = readFileSync(templatePath, 'utf8');
+  const compiled = ts.transpileModule(source, {
+    compilerOptions: {
+      module: ts.ModuleKind.CommonJS,
+      target: ts.ScriptTarget.ES2020,
+    },
+  });
+  const compiledModule = { exports: {} };
+  const loadTemplate = new Function('exports', 'module', 'require', '__filename', '__dirname', compiled.outputText);
+
+  loadTemplate(compiledModule.exports, compiledModule, require, templatePath, process.cwd());
+  return compiledModule.exports;
+}
 
 const {
   buildReservationConfirmationEmail,
@@ -38,7 +50,7 @@ const {
   RESERVATION_EMAIL_INSTAGRAM_URL,
   RESERVATION_EMAIL_FACEBOOK_URL,
   DEFAULT_RESERVATION_EMAIL_LOCATION_URL,
-} = compiledModule.exports;
+} = await loadTemplateModule();
 
 const baseInput = {
   customerName: 'Laura',
@@ -67,6 +79,8 @@ for (const language of RESERVATION_EMAIL_LANGUAGES) {
   assert.ok(email.html.includes('4'), `${language} should include pax`);
   assert.ok(!email.html.includes('Sala'), `${language} html must not include Sala`);
   assert.ok(!email.text.includes('Sala'), `${language} text must not include Sala`);
+  assert.ok(!email.html.includes('Ver reserva'), `${language} html must not include Ver reserva`);
+  assert.ok(!email.text.includes('Ver reserva'), `${language} text must not include Ver reserva`);
   assert.ok(!email.html.includes('Te esperamos'), `${language} html must not include removed sentence`);
   assert.ok(!email.text.includes('Te esperamos'), `${language} text must not include removed sentence`);
   assert.ok(email.text.includes(RESERVATION_EMAIL_WHATSAPP_URL), `${language} text should include WhatsApp`);

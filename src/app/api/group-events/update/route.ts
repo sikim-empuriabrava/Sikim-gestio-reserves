@@ -222,26 +222,13 @@ export async function POST(req: NextRequest) {
         : previousEvent.status;
 
     if (previousEvent.status !== 'confirmed' && newStatus === 'confirmed') {
-      const { data: externalSubmission, error: externalSubmissionError } = await supabase
-        .from('external_reservation_submissions')
-        .select('id')
-        .eq('group_event_id', groupEventId)
-        .maybeSingle<{ id: string }>();
-
-      if (externalSubmissionError) {
-        console.error('[API] group-events/update external submission lookup failed', {
+      try {
+        await sendExternalReservationConfirmationEmail(groupEventId, supabase);
+      } catch (notificationError) {
+        console.error('[API] group-events/update customer confirmation email failed', {
           groupEventId,
-          error: externalSubmissionError,
+          error: notificationError,
         });
-      } else if (externalSubmission) {
-        try {
-          await sendExternalReservationConfirmationEmail(groupEventId, supabase);
-        } catch (notificationError) {
-          console.error('[API] group-events/update customer confirmation email failed', {
-            groupEventId,
-            error: notificationError,
-          });
-        }
       }
     }
 
