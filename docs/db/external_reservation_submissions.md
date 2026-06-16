@@ -134,7 +134,15 @@ CRM data continues to come from `group_events.customer_*` fields and `group_even
 
 ## Email de confirmacion
 
-`public.external_reservation_submissions` prepara el futuro envio de email al confirmar una reserva externa. Este PR solo anade tracking e idempotencia en base de datos para este flujo especifico: no envia emails, no conecta Resend y no cambia endpoints.
+`public.external_reservation_submissions` es la fuente directa de tracking e idempotencia para el envio V1 del email de confirmacion de reservas externas.
+
+El envio ocurre desde la app interna cuando una reserva operativa asociada a una submission externa pasa de un estado distinto a `confirmed` a:
+
+```txt
+group_events.status = 'confirmed'
+```
+
+La deteccion de reserva externa se hace buscando una fila en `external_reservation_submissions` con el mismo `group_event_id`.
 
 Campos de tracking:
 
@@ -144,13 +152,38 @@ Campos de tracking:
 - `confirmation_email_language`: idioma usado para generar el email. Se derivara de `preferred_language`.
 - `confirmation_email_provider`: proveedor usado. Inicialmente sera `resend`.
 - `confirmation_email_provider_id`: identificador devuelto por el proveedor, por ejemplo el message id de Resend.
-- `confirmation_email_error`: ultimo error si el envio fallo. El PR de envio debera guardar mensajes cortos y sanitizados, no stack traces ni payloads completos.
+- `confirmation_email_error`: ultimo error si el envio fallo. Debe guardar mensajes cortos y sanitizados, no stack traces ni payloads completos.
 
-Para este flujo especifico de reservas externas, los campos `confirmation_email_*` en `external_reservation_submissions` seran la fuente directa de idempotencia. La regla futura de envio debe ser idempotente: si `confirmation_email_sent_at` ya existe, no se debe reenviar automaticamente.
+Para este flujo especifico de reservas externas, los campos `confirmation_email_*` en `external_reservation_submissions` son la fuente directa de idempotencia. La regla de envio es idempotente: si `confirmation_email_sent_at` ya existe, no se reenvia automaticamente.
+
+El idioma del email sale de `external_reservation_submissions.preferred_language`. Si el valor es nulo o invalido, el helper usa `es` y guarda el idioma realmente usado en `confirmation_email_language`.
+
+El proveedor inicial es Resend. Para activar el envio real en entorno servidor hacen falta:
+
+- `RESERVATION_EMAIL_CONFIRMATIONS_ENABLED=true`
+- `RESEND_API_KEY`
+- `RESERVATION_EMAIL_FROM`
+
+Opcionales:
+
+- `RESERVATION_EMAIL_REPLY_TO`
+- `RESERVATION_EMAIL_LOCATION_URL`
+- `RESERVATION_EMAIL_GOOGLE_MAPS_URL` como alias compatible de ubicacion
+- `RESERVATION_EMAIL_HERO_IMAGE_URL`
+- `RESERVATION_EMAIL_LOGO_IMAGE_URL`
+
+Ejemplos sin secrets:
+
+```txt
+RESERVATION_EMAIL_FROM="Sikim Empuriabrava <booking@sikimempuriabrava.com>"
+RESERVATION_EMAIL_REPLY_TO="booking@sikimempuriabrava.com"
+```
+
+Si falta configuracion, falta email valido del cliente o Resend falla, el helper guarda `confirmation_email_attempted_at`, destino/idioma/proveedor y un `confirmation_email_error` corto. El fallo del email es best-effort: no debe bloquear la confirmacion de la reserva interna cuando la reserva ya se actualizo correctamente.
 
 Si existe infraestructura generica como `public.customer_reservation_notifications`, queda fuera del alcance de este PR y no se modifica aqui. Este documento no elimina conceptualmente esa infraestructura; solo define donde vivira el tracking operativo directo de la confirmacion por email de reservas externas.
 
-El PR posterior sera el que conecte Resend, genere el email con el idioma resuelto, ejecute el envio server-side y actualice estos campos. La plantilla de email vive documentada en [Email de confirmacion de reserva externa](../email/reservation-confirmation-email.md).
+La plantilla de email vive documentada en [Email de confirmacion de reserva externa](../email/reservation-confirmation-email.md).
 
 El email no debe incluir comentarios, extras, alergias, dietas, notas internas, datos de facturacion, procedencia, UTM fields, click identifiers, internal IDs ni tracking data.
 
