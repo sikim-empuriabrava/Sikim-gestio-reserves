@@ -6,15 +6,6 @@ export const RESERVATION_EMAIL_FACEBOOK_URL =
 export const DEFAULT_RESERVATION_EMAIL_LOCATION_URL =
   'https://www.google.com/maps/search/?api=1&query=Sikim%20Empuriabrava';
 
-const EMAIL_ICON_CALENDAR =
-  'data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%2264%22 height=%2264%22 viewBox=%220 0 64 64%22 fill=%22none%22 stroke=%22%23ad7428%22 stroke-width=%223.5%22 stroke-linecap=%22round%22 stroke-linejoin=%22round%22%3E%3Crect x=%2212%22 y=%2214%22 width=%2240%22 height=%2238%22 rx=%224%22/%3E%3Cpath d=%22M22 10v10M42 10v10M12 26h40M22 36h.1M32 36h.1M42 36h.1M22 44h.1M32 44h.1M42 44h.1%22/%3E%3C/svg%3E';
-const EMAIL_ICON_CLOCK =
-  'data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%2264%22 height=%2264%22 viewBox=%220 0 64 64%22 fill=%22none%22 stroke=%22%23ad7428%22 stroke-width=%223.5%22 stroke-linecap=%22round%22 stroke-linejoin=%22round%22%3E%3Ccircle cx=%2232%22 cy=%2232%22 r=%2222%22/%3E%3Cpath d=%22M32 18v16l11 7%22/%3E%3C/svg%3E';
-const EMAIL_ICON_PEOPLE =
-  'data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%2264%22 height=%2264%22 viewBox=%220 0 64 64%22 fill=%22none%22 stroke=%22%23ad7428%22 stroke-width=%223.5%22 stroke-linecap=%22round%22 stroke-linejoin=%22round%22%3E%3Ccircle cx=%2232%22 cy=%2222%22 r=%227%22/%3E%3Cpath d=%22M18 50v-4c0-8 6-14 14-14s14 6 14 14v4%22/%3E%3Ccircle cx=%2217%22 cy=%2228%22 r=%225%22/%3E%3Cpath d=%22M8 50v-3c0-6 4-11 10-12%22/%3E%3Ccircle cx=%2247%22 cy=%2228%22 r=%225%22/%3E%3Cpath d=%22M56 50v-3c0-6-4-11-10-12%22/%3E%3C/svg%3E';
-const EMAIL_ICON_LOCATION =
-  'data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%2248%22 height=%2248%22 viewBox=%220 0 48 48%22 fill=%22none%22 stroke=%22white%22 stroke-width=%223%22 stroke-linecap=%22round%22 stroke-linejoin=%22round%22%3E%3Cpath d=%22M24 43s14-13 14-25a14 14 0 1 0-28 0c0 12 14 25 14 25z%22/%3E%3Ccircle cx=%2224%22 cy=%2218%22 r=%224%22/%3E%3C/svg%3E';
-
 export const RESERVATION_EMAIL_LANGUAGES = ['ca', 'es', 'fr', 'en', 'de', 'nl', 'it'] as const;
 
 export type ReservationEmailLanguage = (typeof RESERVATION_EMAIL_LANGUAGES)[number];
@@ -460,23 +451,18 @@ function renderOptionalIconImage(input: {
   }px; text-align:center; font-weight:bold; letter-spacing:0.06em;">${escapeHtml(input.fallback)}</span>`;
 }
 
-function renderReservationDetailCell(iconUrl: string, label: string, value: string, isLast = false) {
-  return `<td align="center" valign="middle" width="33.33%" height="168" style="padding:22px 14px 24px; height:168px; ${
+function renderReservationDetailCell(label: string, value: string, isLast = false) {
+  return `<td align="center" valign="middle" width="33.33%" style="padding:28px 16px 30px; ${
     isLast ? '' : 'border-right:1px solid #d9b987;'
   }">
     <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="width:100%; border-collapse:collapse;">
-      <tr>
-        <td align="center" style="padding:0 0 14px;">
-          <img src="${iconUrl}" width="42" height="42" alt="" style="display:block; width:42px; height:42px; border:0; margin:0 auto;">
-        </td>
-      </tr>
       <tr>
         <td align="center" style="font-family:Arial, Helvetica, sans-serif; font-size:12px; line-height:1.2; letter-spacing:0.2em; text-transform:uppercase; color:#a36b21; font-weight:bold;">${escapeHtml(
           label,
         )}</td>
       </tr>
       <tr>
-        <td align="center" style="padding-top:15px; font-family:Georgia, 'Times New Roman', serif; font-size:25px; line-height:1.18; color:#171311; text-align:center;">${escapeHtml(
+        <td align="center" style="padding-top:16px; font-family:Georgia, 'Times New Roman', serif; font-size:25px; line-height:1.18; color:#171311; text-align:center;">${escapeHtml(
           value,
         )}</td>
       </tr>
@@ -561,14 +547,9 @@ function buildHtml(input: {
               <td style="padding:30px 46px 0;">
                 <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="width:100%; border-collapse:separate; border-spacing:0; background:#fffaf6; border:1px solid #dcb77d; border-radius:14px; box-shadow:0 8px 18px rgba(140, 92, 39, 0.08);">
                   <tr>
-                    ${renderReservationDetailCell(EMAIL_ICON_CALENDAR, input.translation.labels.date, input.eventDate)}
-                    ${renderReservationDetailCell(EMAIL_ICON_CLOCK, input.translation.labels.time, input.entryTime)}
-                    ${renderReservationDetailCell(
-                      EMAIL_ICON_PEOPLE,
-                      input.translation.labels.people,
-                      input.totalPax,
-                      true,
-                    )}
+                    ${renderReservationDetailCell(input.translation.labels.date, input.eventDate)}
+                    ${renderReservationDetailCell(input.translation.labels.time, input.entryTime)}
+                    ${renderReservationDetailCell(input.translation.labels.people, input.totalPax, true)}
                   </tr>
                 </table>
               </td>
@@ -614,8 +595,8 @@ function buildHtml(input: {
                     <td align="center" bgcolor="#b8792e" width="330" style="border-radius:9px; box-shadow:0 4px 10px rgba(135, 84, 28, 0.24);">
                       <a href="${escapeHtml(
                         input.locationUrl,
-                      )}" style="display:block; padding:15px 20px; border-radius:9px; background:#b8792e; color:#fffdf8; font-family:Georgia, 'Times New Roman', serif; font-size:18px; line-height:1.2; letter-spacing:0.12em; text-transform:uppercase; text-decoration:none;">
-                        <img src="${EMAIL_ICON_LOCATION}" width="22" height="22" alt="" style="display:inline-block; width:22px; height:22px; border:0; vertical-align:-5px;">&nbsp;&nbsp;${escapeHtml(
+                      )}" style="display:block; padding:15px 20px; border-radius:9px; background:#b8792e; color:#fffdf8; font-family:Georgia, 'Times New Roman', serif; font-size:18px; line-height:1.2; letter-spacing:0.12em; text-transform:uppercase; text-decoration:none; text-align:center;">
+                        ${escapeHtml(
                           input.translation.directionsCta,
                         )}
                       </a>

@@ -112,6 +112,8 @@ El `id` devuelto por Resend se guarda en `confirmation_email_provider_id`.
 
 - Un unico template HTML base, construido con tablas y estilos inline.
 - La version visual real usa un fondo claro calido. El color crema principal es `#fff7ef` y se aplica al fondo exterior, contenedor principal, zona bajo el hero y footer para evitar que clientes de email lo interpreten como una plantilla oscura.
+- La card de resumen muestra solo `Fecha`, `Hora` y `Personas`, con separadores verticales, labels en dorado y valores en serif. No renderiza iconos decorativos en esos bloques para evitar imagenes rotas en Gmail movil y otros clientes de email.
+- El CTA `Como llegar` se renderiza solo como texto maquetado dentro del boton. No usa icono decorativo para evitar placeholders o imagenes rotas.
 - Un diccionario `TRANSLATIONS` para `ca`, `es`, `fr`, `en`, `de`, `nl`, `it`.
 - `normalizeReservationEmailLanguage` acepta variantes como `en-GB` o `EN_us` y hace fallback a `es`.
 - Las fechas se formatean con `Intl.DateTimeFormat` y estos locales:
@@ -149,18 +151,12 @@ La plantilla acepta:
 
 Las URLs de imagen deben apuntar a assets publicos (`http://` o `https://`) para que funcionen en clientes de email. Si faltan, el HTML mantiene una cabecera de marca compatible con email sin depender de assets locales.
 
-`RESERVATION_EMAIL_HERO_IMAGE_URL` debe apuntar preferiblemente a una imagen ya recortada al formato de cabecera del email. El template la renderiza como una imagen completa de ancho maximo `640px`, con `height:auto`, sin depender de CSS avanzado como `object-fit` u `object-position`, porque esos estilos no son fiables en todos los clientes de email.
+`RESERVATION_EMAIL_HERO_IMAGE_URL` debe apuntar preferiblemente a una imagen rectangular ya recortada al formato de cabecera del email. El template la renderiza como una imagen completa de ancho maximo `640px`, con `height:auto`, sin depender de curvas, transparencias, overlays, `background-image`, `object-fit` u otros trucos de maquetacion poco fiables en clientes de email.
 
 Cuando se busca maxima fidelidad al diseno aprobado, el asset de `RESERVATION_EMAIL_HERO_IMAGE_URL` debe ser una imagen precompuesta que ya incluya el logo Sikim integrado sobre la fotografia. En Supabase Storage se recomienda una ruta publica estable como:
 
 ```txt
 email-assets/reservation-confirmation/hero-with-logo.jpg
-```
-
-Si el asset usa una curva inferior, exportarlo con transparencia alfa real o con el mismo fondo crema final del email. No debe llevar un damero visible ni una zona blanca opaca distinta al fondo, porque eso rompe la continuidad visual entre hero y contenido. Para la version con curva transparente se puede usar una ruta publica como:
-
-```txt
-email-assets/reservation-confirmation/Hero w logo transparent.png
 ```
 
 Si el hero ya lleva el logo integrado, configurar tambien:
@@ -173,7 +169,7 @@ Con `RESERVATION_EMAIL_HERO_IMAGE_URL` y `RESERVATION_EMAIL_HERO_INCLUDES_LOGO=t
 
 Si `RESERVATION_EMAIL_HERO_INCLUDES_LOGO` falta o no es exactamente `true`, se mantiene el comportamiento compatible: el hero se renderiza arriba y el logo/fallback de marca se renderiza despues en una fila separada.
 
-El template no hace overlay del logo sobre el hero con CSS. No depender de `background-image`, `position:absolute`, `object-fit` u otros overlays avanzados en email, porque no son fiables entre clientes.
+El template no hace overlay del logo sobre el hero con CSS. Si no hay hero, se usa el fallback de marca del template. No depender de `background-image`, `position:absolute`, `object-fit` u otros overlays avanzados en email, porque no son fiables entre clientes.
 
 `RESERVATION_EMAIL_LOGO_IMAGE_URL` es opcional. Sirve como fallback para mostrar el logo por separado debajo del hero, o como cabecera de marca cuando no hay hero. No debe considerarse un mecanismo de overlay sobre la imagen principal.
 
@@ -184,9 +180,9 @@ Los iconos de Instagram, Facebook y WhatsApp tambien pueden apuntar a imagenes p
 - `RESERVATION_EMAIL_WHATSAPP_ICON_URL` para el icono WhatsApp del footer.
 - `RESERVATION_EMAIL_WHATSAPP_HELP_ICON_URL` para el icono verde del bloque de ayuda/cancelacion.
 
-La plantilla valida que esas variables sean URLs `http://` o `https://`. Si falta una URL o no es valida, el footer usa fallback textual `IG`, `FB` o `WA`; el bloque de ayuda usa fallback textual `WA`. Los enlaces de destino siguen siendo los enlaces oficiales de Instagram, Facebook y WhatsApp definidos en la plantilla.
+La plantilla valida que esas variables sean URLs `http://` o `https://`. Si falta una URL o no es valida, el footer usa fallback textual `IG`, `FB` o `WA`; el bloque de ayuda usa fallback textual `WA`. Para `Fecha`, `Hora`, `Personas` y `Como llegar` no se renderiza ningun icono decorativo: si no hay asset valido, simplemente no hay icono. Los enlaces de destino siguen siendo los enlaces oficiales de Instagram, Facebook y WhatsApp definidos en la plantilla.
 
-Los assets pueden vivir en Supabase Storage publico siempre que la URL final se configure como env var de servidor en Vercel o en el entorno local de prueba. No se deben commitear secrets ni URLs privadas.
+Los assets pueden vivir en Supabase Storage publico siempre que la URL final se configure como env var de servidor en Vercel o en el entorno local de prueba. No se usan icon fonts, librerias externas ni CDNs de iconos. No se deben commitear secrets ni URLs privadas.
 
 ## Contenido
 
@@ -201,7 +197,7 @@ Incluye:
 - CTA principal de ubicacion;
 - footer con Sikim Empuriabrava e Instagram, Facebook y WhatsApp.
 
-No incluye `Sala`, notas internas, alergias, comentarios, tracking, datos de facturacion ni IDs internos.
+No incluye `Sala`, `Ver reserva`, `Te esperamos`, notas internas, alergias, comentarios, tracking, datos de facturacion ni IDs internos.
 
 La frase "Te esperamos para disfrutar de una experiencia mediterranea unica" no forma parte de la plantilla.
 
