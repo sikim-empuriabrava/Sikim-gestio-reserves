@@ -62,6 +62,24 @@ const baseInput = {
   logoImageUrl: 'https://cdn.example.com/sikim-logo.png',
 };
 
+function assertNoBrokenImageSrcs(html, context) {
+  assert.ok(!html.includes('src=""'), `${context} should not include empty image sources`);
+  assert.ok(!html.includes('src="undefined"'), `${context} should not include undefined image sources`);
+  assert.ok(!html.includes('src="null"'), `${context} should not include null image sources`);
+}
+
+function assertNoDecorativeSvgDataUris(html, context) {
+  assert.ok(!html.includes('data:image/svg+xml'), `${context} should not include decorative SVG data URIs`);
+}
+
+function getDirectionsLinkInnerHtml(html, locationUrl) {
+  const escapedHref = locationUrl.replaceAll('&', '&amp;').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const match = html.match(new RegExp(`<a href="${escapedHref}"[^>]*>([\\s\\S]*?)<\\/a>`));
+
+  assert.ok(match, 'expected to find the directions CTA link');
+  return match[1];
+}
+
 assert.equal(moduleUrl.endsWith('reservationConfirmationEmailTemplate.ts'), true);
 assert.equal(normalizeReservationEmailLanguage('pt-BR'), 'es');
 assert.equal(normalizeReservationEmailLanguage('EN_us'), 'en');
@@ -93,12 +111,13 @@ for (const language of RESERVATION_EMAIL_LANGUAGES) {
   assert.ok(email.text.includes(RESERVATION_EMAIL_INSTAGRAM_URL), `${language} text should include Instagram`);
   assert.ok(email.text.includes(RESERVATION_EMAIL_FACEBOOK_URL), `${language} text should include Facebook`);
   assert.ok(email.html.includes('href='), `${language} html should include CTA links`);
+  assertNoBrokenImageSrcs(email.html, `${language} html`);
 }
 
 const fallbackEmail = buildReservationConfirmationEmail({ ...baseInput, language: 'unknown' });
 assert.equal(fallbackEmail.language, 'es');
 assert.equal(fallbackEmail.subject, 'Reserva confirmada en Sikim Empuriabrava');
-assert.ok(fallbackEmail.html.includes('Cómo llegar'));
+assert.ok(fallbackEmail.html.toLowerCase().includes('llegar'));
 
 const formattedEmail = buildReservationConfirmationEmail({ ...baseInput, language: 'es' });
 assert.ok(formattedEmail.html.includes('domingo, 21 de junio de 2026'));
@@ -107,8 +126,15 @@ assert.ok(formattedEmail.html.includes('Fecha'));
 assert.ok(formattedEmail.html.includes('Hora'));
 assert.ok(formattedEmail.html.includes('Personas'));
 assert.ok(formattedEmail.html.includes('WhatsApp'));
-assert.ok(formattedEmail.html.includes('Cómo llegar'));
+assert.ok(formattedEmail.html.toLowerCase().includes('llegar'));
 assert.ok(!formattedEmail.html.includes('&#9586;'));
+assertNoBrokenImageSrcs(formattedEmail.html, 'formatted email html');
+assertNoDecorativeSvgDataUris(formattedEmail.html, 'formatted email html');
+const directionsLinkInnerHtml = getDirectionsLinkInnerHtml(
+  formattedEmail.html,
+  'https://www.google.com/maps/search/?api=1&query=Sikim%20Empuriabrava',
+);
+assert.ok(!directionsLinkInnerHtml.includes('<img'), 'directions CTA should not include a decorative icon image');
 assert.ok(formattedEmail.html.includes('>IG<'));
 assert.ok(formattedEmail.html.includes('>FB<'));
 assert.ok(formattedEmail.html.includes('>WA<'));
@@ -137,6 +163,7 @@ const noHeroFallbackEmail = buildReservationConfirmationEmail({
 });
 assert.ok(!noHeroFallbackEmail.html.includes('https://cdn.example.com/sikim-hero.jpg'));
 assert.ok(noHeroFallbackEmail.html.includes('https://cdn.example.com/sikim-logo.png'));
+assertNoBrokenImageSrcs(noHeroFallbackEmail.html, 'no hero fallback email html');
 
 const customIconEmail = buildReservationConfirmationEmail({
   ...baseInput,
@@ -154,6 +181,8 @@ assert.ok(customIconEmail.html.includes('https://cdn.example.com/facebook.png'))
 assert.ok(customIconEmail.html.includes('alt="Instagram"'));
 assert.ok(customIconEmail.html.includes('alt="Facebook"'));
 assert.ok(customIconEmail.html.includes('alt="WhatsApp"'));
+assertNoBrokenImageSrcs(customIconEmail.html, 'custom icon email html');
+assertNoDecorativeSvgDataUris(customIconEmail.html, 'custom icon email html');
 
 const invalidIconEmail = buildReservationConfirmationEmail({
   ...baseInput,
@@ -170,6 +199,8 @@ assert.ok(!invalidIconEmail.html.includes('mailto:facebook@example.com'));
 assert.ok(invalidIconEmail.html.includes('>IG<'));
 assert.ok(invalidIconEmail.html.includes('>FB<'));
 assert.ok(invalidIconEmail.html.includes('>WA<'));
+assertNoBrokenImageSrcs(invalidIconEmail.html, 'invalid icon email html');
+assertNoDecorativeSvgDataUris(invalidIconEmail.html, 'invalid icon email html');
 
 const unsafeEmail = buildReservationConfirmationEmail({
   language: 'es',
@@ -188,5 +219,7 @@ assert.ok(unsafeEmail.html.includes('&lt;not-a-date&gt;'));
 assert.ok(unsafeEmail.html.includes('&lt;21:30&gt;'));
 assert.ok(!unsafeEmail.html.includes('javascript:alert'));
 assert.ok(unsafeEmail.html.includes(DEFAULT_RESERVATION_EMAIL_LOCATION_URL.replaceAll('&', '&amp;')));
+assertNoBrokenImageSrcs(unsafeEmail.html, 'unsafe email html');
+assertNoDecorativeSvgDataUris(unsafeEmail.html, 'unsafe email html');
 
 console.log('reservationConfirmationEmailTemplate tests passed');

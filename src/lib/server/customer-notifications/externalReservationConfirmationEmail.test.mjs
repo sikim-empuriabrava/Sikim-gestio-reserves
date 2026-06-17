@@ -87,6 +87,20 @@ function restoreGlobals() {
   globalThis.fetch = originalFetch;
 }
 
+function assertNoBrokenImageSrcs(html, context) {
+  assert.ok(!html.includes('src=""'), `${context} should not include empty image sources`);
+  assert.ok(!html.includes('src="undefined"'), `${context} should not include undefined image sources`);
+  assert.ok(!html.includes('src="null"'), `${context} should not include null image sources`);
+}
+
+function getDirectionsLinkInnerHtml(html, locationUrl) {
+  const escapedHref = locationUrl.replaceAll('&', '&amp;').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const match = html.match(new RegExp(`<a href="${escapedHref}"[^>]*>([\\s\\S]*?)<\\/a>`));
+
+  assert.ok(match, 'expected to find the directions CTA link in the Resend payload');
+  return match[1];
+}
+
 function createSupabaseDouble({
   reservation = {},
   submission = {},
@@ -349,6 +363,13 @@ test('on success sends html and text to Resend and records sent tracking with pr
     assert.ok(payload.html.includes('https://cdn.example.com/whatsapp.png'));
     assert.ok(payload.html.includes('https://cdn.example.com/instagram.png'));
     assert.ok(payload.html.includes('https://cdn.example.com/facebook.png'));
+    assert.ok(!payload.html.includes('data:image/svg+xml'));
+    assertNoBrokenImageSrcs(payload.html, 'Resend payload html');
+    const directionsLinkInnerHtml = getDirectionsLinkInnerHtml(
+      payload.html,
+      'https://www.google.com/maps/search/?api=1&query=Sikim%20Empuriabrava',
+    );
+    assert.ok(!directionsLinkInnerHtml.includes('<img'));
     assert.equal(request.init.headers['Idempotency-Key'], 'external-reservation-confirmation-group-event-1');
     assert.equal(supabase.updates.length, 1);
     assert.ok(supabase.updates[0].patch.confirmation_email_sent_at);
